@@ -146,18 +146,18 @@ const selectedStyle = isSelected ? 'background:rgba(212,175,55,0.3);border:2px s
 
 const journalRating = !isFuture ? getJournalWordRating(dateStr) : null;
 
-// ── WORD RATING: bigger, bolder, coloured glow ──
+// ── WORD RATING: dominant element, day number secondary ──
 const ratingHtml = journalRating
-  ? `<span style="display:block;font-size:10px;font-weight:900;letter-spacing:0.4px;color:${journalRating.colour};opacity:1;line-height:1.1;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-shadow:0 0 10px ${journalRating.colour}60;">${journalRating.label}</span>`
+  ? `<span style="display:block;font-size:13px;font-weight:900;letter-spacing:0.3px;color:${journalRating.colour};line-height:1;margin-top:1px;white-space:nowrap;text-shadow:0 0 12px ${journalRating.colour}80;">${journalRating.label}</span>`
   : '';
 
 cells += `<button class="calendar-day${isFuture?' future':''}${isSelected?' selected':''}"
 
-style="${baseStyle}${todayStyle}${selectedStyle}"
+style="min-height:76px;${baseStyle}${todayStyle}${selectedStyle}"
 
 onclick="selectEditDate('${dateStr}')" ${isFuture ? 'disabled' : ''}>
 
-<span class="cal-day-num">${day}</span>
+<span class="cal-day-num" style="font-size:${journalRating ? '10px' : '12px'};opacity:${journalRating ? '0.5' : '1'};">${day}</span>
 
 ${ratingHtml}
 
