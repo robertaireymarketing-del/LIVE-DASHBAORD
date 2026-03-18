@@ -84,12 +84,7 @@ function computeJournalStreak() {
     const key = keyFromDate(check);
     const m = getJournalEntry(key, 'morning');
     const e = getJournalEntry(key, 'evening');
-    if (m?.complete && e?.complete) {
-      streak++;
-      check.setDate(check.getDate() - 1);
-    } else {
-      break;
-    }
+    if (m?.complete && e?.complete) { streak++; check.setDate(check.getDate() - 1); } else { break; }
   }
   return streak;
 }
@@ -104,9 +99,7 @@ function updateStreakDisplay() {
   const todayEComplete = !!todayE?.complete;
   const bothComplete = todayMComplete && todayEComplete;
   const warning = (!todayMComplete || !todayEComplete);
-  const warningHtml = warning
-    ? `<span style="color:#e74c3c;margin-left:6px;" title="${!todayMComplete ? 'Morning journal incomplete' : 'Evening journal incomplete'}">⚠️</span>`
-    : '';
+  const warningHtml = warning ? `<span style="color:#e74c3c;margin-left:6px;" title="${!todayMComplete ? 'Morning journal incomplete' : 'Evening journal incomplete'}">⚠️</span>` : '';
   streakEl.innerHTML = `<span style="font-size:22px;font-weight:900;color:${bothComplete ? '#2ecc71' : '#C9A84C'};">${streak}</span><span style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);margin-left:4px;">day streak</span>${warningHtml}`;
 }
 
@@ -119,10 +112,7 @@ function updateWeekMission() {
     weekMissionEl.innerHTML = `<span style="opacity:0.4;font-style:italic;">No objectives set for this week</span>`;
   } else {
     weekMissionEl.innerHTML = objs.map(o =>
-      `<div class="journal-mission-obj${o.done?' done':''}">` +
-      `<span class="journal-mission-tick">${o.done ? '✓' : '◯'}</span>` +
-      `<span class="journal-mission-text">${o.text}</span>` +
-      `</div>`
+      `<div class="journal-mission-obj${o.done?' done':''}"><span class="journal-mission-tick">${o.done ? '✓' : '◯'}</span><span class="journal-mission-text">${o.text}</span></div>`
     ).join('');
   }
 }
@@ -144,6 +134,90 @@ function updateAverageNotes(){
   eveningAveragesNote.textContent=`Vs last week: ${formatAvg(avgs.eveningLastWeek,30)} · Vs month: ${formatAvg(avgs.eveningMonth,30)}`;
 }
 
+// ── SCORE BREAKDOWN MODAL ─────────────────────────────────────────────────────
+function showScoreBreakdownModal(data) {
+  const existing = document.getElementById('scoreBreakdownModal');
+  if (existing) existing.remove();
+
+  const { status, colour, totalScore, pillarScore, tier2Score, tier3Score, pillars, tier2Items, tier3Items, anyPillarFailed } = data;
+
+  const pillarRows = pillars.map(p =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.85);">${p.label}</span>
+      <span style="font-size:12px;font-weight:800;padding:2px 10px;border-radius:8px;background:${p.done?'rgba(46,204,113,0.15)':'rgba(231,76,60,0.15)'};color:${p.done?'#2ecc71':'#e74c3c'};">${p.done?'✓ Done':'✗ Missed'}</span>
+    </div>`
+  ).join('');
+
+  const actionRows = tier2Items.map(p =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.85);">${p.label}</span>
+      <span style="font-size:12px;font-weight:800;color:#C9A84C;">${p.value}/5</span>
+    </div>`
+  ).join('');
+
+  const stateRows = tier3Items.map(p =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.85);">${p.label}</span>
+      <span style="font-size:12px;font-weight:800;color:rgba(255,255,255,0.5);">${p.value}/5</span>
+    </div>`
+  ).join('');
+
+  const capNote = anyPillarFailed
+    ? `<div style="margin-top:14px;padding:10px 14px;border-radius:10px;background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.3);font-size:12px;font-weight:700;color:#e74c3c;line-height:1.5;">
+        ⚠️ Word rating capped at <strong>OFF TRACK</strong> — one or more non-negotiable pillars missed. Hit all 4 to unlock your true word.
+       </div>`
+    : '';
+
+  const modal = document.createElement('div');
+  modal.id = 'scoreBreakdownModal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);';
+  modal.innerHTML = `
+    <div style="width:100%;max-width:480px;background:#1a1f2e;border-radius:20px 20px 0 0;padding:24px 20px 36px;max-height:85vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+        <div>
+          <div style="font-size:26px;font-weight:900;color:${colour};letter-spacing:-0.5px;">${status}</div>
+          <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.4);margin-top:2px;">Score breakdown · ${totalScore}/100</div>
+        </div>
+        <button id="closeScoreModal" style="background:rgba(255,255,255,0.08);border:none;border-radius:50%;width:34px;height:34px;font-size:18px;color:rgba(255,255,255,0.6);cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      </div>
+
+      <div style="height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;margin-bottom:22px;">
+        <div style="height:100%;width:${Math.min(100,totalScore)}%;background:${colour};border-radius:3px;"></div>
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+          <span style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.35);text-transform:uppercase;">Tier 1 · Non-Negotiable Pillars</span>
+          <span style="font-size:14px;font-weight:900;color:${anyPillarFailed?'#e74c3c':'#2ecc71'};">${pillarScore}/40</span>
+        </div>
+        ${pillarRows}
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+          <span style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.35);text-transform:uppercase;">Tier 2 · Controllable Actions</span>
+          <span style="font-size:14px;font-weight:900;color:#C9A84C;">${tier2Score}/40</span>
+        </div>
+        ${actionRows}
+      </div>
+
+      <div style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+          <span style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.35);text-transform:uppercase;">Tier 3 · State &amp; Feeling</span>
+          <span style="font-size:14px;font-weight:900;color:rgba(255,255,255,0.5);">${tier3Score}/20</span>
+        </div>
+        ${stateRows}
+      </div>
+
+      ${capNote}
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.getElementById('closeScoreModal').addEventListener('click', () => modal.remove());
+}
+
 function updateBestVersionPercent(){
   const dateKey = keyFromDate(currentDate);
   const todayData = deps.state.data?.days?.[dateKey] || {};
@@ -154,78 +228,78 @@ function updateBestVersionPercent(){
   const meditateDone  = !!todayData.meditation;
   const sleepOnTime   = Number(eveningFields.sleepprep?.value || 0) >= 4;
 
-  const pillarScore = (gymDone ? 10 : 0) + (retentionDone ? 10 : 0) + (meditateDone ? 10 : 0) + (sleepOnTime ? 10 : 0);
+  const pillarScore = (gymDone?10:0) + (retentionDone?10:0) + (meditateDone?10:0) + (sleepOnTime?10:0);
   const anyPillarFailed = !gymDone || !retentionDone || !meditateDone || !sleepOnTime;
 
+  const pillars = [
+    { label: 'Gym',                        done: gymDone       },
+    { label: 'Retention',                  done: retentionDone },
+    { label: 'Meditate',                   done: meditateDone  },
+    { label: 'Sleep on time (prep ≥ 4/5)', done: sleepOnTime   },
+  ];
+
   // ── TIER 2: Controllable Actions (40 pts) ─────────────────────────────────
-  // Evening: execution, discipline, dopamine, physical, builder (5 × max 5 = 25)
-  // Morning: goal clarity (1 × max 5 = 5) — raw max 30, normalised to 40
-  const tier2Raw =
-    Number(eveningFields.execution?.value || 0) +
-    Number(eveningFields.discipline?.value || 0) +
-    Number(eveningFields.dopamine?.value  || 0) +
-    Number(eveningFields.physical?.value  || 0) +
-    Number(eveningFields.builder?.value   || 0) +
-    Number(morningFields.clarity?.value   || 0);
+  const tier2Items = [
+    { label: 'Mission Execution',     value: Number(eveningFields.execution?.value  || 0) },
+    { label: 'Self Discipline',       value: Number(eveningFields.discipline?.value || 0) },
+    { label: 'Dopamine Discipline',   value: Number(eveningFields.dopamine?.value   || 0) },
+    { label: 'Physical Standard',     value: Number(eveningFields.physical?.value   || 0) },
+    { label: 'Builder / CEO Mindset', value: Number(eveningFields.builder?.value    || 0) },
+    { label: 'Goal Clarity (AM)',     value: Number(morningFields.clarity?.value    || 0) },
+  ];
+  const tier2Raw = tier2Items.reduce((s,i) => s + i.value, 0);
   const tier2Score = Math.round((tier2Raw / 30) * 40);
 
-  // ── TIER 3: State & Feeling Metrics (20 pts) ──────────────────────────────
-  // Morning: rested, sharpness, calm, motivation, drive (5 × max 5 = 25)
-  // Normalised to 20 — you can't fully control how you wake up
-  const tier3Raw =
-    Number(morningFields.rested?.value     || 0) +
-    Number(morningFields.sharpness?.value  || 0) +
-    Number(morningFields.calm?.value       || 0) +
-    Number(morningFields.motivation?.value || 0) +
-    Number(morningFields.drive?.value      || 0);
+  // ── TIER 3: State & Feeling (20 pts) ──────────────────────────────────────
+  const tier3Items = [
+    { label: 'Rested',           value: Number(morningFields.rested?.value     || 0) },
+    { label: 'Mental Sharpness', value: Number(morningFields.sharpness?.value  || 0) },
+    { label: 'Calmness',         value: Number(morningFields.calm?.value       || 0) },
+    { label: 'Motivation',       value: Number(morningFields.motivation?.value || 0) },
+    { label: 'Sex Drive',        value: Number(morningFields.drive?.value      || 0) },
+  ];
+  const tier3Raw = tier3Items.reduce((s,i) => s + i.value, 0);
   const tier3Score = Math.round((tier3Raw / 25) * 20);
 
   const totalScore = pillarScore + tier2Score + tier3Score;
 
-  // ── WORD LABEL: hard capped at OFF TRACK if any pillar missed ─────────────
+  // ── WORD LABEL ─────────────────────────────────────────────────────────────
   let status, colour;
-  if (anyPillarFailed) {
-    status = 'OFF TRACK'; colour = '#e74c3c';
-  } else if (totalScore >= 95) {
-    status = 'SOVEREIGN'; colour = '#D4AF37';
-  } else if (totalScore >= 85) {
-    status = 'LOCKED IN'; colour = '#2ecc71';
-  } else if (totalScore >= 75) {
-    status = 'BUILDING';  colour = '#3498db';
-  } else if (totalScore >= 65) {
-    status = 'AVERAGE';   colour = '#f39c12';
-  } else if (totalScore >= 50) {
-    status = 'DRIFTING';  colour = '#e67e22';
-  } else {
-    status = 'OFF TRACK'; colour = '#e74c3c';
-  }
+  if (anyPillarFailed)       { status = 'OFF TRACK'; colour = '#e74c3c'; }
+  else if (totalScore >= 95) { status = 'SOVEREIGN'; colour = '#D4AF37'; }
+  else if (totalScore >= 85) { status = 'LOCKED IN'; colour = '#2ecc71'; }
+  else if (totalScore >= 75) { status = 'BUILDING';  colour = '#3498db'; }
+  else if (totalScore >= 65) { status = 'AVERAGE';   colour = '#f39c12'; }
+  else if (totalScore >= 50) { status = 'DRIFTING';  colour = '#e67e22'; }
+  else                       { status = 'OFF TRACK'; colour = '#e74c3c'; }
 
-  // ── PILLAR BADGES ─────────────────────────────────────────────────────────
-  const pillars = [
-    { label: 'Gym',       done: gymDone       },
-    { label: 'Retention', done: retentionDone },
-    { label: 'Meditate',  done: meditateDone  },
-    { label: 'Sleep',     done: sleepOnTime   },
-  ];
+  // ── PILLAR BADGES ──────────────────────────────────────────────────────────
   const pillarHtml = pillars.map(p =>
     `<span style="font-size:9px;font-weight:800;letter-spacing:0.5px;padding:2px 7px;border-radius:10px;` +
-    `background:${p.done ? 'rgba(46,204,113,0.15)' : 'rgba(231,76,60,0.15)'};` +
-    `color:${p.done ? '#2ecc71' : '#e74c3c'};` +
-    `border:1px solid ${p.done ? 'rgba(46,204,113,0.3)' : 'rgba(231,76,60,0.3)'};">` +
-    `${p.done ? '✓' : '✗'} ${p.label}</span>`
+    `background:${p.done?'rgba(46,204,113,0.15)':'rgba(231,76,60,0.15)'};` +
+    `color:${p.done?'#2ecc71':'#e74c3c'};` +
+    `border:1px solid ${p.done?'rgba(46,204,113,0.3)':'rgba(231,76,60,0.3)'};">` +
+    `${p.done?'✓':'✗'} ${p.label.split(' ')[0]}</span>`
   ).join('');
 
-  // ── SCORE BREAKDOWN ───────────────────────────────────────────────────────
   const breakdownHtml =
     `<span style="font-size:9px;color:rgba(255,255,255,0.25);font-weight:700;">` +
     `Pillars ${pillarScore}/40 · Actions ${tier2Score}/40 · State ${tier3Score}/20` +
     `</span>`;
+
+  // Snapshot for modal
+  const scoreSnapshot = { status, colour, totalScore, pillarScore, tier2Score, tier3Score, pillars, tier2Items, tier3Items, anyPillarFailed };
+
+  bestVersionScore.style.cursor = 'pointer';
+  bestVersionScore.title = 'Tap to see full breakdown';
+  bestVersionScore.onclick = () => showScoreBreakdownModal(scoreSnapshot);
 
   bestVersionScore.innerHTML =
     `<div style="width:100%;">` +
       `<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;">` +
         `<span style="font-size:30px;font-weight:900;color:${colour};letter-spacing:-0.5px;">${status}</span>` +
         `<span style="font-size:15px;font-weight:800;color:${colour};opacity:0.8;">${totalScore}/100</span>` +
+        `<span style="font-size:10px;color:rgba(255,255,255,0.2);font-weight:600;margin-left:auto;">tap for breakdown ↗</span>` +
       `</div>` +
       `<div style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;margin-bottom:8px;">` +
         `<div style="height:100%;width:${Math.min(100,totalScore)}%;background:${colour};border-radius:2px;transition:width 0.4s;"></div>` +
@@ -334,21 +408,11 @@ document.getElementById('journalCollapseEveningBtn').addEventListener('click', t
 document.getElementById('journalCollapseEveningBtnBottom').addEventListener('click', toggleEvening);
 
 openMorningBtn.addEventListener('click', () => {
-  if (morningCard.classList.contains('journal-collapsed')) {
-    toggleMorning();
-  } else {
-    saveMorning();
-    toggleMorning();
-  }
+  if (morningCard.classList.contains('journal-collapsed')) { toggleMorning(); } else { saveMorning(); toggleMorning(); }
 });
 
 openEveningBtn.addEventListener('click', () => {
-  if (eveningCard.classList.contains('journal-collapsed')) {
-    toggleEvening();
-  } else {
-    saveEvening();
-    toggleEvening();
-  }
+  if (eveningCard.classList.contains('journal-collapsed')) { toggleEvening(); } else { saveEvening(); toggleEvening(); }
 });
 
 if (jumpTodayBtn) {
