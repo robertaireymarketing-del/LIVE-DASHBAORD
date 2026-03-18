@@ -25,6 +25,7 @@ const eveningSavedPill = document.getElementById('journalEveningSavedPill');
 const eveningScoreValue = document.getElementById('journalEveningScoreValue');
 
 let currentDate = new Date(((deps.state.journalDate) || deps.getToday()) + 'T12:00:00');
+let tjmSalesActive = false;
 
 const morningFields = {
   rested: document.getElementById('journal-rested-range'), sharpness: document.getElementById('journal-sharpness-range'), calm: document.getElementById('journal-calm-range'), motivation: document.getElementById('journal-motivation-range'), clarity: document.getElementById('journal-clarity-range'), drive: document.getElementById('journal-drive-range'),
@@ -42,6 +43,20 @@ const eveningBindings = [['execution','journal-execution-val'],['discipline','jo
 const keyFromDate = d => d.toISOString().split('T')[0];
 const isFilled = v => String(v || '').trim().length > 0;
 const isToday = () => keyFromDate(currentDate) === deps.getToday();
+
+// ── TJM SALES TOGGLE ──────────────────────────────────────────────────────────
+const tjmToggleBtn = document.getElementById('journalTjmSalesToggle');
+if (tjmToggleBtn) {
+  tjmToggleBtn.addEventListener('click', () => {
+    tjmSalesActive = !tjmSalesActive;
+    tjmToggleBtn.dataset.active = tjmSalesActive ? 'true' : 'false';
+    tjmToggleBtn.textContent = tjmSalesActive ? 'YES ✓' : 'NO';
+    tjmToggleBtn.style.background   = tjmSalesActive ? 'rgba(46,204,113,0.15)' : 'rgba(201,168,76,0.08)';
+    tjmToggleBtn.style.borderColor  = tjmSalesActive ? 'rgba(46,204,113,0.4)'  : 'rgba(201,168,76,0.4)';
+    tjmToggleBtn.style.color        = tjmSalesActive ? '#2ecc71' : '#C9A84C';
+    updateBestVersionPercent();
+  });
+}
 
 const formatDateDisplay = d => {
   dayName.textContent = d.toLocaleDateString('en-GB',{weekday:'long'});
@@ -139,63 +154,101 @@ function showScoreBreakdownModal(data) {
   const existing = document.getElementById('scoreBreakdownModal');
   if (existing) existing.remove();
 
-  const { status, colour, totalScore, pillarScore, tier2Score, tier3Score, pillars, tier2Items, tier3Items, anyPillarFailed } = data;
+  const isLight = deps.state.theme === 'light';
+  const bg          = isLight ? '#ffffff'              : '#1a1f2e';
+  const border      = isLight ? 'rgba(0,0,0,0.08)'    : 'rgba(255,255,255,0.06)';
+  const labelColor  = isLight ? '#1a1f2e'              : 'rgba(255,255,255,0.85)';
+  const subColor    = isLight ? 'rgba(0,0,0,0.45)'     : 'rgba(255,255,255,0.35)';
+  const dimColor    = isLight ? 'rgba(0,0,0,0.3)'      : 'rgba(255,255,255,0.25)';
+  const closeBg     = isLight ? 'rgba(0,0,0,0.06)'     : 'rgba(255,255,255,0.08)';
+  const closeColor  = isLight ? '#444'                 : 'rgba(255,255,255,0.6)';
+  const overlayBg   = isLight ? 'rgba(0,0,0,0.3)'      : 'rgba(0,0,0,0.6)';
+  const barBg       = isLight ? 'rgba(0,0,0,0.08)'     : 'rgba(255,255,255,0.08)';
+  const dividerBg   = isLight ? 'rgba(0,0,0,0.08)'     : 'rgba(255,255,255,0.08)';
+
+  const { status, colour, totalScore, pillarScore, tier2Score, tier3Score, tjmScore,
+          pillars, tier2Items, tier3Items, tjmDone, anyHardPillarFailed, meditationMissed, gymConsecutiveMiss } = data;
 
   const pillarRows = pillars.map(p =>
-    `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
-      <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.85);">${p.label}</span>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid ${border};">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:${labelColor};">${p.label}</div>
+        ${p.note ? `<div style="font-size:10px;font-weight:600;color:${p.done?'rgba(46,204,113,0.7)':'#e74c3c'};margin-top:1px;">${p.note}</div>` : ''}
+      </div>
       <span style="font-size:12px;font-weight:800;padding:2px 10px;border-radius:8px;background:${p.done?'rgba(46,204,113,0.15)':'rgba(231,76,60,0.15)'};color:${p.done?'#2ecc71':'#e74c3c'};">${p.done?'✓ Done':'✗ Missed'}</span>
     </div>`
   ).join('');
 
   const actionRows = tier2Items.map(p =>
-    `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
-      <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.85);">${p.label}</span>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid ${border};">
+      <span style="font-size:13px;font-weight:700;color:${labelColor};">${p.label}</span>
       <span style="font-size:12px;font-weight:800;color:#C9A84C;">${p.value}/5</span>
     </div>`
   ).join('');
 
   const stateRows = tier3Items.map(p =>
-    `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
-      <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.85);">${p.label}</span>
-      <span style="font-size:12px;font-weight:800;color:rgba(255,255,255,0.5);">${p.value}/5</span>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid ${border};">
+      <span style="font-size:13px;font-weight:700;color:${labelColor};">${p.label}</span>
+      <span style="font-size:12px;font-weight:800;color:${subColor};">${p.value}/5</span>
     </div>`
   ).join('');
 
-  const capNote = anyPillarFailed
-    ? `<div style="margin-top:14px;padding:10px 14px;border-radius:10px;background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.3);font-size:12px;font-weight:700;color:#e74c3c;line-height:1.5;">
-        ⚠️ Word rating capped at <strong>OFF TRACK</strong> — one or more non-negotiable pillars missed. Hit all 4 to unlock your true word.
-       </div>`
-    : '';
+  let capNoteHtml = '';
+  if (gymConsecutiveMiss) {
+    capNoteHtml = `<div style="margin-top:10px;padding:10px 14px;border-radius:10px;background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.3);font-size:12px;font-weight:700;color:#e74c3c;line-height:1.5;">⚠️ <strong>Gym missed 2 days in a row</strong> — word capped at SURRENDER regardless of score.</div>`;
+  } else if (anyHardPillarFailed) {
+    capNoteHtml = `<div style="margin-top:10px;padding:10px 14px;border-radius:10px;background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.3);font-size:12px;font-weight:700;color:#e74c3c;line-height:1.5;">⚠️ <strong>Non-negotiable pillar missed</strong> (Retention or Sleep) — word capped at SURRENDER.</div>`;
+  } else if (meditationMissed) {
+    capNoteHtml = `<div style="margin-top:10px;padding:10px 14px;border-radius:10px;background:rgba(243,156,18,0.1);border:1px solid rgba(243,156,18,0.3);font-size:12px;font-weight:700;color:#f39c12;line-height:1.5;">⚠️ <strong>Meditation missed</strong> — word capped at AVERAGE max. Hit all 4 pillars to unlock ADVANCING and above.</div>`;
+  }
+
+  // ── Word bands reference table ─────────────────────────────────────────────
+  const bands = [
+    { word: 'SOVEREIGN',  range: '90–100', cond: 'All pillars + meditation hit',                               c: '#D4AF37' },
+    { word: 'LOCKED IN',  range: '80–89',  cond: 'All pillars + meditation hit',                               c: '#2ecc71' },
+    { word: 'ADVANCING',  range: '67–79',  cond: 'All pillars + meditation hit',                               c: '#3498db' },
+    { word: 'AVERAGE',    range: '53–66',  cond: 'Gym / Retention / Sleep hit (meditation optional)',          c: '#f39c12' },
+    { word: 'RETREATING', range: '35–52',  cond: 'Gym / Retention / Sleep hit, poor execution',               c: '#e67e22' },
+    { word: 'SURRENDER',  range: 'Below 35', cond: 'Or: Retention/Sleep missed, or Gym missed 2 days in a row', c: '#e74c3c' },
+  ];
+
+  const bandsRows = bands.map(b =>
+    `<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid ${border};">
+      <span style="font-size:11px;font-weight:900;min-width:80px;color:${b.c};">${b.word}</span>
+      <span style="font-size:11px;font-weight:700;min-width:52px;color:${subColor};">${b.range}</span>
+      <span style="font-size:11px;font-weight:600;color:${dimColor};flex:1;line-height:1.4;">${b.cond}</span>
+    </div>`
+  ).join('');
 
   const modal = document.createElement('div');
   modal.id = 'scoreBreakdownModal';
-  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);';
+  modal.style.cssText = `position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-end;justify-content:center;background:${overlayBg};backdrop-filter:blur(4px);`;
   modal.innerHTML = `
-    <div style="width:100%;max-width:480px;background:#1a1f2e;border-radius:20px 20px 0 0;padding:24px 20px 36px;max-height:85vh;overflow-y:auto;">
+    <div style="width:100%;max-width:480px;background:${bg};border-radius:20px 20px 0 0;padding:24px 20px 36px;max-height:88vh;overflow-y:auto;">
+
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
         <div>
           <div style="font-size:26px;font-weight:900;color:${colour};letter-spacing:-0.5px;">${status}</div>
-          <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.4);margin-top:2px;">Score breakdown · ${totalScore}/100</div>
+          <div style="font-size:13px;font-weight:700;color:${subColor};margin-top:2px;">Score breakdown · ${totalScore}/100</div>
         </div>
-        <button id="closeScoreModal" style="background:rgba(255,255,255,0.08);border:none;border-radius:50%;width:34px;height:34px;font-size:18px;color:rgba(255,255,255,0.6);cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+        <button id="closeScoreModal" style="background:${closeBg};border:none;border-radius:50%;width:34px;height:34px;font-size:18px;color:${closeColor};cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
       </div>
 
-      <div style="height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;margin-bottom:22px;">
+      <div style="height:5px;background:${barBg};border-radius:3px;overflow:hidden;margin-bottom:22px;">
         <div style="height:100%;width:${Math.min(100,totalScore)}%;background:${colour};border-radius:3px;"></div>
       </div>
 
       <div style="margin-bottom:20px;">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
-          <span style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.35);text-transform:uppercase;">Tier 1 · Non-Negotiable Pillars</span>
-          <span style="font-size:14px;font-weight:900;color:${anyPillarFailed?'#e74c3c':'#2ecc71'};">${pillarScore}/40</span>
+          <span style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:${subColor};text-transform:uppercase;">Tier 1 · Pillars</span>
+          <span style="font-size:14px;font-weight:900;color:${anyHardPillarFailed||gymConsecutiveMiss?'#e74c3c':'#2ecc71'};">${pillarScore}/35</span>
         </div>
         ${pillarRows}
       </div>
 
       <div style="margin-bottom:20px;">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
-          <span style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.35);text-transform:uppercase;">Tier 2 · Controllable Actions</span>
+          <span style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:${subColor};text-transform:uppercase;">Tier 2 · Controllable Actions</span>
           <span style="font-size:14px;font-weight:900;color:#C9A84C;">${tier2Score}/40</span>
         </div>
         ${actionRows}
@@ -203,13 +256,30 @@ function showScoreBreakdownModal(data) {
 
       <div style="margin-bottom:20px;">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
-          <span style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.35);text-transform:uppercase;">Tier 3 · State &amp; Feeling</span>
-          <span style="font-size:14px;font-weight:900;color:rgba(255,255,255,0.5);">${tier3Score}/20</span>
+          <span style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:${subColor};text-transform:uppercase;">Tier 3 · State &amp; Feeling</span>
+          <span style="font-size:14px;font-weight:900;color:${subColor};">${tier3Score}/20</span>
         </div>
         ${stateRows}
       </div>
 
-      ${capNote}
+      <div style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+          <span style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:${subColor};text-transform:uppercase;">Bonus · TJM Sales Action</span>
+          <span style="font-size:14px;font-weight:900;color:${tjmDone?'#2ecc71':subColor};">${tjmScore}/5</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid ${border};">
+          <span style="font-size:13px;font-weight:700;color:${labelColor};">Sales action taken today</span>
+          <span style="font-size:12px;font-weight:800;padding:2px 10px;border-radius:8px;background:${tjmDone?'rgba(46,204,113,0.15)':'rgba(0,0,0,0.06)'};color:${tjmDone?'#2ecc71':subColor};">${tjmDone?'✓ Yes':'✗ No'}</span>
+        </div>
+      </div>
+
+      ${capNoteHtml}
+
+      <div style="margin-top:22px;padding-top:16px;border-top:2px solid ${dividerBg};">
+        <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:${subColor};text-transform:uppercase;margin-bottom:10px;">Word Bands Reference</div>
+        ${bandsRows}
+      </div>
+
     </div>
   `;
 
@@ -222,23 +292,36 @@ function updateBestVersionPercent(){
   const dateKey = keyFromDate(currentDate);
   const todayData = deps.state.data?.days?.[dateKey] || {};
 
-  // ── TIER 1: Non-Negotiable Pillars (40 pts, 10 each) ──────────────────────
-  const gymDone       = !!todayData.gym;
+  // Yesterday for consecutive gym check
+  const yesterday = new Date(currentDate);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayData = deps.state.data?.days?.[keyFromDate(yesterday)] || {};
+
+  const gymDone            = !!todayData.gym;
+  const gymMissedYesterday = !yesterdayData.gym;
+  const gymConsecutiveMiss = !gymDone && gymMissedYesterday;
+
   const retentionDone = !!todayData.retention;
   const meditateDone  = !!todayData.meditation;
   const sleepOnTime   = Number(eveningFields.sleepprep?.value || 0) >= 4;
 
-  const pillarScore = (gymDone?10:0) + (retentionDone?10:0) + (meditateDone?10:0) + (sleepOnTime?10:0);
-  const anyPillarFailed = !gymDone || !retentionDone || !meditateDone || !sleepOnTime;
+  const gymPts       = gymDone ? 10 : 0;
+  const retentionPts = retentionDone ? 10 : 0;
+  const sleepPts     = sleepOnTime ? 10 : 0;
+  const meditatePts  = meditateDone ? 5 : 0;
+  const pillarScore  = gymPts + retentionPts + sleepPts + meditatePts;
+
+  const anyHardPillarFailed = !retentionDone || !sleepOnTime;
+  const meditationMissed    = !meditateDone;
 
   const pillars = [
-    { label: 'Gym',                        done: gymDone       },
-    { label: 'Retention',                  done: retentionDone },
-    { label: 'Meditate',                   done: meditateDone  },
-    { label: 'Sleep on time (prep ≥ 4/5)', done: sleepOnTime   },
+    { label: 'Gym (10pts)',                        done: gymDone,       note: gymConsecutiveMiss ? '⚠ 2nd missed day — SURRENDER' : (!gymDone ? '1 rest day allowed' : '') },
+    { label: 'Retention (10pts)',                  done: retentionDone  },
+    { label: 'Sleep on time — prep ≥ 4/5 (10pts)', done: sleepOnTime   },
+    { label: 'Meditation (5pts)',                  done: meditateDone,  note: !meditateDone ? 'caps word at AVERAGE max' : '' },
   ];
 
-  // ── TIER 2: Controllable Actions (40 pts) ─────────────────────────────────
+  // ── TIER 2: Controllable Actions (40pts) ─────────────────────────────────
   const tier2Items = [
     { label: 'Mission Execution',     value: Number(eveningFields.execution?.value  || 0) },
     { label: 'Self Discipline',       value: Number(eveningFields.discipline?.value || 0) },
@@ -247,10 +330,10 @@ function updateBestVersionPercent(){
     { label: 'Builder / CEO Mindset', value: Number(eveningFields.builder?.value    || 0) },
     { label: 'Goal Clarity (AM)',     value: Number(morningFields.clarity?.value    || 0) },
   ];
-  const tier2Raw = tier2Items.reduce((s,i) => s + i.value, 0);
+  const tier2Raw   = tier2Items.reduce((s,i) => s + i.value, 0);
   const tier2Score = Math.round((tier2Raw / 30) * 40);
 
-  // ── TIER 3: State & Feeling (20 pts) ──────────────────────────────────────
+  // ── TIER 3: State & Feeling (20pts) ──────────────────────────────────────
   const tier3Items = [
     { label: 'Rested',           value: Number(morningFields.rested?.value     || 0) },
     { label: 'Mental Sharpness', value: Number(morningFields.sharpness?.value  || 0) },
@@ -258,37 +341,53 @@ function updateBestVersionPercent(){
     { label: 'Motivation',       value: Number(morningFields.motivation?.value || 0) },
     { label: 'Sex Drive',        value: Number(morningFields.drive?.value      || 0) },
   ];
-  const tier3Raw = tier3Items.reduce((s,i) => s + i.value, 0);
+  const tier3Raw   = tier3Items.reduce((s,i) => s + i.value, 0);
   const tier3Score = Math.round((tier3Raw / 25) * 20);
 
-  const totalScore = pillarScore + tier2Score + tier3Score;
+  // ── TJM SALES (5pts) ─────────────────────────────────────────────────────
+  const tjmDone  = tjmSalesActive;
+  const tjmScore = tjmDone ? 5 : 0;
+
+  const totalScore = pillarScore + tier2Score + tier3Score + tjmScore;
 
   // ── WORD LABEL ─────────────────────────────────────────────────────────────
   let status, colour;
-  if (anyPillarFailed)       { status = 'OFF TRACK'; colour = '#e74c3c'; }
-  else if (totalScore >= 95) { status = 'SOVEREIGN'; colour = '#D4AF37'; }
-  else if (totalScore >= 85) { status = 'LOCKED IN'; colour = '#2ecc71'; }
-  else if (totalScore >= 75) { status = 'BUILDING';  colour = '#3498db'; }
-  else if (totalScore >= 65) { status = 'AVERAGE';   colour = '#f39c12'; }
-  else if (totalScore >= 50) { status = 'DRIFTING';  colour = '#e67e22'; }
-  else                       { status = 'OFF TRACK'; colour = '#e74c3c'; }
+  if (gymConsecutiveMiss || anyHardPillarFailed || totalScore < 35) {
+    status = 'SURRENDER'; colour = '#e74c3c';
+  } else if (meditationMissed) {
+    if      (totalScore >= 53) { status = 'AVERAGE';    colour = '#f39c12'; }
+    else if (totalScore >= 35) { status = 'RETREATING'; colour = '#e67e22'; }
+    else                       { status = 'SURRENDER';  colour = '#e74c3c'; }
+  } else if (totalScore >= 90) { status = 'SOVEREIGN';  colour = '#D4AF37'; }
+  else if   (totalScore >= 80) { status = 'LOCKED IN';  colour = '#2ecc71'; }
+  else if   (totalScore >= 67) { status = 'ADVANCING';  colour = '#3498db'; }
+  else if   (totalScore >= 53) { status = 'AVERAGE';    colour = '#f39c12'; }
+  else if   (totalScore >= 35) { status = 'RETREATING'; colour = '#e67e22'; }
+  else                         { status = 'SURRENDER';  colour = '#e74c3c'; }
 
-  // ── PILLAR BADGES ──────────────────────────────────────────────────────────
-  const pillarHtml = pillars.map(p =>
+  // ── PILLAR BADGES ─────────────────────────────────────────────────────────
+  const badgePillars = [
+    { label: 'Gym',       done: gymDone && !gymConsecutiveMiss },
+    { label: 'Retention', done: retentionDone },
+    { label: 'Meditate',  done: meditateDone  },
+    { label: 'Sleep',     done: sleepOnTime   },
+    { label: 'TJM',       done: tjmDone       },
+  ];
+  const pillarHtml = badgePillars.map(p =>
     `<span style="font-size:9px;font-weight:800;letter-spacing:0.5px;padding:2px 7px;border-radius:10px;` +
     `background:${p.done?'rgba(46,204,113,0.15)':'rgba(231,76,60,0.15)'};` +
     `color:${p.done?'#2ecc71':'#e74c3c'};` +
     `border:1px solid ${p.done?'rgba(46,204,113,0.3)':'rgba(231,76,60,0.3)'};">` +
-    `${p.done?'✓':'✗'} ${p.label.split(' ')[0]}</span>`
+    `${p.done?'✓':'✗'} ${p.label}</span>`
   ).join('');
 
   const breakdownHtml =
     `<span style="font-size:9px;color:rgba(255,255,255,0.25);font-weight:700;">` +
-    `Pillars ${pillarScore}/40 · Actions ${tier2Score}/40 · State ${tier3Score}/20` +
+    `Pillars ${pillarScore}/35 · Actions ${tier2Score}/40 · State ${tier3Score}/20 · TJM ${tjmScore}/5` +
     `</span>`;
 
-  // Snapshot for modal
-  const scoreSnapshot = { status, colour, totalScore, pillarScore, tier2Score, tier3Score, pillars, tier2Items, tier3Items, anyPillarFailed };
+  const scoreSnapshot = { status, colour, totalScore, pillarScore, tier2Score, tier3Score, tjmScore,
+    pillars, tier2Items, tier3Items, tjmDone, anyHardPillarFailed, meditationMissed, gymConsecutiveMiss };
 
   bestVersionScore.style.cursor = 'pointer';
   bestVersionScore.title = 'Tap to see full breakdown';
@@ -335,7 +434,7 @@ function saveEvening(){
   const now = new Date();
   const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
   const existing = getJournalEntry(keyFromDate(currentDate),'evening') || {};
-  const payload={execution:eveningFields.execution.value,discipline:eveningFields.discipline.value,dopamine:eveningFields.dopamine.value,physical:eveningFields.physical.value,builder:eveningFields.builder.value,sleepprep:eveningFields.sleepprep.value,missionDebrief:eveningFields.missionDebrief.value,biggestWin:eveningFields.biggestWin.value,biggestLesson:eveningFields.biggestLesson.value,identityReflection:eveningFields.identityReflection.value,improveTomorrow:eveningFields.improveTomorrow.value,score:computeEveningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
+  const payload={execution:eveningFields.execution.value,discipline:eveningFields.discipline.value,dopamine:eveningFields.dopamine.value,physical:eveningFields.physical.value,builder:eveningFields.builder.value,sleepprep:eveningFields.sleepprep.value,tjmSalesAction:tjmSalesActive,missionDebrief:eveningFields.missionDebrief.value,biggestWin:eveningFields.biggestWin.value,biggestLesson:eveningFields.biggestLesson.value,identityReflection:eveningFields.identityReflection.value,improveTomorrow:eveningFields.improveTomorrow.value,score:computeEveningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
   setJournalEntry(keyFromDate(currentDate),'evening',payload);
   eveningSavedPill.textContent = `Saved ${timeStr}`;
   eveningSavedPill.style.display='inline';
@@ -344,9 +443,20 @@ function saveEvening(){
   updateAverageNotes(); updateBestVersionPercent(); updateStreakDisplay(); updateLauncherButtons();
 }
 
+function loadTjmToggle(active) {
+  tjmSalesActive = !!active;
+  if (tjmToggleBtn) {
+    tjmToggleBtn.dataset.active   = tjmSalesActive ? 'true' : 'false';
+    tjmToggleBtn.textContent      = tjmSalesActive ? 'YES ✓' : 'NO';
+    tjmToggleBtn.style.background  = tjmSalesActive ? 'rgba(46,204,113,0.15)' : 'rgba(201,168,76,0.08)';
+    tjmToggleBtn.style.borderColor = tjmSalesActive ? 'rgba(46,204,113,0.4)'  : 'rgba(201,168,76,0.4)';
+    tjmToggleBtn.style.color       = tjmSalesActive ? '#2ecc71' : '#C9A84C';
+  }
+}
+
 function loadMorning(){ const data=getJournalEntry(keyFromDate(currentDate),'morning')||{}; morningFields.rested.value=data.rested??3; morningFields.sharpness.value=data.sharpness??3; morningFields.calm.value=data.calm??3; morningFields.motivation.value=data.motivation??3; morningFields.clarity.value=data.clarity??3; morningFields.drive.value=data.drive??3; morningFields.identity.value=data.identity??''; morningFields.purpose.value=data.purpose??''; morningFields.stateConfidence.value=data.stateConfidence??''; morningFields.mission.value=data.mission??''; morningFields.priority1.value=data.priority1??''; morningFields.priority2.value=data.priority2??''; morningFields.priority3.value=data.priority3??''; morningFields.obstacles.value=data.obstacles??''; morningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = morningFields[key].value; }); computeMorningScore(); evaluateMorningCompletion(); }
 
-function loadEvening(){ const data=getJournalEntry(keyFromDate(currentDate),'evening')||{}; eveningFields.execution.value=data.execution??3; eveningFields.discipline.value=data.discipline??3; eveningFields.dopamine.value=data.dopamine??3; eveningFields.physical.value=data.physical??3; eveningFields.builder.value=data.builder??3; eveningFields.sleepprep.value=data.sleepprep??3; eveningFields.missionDebrief.value=data.missionDebrief??''; eveningFields.biggestWin.value=data.biggestWin??''; eveningFields.biggestLesson.value=data.biggestLesson??''; eveningFields.identityReflection.value=data.identityReflection??''; eveningFields.improveTomorrow.value=data.improveTomorrow??''; eveningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = eveningFields[key].value; }); computeEveningScore(); evaluateEveningCompletion();
+function loadEvening(){ const data=getJournalEntry(keyFromDate(currentDate),'evening')||{}; eveningFields.execution.value=data.execution??3; eveningFields.discipline.value=data.discipline??3; eveningFields.dopamine.value=data.dopamine??3; eveningFields.physical.value=data.physical??3; eveningFields.builder.value=data.builder??3; eveningFields.sleepprep.value=data.sleepprep??3; eveningFields.missionDebrief.value=data.missionDebrief??''; eveningFields.biggestWin.value=data.biggestWin??''; eveningFields.biggestLesson.value=data.biggestLesson??''; eveningFields.identityReflection.value=data.identityReflection??''; eveningFields.improveTomorrow.value=data.improveTomorrow??''; eveningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = eveningFields[key].value; }); loadTjmToggle(data.tjmSalesAction); computeEveningScore(); evaluateEveningCompletion();
   const morningEl = document.getElementById('journalTodayMissionReminder');
   if (morningEl) {
     const morningData = getJournalEntry(keyFromDate(currentDate), 'morning') || {};
@@ -410,7 +520,6 @@ document.getElementById('journalCollapseEveningBtnBottom').addEventListener('cli
 openMorningBtn.addEventListener('click', () => {
   if (morningCard.classList.contains('journal-collapsed')) { toggleMorning(); } else { saveMorning(); toggleMorning(); }
 });
-
 openEveningBtn.addEventListener('click', () => {
   if (eveningCard.classList.contains('journal-collapsed')) { toggleEvening(); } else { saveEvening(); toggleEvening(); }
 });
