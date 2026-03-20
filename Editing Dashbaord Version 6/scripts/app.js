@@ -282,12 +282,18 @@ window._weekObjsHtml = function(weekObjectivesData, weekKey, clickable) {
   const raw = weekObjectivesData?.[weekKey];
   const objs = Array.isArray(raw) ? raw : (raw ? [{text: raw, done: false}] : []);
   if (!objs.length) return '';
+  const WEEK_CAT_LABELS = { tjm:'TJM', vinted:'Vinted', notts:'Nottingham Insurance', other:'Other' };
+  const WEEK_CAT_COLOURS = { tjm:'#3B82F6', vinted:'#14B8A6', notts:'#EF4444', other:'#8B5CF6' };
   const items = objs.map((obj, i) => {
-    const done = obj.done;
+    const done = !!obj.done;
+    const category = obj.category || '';
+    const categoryCustom = obj.categoryCustom || '';
+    const catLabel = category ? (categoryCustom || WEEK_CAT_LABELS[category] || 'Other') : '';
+    const catColor = WEEK_CAT_COLOURS[category] || '#6ba3d6';
     const tickEl = clickable
       ? `<button class="week-objective-tick${done?' done':''}" onclick="toggleWeekObj('${weekKey}',${i})" style="cursor:pointer;border:none;background:transparent;padding:0;">${done ? '✓' : ''}</button>`
       : `<div class="week-objective-tick${done?' done':''}">${done ? '✓' : ''}</div>`;
-    return `<div class="week-objective-item${done ? ' done' : ''}">${tickEl}<div class="week-objective-text">${obj.text}</div></div>`;
+    return `<div class="week-objective-item${done ? ' done' : ''}">${tickEl}<div style="flex:1;min-width:0;">${category ? `<div style="font-size:9px;font-weight:900;letter-spacing:1.2px;color:${catColor};margin-bottom:4px;">${catLabel.toUpperCase()}</div>` : ''}<div class="week-objective-text">${obj.text}</div></div></div>`;
   }).join('');
   return `<div class="week-objectives-block"><div class="week-objectives-label">🎯 THIS WEEK'S OBJECTIVES</div>${items}</div>`;
 };

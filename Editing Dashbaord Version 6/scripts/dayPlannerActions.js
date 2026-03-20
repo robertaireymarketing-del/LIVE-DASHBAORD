@@ -174,11 +174,18 @@ export function initDayPlannerActions({
   };
 
   window.selectMonthObjCat = (cat) => {
-    const LABELS = { tjm:'TJM', vinted:'Vinted', notts:'Nottingham', other:'Other' };
     document.querySelectorAll('[id^="moc-"]').forEach(b => b.classList.toggle('selected', b.id === 'moc-'+cat));
     const hidden = document.getElementById('new-month-obj-cat');
     if (hidden) hidden.value = cat;
     const customWrap = document.getElementById('new-month-obj-custom-wrap');
+    if (customWrap) customWrap.style.display = cat === 'other' ? '' : 'none';
+  };
+
+  window.selectWeekObjCat = (cat) => {
+    document.querySelectorAll('[id^="woc-"]').forEach(b => b.classList.toggle('selected', b.id === 'woc-'+cat));
+    const hidden = document.getElementById('new-week-obj-cat');
+    if (hidden) hidden.value = cat;
+    const customWrap = document.getElementById('new-week-obj-custom-wrap');
     if (customWrap) customWrap.style.display = cat === 'other' ? '' : 'none';
   };
 
@@ -271,11 +278,15 @@ export function initDayPlannerActions({
 
   window.addWeekObj = async (weekKey) => {
     const inp = document.getElementById(`new-week-obj-${weekKey}`);
+    const catEl = document.getElementById('new-week-obj-cat');
+    const customEl = document.getElementById('new-week-obj-custom');
     const text = inp?.value?.trim();
     if (!text) return;
+    const cat = catEl?.value || 'tjm';
+    const categoryCustom = cat === 'other' ? (customEl?.value?.trim() || '') : '';
     if (!state.data.weekObjectives) state.data.weekObjectives = {};
     if (!Array.isArray(state.data.weekObjectives[weekKey])) state.data.weekObjectives[weekKey] = [];
-    state.data.weekObjectives[weekKey].push({ text, done: false });
+    state.data.weekObjectives[weekKey].push({ text, done: false, category: cat, categoryCustom, createdAt: Date.now() });
     await saveData(); render();
   };
 

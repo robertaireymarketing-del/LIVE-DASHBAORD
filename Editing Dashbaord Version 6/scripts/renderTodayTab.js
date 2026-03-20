@@ -41,13 +41,27 @@ const MONTH_CAT_LABELS = {
   tjm: 'TJM',
   vinted: 'Vinted',
   notts: 'Nottingham Insurance',
-  personal: 'Personal'
+  personal: 'Personal',
+  other: 'Other'
 };
 const MONTH_CAT_COLOURS = {
   tjm: '#3B82F6',
   vinted: '#14B8A6',
   notts: '#EF4444',
-  personal: '#C9A84C'
+  personal: '#C9A84C',
+  other: '#8B5CF6'
+};
+const WEEK_CAT_LABELS = {
+  tjm: 'TJM',
+  vinted: 'Vinted',
+  notts: 'Nottingham Insurance',
+  other: 'Other'
+};
+const WEEK_CAT_COLOURS = {
+  tjm: '#3B82F6',
+  vinted: '#14B8A6',
+  notts: '#EF4444',
+  other: '#8B5CF6'
 };
 
 function getMonthCalendarData(baseDate = new Date()) {
@@ -290,10 +304,17 @@ const weeklyObjsSection = weekObjs.length > 0 ? `
 ${weekObjs.map((obj, i) => {
   const text = typeof obj === 'string' ? obj : obj.text;
   const done = typeof obj === 'object' ? !!obj.done : false;
+  const category = typeof obj === 'object' ? (obj.category || '') : '';
+  const categoryCustom = typeof obj === 'object' ? (obj.categoryCustom || '') : '';
+  const catLabel = category ? (categoryCustom || WEEK_CAT_LABELS[category] || 'Other') : '';
+  const catColor = WEEK_CAT_COLOURS[category] || '#6ba3d6';
   return `
-  <div onclick="toggleWeekObj('${weekKey}',${i})" style="border:1.5px solid ${done?'rgba(46,204,113,0.3)':'rgba(100,163,214,0.2)'};background:${done?'rgba(26,92,58,0.45)':'rgba(100,163,214,0.04)'};border-radius:12px;padding:12px 16px;margin-bottom:6px;border-left:3px solid ${done?'#2ecc71':'rgba(100,163,214,0.55)'};cursor:pointer;display:flex;align-items:center;gap:12px;transition:all 0.2s;">
-    <div style="width:20px;height:20px;flex-shrink:0;border-radius:5px;border:2px solid ${done?'rgba(46,204,113,0.7)':'rgba(100,163,214,0.55)'};background:${done?'rgba(46,204,113,0.15)':'transparent'};color:${done?'#2ecc71':'#6ba3d6'};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${done?'✓':''}</div>
-    <div class="${done?'obj-done-item-text':''}" style="font-size:14px;font-weight:700;color:${done?'rgba(255,255,255,0.4)':'#fff'};${done?'text-decoration:line-through;':''}flex:1;line-height:1.3;">${text}</div>
+  <div onclick="toggleWeekObj('${weekKey}',${i})" style="border:1.5px solid ${done?'rgba(46,204,113,0.3)':category?catColor+'33':'rgba(100,163,214,0.2)'};background:${done?'rgba(26,92,58,0.45)':category?catColor+'10':'rgba(100,163,214,0.04)'};border-radius:12px;padding:12px 16px;margin-bottom:6px;border-left:3px solid ${done?'#2ecc71':category?catColor:'rgba(100,163,214,0.55)'};cursor:pointer;display:flex;align-items:center;gap:12px;transition:all 0.2s;">
+    <div style="width:20px;height:20px;flex-shrink:0;border-radius:5px;border:2px solid ${done?'rgba(46,204,113,0.7)':category?catColor+'66':'rgba(100,163,214,0.55)'};background:${done?'rgba(46,204,113,0.15)':'transparent'};color:${done?'#2ecc71':category?catColor:'#6ba3d6'};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${done?'✓':''}</div>
+    <div style="flex:1;min-width:0;">
+      ${category ? `<div style="font-size:9px;font-weight:900;letter-spacing:1.2px;color:${catColor};margin-bottom:4px;">${catLabel.toUpperCase()}</div>` : ''}
+      <div class="${done?'obj-done-item-text':''}" style="font-size:14px;font-weight:700;color:${done?'rgba(255,255,255,0.4)':'#fff'};${done?'text-decoration:line-through;':''}line-height:1.3;">${text}</div>
+    </div>
   </div>`;
 }).join('')}
 </div>` : '';
@@ -680,10 +701,17 @@ const weeklyObjModalContent = `
   ${modalWeekObjs.map((obj, i) => {
     const text = typeof obj === 'string' ? obj : obj.text;
     const done = typeof obj === 'object' ? !!obj.done : false;
+    const category = typeof obj === 'object' ? (obj.category || '') : '';
+    const categoryCustom = typeof obj === 'object' ? (obj.categoryCustom || '') : '';
+    const catLabel = category ? (categoryCustom || WEEK_CAT_LABELS[category] || 'Other') : '';
+    const catColor = WEEK_CAT_COLOURS[category] || '#6ba3d6';
     return `
-    <div style="border:1.5px solid ${done?'rgba(46,204,113,0.3)':'rgba(255,255,255,0.1)'};border-radius:12px;padding:12px 14px;margin-bottom:8px;background:${done?'rgba(26,92,58,0.4)':'rgba(255,255,255,0.02)'};display:flex;align-items:center;gap:10px;">
-      <button onclick="toggleWeekObj('${objectiveWeekKey}',${i})" style="width:24px;height:24px;flex-shrink:0;border-radius:6px;border:2px solid ${done?'rgba(46,204,113,0.7)':'rgba(201,168,76,0.5)'};background:${done?'rgba(46,204,113,0.2)':'transparent'};color:${done?'#2ecc71':'#C9A84C'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${done?'✓':''}</button>
-      <div style="flex:1;font-size:15px;font-weight:700;color:${done?'rgba(255,255,255,0.4)':'#fff'};${done?'text-decoration:line-through;':''}line-height:1.3;">${text}</div>
+    <div style="border:1.5px solid ${done?'rgba(46,204,113,0.3)':category?catColor+'33':'rgba(255,255,255,0.1)'};border-radius:12px;padding:12px 14px;margin-bottom:8px;background:${done?'rgba(26,92,58,0.4)':category?catColor+'10':'rgba(255,255,255,0.02)'};display:flex;align-items:center;gap:10px;">
+      <button onclick="toggleWeekObj('${objectiveWeekKey}',${i})" style="width:24px;height:24px;flex-shrink:0;border-radius:6px;border:2px solid ${done?'rgba(46,204,113,0.7)':category?catColor+'66':'rgba(201,168,76,0.5)'};background:${done?'rgba(46,204,113,0.2)':'transparent'};color:${done?'#2ecc71':category?catColor:'#C9A84C'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${done?'✓':''}</button>
+      <div style="flex:1;min-width:0;">
+        ${category ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;"><span style="font-size:9px;font-weight:900;letter-spacing:1px;color:${catColor};">${catLabel.toUpperCase()}</span></div>` : ''}
+        <div style="font-size:15px;font-weight:700;color:${done?'rgba(255,255,255,0.4)':'#fff'};${done?'text-decoration:line-through;':''}line-height:1.3;">${text}</div>
+      </div>
       <button onclick="removeWeekObj('${objectiveWeekKey}',${i})" style="width:28px;height:28px;flex-shrink:0;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.6);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
     </div>`;
   }).join('')}
@@ -691,6 +719,13 @@ const weeklyObjModalContent = `
 <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:16px;">
   <div style="font-size:11px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.4);margin-bottom:12px;">ADD OBJECTIVE</div>
   <input class="batch-editor-input" id="new-week-obj-${objectiveWeekKey}" placeholder="e.g. Complete Spring batch" style="margin-bottom:10px;">
+  <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+    ${['tjm','vinted','notts','other'].map(cat => `<button onclick="selectWeekObjCat('${cat}')" id="woc-${cat}" class="batch-proj-btn month-cat-btn ${cat==='tjm'?'selected':''}" data-cat="${cat}" style="font-size:12px;">${WEEK_CAT_LABELS[cat]}</button>`).join('')}
+    <input type="hidden" id="new-week-obj-cat" value="tjm">
+  </div>
+  <div id="new-week-obj-custom-wrap" style="display:none;margin-bottom:10px;">
+    <input class="batch-editor-input" id="new-week-obj-custom" placeholder="Custom category name">
+  </div>
   <button onclick="addWeekObj('${objectiveWeekKey}')" style="width:100%;background:#C9A84C;border:none;border-radius:10px;padding:13px;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;">+ Add Objective</button>
 </div>`;
 
