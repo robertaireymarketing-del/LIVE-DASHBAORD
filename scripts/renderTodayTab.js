@@ -717,15 +717,16 @@ const monthlyObjModalContent = `
 </div>`;
 
 const weeklyMonthReferenceSection = `
-<div style="margin-bottom:18px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.09);border-radius:14px;padding:14px 14px 8px;">
+<div style="margin-bottom:18px;background:linear-gradient(180deg, rgba(201,168,76,0.12), rgba(255,255,255,0.03));border:1px solid rgba(201,168,76,0.22);border-radius:16px;padding:14px 14px 10px;box-shadow:0 10px 24px rgba(0,0,0,0.12);">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
     <div>
-      <div style="font-size:10px;font-weight:900;letter-spacing:1.4px;color:rgba(255,255,255,0.36);margin-bottom:4px;">MONTHLY OBJECTIVES FOR THIS MONTH</div>
+      <div style="font-size:10px;font-weight:900;letter-spacing:1.4px;color:#C9A84C;margin-bottom:4px;">MONTHLY OBJECTIVES FOR THIS MONTH</div>
       <div style="font-size:14px;font-weight:900;color:#fff;letter-spacing:0.3px;">${objectiveMonthLabel}</div>
     </div>
-    <button onclick="switchObjTab('monthly')" style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.22);border-radius:999px;padding:7px 11px;color:#C9A84C;font-size:10px;font-weight:900;letter-spacing:0.8px;cursor:pointer;">OPEN MONTH</button>
+    <button onclick="switchObjTab('monthly')" style="background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.35);border-radius:999px;padding:7px 11px;color:#C9A84C;font-size:10px;font-weight:900;letter-spacing:0.8px;cursor:pointer;">OPEN MONTH</button>
   </div>
-  ${modalMonthObjs.length === 0 ? `<div style="padding:8px 0 10px;color:rgba(255,255,255,0.28);font-size:12px;font-style:italic;">No monthly objectives set for this month yet</div>` : modalMonthObjs.map(obj => {
+  <div style="font-size:11px;color:rgba(255,255,255,0.5);font-weight:700;margin-bottom:6px;">Use these as your top-down targets while you set this week’s priorities.</div>
+  ${modalMonthObjs.length === 0 ? `<div style="padding:10px 0 12px;color:rgba(255,255,255,0.32);font-size:12px;font-style:italic;">No monthly objectives set for this month yet</div>` : modalMonthObjs.map(obj => {
     const catLabel = obj.categoryCustom || MONTH_CAT_LABELS[obj.category] || 'Personal';
     const catColor = MONTH_CAT_COLOURS[obj.category] || '#C9A84C';
     const deadlineLabel = obj.deadline ? fmtDeadlineShort(obj.deadline) : '';
