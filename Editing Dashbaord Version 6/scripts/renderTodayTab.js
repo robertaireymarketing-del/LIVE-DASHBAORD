@@ -26,8 +26,87 @@ const weekTargetWeight = +(weekBaseWeight - 1.4).toFixed(1);
 
 // ── Month key & helpers ────────────────────────────────────────────────
 const monthKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-const MONTH_CAT_LABELS = { tjm: 'TJM', vinted: 'Vinted', notts: 'Nottingham', other: 'Other' };
-const MONTH_CAT_COLOURS = { tjm: '#C9A84C', vinted: '#27ae60', notts: '#3498db', other: '#9b59b6' };
+const todayKey = now.toISOString().slice(0,10);
+const MONTH_CAT_LABELS = {
+  tjm: 'TJM',
+  vinted: 'Vinted',
+  notts: 'Nottingham Insurance',
+  personal: 'Personal'
+};
+const MONTH_CAT_COLOURS = {
+  tjm: '#3B82F6',
+  vinted: '#14B8A6',
+  notts: '#EF4444',
+  personal: '#C9A84C'
+};
+
+function getMonthCalendarData(baseDate = new Date()) {
+  const year = baseDate.getFullYear();
+  const month = baseDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const mondayIndex = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = lastDay.getDate();
+  const cells = [];
+
+  for (let i = 0; i < mondayIndex; i++) cells.push(null);
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    cells.push({ day, iso, isToday: iso === todayKey });
+  }
+
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return {
+    monthLabel: baseDate.toLocaleString('en-GB', { month: 'long', year: 'numeric' }).toUpperCase(),
+    weekDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    cells
+  };
+}
+
+function buildMonthObjectiveCalendar(monthObjs) {
+  const cal = getMonthCalendarData(now);
+  const countsByDay = {};
+  const doneByDay = {};
+
+  (monthObjs || []).forEach(obj => {
+    if (!obj.deadline) return;
+    countsByDay[obj.deadline] = (countsByDay[obj.deadline] || 0) + 1;
+    if (obj.done) doneByDay[obj.deadline] = (doneByDay[obj.deadline] || 0) + 1;
+  });
+
+  return `
+    <div class="obj-month-calendar-card">
+      <div class="obj-month-calendar-head">
+        <div class="obj-month-calendar-title">${cal.monthLabel}</div>
+        <div class="obj-month-calendar-legend">
+          <span><span class="obj-dot obj-dot--today"></span>Today</span>
+          <span><span class="obj-dot obj-dot--deadline"></span>Deadline</span>
+        </div>
+      </div>
+      <div class="obj-month-calendar-grid obj-month-calendar-grid--labels">
+        ${cal.weekDays.map(label => `<div class="obj-month-calendar-label">${label}</div>`).join('')}
+      </div>
+      <div class="obj-month-calendar-grid">
+        ${cal.cells.map(cell => {
+          if (!cell) return `<div class="obj-month-calendar-cell obj-month-calendar-cell--empty"></div>`;
+          const total = countsByDay[cell.iso] || 0;
+          const done = doneByDay[cell.iso] || 0;
+          const hasDeadline = total > 0;
+          return `
+            <div class="obj-month-calendar-cell ${cell.isToday ? 'is-today' : ''} ${hasDeadline ? 'has-deadline' : ''}">
+              <div class="obj-month-calendar-day">${cell.day}</div>
+              ${hasDeadline
+                ? `<div class="obj-month-calendar-meta">${done}/${total}</div>`
+                : `<div class="obj-month-calendar-meta obj-month-calendar-meta--empty">—</div>`}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
 
 function getMonthObjProgress(objId) {
   const linked = (state.data.tjmBatches || []).filter(b => b.monthlyObjId === objId);
