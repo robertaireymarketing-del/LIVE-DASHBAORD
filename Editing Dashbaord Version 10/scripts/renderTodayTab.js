@@ -716,8 +716,37 @@ const monthlyObjModalContent = `
   <button onclick="addMonthObj('${objectiveMonthKey}')" style="width:100%;background:#C9A84C;border:none;border-radius:10px;padding:13px;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;">+ Add Objective</button>
 </div>`;
 
+const weeklyMonthReferenceSection = `
+<div style="margin-bottom:18px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.09);border-radius:14px;padding:14px 14px 8px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
+    <div>
+      <div style="font-size:10px;font-weight:900;letter-spacing:1.4px;color:rgba(255,255,255,0.36);margin-bottom:4px;">MONTHLY OBJECTIVES FOR THIS MONTH</div>
+      <div style="font-size:14px;font-weight:900;color:#fff;letter-spacing:0.3px;">${objectiveMonthLabel}</div>
+    </div>
+    <button onclick="switchObjTab('monthly')" style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.22);border-radius:999px;padding:7px 11px;color:#C9A84C;font-size:10px;font-weight:900;letter-spacing:0.8px;cursor:pointer;">OPEN MONTH</button>
+  </div>
+  ${modalMonthObjs.length === 0 ? `<div style="padding:8px 0 10px;color:rgba(255,255,255,0.28);font-size:12px;font-style:italic;">No monthly objectives set for this month yet</div>` : modalMonthObjs.map(obj => {
+    const catLabel = obj.categoryCustom || MONTH_CAT_LABELS[obj.category] || 'Personal';
+    const catColor = MONTH_CAT_COLOURS[obj.category] || '#C9A84C';
+    const deadlineLabel = obj.deadline ? fmtDeadlineShort(obj.deadline) : '';
+    return `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,0.06);opacity:${obj.done ? '0.6' : '1'};">
+        <div style="width:10px;height:10px;border-radius:999px;background:${obj.done ? '#2ecc71' : catColor};margin-top:5px;flex-shrink:0;"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px;">
+            <span style="font-size:9px;font-weight:900;letter-spacing:1px;color:${catColor};">${catLabel.toUpperCase()}</span>
+            ${deadlineLabel ? `<span style="font-size:10px;color:rgba(255,255,255,0.35);font-weight:700;">${deadlineLabel}</span>` : ''}
+            ${obj.done ? `<span style="font-size:10px;color:#2ecc71;font-weight:800;letter-spacing:0.5px;">DONE</span>` : ''}
+          </div>
+          <div style="font-size:13px;font-weight:700;color:#fff;line-height:1.35;${obj.done ? 'text-decoration:line-through;' : ''}">${obj.text}</div>
+        </div>
+      </div>`;
+  }).join('')}
+</div>`;
+
 const weeklyObjModalContent = `
 <div style="margin-bottom:16px;">
+  ${weeklyMonthReferenceSection}
   <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1px;margin-bottom:10px;">${objectiveWeekLabel}</div>
   ${modalWeekObjs.length === 0 ? `<div style="text-align:center;padding:20px 0;color:rgba(255,255,255,0.25);font-size:13px;font-style:italic;">No weekly objectives yet — add one below</div>` : ''}
   ${modalWeekObjs.map((obj, i) => {
