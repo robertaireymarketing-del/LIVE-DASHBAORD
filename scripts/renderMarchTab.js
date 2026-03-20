@@ -2,38 +2,51 @@ export function renderMarchTab(deps) {
 
 const { state, BATCH_COLOURS, getTodayData, getIdentityLock, getMissionTargets, getProjectFronts, getTJMBatches, getLatestWeight, getLatestBodyFat, getSettings, isSunday, getTodayDayKey, getWeekKey, getToday, getDayByDate, getMonthStats, getMonthDaysRemaining, getMonthTargets, getDerivedTargetWeight, getCurrentLeanMass, getStartLeanMass, getStreak, renderInputCard, renderStatCard, renderEditPanel, getJournalEntry } = deps;
 
-// Helper: get word rating from journal scores for a date string
-
+// Helper: get word rating using the same WDS formula as the journal page
 function getJournalWordRating(dateStr) {
+  if (!getJournalEntry || !getDayByDate) return null;
 
-if (!getJournalEntry) return null;
+  const day = getDayByDate(dateStr) || {};
+  const morning = getJournalEntry(dateStr, 'morning');
+  const evening = getJournalEntry(dateStr, 'evening');
 
-const morning = getJournalEntry(dateStr, 'morning');
+  // Check if any data exists at all
+  const hasHabits = day.gym || day.retention || day.meditation;
+  const hasMorning = morning && Object.keys(morning).some(k => typeof morning[k] === 'number' && morning[k] > 0);
+  const hasEvening = evening && Object.keys(evening).some(k => typeof evening[k] === 'number' && evening[k] > 0);
+  if (!hasHabits && !hasMorning && !hasEvening) return null;
 
-const evening = getJournalEntry(dateStr, 'evening');
+  const round1 = n => Math.round(Number(n || 0) * 10) / 10;
+  const scale = (raw, rawMax, targetMax) => rawMax > 0 ? round1((Number(raw || 0) / rawMax) * targetMax) : 0;
+  const g = (obj, key) => Number(obj?.[key] ?? 0);
 
-const ms = (morning && typeof morning.score === 'number') ? morning.score : null;
+  // Tier 1: habits (40pts max) — gym 15, retention 10, meditation 5, sleep 10
+  const sleepRaw = g(evening, 'sleepprep');
+  const tier1 = round1(
+    (day.gym ? 15 : 0) +
+    (day.retention ? 10 : 0) +
+    (day.meditation ? 5 : 0) +
+    Math.min(10, sleepRaw * 2)
+  );
 
-const es = (evening && typeof evening.score === 'number') ? evening.score : null;
+  // Tier 2: evening journal (40pts weighted from 30 raw)
+  const eveningRaw = round1(['execution','discipline','dopamine','physical','builder','sleepprep'].reduce((s,k) => s + g(evening, k), 0));
+  const tier2 = scale(eveningRaw, 30, 40);
 
-if (ms === null && es === null) return null;
+  // Tier 3: morning journal (20pts weighted from 30 raw)
+  const morningRaw = round1(['rested','sharpness','calm','motivation','clarity','drive'].reduce((s,k) => s + g(morning, k), 0));
+  const tier3 = scale(morningRaw, 30, 20);
 
-const total = (ms || 0) + (es || 0);
+  const total = round1(tier1 + tier2 + tier3);
+  const pct = Math.round((total / 100) * 100);
 
-const pct = Math.round((total / 60) * 100);
-
-if (pct >= 97) return { label: 'LEGENDARY', colour: '#D4AF37' };
-
-if (pct >= 88) return { label: 'ELITE', colour: '#2ecc71' };
-
-if (pct >= 80) return { label: 'STRONG', colour: '#3498db' };
-
-if (pct >= 70) return { label: 'AVG+', colour: '#1abc9c' };
-
-if (pct >= 60) return { label: 'AVG', colour: '#f39c12' };
-
-return { label: 'LOW', colour: '#e74c3c' };
-
+  if (pct >= 95) return { label: 'LEGENDARY', colour: '#D4AF37' };
+  if (pct >= 90) return { label: 'ELITE',      colour: '#2ecc71' };
+  if (pct >= 80) return { label: 'STRONG',     colour: '#3498db' };
+  if (pct >= 70) return { label: 'ABOVE AVG',  colour: '#1abc9c' };
+  if (pct >= 60) return { label: 'AVERAGE',    colour: '#f39c12' };
+  if (pct >= 50) return { label: 'WEAK',       colour: '#e67e22' };
+  return           { label: 'POOR',       colour: '#e74c3c' };
 }
 
 const y = state.calendarYear, m = state.calendarMonth;

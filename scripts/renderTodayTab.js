@@ -668,7 +668,6 @@ const monthlyObjModalContent = `
   <div class="obj-month-heading">
     ${objectiveMonthLabel}
   </div>
-  ${buildMonthObjectiveCalendar(modalMonthObjs, objectiveBaseDate)}
   ${modalMonthObjs.length === 0 ? `<div class="obj-empty-state">No monthly objectives yet — add one below</div>` : ''}
   ${modalMonthObjs.map((obj, i) => {
     const catLabel = obj.categoryCustom || MONTH_CAT_LABELS[obj.category] || 'Personal';
@@ -721,7 +720,8 @@ const monthlyObjModalContent = `
     <div id="new-month-obj-deadline-display" style="padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:14px;color:rgba(255,255,255,0.3);cursor:pointer;">📅 Set deadline (optional)</div>
   </div>
   <button onclick="addMonthObj('${objectiveMonthKey}')" style="width:100%;background:#C9A84C;border:none;border-radius:10px;padding:13px;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;">+ Add Objective</button>
-</div>`;
+</div>
+${buildMonthObjectiveCalendar(modalMonthObjs, objectiveBaseDate)}`;
 
 const weeklyMonthReferenceSection = `
 <div style="margin-bottom:18px;background:linear-gradient(180deg, rgba(201,168,76,0.12), rgba(255,255,255,0.03));border:1px solid rgba(201,168,76,0.22);border-radius:16px;padding:14px 14px 10px;box-shadow:0 10px 24px rgba(0,0,0,0.12);">
