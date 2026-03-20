@@ -154,7 +154,7 @@ const monthlyObjsSection = monthObjs.length > 0 ? `
 </div>
 <div style="margin-bottom:14px;">
 ${monthObjs.map((obj, i) => {
-  const catLabel = obj.categoryCustom || MONTH_CAT_LABELS[obj.category] || 'Other';
+  const catLabel = obj.categoryCustom || MONTH_CAT_LABELS[obj.category] || 'Personal';
   const catColor = MONTH_CAT_COLOURS[obj.category] || '#C9A84C';
   const progress = getMonthObjProgress(obj.id);
   let deadlineHtml = '';
@@ -166,7 +166,7 @@ ${monthObjs.map((obj, i) => {
     deadlineHtml = `<span style="font-size:10px;font-weight:700;color:${isOverdue?'#e74c3c':obj.done?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.35)'};${isOverdue?'background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.3);border-radius:20px;padding:2px 8px;':''}margin-left:4px;">${isOverdue?'⚠ OVERDUE · ':''}${fmtDeadlineShort(obj.deadline)}</span>`;
   }
   return `
-  <div onclick="toggleMonthObj('${monthKey}',${i})" style="border:1.5px solid ${obj.done?'rgba(46,204,113,0.35)':'rgba(201,168,76,0.2)'};background:${obj.done?'rgba(26,92,58,0.55)':'rgba(255,255,255,0.02)'};border-radius:14px;padding:14px 16px;margin-bottom:8px;border-left:3px solid ${obj.done?'#2ecc71':catColor};cursor:pointer;transition:all 0.2s;">
+  <div onclick="toggleMonthObj('${monthKey}',${i})" style="border:1.5px solid ${obj.done ? 'rgba(46,204,113,0.35)' : catColor+'33'};background:${obj.done?'rgba(26,92,58,0.55)':'rgba(255,255,255,0.02)'};border-radius:14px;padding:14px 16px;margin-bottom:8px;border-left:3px solid ${obj.done?'#2ecc71':catColor};cursor:pointer;transition:all 0.2s;">
     <div style="display:flex;align-items:flex-start;gap:12px;">
       <div style="width:22px;height:22px;flex-shrink:0;margin-top:1px;border-radius:6px;border:2px solid ${obj.done?'rgba(46,204,113,0.7)':catColor+'88'};background:${obj.done?'rgba(46,204,113,0.2)':'transparent'};color:${obj.done?'#2ecc71':catColor};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</div>
       <div style="flex:1;min-width:0;">
@@ -526,18 +526,21 @@ const modalWeekObjs = state.data.weekObjectives?.[weekKey] || [];
 
 const monthlyObjModalContent = `
 <div style="margin-bottom:16px;">
-  <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1px;margin-bottom:10px;">
+  <div class="obj-month-heading">
     ${new Date().toLocaleString('en-GB',{month:'long',year:'numeric'}).toUpperCase()}
   </div>
-  ${modalMonthObjs.length === 0 ? `<div style="text-align:center;padding:20px 0;color:rgba(255,255,255,0.25);font-size:13px;font-style:italic;">No monthly objectives yet — add one below</div>` : ''}
+  ${buildMonthObjectiveCalendar(modalMonthObjs)}
+  ${modalMonthObjs.length === 0 ? `<div class="obj-empty-state">No monthly objectives yet — add one below</div>` : ''}
   ${modalMonthObjs.map((obj, i) => {
-    const catLabel = obj.categoryCustom || MONTH_CAT_LABELS[obj.category] || 'Other';
+    const catLabel = obj.categoryCustom || MONTH_CAT_LABELS[obj.category] || 'Personal';
     const catColor = MONTH_CAT_COLOURS[obj.category] || '#C9A84C';
     const dl = obj.deadline ? new Date(obj.deadline + 'T00:00:00') : null;
-    const daysLeft = dl ? Math.ceil((dl - new Date().setHours(0,0,0,0)) / 86400000) : null;
+    const dayStart = new Date();
+    dayStart.setHours(0,0,0,0);
+    const daysLeft = dl ? Math.ceil((dl.getTime() - dayStart.getTime()) / 86400000) : null;
     const isOverdue = daysLeft !== null && daysLeft < 0 && !obj.done;
     return `
-    <div style="border:1.5px solid ${obj.done?'rgba(46,204,113,0.3)':isOverdue?'rgba(231,76,60,0.3)':'rgba(255,255,255,0.1)'};border-radius:12px;padding:12px 14px;margin-bottom:8px;background:${obj.done?'rgba(26,92,58,0.4)':isOverdue?'rgba(231,76,60,0.05)':'rgba(255,255,255,0.02)'};display:flex;align-items:center;gap:10px;">
+    <div style="border:1.5px solid ${obj.done?'rgba(46,204,113,0.3)':isOverdue?'rgba(231,76,60,0.3)':catColor+'33'};border-radius:12px;padding:12px 14px;margin-bottom:8px;background:${obj.done?'rgba(26,92,58,0.4)':isOverdue?'rgba(231,76,60,0.05)':'rgba(255,255,255,0.02)'};display:flex;align-items:center;gap:10px;">
       <button onclick="toggleMonthObj('${monthKey}',${i})" style="width:24px;height:24px;flex-shrink:0;border-radius:6px;border:2px solid ${obj.done?'rgba(46,204,113,0.7)':catColor+'66'};background:${obj.done?'rgba(46,204,113,0.2)':'transparent'};color:${obj.done?'#2ecc71':catColor};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</button>
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px;">
@@ -554,7 +557,7 @@ const monthlyObjModalContent = `
   <div style="font-size:11px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.4);margin-bottom:12px;">ADD OBJECTIVE</div>
   <input class="batch-editor-input" id="new-month-obj-text" placeholder="e.g. 10 TJM Sales" style="margin-bottom:10px;">
   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-    ${['tjm','vinted','notts','other'].map(cat => `<button onclick="selectMonthObjCat('${cat}')" id="moc-${cat}" class="batch-proj-btn ${cat==='tjm'?'selected':''}" style="font-size:12px;">${MONTH_CAT_LABELS[cat]}</button>`).join('')}
+    ${['tjm','vinted','notts','personal'].map(cat => `<button onclick="selectMonthObjCat('${cat}')" id="moc-${cat}" class="batch-proj-btn month-cat-btn ${cat==='tjm'?'selected':''}" data-cat="${cat}" style="font-size:12px;">${MONTH_CAT_LABELS[cat]}</button>`).join('')}
     <input type="hidden" id="new-month-obj-cat" value="tjm">
   </div>
   <div id="new-month-obj-custom-wrap" style="display:none;margin-bottom:10px;">
@@ -608,20 +611,64 @@ const objectivesModal = state.objectivesModalOpen ? `
 
 // ── CSS injected once per render — light mode fixes for objectives ─────
 const injectedCSS = `<style id="obj-light-mode-css">
-/* Plan My Objectives banner — light mode */
-body.light .plan-obj-banner { background: linear-gradient(135deg,rgba(201,168,76,0.12),rgba(201,168,76,0.06)) !important; border-color: rgba(201,168,76,0.5) !important; }
-body.light .plan-obj-banner-sub { color: rgba(0,0,0,0.45) !important; }
-/* Monthly objectives progress track — light mode */
-body.light .month-obj-progress-track { background: rgba(0,0,0,0.1) !important; }
-/* Completed objective strikethrough — visible in light mode */
-body.light .obj-done-item-text { color: rgba(0,0,0,0.38) !important; text-decoration: line-through !important; }
-/* Objectives modal — stays intentionally dark in light mode */
-body.light .obj-modal-inner { background: #1e1e1e !important; color: rgba(255,255,255,0.85) !important; }
-body.light .obj-modal-inner input, body.light .obj-modal-inner textarea { background: rgba(255,255,255,0.07) !important; border-color: rgba(255,255,255,0.14) !important; color: rgba(255,255,255,0.88) !important; }
-body.light .obj-modal-inner select { background: rgba(255,255,255,0.07) !important; border-color: rgba(255,255,255,0.14) !important; color: rgba(255,255,255,0.88) !important; }
-body.light .obj-modal-inner .batch-proj-btn { background: rgba(255,255,255,0.05) !important; border-color: rgba(255,255,255,0.12) !important; color: rgba(255,255,255,0.55) !important; }
-body.light .obj-modal-inner .batch-proj-btn.selected { background: rgba(201,168,76,0.22) !important; border-color: rgba(201,168,76,0.5) !important; color: #C9A84C !important; }
-body.light .obj-modal-inner div[style] { color: inherit; }
+/* Banner */
+body.light .plan-obj-banner { background: linear-gradient(135deg, rgba(201,168,76,0.12), rgba(201,168,76,0.06)) !important; border-color: rgba(201,168,76,0.5) !important; }
+body.light .plan-obj-banner-sub { color: rgba(10,22,40,0.62) !important; }
+/* Progress */
+body.light .month-obj-progress-track { background: rgba(10,22,40,0.10) !important; }
+body.light .obj-done-item-text { color: rgba(10,22,40,0.42) !important; text-decoration: line-through !important; }
+/* Modal shell */
+body.light .obj-modal-inner { background: #F8FAFC !important; color: #0A1628 !important; border: 1px solid #D8E0EC !important; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18) !important; }
+body.light .obj-modal-inner input, body.light .obj-modal-inner textarea, body.light .obj-modal-inner select, body.light .obj-modal-inner .batch-editor-input { background: #FFFFFF !important; border: 1px solid #CDD4E0 !important; color: #0A1628 !important; }
+body.light .obj-modal-inner input::placeholder, body.light .obj-modal-inner textarea::placeholder { color: #7B8798 !important; }
+/* Modal headings / empty state */
+body.light .obj-month-heading { font-size: 11px; font-weight: 800; letter-spacing: 1.4px; color: #5B6B82 !important; margin-bottom: 12px; }
+body.light .obj-empty-state { text-align: center; padding: 20px 0; color: #6B7A90 !important; font-size: 13px; font-style: italic; }
+/* Tab switcher */
+body.light .obj-modal-inner [onclick*="switchObjTab"] { color: #66758C !important; }
+body.light .obj-modal-inner [onclick*="switchObjTab"][style*="background:#C9A84C"] { color: #000 !important; }
+body.light .obj-modal-inner div[style*="display:flex;gap:6px;margin-bottom:20px;background:rgba(255,255,255,0.05);border-radius:10px;padding:4px;"] { background: #EAF0F7 !important; }
+/* Close button */
+body.light .obj-modal-inner button[onclick="closeObjectivesModalBtn()"] { background: #EEF3F8 !important; color: #516176 !important; border: 1px solid #D8E0EC !important; }
+/* Cards inside modal */
+body.light .obj-modal-inner div[style*="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:16px;"] { background: #FFFFFF !important; border: 1px solid #D8E0EC !important; }
+body.light .obj-modal-inner div[style*="border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;"] { background: #FFFFFF !important; border-color: #D8E0EC !important; }
+/* Date display */
+body.light #new-month-obj-deadline-display { background: #FFFFFF !important; border: 1px solid #CDD4E0 !important; color: #516176 !important; }
+/* Monthly objective add buttons */
+body.light .month-cat-btn { background: #FFFFFF !important; border: 1px solid #CDD4E0 !important; color: #516176 !important; }
+body.light .month-cat-btn[data-cat="tjm"].selected { background: rgba(59,130,246,0.12) !important; border-color: rgba(59,130,246,0.45) !important; color: #2563EB !important; }
+body.light .month-cat-btn[data-cat="vinted"].selected { background: rgba(20,184,166,0.12) !important; border-color: rgba(20,184,166,0.45) !important; color: #0F766E !important; }
+body.light .month-cat-btn[data-cat="notts"].selected { background: rgba(239,68,68,0.12) !important; border-color: rgba(239,68,68,0.45) !important; color: #DC2626 !important; }
+body.light .month-cat-btn[data-cat="personal"].selected { background: rgba(201,168,76,0.16) !important; border-color: rgba(201,168,76,0.5) !important; color: #A47C1B !important; }
+/* Calendar */
+.obj-month-calendar-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+.obj-month-calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.obj-month-calendar-title { font-size: 13px; font-weight: 900; letter-spacing: 1px; color: rgba(255,255,255,0.88); }
+.obj-month-calendar-legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: rgba(255,255,255,0.45); font-weight: 700; }
+.obj-dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; margin-right: 5px; }
+.obj-dot--today { background: #C9A84C; }
+.obj-dot--deadline { background: #60A5FA; }
+.obj-month-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.obj-month-calendar-grid--labels { margin-bottom: 8px; }
+.obj-month-calendar-label { text-align: center; font-size: 10px; font-weight: 800; letter-spacing: 1px; color: rgba(255,255,255,0.35); text-transform: uppercase; }
+.obj-month-calendar-cell { min-height: 62px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.025); padding: 8px; display: flex; flex-direction: column; justify-content: space-between; }
+.obj-month-calendar-cell--empty { background: transparent; border: none; }
+.obj-month-calendar-cell.is-today { border-color: rgba(201,168,76,0.6); box-shadow: inset 0 0 0 1px rgba(201,168,76,0.25); }
+.obj-month-calendar-cell.has-deadline { background: rgba(96,165,250,0.08); }
+.obj-month-calendar-day { font-size: 13px; font-weight: 800; color: #fff; }
+.obj-month-calendar-meta { font-size: 10px; font-weight: 800; color: rgba(255,255,255,0.5); }
+.obj-month-calendar-meta--empty { color: rgba(255,255,255,0.22); }
+body.light .obj-month-calendar-card { background: #FFFFFF !important; border: 1px solid #D8E0EC !important; }
+body.light .obj-month-calendar-title { color: #0A1628 !important; }
+body.light .obj-month-calendar-legend { color: #6B7A90 !important; }
+body.light .obj-month-calendar-label { color: #7B8798 !important; }
+body.light .obj-month-calendar-cell { background: #F8FAFC !important; border-color: #D8E0EC !important; }
+body.light .obj-month-calendar-cell.has-deadline { background: rgba(59,130,246,0.08) !important; }
+body.light .obj-month-calendar-cell.is-today { border-color: rgba(201,168,76,0.7) !important; box-shadow: inset 0 0 0 1px rgba(201,168,76,0.35) !important; }
+body.light .obj-month-calendar-day { color: #0A1628 !important; }
+body.light .obj-month-calendar-meta { color: #5B6B82 !important; }
+body.light .obj-month-calendar-meta--empty { color: #AAB4C4 !important; }
 </style>`;
 
 // ── ORDER: planMyObjBanner is now above monthly/weekly objectives ───────
