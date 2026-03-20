@@ -127,12 +127,30 @@ ${missions.map((m, i) => {
 }).join('')}
 </div>`;
 
+// ── Plan My Objectives banner (above monthly objectives) ───────────────
+const planMyObjBanner = `
+<div class="plan-obj-banner" style="background:linear-gradient(135deg,rgba(201,168,76,0.15),rgba(201,168,76,0.07));border:1.5px solid rgba(201,168,76,0.4);border-radius:14px;padding:16px 18px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+<div>
+<div style="font-size:15px;font-weight:800;color:#C9A84C;margin-bottom:3px;">Plan My Objectives</div>
+<div class="plan-obj-banner-sub" style="font-size:12px;color:rgba(255,255,255,0.4);">Set monthly goals, weekly targets &amp; schedule your days</div>
+</div>
+<button onclick="openObjectivesModal('weekly')" style="background:#C9A84C;border:none;border-radius:10px;padding:14px 28px;color:#000;font-size:16px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;letter-spacing:0.5px;box-shadow:0 0 0 3px rgba(201,168,76,0.3);">Open →</button>
+</div>`;
+
 // ── Monthly objectives ─────────────────────────────────────────────────
 const monthObjs = state.data.monthObjectives?.[monthKey] || [];
+const monthDoneCount = monthObjs.filter(o => o.done).length;
+const monthOverallPct = monthObjs.length > 0 ? Math.round((monthDoneCount / monthObjs.length) * 100) : 0;
 const monthlyObjsSection = monthObjs.length > 0 ? `
 <div class="cc-section-title" style="display:flex;align-items:center;justify-content:space-between;">
   <span>Monthly Objectives</span>
   <button onclick="openObjectivesModal('monthly')" style="background:transparent;border:1px solid rgba(201,168,76,0.35);border-radius:8px;padding:4px 12px;color:#C9A84C;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.5px;">+ Edit</button>
+</div>
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+  <div class="month-obj-progress-track" style="flex:1;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
+    <div style="height:100%;width:${monthOverallPct}%;background:linear-gradient(90deg,#C9A84C,#e8c96a);border-radius:3px;transition:width 0.4s;"></div>
+  </div>
+  <span style="font-size:12px;font-weight:900;color:#C9A84C;min-width:40px;text-align:right;">${monthDoneCount}/${monthObjs.length}</span>
 </div>
 <div style="margin-bottom:14px;">
 ${monthObjs.map((obj, i) => {
@@ -157,7 +175,7 @@ ${monthObjs.map((obj, i) => {
           ${deadlineHtml}
           ${obj.done?`<span style="font-size:9px;font-weight:800;color:#2ecc71;background:rgba(46,204,113,0.15);padding:2px 7px;border-radius:20px;margin-left:2px;">DONE</span>`:''}
         </div>
-        <div style="font-size:16px;font-weight:800;color:${obj.done?'rgba(255,255,255,0.45)':'#fff'};${obj.done?'text-decoration:line-through;':''}line-height:1.3;">${obj.text}</div>
+        <div class="${obj.done?'obj-done-item-text':''}" style="font-size:16px;font-weight:800;color:${obj.done?'rgba(255,255,255,0.45)':'#fff'};${obj.done?'text-decoration:line-through;':''}line-height:1.3;">${obj.text}</div>
         ${progress ? `
         <div style="display:flex;align-items:center;gap:8px;margin-top:9px;">
           <div style="flex:1;height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">
@@ -171,22 +189,22 @@ ${monthObjs.map((obj, i) => {
 }).join('')}
 </div>` : '';
 
-// ── Weekly objectives ──────────────────────────────────────────────────
+// ── Weekly objectives — soft blue tint to differentiate from monthly ───
 const weekKey = getWeekKey();
 const weekObjs = state.data.weekObjectives?.[weekKey] || [];
 const weeklyObjsSection = weekObjs.length > 0 ? `
 <div class="cc-section-title" style="display:flex;align-items:center;justify-content:space-between;">
   <span>This Week's Objectives</span>
-  <button onclick="openObjectivesModal('weekly')" style="background:transparent;border:1px solid rgba(201,168,76,0.35);border-radius:8px;padding:4px 12px;color:#C9A84C;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.5px;">+ Edit</button>
+  <button onclick="openObjectivesModal('weekly')" style="background:transparent;border:1px solid rgba(100,163,214,0.4);border-radius:8px;padding:4px 12px;color:#6ba3d6;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.5px;">+ Edit</button>
 </div>
 <div style="margin-bottom:14px;">
 ${weekObjs.map((obj, i) => {
   const text = typeof obj === 'string' ? obj : obj.text;
   const done = typeof obj === 'object' ? !!obj.done : false;
   return `
-  <div onclick="toggleWeekObj('${weekKey}',${i})" style="border:1.5px solid ${done?'rgba(46,204,113,0.3)':'rgba(201,168,76,0.15)'};background:${done?'rgba(26,92,58,0.45)':'rgba(255,255,255,0.02)'};border-radius:12px;padding:12px 16px;margin-bottom:6px;border-left:3px solid ${done?'#2ecc71':'rgba(201,168,76,0.4)'};cursor:pointer;display:flex;align-items:center;gap:12px;transition:all 0.2s;">
-    <div style="width:20px;height:20px;flex-shrink:0;border-radius:5px;border:2px solid ${done?'rgba(46,204,113,0.7)':'rgba(201,168,76,0.45)'};background:${done?'rgba(46,204,113,0.15)':'transparent'};color:${done?'#2ecc71':'#C9A84C'};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${done?'✓':''}</div>
-    <div style="font-size:14px;font-weight:700;color:${done?'rgba(255,255,255,0.4)':'#fff'};${done?'text-decoration:line-through;':''}flex:1;line-height:1.3;">${text}</div>
+  <div onclick="toggleWeekObj('${weekKey}',${i})" style="border:1.5px solid ${done?'rgba(46,204,113,0.3)':'rgba(100,163,214,0.2)'};background:${done?'rgba(26,92,58,0.45)':'rgba(100,163,214,0.04)'};border-radius:12px;padding:12px 16px;margin-bottom:6px;border-left:3px solid ${done?'#2ecc71':'rgba(100,163,214,0.55)'};cursor:pointer;display:flex;align-items:center;gap:12px;transition:all 0.2s;">
+    <div style="width:20px;height:20px;flex-shrink:0;border-radius:5px;border:2px solid ${done?'rgba(46,204,113,0.7)':'rgba(100,163,214,0.55)'};background:${done?'rgba(46,204,113,0.15)':'transparent'};color:${done?'#2ecc71':'#6ba3d6'};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${done?'✓':''}</div>
+    <div class="${done?'obj-done-item-text':''}" style="font-size:14px;font-weight:700;color:${done?'rgba(255,255,255,0.4)':'#fff'};${done?'text-decoration:line-through;':''}flex:1;line-height:1.3;">${text}</div>
   </div>`;
 }).join('')}
 </div>` : '';
@@ -235,14 +253,6 @@ const allTodayTasks = [];
 
 const frontsSection = `
 <div class="cc-section-title">Today's Fronts</div>
-<div class="plan-week-banner" style="background:linear-gradient(135deg,rgba(201,168,76,0.15),rgba(201,168,76,0.07));border:1.5px solid rgba(201,168,76,0.4);border-radius:14px;padding:16px 18px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-<div>
-<div style="font-size:15px;font-weight:800;color:#C9A84C;margin-bottom:3px;">Plan My Objectives</div>
-<div style="font-size:12px;color:rgba(255,255,255,0.4);">Set monthly goals, weekly targets & schedule your days</div>
-</div>
-<button onclick="openObjectivesModal('weekly')" style="background:#C9A84C;border:none;border-radius:10px;padding:14px 28px;color:#000;font-size:16px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;letter-spacing:0.5px;box-shadow:0 0 0 3px rgba(201,168,76,0.3);">Open →</button>
-</div>
-
 ${allTodayTasks.length === 0
   ? `<div style="text-align:center;padding:16px 0;color:rgba(255,255,255,0.2);font-size:13px;font-style:italic;">Nothing scheduled for today yet</div>`
   : allTodayTasks.map(item => {
@@ -289,7 +299,6 @@ ${batches.map((b, i) => {
   const completedSteps = steps.filter(s=>s.completedAt).length;
   const progressPct = steps.length>0 ? Math.round((completedSteps/steps.length)*100) : 0;
 
-  // Monthly obj badge for batch
   const linkedMonthObj = b.monthlyObjId ? (() => {
     for (const [mk, objs] of Object.entries(state.data.monthObjectives || {})) {
       const obj = (objs||[]).find(o => o.id === b.monthlyObjId);
@@ -581,7 +590,7 @@ const weeklyObjModalContent = `
 
 const objectivesModal = state.objectivesModalOpen ? `
 <div onclick="closeObjectivesModal(event)" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:1000;display:flex;align-items:flex-end;justify-content:center;">
-  <div onclick="event.stopPropagation()" style="background:#1a1a1a;border-radius:20px 20px 0 0;width:100%;max-width:600px;max-height:88vh;overflow-y:auto;padding:24px 20px 44px;">
+  <div onclick="event.stopPropagation()" class="obj-modal-inner" style="background:#1a1a1a;border-radius:20px 20px 0 0;width:100%;max-width:600px;max-height:88vh;overflow-y:auto;padding:24px 20px 44px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
       <div style="font-size:18px;font-weight:900;color:#fff;letter-spacing:0.5px;">Plan My Objectives</div>
       <button onclick="closeObjectivesModalBtn()" style="background:rgba(255,255,255,0.08);border:none;border-radius:8px;width:34px;height:34px;color:rgba(255,255,255,0.6);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>
@@ -597,7 +606,26 @@ const objectivesModal = state.objectivesModalOpen ? `
   </div>
 </div>` : '';
 
-return identitySection + habitsSection + bodyStats + missionSection + monthlyObjsSection + weeklyObjsSection + frontsSection + batchesSection + `
+// ── CSS injected once per render — light mode fixes for objectives ─────
+const injectedCSS = `<style id="obj-light-mode-css">
+/* Plan My Objectives banner — light mode */
+body.light .plan-obj-banner { background: linear-gradient(135deg,rgba(201,168,76,0.12),rgba(201,168,76,0.06)) !important; border-color: rgba(201,168,76,0.5) !important; }
+body.light .plan-obj-banner-sub { color: rgba(0,0,0,0.45) !important; }
+/* Monthly objectives progress track — light mode */
+body.light .month-obj-progress-track { background: rgba(0,0,0,0.1) !important; }
+/* Completed objective strikethrough — visible in light mode */
+body.light .obj-done-item-text { color: rgba(0,0,0,0.38) !important; text-decoration: line-through !important; }
+/* Objectives modal — stays intentionally dark in light mode */
+body.light .obj-modal-inner { background: #1e1e1e !important; color: rgba(255,255,255,0.85) !important; }
+body.light .obj-modal-inner input, body.light .obj-modal-inner textarea { background: rgba(255,255,255,0.07) !important; border-color: rgba(255,255,255,0.14) !important; color: rgba(255,255,255,0.88) !important; }
+body.light .obj-modal-inner select { background: rgba(255,255,255,0.07) !important; border-color: rgba(255,255,255,0.14) !important; color: rgba(255,255,255,0.88) !important; }
+body.light .obj-modal-inner .batch-proj-btn { background: rgba(255,255,255,0.05) !important; border-color: rgba(255,255,255,0.12) !important; color: rgba(255,255,255,0.55) !important; }
+body.light .obj-modal-inner .batch-proj-btn.selected { background: rgba(201,168,76,0.22) !important; border-color: rgba(201,168,76,0.5) !important; color: #C9A84C !important; }
+body.light .obj-modal-inner div[style] { color: inherit; }
+</style>`;
+
+// ── ORDER: planMyObjBanner is now above monthly/weekly objectives ───────
+return injectedCSS + identitySection + habitsSection + bodyStats + missionSection + planMyObjBanner + monthlyObjsSection + weeklyObjsSection + frontsSection + batchesSection + `
 <div style="margin-top:16px;margin-bottom:8px;">
 <button onclick="openPastDays()" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:14px;color:rgba(255,255,255,0.5);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
 📅 Review Previous Days
