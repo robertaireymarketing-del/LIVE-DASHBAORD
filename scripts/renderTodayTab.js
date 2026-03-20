@@ -243,7 +243,7 @@ const planMyObjBanner = `
 <div class="plan-obj-banner" style="background:linear-gradient(135deg,rgba(201,168,76,0.15),rgba(201,168,76,0.07));border:1.5px solid rgba(201,168,76,0.4);border-radius:14px;padding:16px 18px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
 <div>
 <div style="font-size:15px;font-weight:800;color:#C9A84C;margin-bottom:3px;">Plan My Objectives</div>
-<div class="plan-obj-banner-sub" style="font-size:12px;color:rgba(255,255,255,0.4);">Set monthly goals, weekly targets &amp; schedule your days</div>
+<div class="plan-obj-banner-sub" style="font-size:12px;color:rgba(255,255,255,0.4);">Set monthly goals &amp; weekly targets</div>
 </div>
 <button onclick="openObjectivesModal('weekly')" style="background:#C9A84C;border:none;border-radius:10px;padding:14px 28px;color:#000;font-size:16px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;letter-spacing:0.5px;box-shadow:0 0 0 3px rgba(201,168,76,0.3);">Open →</button>
 </div>`;
@@ -370,9 +370,13 @@ const allTodayTasks = [];
 });
 
 const frontsSection = `
-<div class="cc-section-title">Today's Fronts</div>
+<div class="cc-section-title" style="display:flex;align-items:center;justify-content:space-between;">
+  <span>Today's Fronts</span>
+  <button onclick="openDayPlanner()" style="background:transparent;border:1px solid rgba(201,168,76,0.35);border-radius:8px;padding:4px 12px;color:#C9A84C;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.5px;">📋 Plan Day</button>
+</div>
 ${allTodayTasks.length === 0
-  ? `<div style="text-align:center;padding:16px 0;color:rgba(255,255,255,0.2);font-size:13px;font-style:italic;">Nothing scheduled for today yet</div>`
+  ? `<div style="text-align:center;padding:12px 0 4px;color:rgba(255,255,255,0.2);font-size:13px;font-style:italic;margin-bottom:8px;">Nothing scheduled for today yet</div>
+     <button onclick="openDayPlanner()" style="width:100%;background:rgba(201,168,76,0.08);border:1.5px dashed rgba(201,168,76,0.3);border-radius:12px;padding:14px;color:#C9A84C;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;margin-bottom:10px;">📋 Plan Today's Tasks →</button>`
   : allTodayTasks.map(item => {
     const isDone = item.type==='batch' ? item.done : ((state.data.frontsDone||{})[getToday()]?.[item.key+':'+item.task]||false);
     const hex = item.hex;
