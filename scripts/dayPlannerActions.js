@@ -709,8 +709,10 @@ export function initDayPlannerActions({
     const fronts = getProjectFronts();
     const weekKey = isSunday() ? getNextWeekKey() : getWeekKey();
     state.weekPlanDraft = { ...(fronts[key]?.weekPlans?.[weekKey] || {}) };
+    state.weekPlanObjPanelOpen = false;
     state.weekPlanModal = key; render();
   };
+  window.toggleWpObjPanel = () => { state.weekPlanObjPanelOpen = !state.weekPlanObjPanelOpen; render(); };
   window.closeWeekPlan = (e) => { if (e.target.classList.contains('week-plan-overlay')) { state.weekPlanModal = null; render(); } };
   window.saveWeekPlan = async (key) => {
     const days = ['mon','tue','wed','thu','fri','sat','sun'];

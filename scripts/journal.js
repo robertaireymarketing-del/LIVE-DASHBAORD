@@ -12,8 +12,6 @@ export function initJournalTab(deps) {
   const bestVersionScore = document.getElementById('journalBestVersionScore');
   const morningAveragesNote = document.getElementById('journalMorningAveragesNote');
   const eveningAveragesNote = document.getElementById('journalEveningAveragesNote');
-  const openMorningBtn = document.getElementById('journalOpenMorningBtn');
-  const openEveningBtn = document.getElementById('journalOpenEveningBtn');
   const streakEl = document.getElementById('journalStreak');
   const weekMissionEl = document.getElementById('journalWeekMission');
   const jumpTodayBtn = document.getElementById('journalJumpToday');
@@ -25,6 +23,12 @@ export function initJournalTab(deps) {
   const eveningBadge = document.getElementById('journalEveningCompletionBadge');
   const eveningSavedPill = document.getElementById('journalEveningSavedPill');
   const eveningScoreValue = document.getElementById('journalEveningScoreValue');
+  const openCard = document.getElementById('journalOpenCard');
+  const openBadge = document.getElementById('journalOpenCompletionBadge');
+  const openSavedPill = document.getElementById('journalOpenSavedPill');
+  const openMorningBtn = document.getElementById('journalOpenMorningBtn');
+  const openEveningBtn = document.getElementById('journalOpenEveningBtn');
+  const openOpenBtn = document.getElementById('journalOpenOpenBtn');
 
   let currentDate = new Date(((deps.state.journalDate) || deps.getToday()) + 'T12:00:00');
 
@@ -39,6 +43,7 @@ export function initJournalTab(deps) {
 
   const morningBindings = [['rested','journal-rested-val'],['sharpness','journal-sharpness-val'],['calm','journal-calm-val'],['motivation','journal-motivation-val'],['clarity','journal-clarity-val'],['drive','journal-drive-val']];
   const eveningBindings = [['execution','journal-execution-val'],['discipline','journal-discipline-val'],['dopamine','journal-dopamine-val'],['physical','journal-physical-val'],['builder','journal-builder-val'],['sleepprep','journal-sleepprep-val']];
+  const openTextField = document.getElementById('journal-openText');
 
   const keyFromDate = d => d.toISOString().split('T')[0];
   const isFilled = v => String(v || '').trim().length > 0;
@@ -469,6 +474,90 @@ export function initJournalTab(deps) {
     }
   }
 
+  // ── Open Journal ───────────────────────────────────────────────────────
+  function autoExpandOpenTextarea() {
+    if (!openTextField) return;
+    openTextField.style.height = 'auto';
+    openTextField.style.height = Math.max(160, openTextField.scrollHeight) + 'px';
+  }
+
+  function evaluateOpenCompletion() {
+    if (!openCard || !openTextField || !openBadge) return false;
+    const hasContent = openTextField.value.trim().length > 0;
+    openCard.classList.toggle('open-complete', hasContent);
+    if (hasContent) {
+      openBadge.textContent = 'Done';
+      openBadge.classList.add('is-complete');
+    } else {
+      openBadge.textContent = 'Optional';
+      openBadge.classList.remove('is-complete');
+    }
+    updateLauncherButtonsOpen();
+    return hasContent;
+  }
+
+  function saveOpen() {
+    if (!openTextField) return;
+    const hasContent = openTextField.value.trim().length > 0;
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    const existing = getJournalEntry(keyFromDate(currentDate),'open') || {};
+    const payload = { text: openTextField.value, hasContent, savedAt: timeStr, firstSavedAt: existing.firstSavedAt || timeStr };
+    setJournalEntry(keyFromDate(currentDate),'open', payload);
+    if (openSavedPill) {
+      openSavedPill.textContent = `Saved ${timeStr}`;
+      openSavedPill.style.display = 'inline';
+      setTimeout(() => openSavedPill.style.display = 'none', 2500);
+    }
+    evaluateOpenCompletion();
+  }
+
+  function loadOpen() {
+    if (!openTextField) return;
+    const data = getJournalEntry(keyFromDate(currentDate),'open') || {};
+    openTextField.value = data.text || '';
+    setTimeout(autoExpandOpenTextarea, 0);
+    evaluateOpenCompletion();
+  }
+
+  function toggleOpen() {
+    if (!openCard) return;
+    if (openCard.classList.contains('journal-collapsed')) {
+      openCard.classList.remove('journal-collapsed');
+      setTimeout(() => { openCard.scrollIntoView({ behavior:'smooth', block:'start' }); autoExpandOpenTextarea(); }, 30);
+    } else {
+      saveOpen();
+      openCard.classList.add('journal-collapsed');
+    }
+    updateLauncherButtonsOpen();
+  }
+
+  function updateLauncherButtonsOpen() {
+    if (!openOpenBtn || !openCard || !openTextField) return;
+    const hasContent = openTextField.value.trim().length > 0;
+    const isOpen = !openCard.classList.contains('journal-collapsed');
+    openOpenBtn.classList.toggle('launch-complete', hasContent);
+    openOpenBtn.innerHTML = isOpen
+      ? `${hasContent ? '✓ ' : ''}Open Journal — Open<small>Tap to collapse</small>`
+      : `${hasContent ? '✓ ' : ''}Open Journal<small>${hasContent ? 'Written today · tap to review' : 'Optional free-write — blank canvas for anything on your mind'}</small>`;
+  }
+
+  if (openTextField) {
+    openTextField.addEventListener('input', () => { autoExpandOpenTextarea(); evaluateOpenCompletion(); });
+  }
+  if (document.getElementById('journalCollapseOpenBtn')) {
+    document.getElementById('journalCollapseOpenBtn').addEventListener('click', toggleOpen);
+  }
+  if (document.getElementById('journalCollapseOpenBtnBottom')) {
+    document.getElementById('journalCollapseOpenBtnBottom').addEventListener('click', toggleOpen);
+  }
+  if (openOpenBtn) {
+    openOpenBtn.addEventListener('click', () => {
+      if (openCard.classList.contains('journal-collapsed')) { toggleOpen(); }
+      else { saveOpen(); toggleOpen(); }
+    });
+  }
+
   function updateLauncherButtons() {
     const mComplete = morningBadge.classList.contains('is-complete');
     const eComplete = eveningBadge.classList.contains('is-complete');
@@ -482,6 +571,7 @@ export function initJournalTab(deps) {
     openEveningBtn.innerHTML = eveningOpen
       ? `${eComplete?'✓ ':''}Evening Reflection — Open<small>Tap to collapse</small>`
       : `${eComplete?'✓ ':''}Evening Reflection<small>${eComplete?'Completed · tap to review':'Open execution, reflection, and reset for tomorrow'}</small>`;
+    updateLauncherButtonsOpen();
   }
 
   function toggleMorning(){
@@ -543,7 +633,7 @@ export function initJournalTab(deps) {
     jumpTodayBtn.addEventListener('click', () => {
       currentDate = new Date(deps.getToday() + 'T12:00:00');
       formatDateDisplay(currentDate);
-      loadMorning(); loadEvening(); updateAverageNotes(); updateBestVersionPercent();
+      loadMorning(); loadEvening(); loadOpen(); updateAverageNotes(); updateBestVersionPercent();
       updateStreakDisplay(); updateJournalMonthObjectives(); updateJournalWeekObjectives(); updateWeekMission();
     });
   }
@@ -605,7 +695,7 @@ export function initJournalTab(deps) {
   function navigateDay(delta) {
     currentDate.setDate(currentDate.getDate() + delta);
     formatDateDisplay(currentDate);
-    loadMorning(); loadEvening(); updateAverageNotes(); updateBestVersionPercent();
+    loadMorning(); loadEvening(); loadOpen(); updateAverageNotes(); updateBestVersionPercent();
     updateStreakDisplay(); updateJournalMonthObjectives(); updateJournalWeekObjectives(); updateWeekMission();
   }
 
@@ -618,12 +708,12 @@ export function initJournalTab(deps) {
   datePicker.addEventListener('change', e => {
     currentDate = new Date(e.target.value + 'T12:00:00');
     formatDateDisplay(currentDate);
-    loadMorning(); loadEvening(); updateAverageNotes(); updateBestVersionPercent();
+    loadMorning(); loadEvening(); loadOpen(); updateAverageNotes(); updateBestVersionPercent();
     updateStreakDisplay(); updateJournalMonthObjectives(); updateJournalWeekObjectives(); updateWeekMission();
   });
 
   formatDateDisplay(currentDate);
-  loadMorning(); loadEvening(); updateAverageNotes(); updateBestVersionPercent();
+  loadMorning(); loadEvening(); loadOpen(); updateAverageNotes(); updateBestVersionPercent();
   updateStreakDisplay(); updateLauncherButtons();
   updateJournalMonthObjectives(); updateJournalWeekObjectives(); updateWeekMission();
 

@@ -351,6 +351,51 @@ export function renderWeekPlanModal({state, getProjectFronts}) {
       const plan = state.weekPlanDraft || f.weekPlans?.[weekKey] || {};
       const days = ['mon','tue','wed','thu','fri','sat','sun'];
       const labels = { mon:'Monday', tue:'Tuesday', wed:'Wednesday', thu:'Thursday', fri:'Friday', sat:'Saturday', sun:'Sunday' };
+
+      // ── Monthly objectives reference panel ──────────────────────────────
+      const now = new Date();
+      const monthKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+      const monthObjs = state.data?.monthObjectives?.[monthKey] || [];
+      const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const monthLabel = MONTH_NAMES[now.getMonth()] + ' ' + now.getFullYear();
+      const CAT_COLOURS = { tjm:'#C9A84C', vinted:'#27ae60', notts:'#3498db', other:'#9b59b6' };
+      const CAT_LABELS  = { tjm:'TJM', vinted:'Vinted', notts:'Nottingham', other:'Other' };
+      const isObjPanelOpen = state.weekPlanObjPanelOpen || false;
+
+      const monthObjsHtml = monthObjs.length === 0
+        ? `<div style="font-size:12px;font-style:italic;color:rgba(255,255,255,0.3);padding:8px 0;">No monthly objectives set for ${monthLabel}</div>`
+        : monthObjs.map(obj => {
+            const catColour = CAT_COLOURS[obj.category] || '#C9A84C';
+            const catLabel  = obj.categoryCustom || CAT_LABELS[obj.category] || 'Other';
+            const nowD = new Date(); nowD.setHours(0,0,0,0);
+            const daysLeft = obj.deadline ? Math.ceil((new Date(obj.deadline+'T00:00:00') - nowD) / 86400000) : null;
+            const isOverdue = daysLeft !== null && daysLeft < 0 && !obj.done;
+            return `<div class="wp-month-obj-item" style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.07);">
+              <div style="width:14px;height:14px;flex-shrink:0;margin-top:2px;border-radius:3px;border:1.5px solid ${obj.done?'rgba(46,204,113,0.6)':catColour+'55'};background:${obj.done?'rgba(46,204,113,0.15)':'transparent'};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:${obj.done?'#2ecc71':catColour};">${obj.done?'✓':''}</div>
+              <div style="flex:1;min-width:0;">
+                <div class="wp-month-obj-text" style="font-size:13px;font-weight:700;color:${obj.done?'rgba(255,255,255,0.35)':'rgba(255,255,255,0.9)'};${obj.done?'text-decoration:line-through;':''}line-height:1.3;">${obj.text}</div>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+                  <span class="wp-month-obj-cat" style="font-size:9px;font-weight:900;letter-spacing:0.8px;color:${catColour};">${catLabel.toUpperCase()}</span>
+                  ${obj.deadline ? `<span style="font-size:9px;font-weight:700;color:${isOverdue?'#e74c3c':obj.done?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.35)'};">${isOverdue?'⚠ OVERDUE':daysLeft===0?'DUE TODAY':daysLeft===1?'DUE TOMORROW':daysLeft+'d left'}</span>` : ''}
+                  ${obj.done ? `<span style="font-size:9px;font-weight:900;color:#2ecc71;">DONE</span>` : ''}
+                </div>
+              </div>
+            </div>`;
+          }).join('');
+
+      const monthObjPanel = `
+        <div class="wp-month-obj-panel" style="margin-bottom:14px;border:1px solid rgba(255,255,255,0.1);border-radius:12px;overflow:hidden;">
+          <button class="wp-month-obj-toggle" onclick="window.toggleWpObjPanel()" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;background:rgba(255,255,255,0.04);border:none;cursor:pointer;font:inherit;color:rgba(255,255,255,0.75);text-align:left;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:10px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.4);">Monthly Objectives</span>
+              <span style="font-size:10px;font-weight:900;color:#C9A84C;">${monthLabel.toUpperCase()}</span>
+              ${monthObjs.length > 0 ? `<span style="font-size:10px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);border-radius:20px;padding:2px 8px;color:#C9A84C;font-weight:900;">${monthObjs.filter(o=>o.done).length}/${monthObjs.length}</span>` : ''}
+            </div>
+            <span style="font-size:14px;color:rgba(255,255,255,0.4);transition:transform 0.2s;${isObjPanelOpen?'transform:rotate(180deg)':''}">▾</span>
+          </button>
+          ${isObjPanelOpen ? `<div style="padding:4px 14px 10px;">${monthObjsHtml}</div>` : ''}
+        </div>`;
+
       return `<div class="week-plan-overlay" onclick="closeWeekPlan(event)">
         <div class="week-plan-modal" onclick="event.stopPropagation()">
           <div class="week-plan-handle"></div>
@@ -358,6 +403,7 @@ export function renderWeekPlanModal({state, getProjectFronts}) {
             <div class="week-plan-project">${f.name.toUpperCase()} · WEEK PLAN</div>
             <div class="week-plan-title">${isSunday() ? 'Planning Next Week' : 'This Week'}</div>
           </div>
+          ${monthObjPanel}
           ${days.map(d => `
             <div class="week-day-row">
               <div class="week-day-label">

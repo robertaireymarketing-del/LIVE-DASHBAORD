@@ -29,8 +29,11 @@ export function renderJournalTab() {
 
     <div class="journal-home">
       <div class="journal-launch-grid">
-        <button class="journal-launch-btn" id="journalOpenMorningBtn">Morning Journal<small>Open readiness, identity, mission, and priorities</small></button>
-        <button class="journal-launch-btn" id="journalOpenEveningBtn">Evening Reflection<small>Open execution, reflection, and reset for tomorrow</small></button>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+          <button class="journal-launch-btn" id="journalOpenMorningBtn">Morning Journal<small>Open readiness, identity, mission, and priorities</small></button>
+          <button class="journal-launch-btn" id="journalOpenEveningBtn">Evening Reflection<small>Open execution, reflection, and reset for tomorrow</small></button>
+        </div>
+        <button class="journal-launch-btn journal-open-launch" id="journalOpenOpenBtn" style="border-left:4px solid rgba(39,174,96,0.6);text-align:left;width:100%;padding:24px 26px;">Open Journal<small>Optional free-write — blank canvas for anything on your mind</small></button>
       </div>
     </div>
 
@@ -107,6 +110,29 @@ export function renderJournalTab() {
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
           <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.3);text-align:center;letter-spacing:0.5px;">✓ Auto-saves when you collapse</div>
           <button class="journal-toggle-btn" id="journalCollapseEveningBtnBottom">Collapse Evening Reflection</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="journal-card journal-open-card journal-collapsed" id="journalOpenCard">
+      <div class="journal-section-head">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <h2>Open Journal</h2>
+          <span class="journal-status-badge" id="journalOpenCompletionBadge">Optional</span>
+        </div>
+        <div class="journal-section-actions">
+          <span class="journal-saved-pill" id="journalOpenSavedPill">Saved</span>
+          <button class="journal-toggle-btn" id="journalCollapseOpenBtn">Collapse</button>
+        </div>
+      </div>
+      <div class="journal-collapsible-content">
+        <div>
+          <div class="journal-prompt" style="font-size:14px;font-weight:600;opacity:0.7;">Free-write anything — thoughts, ideas, gratitude, problems, stream of consciousness. No structure required.</div>
+          <textarea class="journal-textarea" id="journal-openText" placeholder="Start writing…" style="min-height:160px;resize:none;overflow:hidden;line-height:1.6;"></textarea>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.3);text-align:center;letter-spacing:0.5px;">✓ Auto-saves when you collapse</div>
+          <button class="journal-toggle-btn" id="journalCollapseOpenBtnBottom">Collapse Open Journal</button>
         </div>
       </div>
     </div>

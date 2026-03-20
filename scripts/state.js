@@ -37,6 +37,7 @@ export const state = {
   vaultExpanded: null,
   vaultVAOn: false,
   weekPlanModal: null,
+  weekPlanObjPanelOpen: false,
   weekPlanDraft: {},
   dayPlannerOpen: false,
   dayPlannerDay: null,
