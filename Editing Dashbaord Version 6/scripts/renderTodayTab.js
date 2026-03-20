@@ -64,6 +64,14 @@ const WEEK_CAT_COLOURS = {
   other: '#8B5CF6'
 };
 
+function escAttr(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function getMonthCalendarData(baseDate = new Date()) {
   const year = baseDate.getFullYear();
   const month = baseDate.getMonth();
@@ -663,17 +671,31 @@ const monthlyObjModalContent = `
     dayStart.setHours(0,0,0,0);
     const daysLeft = dl ? Math.ceil((dl.getTime() - dayStart.getTime()) / 86400000) : null;
     const isOverdue = daysLeft !== null && daysLeft < 0 && !obj.done;
+    const isEditing = state.monthObjEditing === `${objectiveMonthKey}:${i}`;
     return `
-    <div style="border:1.5px solid ${obj.done?'rgba(46,204,113,0.3)':isOverdue?'rgba(231,76,60,0.3)':catColor+'33'};border-radius:12px;padding:12px 14px;margin-bottom:8px;background:${obj.done?'rgba(26,92,58,0.4)':isOverdue?'rgba(231,76,60,0.05)':'rgba(255,255,255,0.02)'};display:flex;align-items:center;gap:10px;">
+    <div style="border:1.5px solid ${obj.done?'rgba(46,204,113,0.3)':isOverdue?'rgba(231,76,60,0.3)':catColor+'33'};border-radius:12px;padding:12px 14px;margin-bottom:8px;background:${obj.done?'rgba(26,92,58,0.4)':isOverdue?'rgba(231,76,60,0.05)':'rgba(255,255,255,0.02)'};display:flex;align-items:${isEditing ? 'flex-start' : 'center'};gap:10px;">
       <button onclick="toggleMonthObj('${objectiveMonthKey}',${i})" style="width:24px;height:24px;flex-shrink:0;border-radius:6px;border:2px solid ${obj.done?'rgba(46,204,113,0.7)':catColor+'66'};background:${obj.done?'rgba(46,204,113,0.2)':'transparent'};color:${obj.done?'#2ecc71':catColor};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</button>
       <div style="flex:1;min-width:0;">
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px;">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:${isEditing ? '10px' : '2px'};">
           <span style="font-size:9px;font-weight:900;letter-spacing:1px;color:${catColor};">${catLabel.toUpperCase()}</span>
           ${obj.deadline ? `<span style="font-size:10px;color:${isOverdue?'#e74c3c':'rgba(255,255,255,0.35)'};font-weight:${isOverdue?'800':'600'};">${isOverdue?'⚠ OVERDUE · ':''}${fmtDeadlineShort(obj.deadline)}</span>` : ''}
         </div>
-        <div style="font-size:15px;font-weight:700;color:${obj.done?'rgba(255,255,255,0.4)':'#fff'};${obj.done?'text-decoration:line-through;':''}line-height:1.3;">${obj.text}</div>
+        ${isEditing ? `
+          <input id="edit-month-obj-text-${i}" class="batch-editor-input" value="${escAttr(obj.text || '')}" placeholder="Objective title" style="margin-bottom:10px;">
+          <div style="position:relative;" onclick="document.getElementById('edit-month-obj-deadline-${i}').showPicker&&document.getElementById('edit-month-obj-deadline-${i}').showPicker()">
+            <input type="date" id="edit-month-obj-deadline-${i}" value="${obj.deadline || ''}" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
+            <div style="padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:14px;color:${obj.deadline ? '#C9A84C' : 'rgba(255,255,255,0.3)'};font-weight:${obj.deadline ? '800' : '400'};cursor:pointer;">${obj.deadline ? '📅 ' + fmtDeadlineShort(obj.deadline) : '📅 Set deadline (optional)'}</div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <button onclick="saveMonthObjEdit('${objectiveMonthKey}',${i})" style="flex:1;background:#C9A84C;border:none;border-radius:8px;padding:10px 12px;color:#000;font-size:13px;font-weight:900;cursor:pointer;">Save</button>
+            <button onclick="cancelMonthObjEdit()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:rgba(255,255,255,0.7);font-size:13px;font-weight:800;cursor:pointer;">Cancel</button>
+          </div>
+        ` : `<div style="font-size:15px;font-weight:700;color:${obj.done?'rgba(255,255,255,0.4)':'#fff'};${obj.done?'text-decoration:line-through;':''}line-height:1.3;">${obj.text}</div>`}
       </div>
-      <button onclick="removeMonthObj('${objectiveMonthKey}',${i})" style="width:28px;height:28px;flex-shrink:0;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.6);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
+        <button onclick="editMonthObj('${objectiveMonthKey}',${i})" style="width:28px;height:28px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:7px;color:rgba(255,255,255,0.75);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✎</button>
+        <button onclick="removeMonthObj('${objectiveMonthKey}',${i})" style="width:28px;height:28px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.6);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      </div>
     </div>`;
   }).join('')}
 </div>
@@ -699,20 +721,36 @@ const weeklyObjModalContent = `
   <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1px;margin-bottom:10px;">${objectiveWeekLabel}</div>
   ${modalWeekObjs.length === 0 ? `<div style="text-align:center;padding:20px 0;color:rgba(255,255,255,0.25);font-size:13px;font-style:italic;">No weekly objectives yet — add one below</div>` : ''}
   ${modalWeekObjs.map((obj, i) => {
-    const text = typeof obj === 'string' ? obj : obj.text;
-    const done = typeof obj === 'object' ? !!obj.done : false;
-    const category = typeof obj === 'object' ? (obj.category || '') : '';
-    const categoryCustom = typeof obj === 'object' ? (obj.categoryCustom || '') : '';
+    const item = typeof obj === 'object' ? obj : { text: obj, done: false };
+    const text = item.text || '';
+    const done = !!item.done;
+    const category = item.category || '';
+    const categoryCustom = item.categoryCustom || '';
     const catLabel = category ? (categoryCustom || WEEK_CAT_LABELS[category] || 'Other') : '';
     const catColor = WEEK_CAT_COLOURS[category] || '#6ba3d6';
+    const hasDeadline = !!item.deadline;
+    const isEditing = state.weekObjEditing === `${objectiveWeekKey}:${i}`;
     return `
-    <div style="border:1.5px solid ${done?'rgba(46,204,113,0.3)':category?catColor+'33':'rgba(255,255,255,0.1)'};border-radius:12px;padding:12px 14px;margin-bottom:8px;background:${done?'rgba(26,92,58,0.4)':category?catColor+'10':'rgba(255,255,255,0.02)'};display:flex;align-items:center;gap:10px;">
+    <div style="border:1.5px solid ${done?'rgba(46,204,113,0.3)':category?catColor+'33':'rgba(255,255,255,0.1)'};border-radius:12px;padding:12px 14px;margin-bottom:8px;background:${done?'rgba(26,92,58,0.4)':category?catColor+'10':'rgba(255,255,255,0.02)'};display:flex;align-items:${isEditing ? 'flex-start' : 'center'};gap:10px;">
       <button onclick="toggleWeekObj('${objectiveWeekKey}',${i})" style="width:24px;height:24px;flex-shrink:0;border-radius:6px;border:2px solid ${done?'rgba(46,204,113,0.7)':category?catColor+'66':'rgba(201,168,76,0.5)'};background:${done?'rgba(46,204,113,0.2)':'transparent'};color:${done?'#2ecc71':category?catColor:'#C9A84C'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${done?'✓':''}</button>
       <div style="flex:1;min-width:0;">
-        ${category ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;"><span style="font-size:9px;font-weight:900;letter-spacing:1px;color:${catColor};">${catLabel.toUpperCase()}</span></div>` : ''}
-        <div style="font-size:15px;font-weight:700;color:${done?'rgba(255,255,255,0.4)':'#fff'};${done?'text-decoration:line-through;':''}line-height:1.3;">${text}</div>
+        ${(category || hasDeadline) ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:${isEditing ? '10px' : '4px'};">${category ? `<span style="font-size:9px;font-weight:900;letter-spacing:1px;color:${catColor};">${catLabel.toUpperCase()}</span>` : ''}${hasDeadline ? `<span style="font-size:10px;color:rgba(255,255,255,0.35);font-weight:600;">${fmtDeadlineShort(item.deadline)}</span>` : ''}</div>` : ''}
+        ${isEditing ? `
+          <input id="edit-week-obj-text-${i}" class="batch-editor-input" value="${escAttr(text)}" placeholder="Objective title" style="margin-bottom:10px;">
+          <div style="position:relative;" onclick="document.getElementById('edit-week-obj-deadline-${i}').showPicker&&document.getElementById('edit-week-obj-deadline-${i}').showPicker()">
+            <input type="date" id="edit-week-obj-deadline-${i}" value="${item.deadline || ''}" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
+            <div style="padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:14px;color:${item.deadline ? '#C9A84C' : 'rgba(255,255,255,0.3)'};font-weight:${item.deadline ? '800' : '400'};cursor:pointer;">${item.deadline ? '📅 ' + fmtDeadlineShort(item.deadline) : '📅 Set deadline (optional)'}</div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <button onclick="saveWeekObjEdit('${objectiveWeekKey}',${i})" style="flex:1;background:#C9A84C;border:none;border-radius:8px;padding:10px 12px;color:#000;font-size:13px;font-weight:900;cursor:pointer;">Save</button>
+            <button onclick="cancelWeekObjEdit()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:rgba(255,255,255,0.7);font-size:13px;font-weight:800;cursor:pointer;">Cancel</button>
+          </div>
+        ` : `<div style="font-size:15px;font-weight:700;color:${done?'rgba(255,255,255,0.4)':'#fff'};${done?'text-decoration:line-through;':''}line-height:1.3;">${text}</div>`}
       </div>
-      <button onclick="removeWeekObj('${objectiveWeekKey}',${i})" style="width:28px;height:28px;flex-shrink:0;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.6);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
+        <button onclick="editWeekObj('${objectiveWeekKey}',${i})" style="width:28px;height:28px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:7px;color:rgba(255,255,255,0.75);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✎</button>
+        <button onclick="removeWeekObj('${objectiveWeekKey}',${i})" style="width:28px;height:28px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.6);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      </div>
     </div>`;
   }).join('')}
 </div>
@@ -725,6 +763,10 @@ const weeklyObjModalContent = `
   </div>
   <div id="new-week-obj-custom-wrap" style="display:none;margin-bottom:10px;">
     <input class="batch-editor-input" id="new-week-obj-custom" placeholder="Custom category name">
+  </div>
+  <div style="position:relative;margin-bottom:12px;" onclick="document.getElementById('new-week-obj-deadline').showPicker&&document.getElementById('new-week-obj-deadline').showPicker()">
+    <input type="date" id="new-week-obj-deadline" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
+    <div style="padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:14px;color:rgba(255,255,255,0.3);cursor:pointer;">📅 Set deadline (optional)</div>
   </div>
   <button onclick="addWeekObj('${objectiveWeekKey}')" style="width:100%;background:#C9A84C;border:none;border-radius:10px;padding:13px;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;">+ Add Objective</button>
 </div>`;

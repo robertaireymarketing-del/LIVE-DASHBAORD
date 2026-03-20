@@ -268,12 +268,32 @@ export function initDayPlannerActions({
   };
 
   // ── Week Objectives ────────────────────────────────────────────────────
-  window.editWeekObj = (weekKey, i) => { state.weekObjEditing = i + '-' + weekKey; render(); setTimeout(() => { const el = document.getElementById(`week-obj-edit-${i}`); if(el) { el.focus(); el.select(); } }, 50); };
+  window.editMonthObj = (monthKey, i) => { state.monthObjEditing = `${monthKey}:${i}`; render(); };
+  window.cancelMonthObjEdit = () => { state.monthObjEditing = null; render(); };
+  window.saveMonthObjEdit = async (monthKey, i) => {
+    const obj = state.data.monthObjectives?.[monthKey]?.[i];
+    if (!obj) return;
+    const text = document.getElementById(`edit-month-obj-text-${i}`)?.value?.trim();
+    const deadline = document.getElementById(`edit-month-obj-deadline-${i}`)?.value || '';
+    if (text) obj.text = text;
+    obj.deadline = deadline;
+    await saveData();
+    state.monthObjEditing = null;
+    render();
+  };
+
+  window.editWeekObj = (weekKey, i) => { state.weekObjEditing = `${weekKey}:${i}`; render(); };
   window.cancelWeekObjEdit = () => { state.weekObjEditing = null; render(); };
   window.saveWeekObjEdit = async (weekKey, i) => {
-    const val = document.getElementById(`week-obj-edit-${i}`)?.value?.trim();
-    if(val && state.data.weekObjectives?.[weekKey]?.[i]) { state.data.weekObjectives[weekKey][i].text = val; await saveData(); }
-    state.weekObjEditing = null; render();
+    const obj = state.data.weekObjectives?.[weekKey]?.[i];
+    if (!obj) return;
+    const text = document.getElementById(`edit-week-obj-text-${i}`)?.value?.trim();
+    const deadline = document.getElementById(`edit-week-obj-deadline-${i}`)?.value || '';
+    if (text) obj.text = text;
+    obj.deadline = deadline;
+    await saveData();
+    state.weekObjEditing = null;
+    render();
   };
 
   window.addWeekObj = async (weekKey) => {
@@ -284,9 +304,10 @@ export function initDayPlannerActions({
     if (!text) return;
     const cat = catEl?.value || 'tjm';
     const categoryCustom = cat === 'other' ? (customEl?.value?.trim() || '') : '';
+    const deadline = document.getElementById('new-week-obj-deadline')?.value || '';
     if (!state.data.weekObjectives) state.data.weekObjectives = {};
     if (!Array.isArray(state.data.weekObjectives[weekKey])) state.data.weekObjectives[weekKey] = [];
-    state.data.weekObjectives[weekKey].push({ text, done: false, category: cat, categoryCustom, createdAt: Date.now() });
+    state.data.weekObjectives[weekKey].push({ text, done: false, category: cat, categoryCustom, deadline, createdAt: Date.now() });
     await saveData(); render();
   };
 
