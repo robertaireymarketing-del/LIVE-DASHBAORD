@@ -143,23 +143,196 @@ export function initJournalTab(deps) {
     eveningAveragesNote.textContent=`Vs last week: ${formatAvg(avgs.eveningLastWeek,30)} · Vs month: ${formatAvg(avgs.eveningMonth,30)}`;
   }
 
+  function getPerformanceTier(score){
+    const percent = Math.round((Number(score || 0) / 60) * 100);
+    const colour = percent >= 97 ? '#D4AF37' : percent >= 88 ? '#2ecc71' : percent >= 80 ? '#3498db' : percent >= 70 ? '#1abc9c' : percent >= 60 ? '#f39c12' : '#e74c3c';
+    const status = percent >= 97 ? 'LEGENDARY' : percent >= 88 ? 'ELITE' : percent >= 80 ? 'STRONG' : percent >= 70 ? 'ABOVE AVERAGE' : percent >= 60 ? 'AVERAGE' : 'BELOW AVERAGE';
+    return { percent, colour, status };
+  }
+
+  function getCombinedAverageForRange(startDate, endDate){
+    const totals = [];
+    const cursor = new Date(startDate);
+    cursor.setHours(12,0,0,0);
+    const finish = new Date(endDate);
+    finish.setHours(12,0,0,0);
+    while (cursor <= finish) {
+      const key = keyFromDate(cursor);
+      const morning = getStoredScore('morningJournal-', key);
+      const evening = getStoredScore('eveningJournal-', key);
+      if (typeof morning === 'number' || typeof evening === 'number') {
+        totals.push((Number(morning || 0) + Number(evening || 0)));
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return totals.length ? (totals.reduce((a,b) => a + b, 0) / totals.length) : null;
+  }
+
+  function ensureBestVersionModal(){
+    let modal = document.getElementById('journalBestVersionModal');
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'journalBestVersionModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(5,10,20,0.72);backdrop-filter:blur(10px);z-index:9999;display:none;align-items:flex-end;justify-content:center;padding:16px;';
+    modal.innerHTML = `
+      <div style="width:min(680px,100%);max-height:88vh;overflow:auto;background:#0f1728;border:1px solid rgba(255,255,255,0.08);border-radius:24px;padding:20px 18px 18px;box-shadow:0 20px 60px rgba(0,0,0,0.45);color:#fff;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;">
+          <div>
+            <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.45);text-transform:uppercase;">Overall ranking breakdown</div>
+            <div id="journalBestVersionModalDate" style="font-size:24px;font-weight:900;line-height:1.1;margin-top:6px;">Today</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.55);margin-top:4px;">How your daily standard is being ranked</div>
+          </div>
+          <button type="button" id="journalBestVersionCloseBtn" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);color:#fff;border-radius:12px;padding:10px 12px;font:inherit;font-weight:800;cursor:pointer;">Close</button>
+        </div>
+        <div id="journalBestVersionModalBody"></div>
+      </div>
+    `;
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeBestVersionModal();
+    });
+    document.body.appendChild(modal);
+    const closeBtn = document.getElementById('journalBestVersionCloseBtn');
+    if (closeBtn) closeBtn.addEventListener('click', closeBestVersionModal);
+    return modal;
+  }
+
+  function closeBestVersionModal(){
+    const modal = document.getElementById('journalBestVersionModal');
+    if (modal) modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  function openBestVersionModal(){
+    const total = Number(morningScoreValue.textContent || 0) + Number(eveningScoreValue.textContent || 0);
+    const { percent, colour, status } = getPerformanceTier(total);
+    const modal = ensureBestVersionModal();
+    const body = document.getElementById('journalBestVersionModalBody');
+    const dateLabel = document.getElementById('journalBestVersionModalDate');
+    if (!body || !dateLabel) return;
+
+    dateLabel.textContent = fullDate.textContent;
+
+    const avgs = computeHistoricalAverages();
+    const lastWeekStart = getStartOfWeek(currentDate);
+    lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+    const lastWeekEnd = new Date(lastWeekStart);
+    lastWeekEnd.setDate(lastWeekEnd.getDate() + 6);
+    const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1, 12, 0, 0, 0);
+    const lastWeekCombined = getCombinedAverageForRange(lastWeekStart, lastWeekEnd);
+    const monthCombined = getCombinedAverageForRange(monthStart, currentDate);
+    const vsLastWeek = lastWeekCombined === null ? null : total - lastWeekCombined;
+    const vsMonth = monthCombined === null ? null : total - monthCombined;
+    const scoreRows = [
+      ['Morning readiness', Number(morningScoreValue.textContent || 0), 30],
+      ['Evening execution', Number(eveningScoreValue.textContent || 0), 30],
+      ['Total daily standard', total, 60],
+    ];
+    const tiers = [
+      ['Legendary', '97–100%', '58–60 / 60'],
+      ['Elite', '88–96%', '53–57 / 60'],
+      ['Strong', '80–87%', '48–52 / 60'],
+      ['Above average', '70–79%', '42–47 / 60'],
+      ['Average', '60–69%', '36–41 / 60'],
+      ['Below average', '< 60%', '0–35 / 60'],
+    ];
+    const fmtDelta = (val) => {
+      if (val === null || Number.isNaN(val)) return '--';
+      const rounded = Math.round(val * 10) / 10;
+      return `${rounded > 0 ? '+' : ''}${rounded}`;
+    };
+    const avgTone = (val) => val === null ? 'rgba(255,255,255,0.5)' : (val >= 0 ? '#2ecc71' : '#ff7675');
+
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px;">
+        <div style="grid-column:1/-1;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02));border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.45);text-transform:uppercase;">Current rank</div>
+              <div style="font-size:34px;font-weight:900;color:${colour};line-height:1.05;margin-top:6px;">${status}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:28px;font-weight:900;color:${colour};">${total}/60</div>
+              <div style="font-size:12px;color:rgba(255,255,255,0.5);">${percent}% daily standard</div>
+            </div>
+          </div>
+          <div style="height:8px;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden;margin-top:14px;">
+            <div style="height:100%;width:${Math.min(100, percent)}%;background:${colour};border-radius:999px;"></div>
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:14px;">
+          <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.45);text-transform:uppercase;">Vs last week</div>
+          <div style="font-size:28px;font-weight:900;color:${avgTone(vsLastWeek)};margin-top:8px;">${fmtDelta(vsLastWeek)}</div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.5);">Average ${lastWeekCombined === null ? '--' : (Math.round(lastWeekCombined * 10) / 10).toFixed(1)}/60</div>
+        </div>
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:14px;">
+          <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.45);text-transform:uppercase;">Vs month</div>
+          <div style="font-size:28px;font-weight:900;color:${avgTone(vsMonth)};margin-top:8px;">${fmtDelta(vsMonth)}</div>
+          <div style="font-size:12px;color:rgba(255,255,255,0.5);">Average ${monthCombined === null ? '--' : (Math.round(monthCombined * 10) / 10).toFixed(1)}/60</div>
+        </div>
+      </div>
+
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:14px;margin-bottom:14px;">
+        <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.45);text-transform:uppercase;margin-bottom:12px;">Score breakdown</div>
+        ${scoreRows.map(([label, score, max]) => {
+          const pct = Math.round((score / max) * 100);
+          const tier = getPerformanceTier(max === 60 ? score : score * 2);
+          return `
+            <div style="padding:10px 0;border-top:1px solid rgba(255,255,255,0.06);${label === 'Morning readiness' ? 'border-top:none;padding-top:0;' : ''}">
+              <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+                <div>
+                  <div style="font-size:15px;font-weight:800;">${label}</div>
+                  <div style="font-size:12px;color:rgba(255,255,255,0.45);">${pct}% of max</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:20px;font-weight:900;color:${tier.colour};">${score}/${max}</div>
+                  <div style="font-size:11px;color:rgba(255,255,255,0.45);">${tier.status}</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:14px;">
+        <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.45);text-transform:uppercase;margin-bottom:12px;">Ranking ladder</div>
+        ${tiers.map(([name, pctRange, scoreRange]) => `
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid rgba(255,255,255,0.06);${name === 'Legendary' ? 'border-top:none;padding-top:0;' : ''}">
+            <div style="font-size:14px;font-weight:${name.toUpperCase() === status ? '900' : '700'};color:${name.toUpperCase() === status ? colour : '#fff'};">${name}</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.5);">${pctRange}</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.72);font-weight:700;">${scoreRange}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
   function updateBestVersionPercent(){
     const morning=Number(morningScoreValue.textContent||0);
     const evening=Number(eveningScoreValue.textContent||0);
-    const percent=Math.round(((morning+evening)/60)*100);
-    const colour = percent >= 97 ? '#D4AF37' : percent >= 88 ? '#2ecc71' : percent >= 80 ? '#3498db' : percent >= 70 ? '#1abc9c' : percent >= 60 ? '#f39c12' : '#e74c3c';
-    const status = percent >= 97 ? 'LEGENDARY' : percent >= 88 ? 'ELITE' : percent >= 80 ? 'STRONG' : percent >= 70 ? 'ABOVE AVERAGE' : percent >= 60 ? 'AVERAGE' : 'BELOW AVERAGE';
+    const total = morning + evening;
+    const { percent, colour, status } = getPerformanceTier(total);
     const barWidth = Math.min(100, percent);
+    bestVersionScore.style.cursor = 'pointer';
+    bestVersionScore.setAttribute('role', 'button');
+    bestVersionScore.setAttribute('tabindex', '0');
+    bestVersionScore.setAttribute('aria-label', 'Open overall ranking breakdown');
+    bestVersionScore.title = 'Tap to view ranking breakdown';
     bestVersionScore.innerHTML =
       `<div style="width:100%;">` +
       `<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;">` +
       `<span style="font-size:30px;font-weight:900;color:${colour};letter-spacing:-0.5px;">${status}</span>` +
-      `<span style="font-size:15px;font-weight:800;color:${colour};opacity:0.8;">${morning+evening}/${60}</span>` +
+      `<span style="font-size:15px;font-weight:800;color:${colour};opacity:0.8;">${total}/${60}</span>` +
       `</div>` +
       `<div style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;margin-bottom:3px;">` +
       `<div style="height:100%;width:${barWidth}%;background:${colour};border-radius:2px;transition:width 0.4s;"></div>` +
       `</div>` +
-      `<div style="font-size:9px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.3);text-transform:uppercase;">DAILY STANDARD</div>` +
+      `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">` +
+      `<div style="font-size:9px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.3);text-transform:uppercase;">Daily standard</div>` +
+      `<div style="font-size:10px;font-weight:800;color:rgba(255,255,255,0.38);text-transform:uppercase;letter-spacing:1px;">Tap for detail</div>` +
+      `</div>` +
       `</div>`;
   }
 
@@ -263,6 +436,20 @@ export function initJournalTab(deps) {
   openEveningBtn.addEventListener('click', () => {
     if (eveningCard.classList.contains('journal-collapsed')) { toggleEvening(); }
     else { saveEvening(); toggleEvening(); }
+  });
+
+  if (bestVersionScore) {
+    bestVersionScore.addEventListener('click', openBestVersionModal);
+    bestVersionScore.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openBestVersionModal();
+      }
+    });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeBestVersionModal();
   });
 
   if (jumpTodayBtn) {
