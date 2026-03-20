@@ -143,10 +143,78 @@ export function initJournalTab(deps) {
     eveningAveragesNote.textContent=`Vs last week: ${formatAvg(avgs.eveningLastWeek,30)} · Vs month: ${formatAvg(avgs.eveningMonth,30)}`;
   }
 
+  function getDayHabitData(dateKey) {
+    return deps.state.data?.days?.[dateKey] || {};
+  }
+
+  function round1(num) {
+    return Math.round(Number(num || 0) * 10) / 10;
+  }
+
+  function formatScore(score, max) {
+    const val = round1(score);
+    const isInt = Math.abs(val - Math.round(val)) < 0.05;
+    return `${isInt ? Math.round(val) : val.toFixed(1)}/${max}`;
+  }
+
+  function scaleScore(raw, rawMax, targetMax) {
+    return rawMax > 0 ? round1((Number(raw || 0) / rawMax) * targetMax) : 0;
+  }
+
+  function getTier1Breakdown(dateKey = keyFromDate(currentDate)) {
+    const day = getDayHabitData(dateKey);
+    const sleepRaw = Number(eveningFields.sleepprep?.value ?? getJournalEntry(dateKey, 'evening')?.sleepprep ?? 0);
+    const sleepPoints = Math.min(10, sleepRaw * 2);
+    const rows = [
+      ['Gym', day.gym ? 15 : 0, 15, day.gym ? 'Ticked on Today page' : 'Not ticked on Today page'],
+      ['Retention', day.retention ? 10 : 0, 10, day.retention ? 'Ticked on Today page' : 'Not ticked on Today page'],
+      ['Meditation', day.meditation ? 5 : 0, 5, day.meditation ? 'Ticked on Today page' : 'Not ticked on Today page'],
+      ['Sleep', sleepPoints, 10, `Evening sleep prep ${sleepRaw}/5 × 2`],
+    ];
+    const total = round1(rows.reduce((sum, [, score]) => sum + Number(score || 0), 0));
+    return { rows, total, max: 40 };
+  }
+
+  function getMorningBreakdown(dateKey = keyFromDate(currentDate)) {
+    const rows = [
+      ['Rested', Number(morningFields.rested?.value ?? getJournalEntry(dateKey, 'morning')?.rested ?? 0), 5],
+      ['Sharpness', Number(morningFields.sharpness?.value ?? getJournalEntry(dateKey, 'morning')?.sharpness ?? 0), 5],
+      ['Calm', Number(morningFields.calm?.value ?? getJournalEntry(dateKey, 'morning')?.calm ?? 0), 5],
+      ['Motivation', Number(morningFields.motivation?.value ?? getJournalEntry(dateKey, 'morning')?.motivation ?? 0), 5],
+      ['Clarity', Number(morningFields.clarity?.value ?? getJournalEntry(dateKey, 'morning')?.clarity ?? 0), 5],
+      ['Drive', Number(morningFields.drive?.value ?? getJournalEntry(dateKey, 'morning')?.drive ?? 0), 5],
+    ];
+    const rawTotal = round1(rows.reduce((sum, [, score]) => sum + Number(score || 0), 0));
+    const weightedTotal = scaleScore(rawTotal, 30, 20);
+    return { rows, rawTotal, weightedTotal, rawMax: 30, max: 20 };
+  }
+
+  function getEveningBreakdown(dateKey = keyFromDate(currentDate)) {
+    const rows = [
+      ['Execution', Number(eveningFields.execution?.value ?? getJournalEntry(dateKey, 'evening')?.execution ?? 0), 5],
+      ['Discipline', Number(eveningFields.discipline?.value ?? getJournalEntry(dateKey, 'evening')?.discipline ?? 0), 5],
+      ['Dopamine control', Number(eveningFields.dopamine?.value ?? getJournalEntry(dateKey, 'evening')?.dopamine ?? 0), 5],
+      ['Physical standard', Number(eveningFields.physical?.value ?? getJournalEntry(dateKey, 'evening')?.physical ?? 0), 5],
+      ['Builder actions', Number(eveningFields.builder?.value ?? getJournalEntry(dateKey, 'evening')?.builder ?? 0), 5],
+      ['Sleep prep', Number(eveningFields.sleepprep?.value ?? getJournalEntry(dateKey, 'evening')?.sleepprep ?? 0), 5],
+    ];
+    const rawTotal = round1(rows.reduce((sum, [, score]) => sum + Number(score || 0), 0));
+    const weightedTotal = scaleScore(rawTotal, 30, 40);
+    return { rows, rawTotal, weightedTotal, rawMax: 30, max: 40 };
+  }
+
+  function getWeightedScores(dateKey = keyFromDate(currentDate)) {
+    const tier1 = getTier1Breakdown(dateKey);
+    const tier2 = getEveningBreakdown(dateKey);
+    const tier3 = getMorningBreakdown(dateKey);
+    const total = round1(tier1.total + tier2.weightedTotal + tier3.weightedTotal);
+    return { tier1, tier2, tier3, total, max: 100 };
+  }
+
   function getPerformanceTier(score){
-    const percent = Math.round((Number(score || 0) / 60) * 100);
-    const colour = percent >= 97 ? '#D4AF37' : percent >= 88 ? '#2ecc71' : percent >= 80 ? '#3498db' : percent >= 70 ? '#1abc9c' : percent >= 60 ? '#f39c12' : '#e74c3c';
-    const status = percent >= 97 ? 'LEGENDARY' : percent >= 88 ? 'ELITE' : percent >= 80 ? 'STRONG' : percent >= 70 ? 'ABOVE AVERAGE' : percent >= 60 ? 'AVERAGE' : 'BELOW AVERAGE';
+    const percent = Math.round((Number(score || 0) / 100) * 100);
+    const colour = percent >= 95 ? '#D4AF37' : percent >= 90 ? '#2ecc71' : percent >= 80 ? '#3498db' : percent >= 70 ? '#1abc9c' : percent >= 60 ? '#f39c12' : percent >= 50 ? '#e67e22' : '#e74c3c';
+    const status = percent >= 95 ? 'LEGENDARY' : percent >= 90 ? 'ELITE' : percent >= 80 ? 'STRONG' : percent >= 70 ? 'ABOVE AVERAGE' : percent >= 60 ? 'AVERAGE' : percent >= 50 ? 'WEAK' : 'POOR';
     return { percent, colour, status };
   }
 
@@ -158,14 +226,11 @@ export function initJournalTab(deps) {
     finish.setHours(12,0,0,0);
     while (cursor <= finish) {
       const key = keyFromDate(cursor);
-      const morning = getStoredScore('morningJournal-', key);
-      const evening = getStoredScore('eveningJournal-', key);
-      if (typeof morning === 'number' || typeof evening === 'number') {
-        totals.push((Number(morning || 0) + Number(evening || 0)));
-      }
+      const total = getWeightedScores(key).total;
+      if (typeof total === 'number' && !Number.isNaN(total)) totals.push(total);
       cursor.setDate(cursor.getDate() + 1);
     }
-    return totals.length ? (totals.reduce((a,b) => a + b, 0) / totals.length) : null;
+    return totals.length ? round1(totals.reduce((a,b) => a + b, 0) / totals.length) : null;
   }
 
   function ensureBestVersionModal(){
@@ -173,16 +238,16 @@ export function initJournalTab(deps) {
     if (modal) return modal;
     modal = document.createElement('div');
     modal.id = 'journalBestVersionModal';
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(5,10,20,0.72);backdrop-filter:blur(10px);z-index:9999;display:none;align-items:flex-end;justify-content:center;padding:16px;';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(5,10,20,0.52);backdrop-filter:blur(10px);z-index:9999;display:none;align-items:flex-end;justify-content:center;padding:16px;';
     modal.innerHTML = `
-      <div style="width:min(680px,100%);max-height:88vh;overflow:auto;background:#0f1728;border:1px solid rgba(255,255,255,0.08);border-radius:24px;padding:20px 18px 18px;box-shadow:0 20px 60px rgba(0,0,0,0.45);color:#fff;">
+      <div id="journalBestVersionPanel" style="width:min(720px,100%);max-height:88vh;overflow:auto;background:#ffffff;border:1px solid rgba(15,23,42,0.10);border-radius:24px;padding:20px 18px 18px;box-shadow:0 20px 60px rgba(0,0,0,0.22);color:#0f172a;">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;">
           <div>
-            <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.45);text-transform:uppercase;">Overall ranking breakdown</div>
-            <div id="journalBestVersionModalDate" style="font-size:24px;font-weight:900;line-height:1.1;margin-top:6px;">Today</div>
-            <div style="font-size:12px;color:rgba(255,255,255,0.55);margin-top:4px;">How your daily standard is being ranked</div>
+            <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:rgba(15,23,42,0.45);text-transform:uppercase;">Overall ranking breakdown</div>
+            <div id="journalBestVersionModalDate" style="font-size:24px;font-weight:900;line-height:1.1;margin-top:6px;color:#0f172a;">Today</div>
+            <div style="font-size:12px;color:rgba(15,23,42,0.62);margin-top:4px;">Your weighted 100-point daily standard</div>
           </div>
-          <button type="button" id="journalBestVersionCloseBtn" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);color:#fff;border-radius:12px;padding:10px 12px;font:inherit;font-weight:800;cursor:pointer;">Close</button>
+          <button type="button" id="journalBestVersionCloseBtn" style="background:#f8fafc;border:1px solid rgba(15,23,42,0.10);color:#0f172a;border-radius:12px;padding:10px 12px;font:inherit;font-weight:800;cursor:pointer;">Close</button>
         </div>
         <div id="journalBestVersionModalBody"></div>
       </div>
@@ -203,7 +268,8 @@ export function initJournalTab(deps) {
   }
 
   function openBestVersionModal(){
-    const total = Number(morningScoreValue.textContent || 0) + Number(eveningScoreValue.textContent || 0);
+    const scores = getWeightedScores();
+    const { tier1, tier2, tier3, total } = scores;
     const { percent, colour, status } = getPerformanceTier(total);
     const modal = ensureBestVersionModal();
     const body = document.getElementById('journalBestVersionModalBody');
@@ -212,7 +278,6 @@ export function initJournalTab(deps) {
 
     dateLabel.textContent = fullDate.textContent;
 
-    const avgs = computeHistoricalAverages();
     const lastWeekStart = getStartOfWeek(currentDate);
     lastWeekStart.setDate(lastWeekStart.getDate() - 7);
     const lastWeekEnd = new Date(lastWeekStart);
@@ -220,86 +285,111 @@ export function initJournalTab(deps) {
     const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1, 12, 0, 0, 0);
     const lastWeekCombined = getCombinedAverageForRange(lastWeekStart, lastWeekEnd);
     const monthCombined = getCombinedAverageForRange(monthStart, currentDate);
-    const vsLastWeek = lastWeekCombined === null ? null : total - lastWeekCombined;
-    const vsMonth = monthCombined === null ? null : total - monthCombined;
-    const scoreRows = [
-      ['Morning readiness', Number(morningScoreValue.textContent || 0), 30],
-      ['Evening execution', Number(eveningScoreValue.textContent || 0), 30],
-      ['Total daily standard', total, 60],
-    ];
+    const vsLastWeek = lastWeekCombined === null ? null : round1(total - lastWeekCombined);
+    const vsMonth = monthCombined === null ? null : round1(total - monthCombined);
+
     const tiers = [
-      ['Legendary', '97–100%', '58–60 / 60'],
-      ['Elite', '88–96%', '53–57 / 60'],
-      ['Strong', '80–87%', '48–52 / 60'],
-      ['Above average', '70–79%', '42–47 / 60'],
-      ['Average', '60–69%', '36–41 / 60'],
-      ['Below average', '< 60%', '0–35 / 60'],
+      ['Legendary', '95–100', '95–100 / 100'],
+      ['Elite', '90–94.9', '90–94.9 / 100'],
+      ['Strong', '80–89.9', '80–89.9 / 100'],
+      ['Above average', '70–79.9', '70–79.9 / 100'],
+      ['Average', '60–69.9', '60–69.9 / 100'],
+      ['Weak', '50–59.9', '50–59.9 / 100'],
+      ['Poor', '< 50', '0–49.9 / 100'],
     ];
+
     const fmtDelta = (val) => {
       if (val === null || Number.isNaN(val)) return '--';
-      const rounded = Math.round(val * 10) / 10;
-      return `${rounded > 0 ? '+' : ''}${rounded}`;
+      const rounded = round1(val);
+      return `${rounded > 0 ? '+' : ''}${Math.abs(rounded - Math.round(rounded)) < 0.05 ? Math.round(rounded) : rounded.toFixed(1)}`;
     };
-    const avgTone = (val) => val === null ? 'rgba(255,255,255,0.5)' : (val >= 0 ? '#2ecc71' : '#ff7675');
+    const avgTone = (val) => val === null ? 'rgba(15,23,42,0.45)' : (val >= 0 ? '#16a34a' : '#dc2626');
+    const cardStyle = 'background:#ffffff;border:1px solid rgba(15,23,42,0.10);border-radius:18px;padding:14px;';
+    const muted = 'rgba(15,23,42,0.58)';
+    const faint = 'rgba(15,23,42,0.08)';
+    const divider = 'rgba(15,23,42,0.08)';
+
+    const renderRows = (rows, options = {}) => rows.map(([label, score, max, note], idx) => `
+      <div style="padding:${idx === 0 ? '0 0 10px' : '10px 0'};border-top:${idx === 0 ? 'none' : `1px solid ${divider}`};">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+          <div>
+            <div style="font-size:15px;font-weight:800;color:#0f172a;">${label}</div>
+            <div style="font-size:12px;color:${muted};margin-top:2px;">${note || `${Math.round((Number(score || 0) / Number(max || 1)) * 100)}% of max`}</div>
+          </div>
+          <div style="text-align:right;white-space:nowrap;">
+            <div style="font-size:18px;font-weight:900;color:#0f172a;">${formatScore(score, max)}</div>
+          </div>
+        </div>
+      </div>
+    `).join('');
 
     body.innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px;">
-        <div style="grid-column:1/-1;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02));border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:16px;">
+        <div style="grid-column:1/-1;${cardStyle}">
           <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;">
             <div>
-              <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.45);text-transform:uppercase;">Current rank</div>
+              <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${muted};text-transform:uppercase;">Current rank</div>
               <div style="font-size:34px;font-weight:900;color:${colour};line-height:1.05;margin-top:6px;">${status}</div>
             </div>
             <div style="text-align:right;">
-              <div style="font-size:28px;font-weight:900;color:${colour};">${total}/60</div>
-              <div style="font-size:12px;color:rgba(255,255,255,0.5);">${percent}% daily standard</div>
+              <div style="font-size:28px;font-weight:900;color:${colour};">${formatScore(total, 100)}</div>
+              <div style="font-size:12px;color:${muted};">${percent}% daily standard</div>
             </div>
           </div>
-          <div style="height:8px;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden;margin-top:14px;">
+          <div style="height:8px;background:${faint};border-radius:999px;overflow:hidden;margin-top:14px;">
             <div style="height:100%;width:${Math.min(100, percent)}%;background:${colour};border-radius:999px;"></div>
           </div>
         </div>
-        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:14px;">
-          <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.45);text-transform:uppercase;">Vs last week</div>
+        <div style="${cardStyle}">
+          <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${muted};text-transform:uppercase;">Vs last week</div>
           <div style="font-size:28px;font-weight:900;color:${avgTone(vsLastWeek)};margin-top:8px;">${fmtDelta(vsLastWeek)}</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.5);">Average ${lastWeekCombined === null ? '--' : (Math.round(lastWeekCombined * 10) / 10).toFixed(1)}/60</div>
+          <div style="font-size:12px;color:${muted};">Average ${lastWeekCombined === null ? '--' : formatScore(lastWeekCombined, 100)}</div>
         </div>
-        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:14px;">
-          <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.45);text-transform:uppercase;">Vs month</div>
+        <div style="${cardStyle}">
+          <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${muted};text-transform:uppercase;">Vs month</div>
           <div style="font-size:28px;font-weight:900;color:${avgTone(vsMonth)};margin-top:8px;">${fmtDelta(vsMonth)}</div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.5);">Average ${monthCombined === null ? '--' : (Math.round(monthCombined * 10) / 10).toFixed(1)}/60</div>
+          <div style="font-size:12px;color:${muted};">Average ${monthCombined === null ? '--' : formatScore(monthCombined, 100)}</div>
         </div>
       </div>
 
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:14px;margin-bottom:14px;">
-        <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.45);text-transform:uppercase;margin-bottom:12px;">Score breakdown</div>
-        ${scoreRows.map(([label, score, max]) => {
-          const pct = Math.round((score / max) * 100);
-          const tier = getPerformanceTier(max === 60 ? score : score * 2);
-          return `
-            <div style="padding:10px 0;border-top:1px solid rgba(255,255,255,0.06);${label === 'Morning readiness' ? 'border-top:none;padding-top:0;' : ''}">
-              <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
-                <div>
-                  <div style="font-size:15px;font-weight:800;">${label}</div>
-                  <div style="font-size:12px;color:rgba(255,255,255,0.45);">${pct}% of max</div>
-                </div>
-                <div style="text-align:right;">
-                  <div style="font-size:20px;font-weight:900;color:${tier.colour};">${score}/${max}</div>
-                  <div style="font-size:11px;color:rgba(255,255,255,0.45);">${tier.status}</div>
-                </div>
-              </div>
-            </div>
-          `;
-        }).join('')}
+      <div style="${cardStyle}margin-bottom:14px;">
+        <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${muted};text-transform:uppercase;margin-bottom:10px;">Weighted tier totals</div>
+        ${renderRows([
+          ['Tier 1 habits', tier1.total, 40, 'Gym 15 + retention 10 + meditation 5 + sleep from evening score'],
+          ['Tier 2 evening rating', tier2.weightedTotal, 40, `Scaled from evening journal ${formatScore(tier2.rawTotal, 30)}`],
+          ['Tier 3 morning rating', tier3.weightedTotal, 20, `Scaled from morning journal ${formatScore(tier3.rawTotal, 30)}`],
+          ['Overall total', total, 100, '40% tier 1 · 40% tier 2 · 20% tier 3'],
+        ])}
       </div>
 
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:14px;">
-        <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.45);text-transform:uppercase;margin-bottom:12px;">Ranking ladder</div>
-        ${tiers.map(([name, pctRange, scoreRange]) => `
-          <div style="display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid rgba(255,255,255,0.06);${name === 'Legendary' ? 'border-top:none;padding-top:0;' : ''}">
-            <div style="font-size:14px;font-weight:${name.toUpperCase() === status ? '900' : '700'};color:${name.toUpperCase() === status ? colour : '#fff'};">${name}</div>
-            <div style="font-size:12px;color:rgba(255,255,255,0.5);">${pctRange}</div>
-            <div style="font-size:12px;color:rgba(255,255,255,0.72);font-weight:700;">${scoreRange}</div>
+      <div style="${cardStyle}margin-bottom:14px;">
+        <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${muted};text-transform:uppercase;margin-bottom:10px;">Tier 1 habits breakdown</div>
+        ${renderRows(tier1.rows)}
+      </div>
+
+      <div style="${cardStyle}margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+          <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${muted};text-transform:uppercase;">Tier 2 evening breakdown</div>
+          <div style="font-size:12px;color:${muted};">${formatScore(tier2.rawTotal, 30)} raw → ${formatScore(tier2.weightedTotal, 40)} weighted</div>
+        </div>
+        ${renderRows(tier2.rows)}
+      </div>
+
+      <div style="${cardStyle}margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+          <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${muted};text-transform:uppercase;">Tier 3 morning breakdown</div>
+          <div style="font-size:12px;color:${muted};">${formatScore(tier3.rawTotal, 30)} raw → ${formatScore(tier3.weightedTotal, 20)} weighted</div>
+        </div>
+        ${renderRows(tier3.rows)}
+      </div>
+
+      <div style="${cardStyle}">
+        <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${muted};text-transform:uppercase;margin-bottom:12px;">Ranking ladder</div>
+        ${tiers.map(([name, pctRange, scoreRange], idx) => `
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:${idx===0?'0 0 10px':'10px 0'};border-top:${idx===0?'none':`1px solid ${divider}`};">
+            <div style="font-size:14px;font-weight:${name.toUpperCase() === status ? '900' : '700'};color:${name.toUpperCase() === status ? colour : '#0f172a'};">${name}</div>
+            <div style="font-size:12px;color:${muted};">${pctRange}</div>
+            <div style="font-size:12px;color:#0f172a;font-weight:700;">${scoreRange}</div>
           </div>
         `).join('')}
       </div>
@@ -310,9 +400,7 @@ export function initJournalTab(deps) {
   }
 
   function updateBestVersionPercent(){
-    const morning=Number(morningScoreValue.textContent||0);
-    const evening=Number(eveningScoreValue.textContent||0);
-    const total = morning + evening;
+    const total = getWeightedScores().total;
     const { percent, colour, status } = getPerformanceTier(total);
     const barWidth = Math.min(100, percent);
     bestVersionScore.style.cursor = 'pointer';
@@ -322,20 +410,19 @@ export function initJournalTab(deps) {
     bestVersionScore.title = 'Tap to view ranking breakdown';
     bestVersionScore.innerHTML =
       `<div style="width:100%;">` +
-      `<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;">` +
+      `<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;flex-wrap:wrap;">` +
       `<span style="font-size:30px;font-weight:900;color:${colour};letter-spacing:-0.5px;">${status}</span>` +
-      `<span style="font-size:15px;font-weight:800;color:${colour};opacity:0.8;">${total}/${60}</span>` +
+      `<span style="font-size:15px;font-weight:800;color:${colour};opacity:0.85;">${formatScore(total, 100)}</span>` +
       `</div>` +
       `<div style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;margin-bottom:3px;">` +
       `<div style="height:100%;width:${barWidth}%;background:${colour};border-radius:2px;transition:width 0.4s;"></div>` +
       `</div>` +
       `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">` +
-      `<div style="font-size:9px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.3);text-transform:uppercase;">Daily standard</div>` +
+      `<div style="font-size:9px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.3);text-transform:uppercase;">Weighted daily standard</div>` +
       `<div style="font-size:10px;font-weight:800;color:rgba(255,255,255,0.38);text-transform:uppercase;letter-spacing:1px;">Tap for detail</div>` +
       `</div>` +
       `</div>`;
   }
-
   function computeMorningScore(){ const total=Number(morningFields.rested.value)+Number(morningFields.sharpness.value)+Number(morningFields.calm.value)+Number(morningFields.motivation.value)+Number(morningFields.clarity.value)+Number(morningFields.drive.value); morningScoreValue.textContent=total; updateBestVersionPercent(); return total; }
   function computeEveningScore(){ const total=Number(eveningFields.execution.value)+Number(eveningFields.discipline.value)+Number(eveningFields.dopamine.value)+Number(eveningFields.physical.value)+Number(eveningFields.builder.value)+Number(eveningFields.sleepprep.value); eveningScoreValue.textContent=total; updateBestVersionPercent(); return total; }
   function evaluateMorningCompletion(){ const complete=[morningFields.identity,morningFields.purpose,morningFields.stateConfidence,morningFields.mission,morningFields.priority1,morningFields.priority2,morningFields.priority3,morningFields.obstacles].every(el=>isFilled(el.value)); morningCard.classList.toggle('complete-block', complete); morningBadge.textContent=complete?'Complete':'In progress'; morningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
