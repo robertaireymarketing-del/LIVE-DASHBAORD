@@ -11,7 +11,7 @@ export function initDayPlannerActions({
   // ── Internal helpers ───────────────────────────────────────────────────
   async function autoSaveDayDraft() {
     if (!state.dayPlannerDraft || !state.dayPlannerDay) return;
-    const activeDay  = state.dayPlannerDay;
+    const activeDay = state.dayPlannerDay;
     const weekOffset = state.dayPlannerWeekOffset || 0;
     let weekKey;
     if (weekOffset === 0) {
@@ -34,14 +34,14 @@ export function initDayPlannerActions({
     if (!state.data.dayBatchPlan) state.data.dayBatchPlan = {};
     if (!state.data.dayBatchPlan[weekKey]) state.data.dayBatchPlan[weekKey] = {};
     if (!state.data.dayBatchPlan[weekKey][activeDay]) state.data.dayBatchPlan[weekKey][activeDay] = {};
-    state.data.dayBatchPlan[weekKey][activeDay]._batch   = state.dayPlannerDraft._batch   || [];
+    state.data.dayBatchPlan[weekKey][activeDay]._batch = state.dayPlannerDraft._batch || [];
     state.data.dayBatchPlan[weekKey][activeDay]._streams = state.dayPlannerDraft._streams || [];
     await saveData();
   }
 
   function getUnscheduledSteps() {
     const draftKeys = new Set();
-    const doneKeys  = new Set();
+    const doneKeys = new Set();
     (state.dayPlannerDraft?._batch||[]).forEach(s => draftKeys.add(`${s.batchId}:${s.stepIdx}`));
     Object.values(state.data.dayBatchPlan||{}).forEach(weekData =>
       Object.values(weekData).forEach(dayData =>
@@ -81,10 +81,150 @@ export function initDayPlannerActions({
     return items;
   }
 
+  // ── Month rollover helper ──────────────────────────────────────────────
+  function rolloverMonthObjectives() {
+    const now = new Date();
+    const currentMonthKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    if (!state.data.monthObjectives) state.data.monthObjectives = {};
+
+    // Find any incomplete objectives from previous months — carry forward to current month
+    const currentObjs = state.data.monthObjectives[currentMonthKey] || [];
+    const currentIds = new Set(currentObjs.map(o => o.id));
+    let didAdd = false;
+
+    Object.entries(state.data.monthObjectives).forEach(([mk, objs]) => {
+      if (mk >= currentMonthKey) return; // skip current and future
+      (objs || []).forEach(obj => {
+        if (!obj.done && !currentIds.has(obj.id)) {
+          // carry forward — keep original deadline so it shows as overdue
+          if (!state.data.monthObjectives[currentMonthKey]) state.data.monthObjectives[currentMonthKey] = [];
+          state.data.monthObjectives[currentMonthKey].push({ ...obj });
+          currentIds.add(obj.id);
+          didAdd = true;
+        }
+      });
+    });
+
+    if (didAdd) saveDataQuiet();
+  }
+
+  // ── Objectives Modal ───────────────────────────────────────────────────
+  window.openObjectivesModal = (tab) => {
+    rolloverMonthObjectives();
+    state.objectivesModalOpen = true;
+    state.objModalTab = tab || 'weekly';
+    render();
+    // Wire up deadline date picker display after render
+    setTimeout(() => {
+      const dlInput = document.getElementById('new-month-obj-deadline');
+      const dlDisplay = document.getElementById('new-month-obj-deadline-display');
+      if (dlInput && dlDisplay) {
+        dlInput.addEventListener('change', () => {
+          if (dlInput.value) {
+            const dt = new Date(dlInput.value + 'T00:00:00');
+            dlDisplay.textContent = '📅 ' + dt.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+            dlDisplay.style.color = '#C9A84C';
+            dlDisplay.style.fontWeight = '800';
+          } else {
+            dlDisplay.textContent = '📅 Set deadline (optional)';
+            dlDisplay.style.color = 'rgba(255,255,255,0.3)';
+            dlDisplay.style.fontWeight = '400';
+          }
+        });
+      }
+    }, 50);
+  };
+
+  window.closeObjectivesModal = (e) => {
+    if (e.target === e.currentTarget) { state.objectivesModalOpen = false; render(); }
+  };
+
+  window.closeObjectivesModalBtn = () => {
+    state.objectivesModalOpen = false; render();
+  };
+
+  window.switchObjTab = (tab) => {
+    state.objModalTab = tab; render();
+    // Re-wire deadline picker after re-render
+    if (tab === 'monthly') {
+      setTimeout(() => {
+        const dlInput = document.getElementById('new-month-obj-deadline');
+        const dlDisplay = document.getElementById('new-month-obj-deadline-display');
+        if (dlInput && dlDisplay) {
+          dlInput.addEventListener('change', () => {
+            if (dlInput.value) {
+              const dt = new Date(dlInput.value + 'T00:00:00');
+              dlDisplay.textContent = '📅 ' + dt.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+              dlDisplay.style.color = '#C9A84C';
+              dlDisplay.style.fontWeight = '800';
+            } else {
+              dlDisplay.textContent = '📅 Set deadline (optional)';
+              dlDisplay.style.color = 'rgba(255,255,255,0.3)';
+              dlDisplay.style.fontWeight = '400';
+            }
+          });
+        }
+      }, 50);
+    }
+  };
+
+  window.selectMonthObjCat = (cat) => {
+    const LABELS = { tjm:'TJM', vinted:'Vinted', notts:'Nottingham', other:'Other' };
+    document.querySelectorAll('[id^="moc-"]').forEach(b => b.classList.toggle('selected', b.id === 'moc-'+cat));
+    const hidden = document.getElementById('new-month-obj-cat');
+    if (hidden) hidden.value = cat;
+    const customWrap = document.getElementById('new-month-obj-custom-wrap');
+    if (customWrap) customWrap.style.display = cat === 'other' ? '' : 'none';
+  };
+
+  // ── Monthly Objectives CRUD ────────────────────────────────────────────
+  window.addMonthObj = async (monthKey) => {
+    const textEl = document.getElementById('new-month-obj-text');
+    const catEl = document.getElementById('new-month-obj-cat');
+    const customEl = document.getElementById('new-month-obj-custom');
+    const deadlineEl = document.getElementById('new-month-obj-deadline');
+    const text = textEl?.value?.trim();
+    if (!text) { textEl?.focus(); return; }
+    const cat = catEl?.value || 'tjm';
+    const categoryCustom = cat === 'other' ? (customEl?.value?.trim() || '') : '';
+    const deadline = deadlineEl?.value || '';
+    if (!state.data.monthObjectives) state.data.monthObjectives = {};
+    if (!state.data.monthObjectives[monthKey]) state.data.monthObjectives[monthKey] = [];
+    state.data.monthObjectives[monthKey].push({
+      id: 'mo_' + Date.now(),
+      text,
+      category: cat,
+      categoryCustom,
+      deadline,
+      done: false,
+      doneAt: null,
+      createdAt: Date.now(),
+    });
+    await saveData();
+    render();
+  };
+
+  window.toggleMonthObj = async (monthKey, i) => {
+    const objs = state.data.monthObjectives?.[monthKey];
+    if (!objs || !objs[i]) return;
+    objs[i].done = !objs[i].done;
+    objs[i].doneAt = objs[i].done ? Date.now() : null;
+    await saveData();
+    render();
+  };
+
+  window.removeMonthObj = async (monthKey, i) => {
+    const objs = state.data.monthObjectives?.[monthKey];
+    if (!objs) return;
+    objs.splice(i, 1);
+    await saveData();
+    render();
+  };
+
   // ── Day Planner ────────────────────────────────────────────────────────
   window.openDayPlanner = () => {
-    const weekKey   = getWeekKey();
-    const fronts    = getProjectFronts();
+    const weekKey = getWeekKey();
+    const fronts = getProjectFronts();
     const activeDay = getTodayDayKey();
     const draft = {};
     ['tjm','vinted','notts','_other'].forEach(fk => {
@@ -92,18 +232,20 @@ export function initDayPlannerActions({
       const t = plan[activeDay];
       draft[fk] = Array.isArray(t) ? [...t] : (t ? [t] : []);
     });
-    draft._batch   = [...(state.data.dayBatchPlan?.[weekKey]?.[activeDay]?._batch   || [])];
+    draft._batch = [...(state.data.dayBatchPlan?.[weekKey]?.[activeDay]?._batch || [])];
     draft._streams = [...(state.data.dayBatchPlan?.[weekKey]?.[activeDay]?._streams || [])];
     state.dayPlannerOpen = true;
-    state.dayPlannerDay  = activeDay;
+    state.dayPlannerDay = activeDay;
     state.dayPlannerDraft = draft;
-    state.dayPlannerWeekOffset  = 0;
-    state.dayPlannerStreamForm  = false;
+    state.dayPlannerWeekOffset = 0;
+    state.dayPlannerStreamForm = false;
     state.dayPlannerStreamDraft = null;
+    // Close objectives modal if open
+    state.objectivesModalOpen = false;
     render();
   };
 
-  window.closeDayPlanner    = (e) => { if (e.target.classList.contains('week-plan-overlay')) { state.dayPlannerOpen = false; render(); } };
+  window.closeDayPlanner = (e) => { if (e.target.classList.contains('week-plan-overlay')) { state.dayPlannerOpen = false; render(); } };
   window.closeDayPlannerBtn = () => { state.dayPlannerOpen = false; render(); };
 
   window.navPlanWeek = async (dir) => {
@@ -114,15 +256,16 @@ export function initDayPlannerActions({
   };
 
   // ── Week Objectives ────────────────────────────────────────────────────
-  window.editWeekObj        = (weekKey, i) => { state.weekObjEditing = i + '-' + weekKey; render(); setTimeout(() => { const el = document.getElementById(`week-obj-edit-${i}`); if(el) { el.focus(); el.select(); } }, 50); };
-  window.cancelWeekObjEdit  = () => { state.weekObjEditing = null; render(); };
-  window.saveWeekObjEdit    = async (weekKey, i) => {
+  window.editWeekObj = (weekKey, i) => { state.weekObjEditing = i + '-' + weekKey; render(); setTimeout(() => { const el = document.getElementById(`week-obj-edit-${i}`); if(el) { el.focus(); el.select(); } }, 50); };
+  window.cancelWeekObjEdit = () => { state.weekObjEditing = null; render(); };
+  window.saveWeekObjEdit = async (weekKey, i) => {
     const val = document.getElementById(`week-obj-edit-${i}`)?.value?.trim();
     if(val && state.data.weekObjectives?.[weekKey]?.[i]) { state.data.weekObjectives[weekKey][i].text = val; await saveData(); }
     state.weekObjEditing = null; render();
   };
+
   window.addWeekObj = async (weekKey) => {
-    const inp  = document.getElementById(`new-week-obj-${weekKey}`);
+    const inp = document.getElementById(`new-week-obj-${weekKey}`);
     const text = inp?.value?.trim();
     if (!text) return;
     if (!state.data.weekObjectives) state.data.weekObjectives = {};
@@ -130,11 +273,13 @@ export function initDayPlannerActions({
     state.data.weekObjectives[weekKey].push({ text, done: false });
     await saveData(); render();
   };
+
   window.toggleWeekObj = async (weekKey, i) => {
     if (!state.data.weekObjectives?.[weekKey]) return;
     state.data.weekObjectives[weekKey][i].done = !state.data.weekObjectives[weekKey][i].done;
     await saveData(); render();
   };
+
   window.removeWeekObj = async (weekKey, i) => {
     if (!state.data.weekObjectives?.[weekKey]) return;
     state.data.weekObjectives[weekKey].splice(i, 1);
@@ -159,14 +304,14 @@ export function initDayPlannerActions({
       const t = plan[day];
       draft[fk] = Array.isArray(t) ? [...t] : (t ? [t] : []);
     });
-    draft._batch   = [...(state.data.dayBatchPlan?.[wk]?.[day]?._batch   || [])];
+    draft._batch = [...(state.data.dayBatchPlan?.[wk]?.[day]?._batch || [])];
     draft._streams = [...(state.data.dayBatchPlan?.[wk]?.[day]?._streams || [])];
     state.dayPlannerDraft = draft;
     state.dayPlannerStreamForm = false;
     render();
   };
 
-  window.addDraftTask    = (fk) => { if (!state.dayPlannerDraft) state.dayPlannerDraft = {}; if (!state.dayPlannerDraft[fk]) state.dayPlannerDraft[fk] = []; state.dayPlannerDraft[fk].push({ text:'', start:'', end:'' }); render(); };
+  window.addDraftTask = (fk) => { if (!state.dayPlannerDraft) state.dayPlannerDraft = {}; if (!state.dayPlannerDraft[fk]) state.dayPlannerDraft[fk] = []; state.dayPlannerDraft[fk].push({ text:'', start:'', end:'' }); render(); };
   window.removeDraftTask = (fk, ti) => { if (state.dayPlannerDraft?.[fk]) { state.dayPlannerDraft[fk].splice(ti, 1); render(); } };
   window.updateDraftTask = (fk, ti, val, field) => {
     if (!state.dayPlannerDraft?.[fk]) return;
@@ -191,7 +336,7 @@ export function initDayPlannerActions({
     if (!state.data.dayBatchPlan) state.data.dayBatchPlan = {};
     if (!state.data.dayBatchPlan[weekKey]) state.data.dayBatchPlan[weekKey] = {};
     if (!state.data.dayBatchPlan[weekKey][activeDay]) state.data.dayBatchPlan[weekKey][activeDay] = {};
-    state.data.dayBatchPlan[weekKey][activeDay]._batch   = state.dayPlannerDraft?._batch   || [];
+    state.data.dayBatchPlan[weekKey][activeDay]._batch = state.dayPlannerDraft?._batch || [];
     state.data.dayBatchPlan[weekKey][activeDay]._streams = state.dayPlannerDraft?._streams || [];
     await saveData();
     state.dayPlannerOpen = false; render();
@@ -247,6 +392,7 @@ export function initDayPlannerActions({
     state.data.tjmBatches = batches;
     await saveData(); render();
   }
+
   window.markBatchStepComplete = markBatchStepComplete;
 
   async function unmarkBatchStep(id, stepIdx) {
@@ -259,8 +405,8 @@ export function initDayPlannerActions({
     state.data.tjmBatches = batches;
     await saveData(); render();
   }
-  window.unmarkBatchStep = unmarkBatchStep;
 
+  window.unmarkBatchStep = unmarkBatchStep;
   window.unmarkWeekBatchStepDone = async (draftIdx) => {
     const step = state.dayPlannerDraft?._batch?.[draftIdx];
     if(!step) return;
@@ -269,13 +415,13 @@ export function initDayPlannerActions({
   };
 
   window.toggleBatchStepDoneToday = async (batchId, draftIdx) => {
-    const weekKey     = getWeekKey();
+    const weekKey = getWeekKey();
     const todayDayKey = getTodayDayKey();
     if(!state.data.dayBatchPlan?.[weekKey]?.[todayDayKey]?._batch?.[draftIdx]) return;
     const stepEntry = state.data.dayBatchPlan[weekKey][todayDayKey]._batch[draftIdx];
     stepEntry.done = !stepEntry.done;
     if(stepEntry.done) { await markBatchStepComplete(batchId, stepEntry.stepIdx); }
-    else               { await unmarkBatchStep(batchId, stepEntry.stepIdx); }
+    else { await unmarkBatchStep(batchId, stepEntry.stepIdx); }
   };
 
   window.toggleFrontDone = async (key) => {
@@ -291,23 +437,23 @@ export function initDayPlannerActions({
     state.dayPlannerStreamForm = !state.dayPlannerStreamForm;
     if(state.dayPlannerStreamForm) state.dayPlannerStreamDraft = state.dayPlannerStreamDraft || { start:'17:00', end:'18:30', topic:'' };
     if(!state.dayPlannerDraft) {
-      const weekKey   = getWeekKey();
+      const weekKey = getWeekKey();
       const activeDay = getTodayDayKey();
-      const fronts    = getProjectFronts();
+      const fronts = getProjectFronts();
       const draft = {};
       ['tjm','vinted','notts','_other'].forEach(fk => {
         const plan = fronts[fk]?.weekPlans?.[weekKey] || {};
         const t = plan[activeDay];
         draft[fk] = Array.isArray(t) ? [...t] : (t ? [t] : []);
       });
-      draft._batch   = [...(state.data.dayBatchPlan?.[weekKey]?.[activeDay]?._batch   || [])];
+      draft._batch = [...(state.data.dayBatchPlan?.[weekKey]?.[activeDay]?._batch || [])];
       draft._streams = [...(state.data.dayBatchPlan?.[weekKey]?.[activeDay]?._streams || [])];
       state.dayPlannerDraft = draft;
     }
     render();
   };
-  window.cancelStreamForm = () => { state.dayPlannerStreamForm = false; render(); };
 
+  window.cancelStreamForm = () => { state.dayPlannerStreamForm = false; render(); };
   window.addStreamToDraft = () => {
     const topic = document.getElementById('stream-topic')?.value?.trim() || 'Livestream';
     const s = state.dayPlannerStreamDraft || {};
@@ -343,7 +489,7 @@ export function initDayPlannerActions({
     setTimeout(() => {
       const ITEM = 52;
       const hours = Array.from({length:24}, (_,i) => String(i).padStart(2,'0'));
-      const mins  = ['00','05','10','15','20','25','30','35','40','45','50','55'];
+      const mins = ['00','05','10','15','20','25','30','35','40','45','50','55'];
       const hEl = document.getElementById('tp-hours');
       const mEl = document.getElementById('tp-mins');
       if (hEl) hEl.scrollTop = hours.indexOf(h||'09') * ITEM;
@@ -353,20 +499,19 @@ export function initDayPlannerActions({
           const active = item.dataset.val === val;
           item.style.color = active ? '#C9A84C' : 'rgba(255,255,255,0.45)';
           item.style.fontWeight = active ? '800' : '500';
-          item.style.fontSize   = active ? '24px' : '20px';
+          item.style.fontSize = active ? '24px' : '20px';
         });
       });
     }, 30);
   };
 
   window.closeTimePicker = () => { state.timePickerOpen = null; render(); };
-
   window.onTpScroll = (el, type) => {
     if (!state.timePickerOpen) return;
     clearTimeout(el._snapTimer);
     el._snapTimer = setTimeout(() => {
       const ITEM = 52;
-      const idx  = Math.round(el.scrollTop / ITEM);
+      const idx = Math.round(el.scrollTop / ITEM);
       el.scrollTo({ top: idx * ITEM, behavior: 'smooth' });
       const items = type === 'hour'
         ? Array.from({length:24}, (_,i) => String(i).padStart(2,'0'))
@@ -379,25 +524,25 @@ export function initDayPlannerActions({
       const colId = type === 'hour' ? 'tp-hours' : 'tp-mins';
       document.querySelectorAll('#' + colId + ' [data-val]').forEach(item => {
         const active = item.dataset.val === val;
-        item.style.color      = active ? '#C9A84C' : 'rgba(255,255,255,0.3)';
+        item.style.color = active ? '#C9A84C' : 'rgba(255,255,255,0.3)';
         item.style.fontWeight = active ? '800' : '500';
-        item.style.fontSize   = active ? '24px' : '20px';
+        item.style.fontSize = active ? '24px' : '20px';
       });
       if(state.timePickerOpen?.fk === '_batchStep') {
         const { ti, hour: h2, minute: m2 } = state.timePickerOpen;
         const step = state.dayPlannerDraft?._batch?.[ti];
         const conflictEl = document.getElementById('tp-conflict');
-        const setBtn     = document.getElementById('tp-set-btn');
+        const setBtn = document.getElementById('tp-set-btn');
         if(step && conflictEl) {
           const startMins = parseInt(h2)*60 + parseInt(m2);
-          const endMins   = startMins + (step.timeBlock||30);
-          const conflict  = getAllTimedItems(ti).find(item => {
+          const endMins = startMins + (step.timeBlock||30);
+          const conflict = getAllTimedItems(ti).find(item => {
             const [ih,im] = item.start.split(':').map(Number);
             return startMins < (ih*60+im+item.dur) && endMins > (ih*60+im);
           });
           if(conflict) {
             conflictEl.style.display = 'block';
-            conflictEl.textContent   = '⚠️ Clashes with "' + conflict.name + '" at ' + conflict.start;
+            conflictEl.textContent = '⚠️ Clashes with "' + conflict.name + '" at ' + conflict.start;
             if(setBtn) { setBtn.style.background='rgba(255,255,255,0.15)'; setBtn.style.color='rgba(255,255,255,0.4)'; setBtn.style.cursor='not-allowed'; }
           } else {
             conflictEl.style.display = 'none';
@@ -417,15 +562,15 @@ export function initDayPlannerActions({
     } else if(fk === '_batchStep') {
       const step = state.dayPlannerDraft?._batch?.[ti];
       if(step) {
-        const startTime  = hour + ':' + minute;
-        const startMins  = parseInt(hour)*60 + parseInt(minute);
-        const endMins    = startMins + (step.timeBlock||30);
-        const conflict   = getAllTimedItems(ti).find(item => {
+        const startTime = hour + ':' + minute;
+        const startMins = parseInt(hour)*60 + parseInt(minute);
+        const endMins = startMins + (step.timeBlock||30);
+        const conflict = getAllTimedItems(ti).find(item => {
           const [ih,im] = item.start.split(':').map(Number);
           return startMins < (ih*60+im+item.dur) && endMins > (ih*60+im);
         });
         if(conflict) {
-          state.timePickerOpen   = null;
+          state.timePickerOpen = null;
           state.batchStepConflict = { si: ti, msg: `Clashes with "${conflict.name}" at ${conflict.start}` };
           render(); return;
         }
@@ -439,25 +584,24 @@ export function initDayPlannerActions({
   };
 
   window.selectTpHour = () => {};
-  window.selectTpMin  = () => {};
+  window.selectTpMin = () => {};
   window.updateTpDisplay = () => {};
 
   // ── Past Days ──────────────────────────────────────────────────────────
-  window.openPastDays    = () => { state.pastDaysOpen = true; render(); };
-  window.closePastDays   = () => { state.pastDaysOpen = false; state.pastDayEditing = null; render(); };
+  window.openPastDays = () => { state.pastDaysOpen = true; render(); };
+  window.closePastDays = () => { state.pastDaysOpen = false; state.pastDayEditing = null; render(); };
   window.openPastDayEdit = (dateStr) => {
     state.pastDayEditing = dateStr; render();
     setTimeout(()=>{ const el=document.querySelector('.past-days-modal [id^="pdov-'+dateStr+'"]'); if(el)el.scrollIntoView({behavior:'smooth',block:'center'}); },100);
   };
   window.closePastDayEdit = () => { state.pastDayEditing = null; render(); };
-
   window.savePastDayOverrides = async (dateStr) => {
     if (!state.data.days[dateStr]) state.data.days[dateStr] = {};
     const d = state.data.days[dateStr];
     if (!d._overridden) d._overridden = {};
     const fields = ['sales','revenue','warmLeads','dmsSent','weight','bodyFat','calories','bmr'];
     fields.forEach(k => {
-      const el  = document.getElementById(`pdov-${dateStr}-${k}`);
+      const el = document.getElementById(`pdov-${dateStr}-${k}`);
       if (!el) return;
       const raw = el.value.trim();
       if (raw === '') { delete d._overridden[k]; }
@@ -469,18 +613,17 @@ export function initDayPlannerActions({
     state.pastDayEditing = null;
     await saveData();
   };
-
   window.clearPastDayOverrides = async (dateStr) => {
     const d = state.data.days[dateStr];
     if (d) { delete d._overridden; state.pastDayEditing = null; await saveData(); }
-    else   { state.pastDayEditing = null; render(); }
+    else { state.pastDayEditing = null; render(); }
   };
 
   // ── Retention Log Editing ──────────────────────────────────────────────
   window.editRetentionLog = (date) => {
     const entry = state.data.retentionLog?.[date] || {};
     state.retentionEditingDate = date;
-    state.retentionEditDraft   = { ...entry };
+    state.retentionEditDraft = { ...entry };
     render();
   };
   window.updateRetentionEditSlider = (date, key, val) => {
@@ -500,7 +643,7 @@ export function initDayPlannerActions({
 
   // ── Identity Lock ──────────────────────────────────────────────────────
   window.cancelIdentityEdit = () => { state.identityEditing = false; render(); };
-  window.editIdentity       = () => { state.identityEditing = true;  render(); };
+  window.editIdentity = () => { state.identityEditing = true; render(); };
   window.saveIdentity = async () => {
     const h = document.getElementById('id-headline')?.value;
     const c = document.getElementById('id-core')?.value;
@@ -511,11 +654,11 @@ export function initDayPlannerActions({
   };
 
   // ── Mission Targets ────────────────────────────────────────────────────
-  window.editMission        = (i) => { state.missionEditingIdx = i; render(); };
-  window.cancelMissionEdit  = () => { state.missionEditingIdx = null; render(); };
+  window.editMission = (i) => { state.missionEditingIdx = i; render(); };
+  window.cancelMissionEdit = () => { state.missionEditingIdx = null; render(); };
   window.saveMission = async (i) => {
-    const title    = document.getElementById(`m-title-${i}`)?.value;
-    const desc     = document.getElementById(`m-desc-${i}`)?.value;
+    const title = document.getElementById(`m-title-${i}`)?.value;
+    const desc = document.getElementById(`m-desc-${i}`)?.value;
     const deadline = document.getElementById(`m-deadline-${i}`)?.value;
     const missions = getMissionTargets();
     missions[i] = { ...missions[i], title: title||missions[i].title, description: desc||missions[i].description, deadline: deadline !== undefined ? deadline : missions[i].deadline };
@@ -526,13 +669,13 @@ export function initDayPlannerActions({
 
   // ── Week Plan Modal ────────────────────────────────────────────────────
   window.openWeekPlan = (key) => {
-    const fronts  = getProjectFronts();
+    const fronts = getProjectFronts();
     const weekKey = isSunday() ? getNextWeekKey() : getWeekKey();
     state.weekPlanDraft = { ...(fronts[key]?.weekPlans?.[weekKey] || {}) };
     state.weekPlanModal = key; render();
   };
   window.closeWeekPlan = (e) => { if (e.target.classList.contains('week-plan-overlay')) { state.weekPlanModal = null; render(); } };
-  window.saveWeekPlan  = async (key) => {
+  window.saveWeekPlan = async (key) => {
     const days = ['mon','tue','wed','thu','fri','sat','sun'];
     const plan = {};
     days.forEach(d => { const v = document.getElementById(`wp-${d}`)?.value; if (v) plan[d] = v; });
@@ -547,4 +690,5 @@ export function initDayPlannerActions({
 
   // ── Misc ───────────────────────────────────────────────────────────────
   window.autoResizeTextarea = (el) => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; };
+
 }
