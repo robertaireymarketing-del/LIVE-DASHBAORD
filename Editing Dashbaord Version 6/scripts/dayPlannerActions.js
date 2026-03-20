@@ -109,30 +109,36 @@ export function initDayPlannerActions({
   }
 
   // ── Objectives Modal ───────────────────────────────────────────────────
+  function getObjectiveBaseDate() {
+    return state.objModalDate ? new Date(state.objModalDate) : new Date();
+  }
+
+  function wireMonthDeadlineDisplay() {
+    const dlInput = document.getElementById('new-month-obj-deadline');
+    const dlDisplay = document.getElementById('new-month-obj-deadline-display');
+    if (dlInput && dlDisplay) {
+      dlInput.addEventListener('change', () => {
+        if (dlInput.value) {
+          const dt = new Date(dlInput.value + 'T00:00:00');
+          dlDisplay.textContent = '📅 ' + dt.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+          dlDisplay.style.color = '#C9A84C';
+          dlDisplay.style.fontWeight = '800';
+        } else {
+          dlDisplay.textContent = '📅 Set deadline (optional)';
+          dlDisplay.style.color = 'rgba(255,255,255,0.3)';
+          dlDisplay.style.fontWeight = '400';
+        }
+      });
+    }
+  }
+
   window.openObjectivesModal = (tab) => {
     rolloverMonthObjectives();
     state.objectivesModalOpen = true;
     state.objModalTab = tab || 'weekly';
+    state.objModalDate = state.objModalDate || new Date().toISOString();
     render();
-    // Wire up deadline date picker display after render
-    setTimeout(() => {
-      const dlInput = document.getElementById('new-month-obj-deadline');
-      const dlDisplay = document.getElementById('new-month-obj-deadline-display');
-      if (dlInput && dlDisplay) {
-        dlInput.addEventListener('change', () => {
-          if (dlInput.value) {
-            const dt = new Date(dlInput.value + 'T00:00:00');
-            dlDisplay.textContent = '📅 ' + dt.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
-            dlDisplay.style.color = '#C9A84C';
-            dlDisplay.style.fontWeight = '800';
-          } else {
-            dlDisplay.textContent = '📅 Set deadline (optional)';
-            dlDisplay.style.color = 'rgba(255,255,255,0.3)';
-            dlDisplay.style.fontWeight = '400';
-          }
-        });
-      }
-    }, 50);
+    setTimeout(wireMonthDeadlineDisplay, 50);
   };
 
   window.closeObjectivesModal = (e) => {
@@ -145,27 +151,26 @@ export function initDayPlannerActions({
 
   window.switchObjTab = (tab) => {
     state.objModalTab = tab; render();
-    // Re-wire deadline picker after re-render
-    if (tab === 'monthly') {
-      setTimeout(() => {
-        const dlInput = document.getElementById('new-month-obj-deadline');
-        const dlDisplay = document.getElementById('new-month-obj-deadline-display');
-        if (dlInput && dlDisplay) {
-          dlInput.addEventListener('change', () => {
-            if (dlInput.value) {
-              const dt = new Date(dlInput.value + 'T00:00:00');
-              dlDisplay.textContent = '📅 ' + dt.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
-              dlDisplay.style.color = '#C9A84C';
-              dlDisplay.style.fontWeight = '800';
-            } else {
-              dlDisplay.textContent = '📅 Set deadline (optional)';
-              dlDisplay.style.color = 'rgba(255,255,255,0.3)';
-              dlDisplay.style.fontWeight = '400';
-            }
-          });
-        }
-      }, 50);
+    if (tab === 'monthly') setTimeout(wireMonthDeadlineDisplay, 50);
+  };
+
+  window.shiftObjectivesPeriod = (offset) => {
+    const base = getObjectiveBaseDate();
+    if ((state.objModalTab || 'weekly') === 'monthly') {
+      base.setDate(1);
+      base.setMonth(base.getMonth() + offset);
+    } else {
+      base.setDate(base.getDate() + (offset * 7));
     }
+    state.objModalDate = base.toISOString();
+    render();
+    if ((state.objModalTab || 'weekly') === 'monthly') setTimeout(wireMonthDeadlineDisplay, 50);
+  };
+
+  window.jumpObjectivesToToday = () => {
+    state.objModalDate = new Date().toISOString();
+    render();
+    if ((state.objModalTab || 'weekly') === 'monthly') setTimeout(wireMonthDeadlineDisplay, 50);
   };
 
   window.selectMonthObjCat = (cat) => {

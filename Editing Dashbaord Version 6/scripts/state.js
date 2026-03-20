@@ -62,5 +62,6 @@ export const state = {
   nottsGoalDraft: '',
   monthTargetsOpen: false,
   pastDaysOpen: false,
-  pastDayEditing: null
+  pastDayEditing: null,
+  objModalDate: null
 };

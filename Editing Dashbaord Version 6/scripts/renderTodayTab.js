@@ -18,6 +18,16 @@ const daysToMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
 const mondayDate = new Date(now); mondayDate.setDate(now.getDate() - daysToMon);
 const mondayStr = mondayDate.toISOString().slice(0,10);
 const thisWeekEntries = (state.healthData||[]).filter(h => h.date >= mondayStr).sort((a,b)=>a.date.localeCompare(b.date));
+const objectiveBaseDate = state.objModalDate ? new Date(state.objModalDate) : new Date();
+const objectiveMonthKey = objectiveBaseDate.getFullYear() + '-' + String(objectiveBaseDate.getMonth()+1).padStart(2,'0');
+const objectiveTodayKey = now.toISOString().slice(0,10);
+const objectiveDayOfWeek = objectiveBaseDate.getDay();
+const objectiveDaysToMon = objectiveDayOfWeek === 0 ? 6 : objectiveDayOfWeek - 1;
+const objectiveMondayDate = new Date(objectiveBaseDate); objectiveMondayDate.setDate(objectiveBaseDate.getDate() - objectiveDaysToMon);
+const objectiveWeekKey = getWeekKey(objectiveBaseDate);
+const objectiveWeekEndDate = new Date(objectiveMondayDate); objectiveWeekEndDate.setDate(objectiveMondayDate.getDate() + 6);
+const isCurrentObjectiveMonth = objectiveMonthKey === (now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0'));
+const isCurrentObjectiveWeek = objectiveWeekKey === getWeekKey(now);
 const weekBaseEntry = thisWeekEntries[0];
 const weekBaseWeight = weekBaseEntry?.weight || currentWeight;
 const weekBaseBF = weekBaseEntry?.bodyFat || currentBF;
@@ -26,7 +36,7 @@ const weekTargetWeight = +(weekBaseWeight - 1.4).toFixed(1);
 
 // ── Month key & helpers ────────────────────────────────────────────────
 const monthKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-const todayKey = now.toISOString().slice(0,10);
+const todayKey = objectiveTodayKey;
 const MONTH_CAT_LABELS = {
   tjm: 'TJM',
   vinted: 'Vinted',
@@ -65,8 +75,8 @@ function getMonthCalendarData(baseDate = new Date()) {
   };
 }
 
-function buildMonthObjectiveCalendar(monthObjs) {
-  const cal = getMonthCalendarData(now);
+function buildMonthObjectiveCalendar(monthObjs, baseDate = objectiveBaseDate) {
+  const cal = getMonthCalendarData(baseDate);
   const countsByDay = {};
   const doneByDay = {};
 
@@ -600,15 +610,29 @@ ${renderInputCard('warmLeads', 'WARM LEADS', todayData.warmLeads, 'number', 'lea
 
 // ── Objectives Modal ───────────────────────────────────────────────────
 const activeObjTab = state.objModalTab || 'weekly';
-const modalMonthObjs = state.data.monthObjectives?.[monthKey] || [];
-const modalWeekObjs = state.data.weekObjectives?.[weekKey] || [];
+const modalMonthObjs = state.data.monthObjectives?.[objectiveMonthKey] || [];
+const modalWeekObjs = state.data.weekObjectives?.[objectiveWeekKey] || [];
+const objectiveMonthLabel = objectiveBaseDate.toLocaleString('en-GB',{month:'long',year:'numeric'}).toUpperCase();
+const objectiveWeekLabel = `WEEK OF ${objectiveMondayDate.toLocaleDateString('en-GB',{day:'numeric',month:'short'}).toUpperCase()}${objectiveWeekEndDate.getMonth() !== objectiveMondayDate.getMonth() ? ' → ' + objectiveWeekEndDate.toLocaleDateString('en-GB',{day:'numeric',month:'short'}).toUpperCase() : ''}`;
+const periodNav = `
+<div class="obj-period-nav" style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;">
+  <button onclick="shiftObjectivesPeriod(-1)" class="obj-period-btn" style="width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#fff;font-size:18px;font-weight:900;cursor:pointer;">←</button>
+  <div style="flex:1;text-align:center;min-width:0;">
+    <div class="obj-period-label" style="font-size:11px;font-weight:900;letter-spacing:1.6px;color:rgba(255,255,255,0.35);margin-bottom:4px;">${activeObjTab === 'monthly' ? 'PLANNING MONTH' : 'PLANNING WEEK'}</div>
+    <div class="obj-period-value" style="font-size:16px;font-weight:900;color:#fff;letter-spacing:0.5px;">${activeObjTab === 'monthly' ? objectiveMonthLabel : objectiveWeekLabel}</div>
+  </div>
+  <button onclick="shiftObjectivesPeriod(1)" class="obj-period-btn" style="width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#fff;font-size:18px;font-weight:900;cursor:pointer;">→</button>
+</div>
+<div style="display:flex;justify-content:center;margin:-4px 0 16px;">
+  <button onclick="jumpObjectivesToToday()" class="obj-jump-today-btn" style="background:${(activeObjTab === 'monthly' ? isCurrentObjectiveMonth : isCurrentObjectiveWeek) ? 'rgba(46,204,113,0.12)' : 'rgba(255,255,255,0.04)'};border:1px solid ${(activeObjTab === 'monthly' ? isCurrentObjectiveMonth : isCurrentObjectiveWeek) ? 'rgba(46,204,113,0.35)' : 'rgba(255,255,255,0.1)'};border-radius:999px;padding:8px 14px;color:${(activeObjTab === 'monthly' ? isCurrentObjectiveMonth : isCurrentObjectiveWeek) ? '#2ecc71' : 'rgba(255,255,255,0.55)'};font-size:11px;font-weight:900;letter-spacing:0.8px;cursor:pointer;">${(activeObjTab === 'monthly' ? isCurrentObjectiveMonth : isCurrentObjectiveWeek) ? 'VIEWING CURRENT PERIOD' : 'JUMP TO CURRENT PERIOD'}</button>
+</div>`;
 
 const monthlyObjModalContent = `
 <div style="margin-bottom:16px;">
   <div class="obj-month-heading">
-    ${new Date().toLocaleString('en-GB',{month:'long',year:'numeric'}).toUpperCase()}
+    ${objectiveMonthLabel}
   </div>
-  ${buildMonthObjectiveCalendar(modalMonthObjs)}
+  ${buildMonthObjectiveCalendar(modalMonthObjs, objectiveBaseDate)}
   ${modalMonthObjs.length === 0 ? `<div class="obj-empty-state">No monthly objectives yet — add one below</div>` : ''}
   ${modalMonthObjs.map((obj, i) => {
     const catLabel = obj.categoryCustom || MONTH_CAT_LABELS[obj.category] || 'Personal';
@@ -620,7 +644,7 @@ const monthlyObjModalContent = `
     const isOverdue = daysLeft !== null && daysLeft < 0 && !obj.done;
     return `
     <div style="border:1.5px solid ${obj.done?'rgba(46,204,113,0.3)':isOverdue?'rgba(231,76,60,0.3)':catColor+'33'};border-radius:12px;padding:12px 14px;margin-bottom:8px;background:${obj.done?'rgba(26,92,58,0.4)':isOverdue?'rgba(231,76,60,0.05)':'rgba(255,255,255,0.02)'};display:flex;align-items:center;gap:10px;">
-      <button onclick="toggleMonthObj('${monthKey}',${i})" style="width:24px;height:24px;flex-shrink:0;border-radius:6px;border:2px solid ${obj.done?'rgba(46,204,113,0.7)':catColor+'66'};background:${obj.done?'rgba(46,204,113,0.2)':'transparent'};color:${obj.done?'#2ecc71':catColor};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</button>
+      <button onclick="toggleMonthObj('${objectiveMonthKey}',${i})" style="width:24px;height:24px;flex-shrink:0;border-radius:6px;border:2px solid ${obj.done?'rgba(46,204,113,0.7)':catColor+'66'};background:${obj.done?'rgba(46,204,113,0.2)':'transparent'};color:${obj.done?'#2ecc71':catColor};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</button>
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px;">
           <span style="font-size:9px;font-weight:900;letter-spacing:1px;color:${catColor};">${catLabel.toUpperCase()}</span>
@@ -628,7 +652,7 @@ const monthlyObjModalContent = `
         </div>
         <div style="font-size:15px;font-weight:700;color:${obj.done?'rgba(255,255,255,0.4)':'#fff'};${obj.done?'text-decoration:line-through;':''}line-height:1.3;">${obj.text}</div>
       </div>
-      <button onclick="removeMonthObj('${monthKey}',${i})" style="width:28px;height:28px;flex-shrink:0;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.6);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      <button onclick="removeMonthObj('${objectiveMonthKey}',${i})" style="width:28px;height:28px;flex-shrink:0;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.6);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
     </div>`;
   }).join('')}
 </div>
@@ -646,28 +670,28 @@ const monthlyObjModalContent = `
     <input type="date" id="new-month-obj-deadline" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
     <div id="new-month-obj-deadline-display" style="padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:14px;color:rgba(255,255,255,0.3);cursor:pointer;">📅 Set deadline (optional)</div>
   </div>
-  <button onclick="addMonthObj('${monthKey}')" style="width:100%;background:#C9A84C;border:none;border-radius:10px;padding:13px;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;">+ Add Objective</button>
+  <button onclick="addMonthObj('${objectiveMonthKey}')" style="width:100%;background:#C9A84C;border:none;border-radius:10px;padding:13px;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;">+ Add Objective</button>
 </div>`;
 
 const weeklyObjModalContent = `
 <div style="margin-bottom:16px;">
-  <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1px;margin-bottom:10px;">WEEK OF ${mondayDate.toLocaleDateString('en-GB',{day:'numeric',month:'short'}).toUpperCase()}</div>
+  <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1px;margin-bottom:10px;">${objectiveWeekLabel}</div>
   ${modalWeekObjs.length === 0 ? `<div style="text-align:center;padding:20px 0;color:rgba(255,255,255,0.25);font-size:13px;font-style:italic;">No weekly objectives yet — add one below</div>` : ''}
   ${modalWeekObjs.map((obj, i) => {
     const text = typeof obj === 'string' ? obj : obj.text;
     const done = typeof obj === 'object' ? !!obj.done : false;
     return `
     <div style="border:1.5px solid ${done?'rgba(46,204,113,0.3)':'rgba(255,255,255,0.1)'};border-radius:12px;padding:12px 14px;margin-bottom:8px;background:${done?'rgba(26,92,58,0.4)':'rgba(255,255,255,0.02)'};display:flex;align-items:center;gap:10px;">
-      <button onclick="toggleWeekObj('${weekKey}',${i})" style="width:24px;height:24px;flex-shrink:0;border-radius:6px;border:2px solid ${done?'rgba(46,204,113,0.7)':'rgba(201,168,76,0.5)'};background:${done?'rgba(46,204,113,0.2)':'transparent'};color:${done?'#2ecc71':'#C9A84C'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${done?'✓':''}</button>
+      <button onclick="toggleWeekObj('${objectiveWeekKey}',${i})" style="width:24px;height:24px;flex-shrink:0;border-radius:6px;border:2px solid ${done?'rgba(46,204,113,0.7)':'rgba(201,168,76,0.5)'};background:${done?'rgba(46,204,113,0.2)':'transparent'};color:${done?'#2ecc71':'#C9A84C'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${done?'✓':''}</button>
       <div style="flex:1;font-size:15px;font-weight:700;color:${done?'rgba(255,255,255,0.4)':'#fff'};${done?'text-decoration:line-through;':''}line-height:1.3;">${text}</div>
-      <button onclick="removeWeekObj('${weekKey}',${i})" style="width:28px;height:28px;flex-shrink:0;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.6);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      <button onclick="removeWeekObj('${objectiveWeekKey}',${i})" style="width:28px;height:28px;flex-shrink:0;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.6);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
     </div>`;
   }).join('')}
 </div>
 <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:16px;">
   <div style="font-size:11px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.4);margin-bottom:12px;">ADD OBJECTIVE</div>
-  <input class="batch-editor-input" id="new-week-obj-${weekKey}" placeholder="e.g. Complete Spring batch" style="margin-bottom:10px;">
-  <button onclick="addWeekObj('${weekKey}')" style="width:100%;background:#C9A84C;border:none;border-radius:10px;padding:13px;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;">+ Add Objective</button>
+  <input class="batch-editor-input" id="new-week-obj-${objectiveWeekKey}" placeholder="e.g. Complete Spring batch" style="margin-bottom:10px;">
+  <button onclick="addWeekObj('${objectiveWeekKey}')" style="width:100%;background:#C9A84C;border:none;border-radius:10px;padding:13px;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;">+ Add Objective</button>
 </div>`;
 
 const objectivesModal = state.objectivesModalOpen ? `
@@ -681,6 +705,7 @@ const objectivesModal = state.objectivesModalOpen ? `
       <button onclick="switchObjTab('monthly')" style="flex:1;padding:10px;border-radius:8px;border:none;background:${activeObjTab==='monthly'?'#C9A84C':'transparent'};color:${activeObjTab==='monthly'?'#000':'rgba(255,255,255,0.5)'};font-weight:900;font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.2s;letter-spacing:0.5px;">Monthly</button>
       <button onclick="switchObjTab('weekly')" style="flex:1;padding:10px;border-radius:8px;border:none;background:${activeObjTab==='weekly'?'#C9A84C':'transparent'};color:${activeObjTab==='weekly'?'#000':'rgba(255,255,255,0.5)'};font-weight:900;font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.2s;letter-spacing:0.5px;">This Week</button>
     </div>
+    ${periodNav}
     ${activeObjTab === 'monthly' ? monthlyObjModalContent : weeklyObjModalContent}
     <div style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.08);padding-top:14px;">
       <button onclick="openDayPlanner()" style="width:100%;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:12px;padding:13px;color:#C9A84C;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.3px;">📅 Schedule Tasks to Days →</button>
@@ -709,6 +734,9 @@ body.light .obj-modal-inner [onclick*="switchObjTab"][style*="background:#C9A84C
 body.light .obj-modal-inner div[style*="display:flex;gap:6px;margin-bottom:20px;background:rgba(255,255,255,0.05);border-radius:10px;padding:4px;"] { background: #EAF0F7 !important; }
 /* Close button */
 body.light .obj-modal-inner button[onclick="closeObjectivesModalBtn()"] { background: #EEF3F8 !important; color: #516176 !important; border: 1px solid #D8E0EC !important; }
+body.light .obj-period-label { color: #6B7A90 !important; }
+body.light .obj-period-value { color: #0A1628 !important; }
+body.light .obj-period-btn, body.light .obj-jump-today-btn { background: #FFFFFF !important; border-color: #D8E0EC !important; color: #516176 !important; }
 /* Cards inside modal */
 body.light .obj-modal-inner div[style*="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:16px;"] { background: #FFFFFF !important; border: 1px solid #D8E0EC !important; }
 body.light .obj-modal-inner div[style*="border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;"] { background: #FFFFFF !important; border-color: #D8E0EC !important; }

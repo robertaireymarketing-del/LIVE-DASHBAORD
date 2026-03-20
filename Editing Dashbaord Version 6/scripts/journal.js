@@ -553,8 +553,7 @@ export function initJournalTab(deps) {
     const el = document.getElementById('journalMonthObjectives');
     if (!el) return;
 
-    const now = new Date();
-    const monthKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    const monthKey = currentDate.getFullYear() + '-' + String(currentDate.getMonth()+1).padStart(2,'0');
     const monthObjs = deps.state.data.monthObjectives?.[monthKey] || [];
 
     if (!monthObjs.length) { el.innerHTML = ''; return; }
