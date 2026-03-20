@@ -1,6 +1,6 @@
 export function renderTodayTab(deps) {
 
-const { state, BATCH_COLOURS, getTodayData, getIdentityLock, getMissionTargets, getProjectFronts, getTJMBatches, getLatestWeight, getLatestBodyFat, getLatestWeightDate, getLatestBodyFatDate, formatSyncLabel, getSettings, isSunday, getTodayDayKey, getWeekKey, getToday, getMonthStats, getMonthDaysRemaining, getMonthTargets, getDerivedTargetWeight, getCurrentLeanMass, getStartLeanMass, getStreak, renderInputCard } = deps;
+const { state, BATCH_COLOURS, getTodayData, getIdentityLock, getMissionTargets, getProjectFronts, getTJMBatches, getLatestWeight, getLatestBodyFat, getLatestWeightDate, getLatestBodyFatDate, formatSyncLabel, getSettings, isSunday, getTodayDayKey, getWeekKey, getToday, getMonthStats, getMonthDaysRemaining, getMonthTargets, getDerivedTargetWeight, getCurrentLeanMass, getStartLeanMass, getStreak, renderInputCard, renderEmbeddedDayPlanner } = deps;
 
 const todayData = getTodayData();
 const identity = getIdentityLock();
@@ -803,7 +803,8 @@ const weeklyObjModalContent = `
     <div style="padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:14px;color:rgba(255,255,255,0.3);cursor:pointer;">📅 Set deadline (optional)</div>
   </div>
   <button onclick="addWeekObj('${objectiveWeekKey}')" style="width:100%;background:#C9A84C;border:none;border-radius:10px;padding:13px;color:#000;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;">+ Add Objective</button>
-</div>`;
+</div>
+${renderEmbeddedDayPlanner()}`;
 
 const objectivesModal = state.objectivesModalOpen ? `
 <div onclick="closeObjectivesModal(event)" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:1000;display:flex;align-items:flex-end;justify-content:center;">
@@ -818,9 +819,6 @@ const objectivesModal = state.objectivesModalOpen ? `
     </div>
     ${periodNav}
     ${activeObjTab === 'monthly' ? monthlyObjModalContent : weeklyObjModalContent}
-    <div style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.08);padding-top:14px;">
-      <button onclick="openDayPlanner()" style="width:100%;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3);border-radius:12px;padding:13px;color:#C9A84C;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.3px;">📅 Schedule Tasks to Days →</button>
-    </div>
   </div>
 </div>` : '';
 

@@ -132,11 +132,32 @@ export function initDayPlannerActions({
     }
   }
 
+  function initEmbeddedDayPlanner() {
+    if (state.dayPlannerDraft && state.dayPlannerDay) return; // already initialised
+    const weekKey = getWeekKey();
+    const fronts = getProjectFronts();
+    const activeDay = getTodayDayKey();
+    const draft = {};
+    ['tjm','vinted','notts','_other'].forEach(fk => {
+      const plan = fronts[fk]?.weekPlans?.[weekKey] || {};
+      const t = plan[activeDay];
+      draft[fk] = Array.isArray(t) ? [...t] : (t ? [t] : []);
+    });
+    draft._batch = [...(state.data.dayBatchPlan?.[weekKey]?.[activeDay]?._batch || [])];
+    draft._streams = [...(state.data.dayBatchPlan?.[weekKey]?.[activeDay]?._streams || [])];
+    state.dayPlannerDay = activeDay;
+    state.dayPlannerDraft = draft;
+    state.dayPlannerWeekOffset = 0;
+    state.dayPlannerStreamForm = false;
+    state.dayPlannerStreamDraft = null;
+  }
+
   window.openObjectivesModal = (tab) => {
     rolloverMonthObjectives();
     state.objectivesModalOpen = true;
     state.objModalTab = tab || 'weekly';
     state.objModalDate = state.objModalDate || new Date().toISOString();
+    if ((tab || 'weekly') === 'weekly') initEmbeddedDayPlanner();
     render();
     setTimeout(wireMonthDeadlineDisplay, 50);
   };
@@ -150,7 +171,9 @@ export function initDayPlannerActions({
   };
 
   window.switchObjTab = (tab) => {
-    state.objModalTab = tab; render();
+    state.objModalTab = tab;
+    if (tab === 'weekly') initEmbeddedDayPlanner();
+    render();
     if (tab === 'monthly') setTimeout(wireMonthDeadlineDisplay, 50);
   };
 

@@ -16,7 +16,7 @@ import { renderMarchTab as renderMarchTabExternal } from './renderMarchTab.js';
 import { renderProgressTab as renderProgressTabExternal } from './renderProgressTab.js';
 import { renderCRMTab as renderCRMTabExternal, renderVaultTab as renderVaultTabExternal } from './renderExtras.js';
 import { renderVintedTab as renderVintedTabExternal, renderNottinghamTab as renderNottinghamTabExternal } from './renderProjects.js';
-import { renderDayPlannerModal as renderDayPlannerModalExternal, renderTimePickerModal as renderTimePickerModalExternal, renderWeekPlanModal as renderWeekPlanModalExternal, renderDatePickerModal as renderDatePickerModalExternal, renderSoldModal as renderSoldModalExternal } from './renderModals.js';
+import { renderDayPlannerModal as renderDayPlannerModalExternal, renderEmbeddedDayPlanner as renderEmbeddedDayPlannerExternal, renderTimePickerModal as renderTimePickerModalExternal, renderWeekPlanModal as renderWeekPlanModalExternal, renderDatePickerModal as renderDatePickerModalExternal, renderSoldModal as renderSoldModalExternal } from './renderModals.js';
 import { renderRetentionModal as renderRetentionModalExternal, renderPastDaysModal as renderPastDaysModalExternal, renderMonthTargetsModal as renderMonthTargetsModalExternal, renderChallengeModal as renderChallengeModalExternal } from './renderMoreModals.js';
 
 // ── Online/offline tracking ────────────────────────────────────────────────
@@ -144,6 +144,7 @@ const renderTabDeps = {
   getMonthStats, getMonthDaysRemaining, getMonthTargets,
   getDerivedTargetWeight, getCurrentLeanMass, getStartLeanMass, getStreak,
   renderInputCard, renderStatCard, renderEditPanel, getJournalEntry,
+  renderEmbeddedDayPlanner: () => renderEmbeddedDayPlannerExternal(renderModalDeps),
 };
 
 const renderCRMDeps = {
