@@ -63,6 +63,13 @@ const WEEK_CAT_COLOURS = {
   notts: '#EF4444',
   other: '#8B5CF6'
 };
+// Shared brand colours used in Today's Fronts manual tasks (non-batch)
+const FRONT_COLOURS = {
+  tjm: '#3B82F6',
+  vinted: '#14B8A6',
+  notts: '#EF4444',
+  _other: '#8B5CF6'
+};
 
 function escAttr(value = '') {
   return String(value)
@@ -338,7 +345,7 @@ const allTodayTasks = [];
   const tasks = plan[todayDayKey] || [];
   const tasksArr = Array.isArray(tasks) ? tasks : (tasks ? [tasks] : []);
   const displayName = key === '_other' ? 'Other' : f.name;
-  const taskHex = key === '_other' ? '#9b59b6' : '#C9A84C';
+  const taskHex = FRONT_COLOURS[key] || '#C9A84C';
   tasksArr.forEach(task => {
     const taskText = typeof task === 'object' ? task.text : task;
     const startTime = typeof task === 'object' ? (task.start||'') : '';
@@ -370,13 +377,9 @@ const allTodayTasks = [];
 });
 
 const frontsSection = `
-<div class="cc-section-title" style="display:flex;align-items:center;justify-content:space-between;">
-  <span>Today's Fronts</span>
-  <button onclick="openDayPlanner()" style="background:transparent;border:1px solid rgba(201,168,76,0.35);border-radius:8px;padding:4px 12px;color:#C9A84C;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.5px;">📋 Plan Day</button>
-</div>
+<div class="cc-section-title">Today's Fronts</div>
 ${allTodayTasks.length === 0
-  ? `<div style="text-align:center;padding:12px 0 4px;color:rgba(255,255,255,0.2);font-size:13px;font-style:italic;margin-bottom:8px;">Nothing scheduled for today yet</div>
-     <button onclick="openDayPlanner()" style="width:100%;background:rgba(201,168,76,0.08);border:1.5px dashed rgba(201,168,76,0.3);border-radius:12px;padding:14px;color:#C9A84C;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;margin-bottom:10px;">📋 Plan Today's Tasks →</button>`
+  ? `<div style="text-align:center;padding:16px 0;color:rgba(255,255,255,0.2);font-size:13px;font-style:italic;">Nothing scheduled for today yet — plan your week via the objectives menu above</div>`
   : allTodayTasks.map(item => {
     const isDone = item.type==='batch' ? item.done : ((state.data.frontsDone||{})[getToday()]?.[item.key+':'+item.task]||false);
     const hex = item.hex;

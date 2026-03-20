@@ -648,8 +648,10 @@ export function initJournalTab(deps) {
 
     if (!monthObjs.length) { el.innerHTML = ''; return; }
 
-    const MONTH_CAT_LABELS = { tjm: 'TJM', vinted: 'Vinted', notts: 'Nottingham', other: 'Other' };
-    const MONTH_CAT_COLOURS = { tjm: '#C9A84C', vinted: '#27ae60', notts: '#3498db', other: '#9b59b6' };
+    const MONTH_CAT_LABELS = { tjm: 'TJM', vinted: 'Vinted', notts: 'Nottingham', personal: 'Personal', other: 'Other' };
+    const MONTH_CAT_COLOURS = { tjm: '#3B82F6', vinted: '#14B8A6', notts: '#EF4444', personal: '#C9A84C', other: '#8B5CF6' };
+
+    const isLight = document.body.classList.contains('light');
 
     const fmtShort = d => {
       if (!d) return '';
@@ -659,22 +661,34 @@ export function initJournalTab(deps) {
 
     el.innerHTML = `
     <div style="margin-bottom:10px;">
-      <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.3);margin-bottom:8px;text-transform:uppercase;">Monthly Objectives</div>
+      <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${isLight?'#8899B0':'rgba(255,255,255,0.3)'};margin-bottom:8px;text-transform:uppercase;">Monthly Objectives</div>
       ${monthObjs.map((obj, i) => {
         const catLabel = obj.categoryCustom || MONTH_CAT_LABELS[obj.category] || 'Other';
         const catColor = MONTH_CAT_COLOURS[obj.category] || '#C9A84C';
         const nowD = new Date(); nowD.setHours(0,0,0,0);
         const daysLeft = obj.deadline ? Math.ceil((new Date(obj.deadline + 'T00:00:00') - nowD) / 86400000) : null;
         const isOverdue = daysLeft !== null && daysLeft < 0 && !obj.done;
+        const textColor = isLight
+          ? (obj.done ? 'rgba(0,0,0,0.35)' : '#0A1628')
+          : (obj.done ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.9)');
+        const cardBg = isLight
+          ? (obj.done ? 'rgba(46,204,113,0.06)' : '#fff')
+          : (obj.done ? 'rgba(26,92,58,0.3)' : 'rgba(255,255,255,0.02)');
+        const cardBorder = isLight
+          ? (obj.done ? 'rgba(46,204,113,0.3)' : isOverdue ? 'rgba(231,76,60,0.25)' : '#CDD4E0')
+          : (obj.done ? 'rgba(46,204,113,0.25)' : isOverdue ? 'rgba(231,76,60,0.2)' : 'rgba(255,255,255,0.08)');
+        const deadlineColor = isLight
+          ? (isOverdue ? '#e74c3c' : 'rgba(0,0,0,0.4)')
+          : (isOverdue ? '#e74c3c' : 'rgba(255,255,255,0.3)');
         return `
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;border:1px solid ${obj.done?'rgba(46,204,113,0.25)':isOverdue?'rgba(231,76,60,0.2)':'rgba(255,255,255,0.08)'};background:${obj.done?'rgba(26,92,58,0.3)':'rgba(255,255,255,0.02)'};margin-bottom:5px;">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;border:1px solid ${cardBorder};background:${cardBg};margin-bottom:5px;border-left:3px solid ${obj.done?'#2ecc71':catColor};">
           <div style="width:16px;height:16px;flex-shrink:0;border-radius:4px;border:1.5px solid ${obj.done?'rgba(46,204,113,0.6)':catColor+'55'};background:${obj.done?'rgba(46,204,113,0.15)':'transparent'};color:${obj.done?'#2ecc71':catColor};font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</div>
           <div style="flex:1;min-width:0;">
-            <div style="font-size:13px;font-weight:700;color:${obj.done?'rgba(255,255,255,0.35)':'rgba(255,255,255,0.9)'};${obj.done?'text-decoration:line-through;':''}line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${obj.text}</div>
+            <div style="font-size:13px;font-weight:700;color:${textColor};${obj.done?'text-decoration:line-through;':''}line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${obj.text}</div>
           </div>
           <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
-            <span style="font-size:8px;font-weight:900;letter-spacing:0.8px;color:${catColor};opacity:0.8;">${catLabel.toUpperCase()}</span>
-            ${obj.deadline ? `<span style="font-size:9px;color:${isOverdue?'#e74c3c':'rgba(255,255,255,0.3)'};font-weight:${isOverdue?'800':'600'};">${isOverdue?'⚠':''}${fmtShort(obj.deadline)}</span>` : ''}
+            <span style="font-size:8px;font-weight:900;letter-spacing:0.8px;color:${catColor};opacity:0.9;">${catLabel.toUpperCase()}</span>
+            ${obj.deadline ? `<span style="font-size:9px;color:${deadlineColor};font-weight:${isOverdue?'800':'600'};">${isOverdue?'⚠':''}${fmtShort(obj.deadline)}</span>` : ''}
             ${obj.done ? `<span style="font-size:9px;color:#2ecc71;font-weight:800;">DONE</span>` : ''}
           </div>
         </div>`;
