@@ -261,7 +261,7 @@ const monthlyObjsSection = monthObjs.length > 0 ? `
   <div class="month-obj-progress-track" style="flex:1;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
     <div style="height:100%;width:${monthOverallPct}%;background:linear-gradient(90deg,#C9A84C,#e8c96a);border-radius:3px;transition:width 0.4s;"></div>
   </div>
-  <span style="font-size:12px;font-weight:900;color:#C9A84C;min-width:40px;text-align:right;">${monthDoneCount}/${monthObjs.length}</span>
+  <span class="month-obj-score" style="font-size:12px;font-weight:900;color:#C9A84C;min-width:40px;text-align:right;">${monthDoneCount}/${monthObjs.length}</span>
 </div>
 <div style="margin-bottom:14px;">
 ${monthObjs.map((obj, i) => {
@@ -274,10 +274,10 @@ ${monthObjs.map((obj, i) => {
     const nowD = new Date(); nowD.setHours(0,0,0,0);
     const daysLeft = Math.ceil((dl - nowD) / 86400000);
     const isOverdue = daysLeft < 0 && !obj.done;
-    deadlineHtml = `<span style="font-size:10px;font-weight:700;color:${isOverdue?'#e74c3c':obj.done?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.35)'};${isOverdue?'background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.3);border-radius:20px;padding:2px 8px;':''}margin-left:4px;">${isOverdue?'⚠ OVERDUE · ':''}${fmtDeadlineShort(obj.deadline)}</span>`;
+    deadlineHtml = `<span class="month-obj-deadline${isOverdue?' month-obj-deadline-overdue':''}" style="font-size:10px;font-weight:700;color:${isOverdue?'#e74c3c':obj.done?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.35)'};${isOverdue?'background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.3);border-radius:20px;padding:2px 8px;':''}margin-left:4px;">${isOverdue?'⚠ OVERDUE · ':''}${fmtDeadlineShort(obj.deadline)}</span>`;
   }
   return `
-  <div onclick="toggleMonthObj('${monthKey}',${i})" style="border:1.5px solid ${obj.done ? 'rgba(46,204,113,0.35)' : catColor+'33'};background:${obj.done?'rgba(26,92,58,0.55)':'rgba(255,255,255,0.02)'};border-radius:14px;padding:14px 16px;margin-bottom:8px;border-left:3px solid ${obj.done?'#2ecc71':catColor};cursor:pointer;transition:all 0.2s;">
+  <div onclick="toggleMonthObj('${monthKey}',${i})" class="month-obj-card${obj.done?' month-obj-card-done':''}" style="border:1.5px solid ${obj.done ? 'rgba(46,204,113,0.35)' : catColor+'33'};background:${obj.done?'rgba(26,92,58,0.55)':'rgba(255,255,255,0.02)'};border-radius:14px;padding:14px 16px;margin-bottom:8px;border-left:3px solid ${obj.done?'#2ecc71':catColor};cursor:pointer;transition:all 0.2s;">
     <div style="display:flex;align-items:flex-start;gap:12px;">
       <div style="width:22px;height:22px;flex-shrink:0;margin-top:1px;border-radius:6px;border:2px solid ${obj.done?'rgba(46,204,113,0.7)':catColor+'88'};background:${obj.done?'rgba(46,204,113,0.2)':'transparent'};color:${obj.done?'#2ecc71':catColor};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</div>
       <div style="flex:1;min-width:0;">
@@ -286,10 +286,10 @@ ${monthObjs.map((obj, i) => {
           ${deadlineHtml}
           ${obj.done?`<span style="font-size:9px;font-weight:800;color:#2ecc71;background:rgba(46,204,113,0.15);padding:2px 7px;border-radius:20px;margin-left:2px;">DONE</span>`:''}
         </div>
-        <div class="${obj.done?'obj-done-item-text':''}" style="font-size:16px;font-weight:800;color:${obj.done?'rgba(255,255,255,0.45)':'#fff'};${obj.done?'text-decoration:line-through;':''}line-height:1.3;">${obj.text}</div>
+        <div class="month-obj-title${obj.done?' obj-done-item-text':''}" style="font-size:16px;font-weight:800;color:${obj.done?'rgba(255,255,255,0.45)':'#fff'};${obj.done?'text-decoration:line-through;':''}line-height:1.3;">${obj.text}</div>
         ${progress ? `
         <div style="display:flex;align-items:center;gap:8px;margin-top:9px;">
-          <div style="flex:1;height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">
+          <div class="month-obj-sub-track" style="flex:1;height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">
             <div style="height:100%;width:${progress.pct}%;background:${obj.done?'rgba(46,204,113,0.7)':catColor};border-radius:3px;transition:width 0.4s;box-shadow:0 0 6px ${catColor}66;"></div>
           </div>
           <span style="font-size:12px;font-weight:900;color:${obj.done?'rgba(46,204,113,0.7)':catColor};min-width:36px;text-align:right;">${progress.pct}%</span>
@@ -317,11 +317,11 @@ ${weekObjs.map((obj, i) => {
   const catLabel = category ? (categoryCustom || WEEK_CAT_LABELS[category] || 'Other') : '';
   const catColor = WEEK_CAT_COLOURS[category] || '#6ba3d6';
   return `
-  <div onclick="toggleWeekObj('${weekKey}',${i})" style="border:1.5px solid ${done?'rgba(46,204,113,0.3)':category?catColor+'33':'rgba(100,163,214,0.2)'};background:${done?'rgba(26,92,58,0.45)':category?catColor+'10':'rgba(100,163,214,0.04)'};border-radius:12px;padding:12px 16px;margin-bottom:6px;border-left:3px solid ${done?'#2ecc71':category?catColor:'rgba(100,163,214,0.55)'};cursor:pointer;display:flex;align-items:center;gap:12px;transition:all 0.2s;">
+  <div onclick="toggleWeekObj('${weekKey}',${i})" class="week-obj-card${done?' week-obj-card-done':''}" style="border:1.5px solid ${done?'rgba(46,204,113,0.3)':category?catColor+'33':'rgba(100,163,214,0.2)'};background:${done?'rgba(26,92,58,0.45)':category?catColor+'10':'rgba(100,163,214,0.04)'};border-radius:12px;padding:12px 16px;margin-bottom:6px;border-left:3px solid ${done?'#2ecc71':category?catColor:'rgba(100,163,214,0.55)'};cursor:pointer;display:flex;align-items:center;gap:12px;transition:all 0.2s;">
     <div style="width:20px;height:20px;flex-shrink:0;border-radius:5px;border:2px solid ${done?'rgba(46,204,113,0.7)':category?catColor+'66':'rgba(100,163,214,0.55)'};background:${done?'rgba(46,204,113,0.15)':'transparent'};color:${done?'#2ecc71':category?catColor:'#6ba3d6'};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${done?'✓':''}</div>
     <div style="flex:1;min-width:0;">
       ${category ? `<div style="font-size:9px;font-weight:900;letter-spacing:1.2px;color:${catColor};margin-bottom:4px;">${catLabel.toUpperCase()}</div>` : ''}
-      <div class="${done?'obj-done-item-text':''}" style="font-size:14px;font-weight:700;color:${done?'rgba(255,255,255,0.4)':'#fff'};${done?'text-decoration:line-through;':''}line-height:1.3;">${text}</div>
+      <div class="week-obj-title${done?' obj-done-item-text':''}" style="font-size:14px;font-weight:700;color:${done?'rgba(255,255,255,0.4)':'#fff'};${done?'text-decoration:line-through;':''}line-height:1.3;">${text}</div>
     </div>
   </div>`;
 }).join('')}

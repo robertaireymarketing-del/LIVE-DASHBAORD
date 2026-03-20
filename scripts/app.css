@@ -1065,6 +1065,22 @@
     body.light .cc-section-title { font-size: 11px !important; letter-spacing: 2px !important; }
     body.light .section-title { font-size: 11px !important; letter-spacing: 2px !important; }
 
+    /* ── Monthly & Weekly Objective cards (light mode) ── */
+    /* Override the near-invisible dark-mode inline colours */
+    body.light .month-obj-card { background: #fff !important; border-color: rgba(0,0,0,0.1) !important; }
+    body.light .month-obj-card-done { background: rgba(46,204,113,0.07) !important; border-color: rgba(46,204,113,0.25) !important; }
+    body.light .month-obj-title { color: #0A1628 !important; }
+    body.light .month-obj-title.obj-done-item-text { color: rgba(0,0,0,0.35) !important; }
+    body.light .month-obj-deadline { color: #6B7A90 !important; }
+    body.light .month-obj-deadline-overdue { color: #e74c3c !important; }
+    body.light .month-obj-progress-track { background: #E0E6F0 !important; }
+    body.light .month-obj-sub-track { background: #E0E6F0 !important; }
+    body.light .week-obj-card { background: #fff !important; }
+    body.light .week-obj-card-done { background: rgba(46,204,113,0.07) !important; border-color: rgba(46,204,113,0.25) !important; }
+    body.light .week-obj-title { color: #0A1628 !important; }
+    body.light .week-obj-title.obj-done-item-text { color: rgba(0,0,0,0.35) !important; }
+    body.light .obj-done-item-text { color: rgba(0,0,0,0.35) !important; }
+
     /* Identity */
     body.light .identity-headline { font-size: 28px !important; font-weight: 900 !important; letter-spacing: -0.5px !important; line-height: 1.15 !important; color: #fff !important; }
     body.light .identity-core-label { font-size: 11px !important; font-weight: 900 !important; color: rgba(201,168,76,0.8) !important; }
@@ -1673,12 +1689,6 @@
     body.light .journal-meta { color:#6B7A90; }
     .journal-home { display:flex; align-items:center; justify-content:center; padding:10px 0 4px; }
     .journal-launch-grid { display:flex; flex-direction:column; gap:18px; width:100%; }
-    /* Open Journal card */
-    .journal-open-card { border-left:4px solid rgba(39,174,96,0.5); }
-    .journal-open-card.open-complete { background:rgba(39,174,96,0.10); border-color:rgba(39,174,96,0.30); border-left-color:#27ae60; }
-    .journal-open-card .journal-status-badge.is-complete { color:#27ae60; border-color:rgba(39,174,96,0.3); background:rgba(39,174,96,0.12); }
-    .journal-open-launch { border-left:4px solid rgba(39,174,96,0.6) !important; }
-    .journal-open-launch.launch-complete { background:rgba(39,174,96,0.10) !important; border-left-color:#27ae60 !important; }
     .journal-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:18px; display:flex; flex-direction:column; gap:14px; box-shadow:0 8px 24px rgba(0,0,0,0.08); }
     body.light .journal-card { background:#fff; border-color:#CDD4E0; border-left:4px solid #1B3A6B; }
     .journal-card.complete-block { background:rgba(46,204,113,0.10); border-color:rgba(46,204,113,0.22); }
@@ -1981,31 +1991,6 @@
     body.light .journal-mission-obj { border-bottom-color:rgba(0,0,0,0.06); }
     body.light .journal-mission-tick { color:#8a6a10; }
     body.light .journal-mission-obj.done .journal-mission-tick { color:#1e8449; }
-
-    /* ── Monthly objectives in journal header — light mode ── */
-    body.light #journalMonthObjectives { color: #0A1628; }
-    body.light #journalMonthObjectives [style*="color:rgba(255,255,255,0.9)"] { color: #0A1628 !important; }
-    body.light #journalMonthObjectives [style*="color:rgba(255,255,255,0.35)"] { color: rgba(10,22,40,0.35) !important; }
-    body.light #journalMonthObjectives [style*="color:rgba(255,255,255,0.3)"] { color: rgba(10,22,40,0.45) !important; }
-    body.light #journalMonthObjectives [style*="color:rgba(255,255,255"] { color: rgba(10,22,40,0.65) !important; }
-    body.light #journalMonthObjectives [style*="background:rgba(255,255,255,0.02)"] { background: #F7F9FC !important; }
-    body.light #journalMonthObjectives [style*="border:1px solid rgba(255,255,255,0.08)"] { border-color: #CDD4E0 !important; }
-    body.light #journalMonthObjectives [style*="border:1px solid rgba(255,255,255"] { border-color: #CDD4E0 !important; }
-    body.light #journalMonthObjectives [style*="background:rgba(26,92,58"] { background: rgba(26,92,58,0.18) !important; }
-    /* Open Journal — light mode */
-    body.light .journal-open-card { background:#fff; border-color:#CDD4E0; border-left:4px solid #27ae60; }
-    body.light .journal-open-card.open-complete { background:rgba(39,174,96,0.07); border-color:rgba(39,174,96,0.35); }
-    body.light .journal-open-card textarea { background:#F7F9FC; border-color:#CDD4E0; color:#0A1628; }
-    body.light .journal-open-card textarea::placeholder { color:#6B7A90; }
-    body.light .journal-open-launch { background:#fff; border-left:4px solid #27ae60; color:#0A1628; }
-    body.light .journal-open-launch small { color:#6B7A90; }
-    body.light .journal-open-launch.launch-complete { background:rgba(39,174,96,0.08); }
-    /* Week plan modal — monthly objectives panel light mode */
-    body.light .wp-month-obj-panel { background:#F7F9FC; border-color:#CDD4E0; }
-    body.light .wp-month-obj-toggle { color:#0A1628; border-color:#CDD4E0; background:#fff; }
-    body.light .wp-month-obj-item { border-color:#E5EAF0; color:#0A1628; }
-    body.light .wp-month-obj-text { color:#0A1628 !important; }
-    body.light .wp-month-obj-cat { opacity:0.85; }
 
     /* Best version score */
     body.light #journalBestVersionScore span { color: inherit; }
