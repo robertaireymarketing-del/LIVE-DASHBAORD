@@ -4,29 +4,25 @@
 export function renderFireTab(deps) {
   const { state, getTodayData, getSettings, getStreak, getMonthStats } = deps;
 
-  // ── Compute urgency numbers ───────────────────────────────────────────────
-  const settings      = getSettings();
-  const startDate     = settings.startDate || '2026-03-16';
-  const today         = new Date().toISOString().slice(0, 10);
-  const challengeDays = settings.challengeDays || 90;
-  const dayNum        = Math.max(1, Math.floor((new Date(today) - new Date(startDate)) / 86400000) + 1);
-  const daysGone      = Math.min(dayNum - 1, challengeDays);
-  const daysLeft      = Math.max(0, challengeDays - daysGone);
+  const settings       = getSettings();
+  const startDate      = settings.startDate || '2026-03-16';
+  const today          = new Date().toISOString().slice(0, 10);
+  const challengeDays  = settings.challengeDays || 90;
+  const dayNum         = Math.max(1, Math.floor((new Date(today) - new Date(startDate)) / 86400000) + 1);
+  const daysGone       = Math.min(dayNum - 1, challengeDays);
+  const daysLeft       = Math.max(0, challengeDays - daysGone);
 
   const todayData  = getTodayData();
   const monthStats = getMonthStats ? getMonthStats() : (state.data?.marchStats || {});
 
-  // Cost of inaction — £10k/month = £333.33/day = £0.003858/second
-  const perSecond           = 333.33 / 86400;
-  const now                 = new Date();
+  const perSecond            = 333.33 / 86400;
+  const now                  = new Date();
   const secondsSinceMidnight = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-  const lostToday           = (perSecond * secondsSinceMidnight).toFixed(2);
+  const lostToday            = (perSecond * secondsSinceMidnight).toFixed(2);
 
-  // Days until approximate 30th birthday
-  const birthday30   = new Date('2028-01-01');
-  const daysUntil30  = Math.max(0, Math.floor((birthday30 - now) / 86400000));
+  const birthday30  = new Date('2028-01-01');
+  const daysUntil30 = Math.max(0, Math.floor((birthday30 - now) / 86400000));
 
-  // ── Dynamic First Step ─────────────────────────────────────────────────────
   const hour = now.getHours();
   let firstStep, firstStepSub;
 
@@ -47,7 +43,6 @@ export function renderFireTab(deps) {
     firstStepSub = 'Film it, post it. One TikTok. One reel. One sales post. You don\'t need it to be perfect — you need it to exist. Do it in the next 10 minutes.';
   }
 
-  // ── Dream lines ────────────────────────────────────────────────────────────
   const dreamLines = [
     'Your own front door. A home that\'s yours.',
     'Warda next to you — not worrying, not waiting — just living.',
@@ -57,7 +52,6 @@ export function renderFireTab(deps) {
     'Complete control over your time, your income, your life.',
   ];
 
-  // ── Consequence lines ──────────────────────────────────────────────────────
   const consequences = [
     'Still working the family shop at 35.',
     'Watching someone else live in the home you pictured.',
@@ -68,15 +62,52 @@ export function renderFireTab(deps) {
 
   return `
 <style>
+  /* ── CSS variables that respond to light/dark ── */
   .fire-tab {
+    --fire-bg-hero:        rgba(30, 15, 0, 0.85);
+    --fire-bg-cost:        rgba(40, 8, 5, 0.8);
+    --fire-bg-card:        rgba(255, 255, 255, 0.04);
+    --fire-bg-consequence: rgba(231, 76, 60, 0.07);
+    --fire-bg-step:        rgba(10, 35, 10, 0.85);
+    --fire-bg-mantra:      rgba(25, 20, 5, 0.7);
+    --fire-border-hero:    rgba(255, 140, 0, 0.22);
+    --fire-border-cost:    rgba(231, 76, 60, 0.35);
+    --fire-border-card:    rgba(255, 255, 255, 0.08);
+    --fire-border-cons:    rgba(231, 76, 60, 0.22);
+    --fire-border-step:    rgba(46, 204, 113, 0.3);
+    --fire-border-mantra:  rgba(255, 180, 0, 0.12);
+    --fire-text-primary:   rgba(255, 255, 255, 0.9);
+    --fire-text-secondary: rgba(255, 255, 255, 0.55);
+    --fire-text-muted:     rgba(255, 255, 255, 0.32);
+    --fire-text-cons:      rgba(255, 255, 255, 0.48);
     padding: 0 0 40px 0;
     font-family: inherit;
   }
 
+  /* Light mode overrides */
+  body.light .fire-tab {
+    --fire-bg-hero:        rgba(255, 240, 220, 0.9);
+    --fire-bg-cost:        rgba(255, 235, 230, 0.9);
+    --fire-bg-card:        rgba(0, 0, 0, 0.04);
+    --fire-bg-consequence: rgba(231, 76, 60, 0.06);
+    --fire-bg-step:        rgba(220, 255, 230, 0.85);
+    --fire-bg-mantra:      rgba(255, 248, 220, 0.85);
+    --fire-border-hero:    rgba(200, 100, 0, 0.25);
+    --fire-border-cost:    rgba(200, 50, 30, 0.3);
+    --fire-border-card:    rgba(0, 0, 0, 0.1);
+    --fire-border-cons:    rgba(200, 50, 30, 0.2);
+    --fire-border-step:    rgba(30, 160, 80, 0.3);
+    --fire-border-mantra:  rgba(180, 130, 0, 0.2);
+    --fire-text-primary:   rgba(20, 10, 0, 0.92);
+    --fire-text-secondary: rgba(30, 20, 0, 0.62);
+    --fire-text-muted:     rgba(30, 20, 0, 0.42);
+    --fire-text-cons:      rgba(30, 20, 0, 0.55);
+  }
+
   /* ── HERO ── */
   .fire-hero {
-    background: linear-gradient(160deg, #0d0d0d 0%, #1a0a00 60%, #2a1000 100%);
-    border: 1px solid rgba(255,140,0,0.18);
+    background: var(--fire-bg-hero);
+    border: 1px solid var(--fire-border-hero);
     border-radius: 16px;
     padding: 28px 24px 24px;
     margin-bottom: 14px;
@@ -89,44 +120,45 @@ export function renderFireTab(deps) {
     bottom: 0; left: 0; right: 0;
     height: 2px;
     background: linear-gradient(90deg, transparent, #ff6a00, #ffb347, #ff6a00, transparent);
-    opacity: 0.6;
+    opacity: 0.5;
   }
-  .fire-hero-eyebrow {
+  .fire-eyebrow {
     font-size: 9px;
     font-weight: 900;
     letter-spacing: 3px;
-    color: #ff8c00;
     text-transform: uppercase;
     margin-bottom: 10px;
-    opacity: 0.8;
+    opacity: 0.85;
   }
+  .fire-eyebrow.orange { color: #e07800; }
+  .fire-eyebrow.red    { color: #c0392b; }
+  .fire-eyebrow.green  { color: #1a8a4a; }
+
   .fire-hero-headline {
     font-size: 22px;
     font-weight: 900;
-    color: #fff;
+    color: var(--fire-text-primary);
     line-height: 1.25;
     letter-spacing: -0.3px;
     margin-bottom: 18px;
   }
-  .fire-hero-headline span { color: #ffb347; }
+  .fire-hero-headline span { color: #d47000; }
+
+  body.light .fire-hero-headline span { color: #c05e00; }
+
   .fire-dream-list {
-    list-style: none;
-    padding: 0; margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
+    list-style: none; padding: 0; margin: 0;
+    display: flex; flex-direction: column; gap: 9px;
   }
   .fire-dream-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
+    display: flex; align-items: flex-start; gap: 10px;
     font-size: 13px;
-    color: rgba(255,255,255,0.72);
+    color: var(--fire-text-secondary);
     line-height: 1.4;
   }
   .fire-dream-item::before {
     content: '→';
-    color: #ff8c00;
+    color: #c07000;
     font-weight: 900;
     flex-shrink: 0;
     margin-top: 1px;
@@ -134,32 +166,22 @@ export function renderFireTab(deps) {
 
   /* ── COST COUNTER ── */
   .fire-cost-block {
-    background: linear-gradient(135deg, #0d0d0d 0%, #1a0500 100%);
-    border: 1px solid rgba(231,76,60,0.3);
+    background: var(--fire-bg-cost);
+    border: 1px solid var(--fire-border-cost);
     border-radius: 14px;
     padding: 22px 24px;
     margin-bottom: 14px;
     text-align: center;
   }
-  .fire-cost-eyebrow {
-    font-size: 9px;
-    font-weight: 900;
-    letter-spacing: 3px;
-    color: #e74c3c;
-    text-transform: uppercase;
-    margin-bottom: 6px;
-    opacity: 0.8;
-  }
   .fire-cost-label {
     font-size: 11px;
-    color: rgba(255,255,255,0.4);
+    color: var(--fire-text-muted);
     margin-bottom: 8px;
-    letter-spacing: 0.3px;
   }
   .fire-cost-number {
     font-size: 52px;
     font-weight: 900;
-    color: #e74c3c;
+    color: #c0392b;
     letter-spacing: -1px;
     line-height: 1;
     margin-bottom: 10px;
@@ -168,10 +190,10 @@ export function renderFireTab(deps) {
   }
   .fire-cost-sub {
     font-size: 11px;
-    color: rgba(255,255,255,0.32);
+    color: var(--fire-text-muted);
     line-height: 1.6;
   }
-  .fire-cost-sub strong { color: rgba(255,255,255,0.58); }
+  .fire-cost-sub strong { color: var(--fire-text-secondary); }
 
   /* ── URGENCY GRID ── */
   .fire-urgency-row {
@@ -181,8 +203,8 @@ export function renderFireTab(deps) {
     margin-bottom: 14px;
   }
   .fire-urgency-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.07);
+    background: var(--fire-bg-card);
+    border: 1px solid var(--fire-border-card);
     border-radius: 12px;
     padding: 16px;
     text-align: center;
@@ -190,72 +212,57 @@ export function renderFireTab(deps) {
   .fire-urgency-value {
     font-size: 30px;
     font-weight: 900;
-    color: #fff;
     line-height: 1;
     margin-bottom: 5px;
     letter-spacing: -0.5px;
   }
-  .fire-urgency-value.amber { color: #ffb347; }
-  .fire-urgency-value.red   { color: #e74c3c; }
-  .fire-urgency-value.green { color: #2ecc71; }
+  .fire-urgency-value.amber { color: #c07800; }
+  .fire-urgency-value.red   { color: #c0392b; }
+  .fire-urgency-value.green { color: #1a8a4a; }
   .fire-urgency-label {
     font-size: 9px;
     font-weight: 700;
     letter-spacing: 2px;
-    color: rgba(255,255,255,0.28);
+    color: var(--fire-text-muted);
     text-transform: uppercase;
   }
 
   /* ── CONSEQUENCE ── */
   .fire-consequence-block {
-    background: rgba(231,76,60,0.04);
-    border: 1px solid rgba(231,76,60,0.18);
+    background: var(--fire-bg-consequence);
+    border: 1px solid var(--fire-border-cons);
     border-radius: 14px;
     padding: 22px 24px;
     margin-bottom: 14px;
   }
-  .fire-consequence-eyebrow {
-    font-size: 9px;
-    font-weight: 900;
-    letter-spacing: 3px;
-    color: #e74c3c;
-    text-transform: uppercase;
-    margin-bottom: 12px;
-    opacity: 0.8;
-  }
   .fire-consequence-headline {
     font-size: 15px;
     font-weight: 800;
-    color: rgba(255,255,255,0.85);
+    color: var(--fire-text-primary);
     margin-bottom: 16px;
     line-height: 1.4;
   }
   .fire-consequence-list {
-    list-style: none;
-    padding: 0; margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    list-style: none; padding: 0; margin: 0;
+    display: flex; flex-direction: column; gap: 10px;
   }
   .fire-consequence-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
+    display: flex; align-items: flex-start; gap: 10px;
     font-size: 12.5px;
-    color: rgba(255,255,255,0.45);
+    color: var(--fire-text-cons);
     line-height: 1.4;
   }
   .fire-consequence-item::before {
     content: '✗';
-    color: #e74c3c;
+    color: #c0392b;
     font-weight: 900;
     flex-shrink: 0;
   }
 
   /* ── FIRST STEP ── */
   .fire-step-block {
-    background: linear-gradient(135deg, #0a1a0a 0%, #0d2a0d 100%);
-    border: 1px solid rgba(46,204,113,0.28);
+    background: var(--fire-bg-step);
+    border: 1px solid var(--fire-border-step);
     border-radius: 14px;
     padding: 22px 24px;
     margin-bottom: 14px;
@@ -267,35 +274,26 @@ export function renderFireTab(deps) {
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 2px;
-    background: linear-gradient(90deg, transparent, #2ecc71, transparent);
-  }
-  .fire-step-eyebrow {
-    font-size: 9px;
-    font-weight: 900;
-    letter-spacing: 3px;
-    color: #2ecc71;
-    text-transform: uppercase;
-    margin-bottom: 10px;
-    opacity: 0.8;
+    background: linear-gradient(90deg, transparent, #1a8a4a, transparent);
   }
   .fire-step-headline {
     font-size: 21px;
     font-weight: 900;
-    color: #fff;
+    color: var(--fire-text-primary);
     margin-bottom: 10px;
     line-height: 1.2;
     letter-spacing: -0.3px;
   }
   .fire-step-sub {
     font-size: 13px;
-    color: rgba(255,255,255,0.52);
+    color: var(--fire-text-secondary);
     line-height: 1.65;
   }
 
   /* ── MANTRA ── */
   .fire-mantra {
-    background: linear-gradient(135deg, #0d0d0d, #1a1200);
-    border: 1px solid rgba(255,180,0,0.1);
+    background: var(--fire-bg-mantra);
+    border: 1px solid var(--fire-border-mantra);
     border-radius: 14px;
     padding: 24px;
     text-align: center;
@@ -303,36 +301,34 @@ export function renderFireTab(deps) {
   .fire-mantra-text {
     font-size: 14px;
     font-weight: 600;
-    color: rgba(255,255,255,0.6);
+    color: var(--fire-text-secondary);
     line-height: 1.65;
     font-style: italic;
   }
   .fire-mantra-text span {
-    color: #ffb347;
+    color: #c07000;
     font-style: normal;
     font-weight: 900;
   }
 
   @keyframes firePulse {
     0%, 100% { opacity: 1; }
-    50%       { opacity: 0.65; }
+    50%       { opacity: 0.6; }
   }
 </style>
 
 <div class="fire-tab">
 
-  <!-- THE DREAM -->
   <div class="fire-hero">
-    <div class="fire-hero-eyebrow">🔥 This is what you're building</div>
+    <div class="fire-eyebrow orange">🔥 This is what you're building</div>
     <div class="fire-hero-headline">You don't want a job.<br>You want a <span>life.</span></div>
     <ul class="fire-dream-list">
       ${dreamLines.map(l => `<li class="fire-dream-item">${l}</li>`).join('')}
     </ul>
   </div>
 
-  <!-- LIVE COST COUNTER -->
   <div class="fire-cost-block">
-    <div class="fire-cost-eyebrow">💸 The cost of today</div>
+    <div class="fire-eyebrow red">💸 The cost of today</div>
     <div class="fire-cost-label">Since midnight, inaction has already cost you</div>
     <div class="fire-cost-number" id="fire-lost-counter">£${lostToday}</div>
     <div class="fire-cost-sub">
@@ -341,7 +337,6 @@ export function renderFireTab(deps) {
     </div>
   </div>
 
-  <!-- URGENCY STATS -->
   <div class="fire-urgency-row">
     <div class="fire-urgency-card">
       <div class="fire-urgency-value amber">${daysGone}</div>
@@ -361,23 +356,20 @@ export function renderFireTab(deps) {
     </div>
   </div>
 
-  <!-- THE CONSEQUENCE -->
   <div class="fire-consequence-block">
-    <div class="fire-consequence-eyebrow">⚠ If you stay comfortable</div>
+    <div class="fire-eyebrow red">⚠ If you stay comfortable</div>
     <div class="fire-consequence-headline">This is the life waiting for the version of you who doesn't act.</div>
     <ul class="fire-consequence-list">
       ${consequences.map(c => `<li class="fire-consequence-item">${c}</li>`).join('')}
     </ul>
   </div>
 
-  <!-- THE FIRST STEP -->
   <div class="fire-step-block">
-    <div class="fire-step-eyebrow">✅ Your next move — right now</div>
+    <div class="fire-eyebrow green">✅ Your next move — right now</div>
     <div class="fire-step-headline">${firstStep}</div>
     <div class="fire-step-sub">${firstStepSub}</div>
   </div>
 
-  <!-- MANTRA -->
   <div class="fire-mantra">
     <div class="fire-mantra-text">
       "The life you want is on the other side of the action<br>
@@ -393,9 +385,8 @@ export function renderFireTab(deps) {
     function tick() {
       const n    = new Date();
       const secs = n.getHours() * 3600 + n.getMinutes() * 60 + n.getSeconds();
-      const lost = (perSecond * secs).toFixed(2);
       const el   = document.getElementById('fire-lost-counter');
-      if (el) el.textContent = '£' + lost;
+      if (el) el.textContent = '£' + (perSecond * secs).toFixed(2);
     }
     tick();
     setInterval(tick, 1000);
