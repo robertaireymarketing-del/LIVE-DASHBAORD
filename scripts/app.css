@@ -19,6 +19,64 @@
     body.light * { -webkit-font-smoothing: antialiased; }
     /* Base text throughout */
     body.light p, body.light span, body.light div { color: inherit; }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       FORCE-DARK UTILITY
+       ───────────────────────────────────────────────────────────────────
+       Any overlay, modal, or panel that should always render dark
+       (regardless of light/dark mode) should carry class="force-dark".
+
+       HOW IT WORKS:
+         body.light sets color:#0A1628 on <body>, and the rule above
+         cascades that dark navy into every div/span/p via `color:inherit`.
+         .force-dark short-circuits that cascade: it resets color to #ffffff
+         on the container, so all descendants inherit white instead of navy.
+         Higher specificity (0,2,0) beats the div rule (0,1,1) — no !important needed.
+
+       HOW TO USE:
+         • JS-created overlays/modals: add class="force-dark" to the dark root element.
+         • CSS-class overlays: add the class name to the body.light .force-dark rule below.
+         • Children with explicit inline colors are unaffected — only uncoloured divs change.
+
+       DO NOT add .force-dark to light-mode panels (white background cards, etc.)
+       ═══════════════════════════════════════════════════════════════════ */
+
+    /* 1. In dark mode: .force-dark is a no-op (body is already dark) */
+    .force-dark { color: #ffffff; }
+
+    /* 2. In light mode: force white on the container and let children inherit it */
+    body.light .force-dark,
+    body.light .past-days-modal,
+    body.light .month-targets-modal,
+    body.light .obj-modal-inner,
+    body.light .panic-overlay,
+    body.light .retention-overlay,
+    body.light .week-plan-overlay,
+    body.light .step-confirm-overlay,
+    body.light .challenge-overlay { color: #ffffff; }
+
+    body.light .force-dark div,   body.light .force-dark span,
+    body.light .force-dark p,     body.light .force-dark small,
+    body.light .force-dark label, body.light .force-dark button,
+    body.light .force-dark h1,    body.light .force-dark h2,
+    body.light .force-dark h3,
+    body.light .past-days-modal div,    body.light .past-days-modal span,
+    body.light .past-days-modal p,      body.light .past-days-modal small,
+    body.light .past-days-modal button,
+    body.light .month-targets-modal div, body.light .month-targets-modal span,
+    body.light .month-targets-modal p,   body.light .month-targets-modal small,
+    body.light .month-targets-modal button,
+    body.light .obj-modal-inner div,    body.light .obj-modal-inner span,
+    body.light .obj-modal-inner p,      body.light .obj-modal-inner small,
+    body.light .panic-overlay div,      body.light .panic-overlay span,
+    body.light .panic-overlay p,        body.light .panic-overlay small,
+    body.light .retention-overlay div,  body.light .retention-overlay span,
+    body.light .retention-overlay p,    body.light .retention-overlay small,
+    body.light .week-plan-overlay div,  body.light .week-plan-overlay span,
+    body.light .week-plan-overlay p,    body.light .week-plan-overlay small,
+    body.light .step-confirm-overlay div, body.light .step-confirm-overlay span,
+    body.light .challenge-overlay div,  body.light .challenge-overlay span { color: inherit; }
+
     /* Dashboard title */
     body.light .dash-title { font-size: 22px !important; font-weight: 900 !important; color: #0A1628 !important; }
     /* Tab bar */
@@ -1064,22 +1122,6 @@
     /* Section titles */
     body.light .cc-section-title { font-size: 11px !important; letter-spacing: 2px !important; }
     body.light .section-title { font-size: 11px !important; letter-spacing: 2px !important; }
-
-    /* ── Monthly & Weekly Objective cards (light mode) ── */
-    /* Override the near-invisible dark-mode inline colours */
-    body.light .month-obj-card { background: #fff !important; border-color: rgba(0,0,0,0.1) !important; }
-    body.light .month-obj-card-done { background: rgba(46,204,113,0.07) !important; border-color: rgba(46,204,113,0.25) !important; }
-    body.light .month-obj-title { color: #0A1628 !important; }
-    body.light .month-obj-title.obj-done-item-text { color: rgba(0,0,0,0.35) !important; }
-    body.light .month-obj-deadline { color: #6B7A90 !important; }
-    body.light .month-obj-deadline-overdue { color: #e74c3c !important; }
-    body.light .month-obj-progress-track { background: #E0E6F0 !important; }
-    body.light .month-obj-sub-track { background: #E0E6F0 !important; }
-    body.light .week-obj-card { background: #fff !important; }
-    body.light .week-obj-card-done { background: rgba(46,204,113,0.07) !important; border-color: rgba(46,204,113,0.25) !important; }
-    body.light .week-obj-title { color: #0A1628 !important; }
-    body.light .week-obj-title.obj-done-item-text { color: rgba(0,0,0,0.35) !important; }
-    body.light .obj-done-item-text { color: rgba(0,0,0,0.35) !important; }
 
     /* Identity */
     body.light .identity-headline { font-size: 28px !important; font-weight: 900 !important; letter-spacing: -0.5px !important; line-height: 1.15 !important; color: #fff !important; }

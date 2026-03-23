@@ -469,6 +469,7 @@ export function initJournalTab(deps) {
       'padding:24px;overflow:auto;',
       'animation:launchFadeIn 0.35s ease forwards;',
     ].join('');
+    overlay.className = 'force-dark';
 
     const COUNTDOWN_SECS = 60;
 
