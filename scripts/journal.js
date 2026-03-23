@@ -464,7 +464,7 @@ export function initJournalTab(deps) {
     overlay.id = 'morningLaunchOverlay';
     overlay.style.cssText = [
       'position:fixed;inset:0;z-index:99999;',
-      'background:#050A14;',
+      'background:#050A14;color:#ffffff;',
       'display:flex;flex-direction:column;align-items:center;justify-content:center;',
       'padding:24px;overflow:auto;',
       'animation:launchFadeIn 0.35s ease forwards;',
