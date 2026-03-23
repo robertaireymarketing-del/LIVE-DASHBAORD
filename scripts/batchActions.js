@@ -8,6 +8,8 @@ let batchSwipeX = 0;
 let autoSaveTimer = null;
 let newStepsShowAll = false;
 const editStepsShowAll = {}; // keyed by batchId
+const editStepsExpandedIdx = {}; // keyed by batchId — which step is expanded in view-all
+const newStepExpandedIdx = { val: -1 }; // which new step is expanded in view-all
 
 function scheduleAutoSave() {
   clearTimeout(autoSaveTimer);
@@ -29,6 +31,116 @@ function flushEditStep(batchId) {
 }
 
 function fmtMinsShort(m) { return m < 60 ? `${m}m` : m % 60 === 0 ? `${m/60}h` : `${Math.floor(m/60)}h ${m%60}m`; }
+
+// ── Date formatter used in step deadline display ───────────────────────
+function fmtDeadlineDisplay(d) {
+  if (!d) return '';
+  const dt = new Date(d + 'T00:00:00');
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const ord = n => n + (n%10===1&&n!==11?'st':n%10===2&&n!==12?'nd':n%10===3&&n!==13?'rd':'th');
+  return days[dt.getDay()] + ' ' + ord(dt.getDate()) + ' ' + months[dt.getMonth()];
+}
+
+// ── Horizontal step chain for desktop, stacked for mobile ─────────────
+function buildStepChain({ steps, expandedIdx, batchId, isNew, batchDeadline, c }) {
+  const isDesktop = window.innerWidth >= 768;
+  const TIMES = [5,10,15,20,25,30,45,60,90,120,150,180];
+
+  const makeCard = (s, i) => {
+    const isNotesOpen = expandedIdx === i;
+    const isDone = !!s.completedAt;
+    const prefix = isNew ? 'new-chain' : `be-chain-${batchId}`;
+    const nameId   = `${prefix}-name-${i}`;
+    const notesId  = `${prefix}-notes-${i}`;
+    const timeId   = `${prefix}-time-${i}`;
+    const dlId     = `${prefix}-dl-${i}`;
+    const dlDispId = `${prefix}-dl-disp-${i}`;
+
+    const onName   = isNew ? `syncNewStep(${i},'name',this.value)` : `liveEditStep('${batchId}',${i},'name',this.value)`;
+    const onNotes  = isNew ? `syncNewStep(${i},'notes',this.value)` : `liveEditStep('${batchId}',${i},'notes',this.value)`;
+    const onTime   = isNew ? `syncNewStep(${i},'timeBlock',parseInt(this.value))` : `liveEditStep('${batchId}',${i},'timeBlock',parseInt(this.value))`;
+    const onDl     = isNew ? `syncNewStepDeadline(${i},this.value)` : `autoSaveStepDeadline('${batchId}',${i},this.value)`;
+    const onDelete = isNew ? `removeNewBatchStep(${i})` : `removeBatchStep('${batchId}',${i})`;
+    const onToggle = isNew ? `toggleNewStepExpand(${i})` : `toggleEditStepExpand('${batchId}',${i})`;
+
+    const timeOpts = TIMES.map(t => `<option value="${t}" ${(s.timeBlock||30)===t?'selected':''}>${fmtMinsShort(t)}</option>`).join('');
+
+    const badgeBg    = isDone ? 'rgba(46,204,113,0.15)' : 'rgba(201,168,76,0.15)';
+    const badgeBord  = isDone ? 'rgba(46,204,113,0.3)'  : 'rgba(201,168,76,0.3)';
+    const badgeCol   = isDone ? '#2ecc71' : '#C9A84C';
+    const cardBg     = c.light ? '#ffffff' : 'rgba(255,255,255,0.04)';
+    const cardBorder = isDone ? 'rgba(46,204,113,0.3)' : (isNotesOpen ? '#C9A84C' : (c.light ? 'rgba(10,22,40,0.13)' : 'rgba(255,255,255,0.1)'));
+    const nameBorder = c.light ? 'rgba(10,22,40,0.12)' : 'rgba(255,255,255,0.12)';
+    const divider    = c.light ? 'rgba(10,22,40,0.07)'  : 'rgba(255,255,255,0.07)';
+    const dlBg       = s.deadline ? 'rgba(231,76,60,0.06)' : (c.light ? 'rgba(10,22,40,0.03)' : 'rgba(255,255,255,0.04)');
+    const dlBord     = s.deadline ? 'rgba(231,76,60,0.25)' : (c.light ? 'rgba(10,22,40,0.1)' : 'rgba(255,255,255,0.08)');
+    const dlCol      = s.deadline ? 'rgba(231,76,60,0.85)' : c.textMuted;
+    const editBtnBg  = isNotesOpen ? (c.light ? 'rgba(201,168,76,0.12)' : 'rgba(201,168,76,0.15)') : 'transparent';
+    const editBtnBord= isNotesOpen ? 'rgba(201,168,76,0.3)' : 'transparent';
+    const editBtnCol = isNotesOpen ? '#C9A84C' : c.textMuted;
+
+    const notesSection = `
+<div style="margin-top:10px;padding-top:10px;border-top:1px solid ${divider};">
+  <textarea id="${notesId}" placeholder="Notes (optional)..."
+    oninput="${onNotes}"
+    style="width:100%;box-sizing:border-box;background:${c.light?'rgba(10,22,40,0.03)':'rgba(255,255,255,0.04)'};border:1px solid ${c.light?'rgba(10,22,40,0.1)':'rgba(255,255,255,0.08)'};border-radius:8px;padding:8px 10px;font-size:12px;font-weight:600;color:${c.textPrimary};font-family:inherit;outline:none;resize:none;min-height:56px;">${(s.notes||'').replace(/</g,'&lt;')}</textarea>
+  <div style="margin-top:8px;position:relative;cursor:pointer;" onclick="document.getElementById('${dlId}').showPicker&&document.getElementById('${dlId}').showPicker()">
+    <input type="date" id="${dlId}" value="${s.deadline||''}" max="${batchDeadline||''}"
+      style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;"
+      onchange="${onDl}">
+    <div id="${dlDispId}" style="display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:8px;background:${dlBg};border:1px solid ${dlBord};font-size:12px;font-weight:${s.deadline?'700':'400'};color:${dlCol};">
+      <span style="flex:1;">${s.deadline ? '📅 ' + fmtDeadlineDisplay(s.deadline) : '📅 Set deadline...'}</span>
+      ${s.deadline ? `<button onclick="event.stopPropagation();${onDl};document.getElementById('${dlDispId}').innerHTML='<span style=\\'flex:1;\\'>📅 Set deadline...</span>';document.getElementById('${dlId}').value=''" style="background:none;border:none;color:rgba(231,76,60,0.7);font-size:14px;cursor:pointer;padding:0;line-height:1;pointer-events:all;z-index:3;position:relative;">×</button>` : ''}
+    </div>
+  </div>
+</div>`;
+
+    const cardW = isDesktop ? 'flex:0 0 auto;width:200px;box-sizing:border-box;' : 'width:100%;';
+
+    return `<div style="${cardW}border-radius:12px;border:2px solid ${cardBorder};background:${cardBg};padding:12px;${isDone?'opacity:0.65;':''}transition:border-color 0.15s;">
+  <div style="display:flex;align-items:center;gap:5px;margin-bottom:9px;">
+    <div style="width:22px;height:22px;flex-shrink:0;border-radius:6px;background:${badgeBg};border:1px solid ${badgeBord};color:${badgeCol};font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;">${isDone?'✓':i+1}</div>
+    <select id="${timeId}" onchange="${onTime}"
+      style="flex-shrink:0;font-size:10px;font-weight:800;color:rgba(201,168,76,0.95);background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);padding:3px 5px;border-radius:20px;cursor:pointer;font-family:inherit;outline:none;">${timeOpts}</select>
+    <button onclick="${onToggle}" title="${isNotesOpen?'Close notes':'Edit notes & deadline'}"
+      style="flex-shrink:0;background:${editBtnBg};border:1px solid ${editBtnBord};border-radius:6px;width:22px;height:22px;color:${editBtnCol};font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;font-family:inherit;">✏️</button>
+    <button onclick="event.stopPropagation();${onDelete}"
+      style="flex-shrink:0;background:transparent;border:1px solid transparent;border-radius:6px;width:22px;height:22px;color:rgba(231,76,60,0.55);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;">×</button>
+  </div>
+  <input id="${nameId}" placeholder="Step name..."
+    value="${(s.name||'').replace(/"/g,'&quot;')}"
+    oninput="${onName}"
+    style="width:100%;box-sizing:border-box;background:transparent;border:none;border-bottom:1.5px solid ${nameBorder};border-radius:0;padding:3px 2px 5px;font-size:13px;font-weight:800;color:${c.textPrimary};font-family:inherit;outline:none;${isDone?'text-decoration:line-through;':''}">
+  ${s.notes && !isNotesOpen ? `<div style="font-size:11px;color:${c.textMuted};margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.notes}</div>` : ''}
+  ${s.deadline && !isNotesOpen ? `<div style="font-size:10px;font-weight:700;color:rgba(231,76,60,0.75);margin-top:4px;">📅 ${fmtDeadlineDisplay(s.deadline)}</div>` : ''}
+  ${isNotesOpen ? notesSection : ''}
+</div>`;
+  };
+
+  const addBtnOnclick = isNew ? 'addNewBatchStep()' : `addBatchStep('${batchId}')`;
+  const addBtnBorder  = c.light ? 'rgba(10,22,40,0.15)' : 'rgba(255,255,255,0.15)';
+  const addBtn = `<div onclick="${addBtnOnclick}"
+    style="${isDesktop?'flex:0 0 auto;width:80px;min-height:80px;':'width:100%;padding:14px;'}border-radius:12px;border:2px dashed ${addBtnBorder};background:transparent;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;"
+    onmouseover="this.style.borderColor='#C9A84C';this.style.background='rgba(201,168,76,0.06)'"
+    onmouseout="this.style.borderColor='${addBtnBorder}';this.style.background='transparent'">
+  <div style="font-size:22px;color:#C9A84C;line-height:1;">+</div>
+  <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${c.textMuted};">ADD</div>
+</div>`;
+
+  const arrow = `<div style="flex-shrink:0;align-self:flex-start;margin-top:24px;"><span style="font-size:18px;color:${c.light?'rgba(10,22,40,0.18)':'rgba(255,255,255,0.18)'};">→</span></div>`;
+
+  const cards = steps.map((s, i) => makeCard(s, i));
+
+  if (isDesktop) {
+    const items = [];
+    cards.forEach((card, i) => { items.push(card); if (i < steps.length - 1) items.push(arrow); });
+    items.push(addBtn);
+    return `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;">${items.join('')}</div>`;
+  } else {
+    return `<div style="display:flex;flex-direction:column;gap:8px;">${cards.join('')}${addBtn}</div>`;
+  }
+}
 
 function getLightColors() {
   const light = document.body.classList.contains('light');
@@ -66,23 +178,16 @@ function renderNewStepSlide() {
   const toggleBtn = `<button onclick="toggleNewStepsView()" style="font-size:11px;font-weight:800;letter-spacing:0.8px;padding:5px 10px;border-radius:20px;border:1px solid ${c.toggleBorder};background:${newStepsShowAll?'rgba(201,168,76,0.18)':c.toggleBgOff};color:${newStepsShowAll?'#C9A84C':c.toggleColOff};cursor:pointer;font-family:inherit;">${newStepsShowAll?'☰ COLLAPSE':'☰ VIEW ALL'}</button>`;
 
   if (newStepsShowAll) {
+    const chain = buildStepChain({
+      steps: newBatchSteps, expandedIdx: newStepExpandedIdx.val,
+      batchId: null, isNew: true, batchDeadline: '', c
+    });
     container.innerHTML = `
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-  <div style="font-size:13px;font-weight:900;letter-spacing:1.5px;color:${c.headingCol};">ALL ${total} STEP${total===1?'':'S'}</div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+  <div style="font-size:13px;font-weight:900;letter-spacing:1.5px;color:${c.headingCol};">ALL ${total} STEP${total===1?'':' S'}</div>
   ${toggleBtn}
-</div>
-<div style="display:flex;flex-direction:column;gap:6px;">
-  ${newBatchSteps.map((s,i)=>`
-  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid ${i===newBatchStepIdx?c.rowBorderSel:c.rowBorderDef};background:${i===newBatchStepIdx?c.rowBgSel:c.rowBgDef};cursor:pointer;" onclick="jumpToNewStep(${i})">
-    <div style="width:22px;height:22px;flex-shrink:0;border-radius:6px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);color:#C9A84C;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;">${i+1}</div>
-    <div style="flex:1;min-width:0;">
-      <div style="font-size:14px;font-weight:700;color:${s.name?c.textPrimary:c.textEmpty};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.name||'Unnamed step'}</div>
-      ${s.notes?`<div style="font-size:11px;color:${c.textMuted};margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.notes}</div>`:''}
-    </div>
-    <div style="flex-shrink:0;font-size:11px;font-weight:800;color:rgba(201,168,76,0.7);background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.2);padding:3px 8px;border-radius:20px;">${fmtMinsShort(s.timeBlock||30)}</div>
-    <button onclick="event.stopPropagation();removeNewBatchStep(${i})" style="flex-shrink:0;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:6px;width:26px;height:26px;color:rgba(231,76,60,0.7);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">×</button>
-  </div>`).join('')}
-</div>`;
+</div>${chain}`;
+    // (no drum init needed — time block uses native select in chain view)
     return;
   }
 
@@ -139,23 +244,16 @@ function renderEditStepSlide(batchId) {
   const toggleBtn = `<button onclick="toggleEditStepsView('${batchId}')" style="font-size:11px;font-weight:800;letter-spacing:0.8px;padding:5px 10px;border-radius:20px;border:1px solid ${c.toggleBorder};background:${showAll?'rgba(201,168,76,0.18)':c.toggleBgOff};color:${showAll?'#C9A84C':c.toggleColOff};cursor:pointer;font-family:inherit;">${showAll?'☰ COLLAPSE':'☰ VIEW ALL'}</button>`;
 
   if (showAll) {
+    const expandedIdx = editStepsExpandedIdx[batchId] !== undefined ? editStepsExpandedIdx[batchId] : -1;
+    const chain = buildStepChain({
+      steps, expandedIdx, batchId, isNew: false, batchDeadline: b.deadline || '', c
+    });
     container.innerHTML = `
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-  <div style="font-size:13px;font-weight:900;letter-spacing:1.5px;color:${c.headingCol};">ALL ${total} STEP${total===1?'':'S'}</div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+  <div style="font-size:13px;font-weight:900;letter-spacing:1.5px;color:${c.headingCol};">ALL ${total} STEP${total===1?'':' S'}</div>
   ${toggleBtn}
-</div>
-<div style="display:flex;flex-direction:column;gap:6px;">
-  ${steps.map((s,i)=>`
-  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid ${i===si?c.rowBorderSel:c.rowBorderDef};background:${i===si?c.rowBgSel:c.rowBgDef};cursor:pointer;${s.completedAt?'opacity:0.5;':''}" onclick="jumpToEditStep('${batchId}',${i})">
-    <div style="width:22px;height:22px;flex-shrink:0;border-radius:6px;background:${s.completedAt?'rgba(46,204,113,0.15)':'rgba(201,168,76,0.15)'};border:1px solid ${s.completedAt?'rgba(46,204,113,0.3)':'rgba(201,168,76,0.3)'};color:${s.completedAt?'#2ecc71':'#C9A84C'};font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;">${s.completedAt?'✓':i+1}</div>
-    <div style="flex:1;min-width:0;">
-      <div style="font-size:14px;font-weight:700;color:${s.name?c.textPrimary:c.textEmpty};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${s.completedAt?'text-decoration:line-through;':''}">${s.name||'Unnamed step'}</div>
-      ${s.notes?`<div style="font-size:11px;color:${c.textMuted};margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.notes}</div>`:''}
-    </div>
-    <div style="flex-shrink:0;font-size:11px;font-weight:800;color:rgba(201,168,76,0.7);background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.2);padding:3px 8px;border-radius:20px;">${fmtMinsShort(s.timeBlock||30)}</div>
-    <button onclick="event.stopPropagation();removeBatchStep('${batchId}',${i})" style="flex-shrink:0;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:6px;width:26px;height:26px;color:rgba(231,76,60,0.7);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">×</button>
-  </div>`).join('')}
-</div>`;
+</div>${chain}`;
+    // (no drum init needed — time block uses native select in chain view)
     return;
   }
 
@@ -246,6 +344,36 @@ window.syncNewStep = (si, field, val) => {
   if (newBatchSteps[si]) newBatchSteps[si][field] = val;
 };
 
+window.toggleNewStepExpand = (idx) => {
+  // Flush current drum value before toggling
+  const prevHidden = document.getElementById(`new-chain-drum-hidden-${newStepExpandedIdx.val}`);
+  if (prevHidden && newBatchSteps[newStepExpandedIdx.val]) {
+    newBatchSteps[newStepExpandedIdx.val].timeBlock = parseInt(prevHidden.value) || 30;
+  }
+  newStepExpandedIdx.val = newStepExpandedIdx.val === idx ? -1 : idx;
+  renderNewStepSlide();
+};
+
+window.syncNewStepDeadline = (si, val) => {
+  if (newBatchSteps[si]) newBatchSteps[si].deadline = val;
+  const dispEl = document.getElementById(`new-chain-dl-disp-${si}`);
+  if (dispEl) dispEl.textContent = val ? '📅 ' + fmtDeadlineDisplay(val) : 'Tap to set deadline...';
+};
+
+window.toggleEditStepExpand = (batchId, idx) => {
+  // Flush current drum value
+  const prevIdx = editStepsExpandedIdx[batchId];
+  if (prevIdx !== undefined && prevIdx >= 0) {
+    const prevHidden = document.getElementById(`be-chain-${batchId}-drum-hidden-${prevIdx}`);
+    const b = (state.data.tjmBatches||[]).find(b=>b.id===batchId);
+    if (prevHidden && b?.steps?.[prevIdx]) {
+      b.steps[prevIdx].timeBlock = parseInt(prevHidden.value) || 30;
+    }
+  }
+  editStepsExpandedIdx[batchId] = (editStepsExpandedIdx[batchId] === idx) ? -1 : idx;
+  renderEditStepSlide(batchId);
+};
+
 window.toggleNewStepsView = () => {
   // Flush current step before toggling
   const hidden = document.getElementById(`new-drum-hidden-${newBatchStepIdx}`);
@@ -298,6 +426,12 @@ window.navEditStep = async (batchId, dir) => {
 };
 
 window.addNewBatchStep = () => {
+  // Flush current chain drum value if in chain view
+  if (newStepsShowAll && newStepExpandedIdx.val >= 0) {
+    const hidden = document.getElementById(`new-chain-drum-hidden-${newStepExpandedIdx.val}`);
+    if (hidden && newBatchSteps[newStepExpandedIdx.val]) newBatchSteps[newStepExpandedIdx.val].timeBlock = parseInt(hidden.value) || 30;
+  }
+  // Flush slider values if in slider view
   const hidden = document.getElementById(`new-drum-hidden-${newBatchStepIdx}`);
   const nameEl = document.getElementById(`new-step-name-${newBatchStepIdx}`);
   const notesEl = document.getElementById(`new-step-notes-${newBatchStepIdx}`);
@@ -306,14 +440,17 @@ window.addNewBatchStep = () => {
     if (nameEl) newBatchSteps[newBatchStepIdx].name = nameEl.value || '';
     if (notesEl) newBatchSteps[newBatchStepIdx].notes = notesEl.value || '';
   }
-  newBatchSteps.push({ name:'', timeBlock:30, notes:'' });
-  newBatchStepIdx = newBatchSteps.length - 1;
+  newBatchSteps.push({ name:'', timeBlock:30, notes:'', deadline:'' });
+  const newIdx = newBatchSteps.length - 1;
+  newBatchStepIdx = newIdx;
+  if (newStepsShowAll) { newStepExpandedIdx.val = newIdx; }
   renderNewStepSlide();
 };
 
 window.removeNewBatchStep = (si) => {
   newBatchSteps.splice(si, 1);
   newBatchStepIdx = Math.max(0, Math.min(newBatchSteps.length - 1, newBatchStepIdx));
+  if (newStepExpandedIdx.val >= newBatchSteps.length) newStepExpandedIdx.val = -1;
   renderNewStepSlide();
 };
 
@@ -323,9 +460,13 @@ window.addBatchStep = (id) => {
   const b = batches.find(b => b.id === id);
   if (!b) return;
   if (!b.steps) b.steps = [];
-  b.steps.push({ id:'s'+Date.now(), name:'', timeBlock:30, notes:'', completedAt:null });
+  b.steps.push({ id:'s'+Date.now(), name:'', timeBlock:30, notes:'', deadline:'', completedAt:null });
   state.data.tjmBatches = batches;
-  state.editBatchStepIdx = b.steps.length - 1;
+  const newIdx = b.steps.length - 1;
+  state.editBatchStepIdx = newIdx;
+  // Auto-expand new step in chain view
+  if (editStepsShowAll[id]) editStepsExpandedIdx[id] = newIdx;
+  scheduleAutoSave();
   renderEditStepSlide(id);
 };
 
