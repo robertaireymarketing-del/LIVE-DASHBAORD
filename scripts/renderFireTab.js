@@ -1,5 +1,5 @@
 // renderFireTab.js — 🔥 FIRE Tab
-// Visionary motivation: WHY → COST OF INACTION → FIRST STEP
+// Bold, aggressive, masculine. No soft colours.
 
 export function renderFireTab(deps) {
   const { state, getTodayData, getSettings, getStreak, getMonthStats } = deps;
@@ -62,185 +62,180 @@ export function renderFireTab(deps) {
 
   return `
 <style>
-  /* ── CSS variables that respond to light/dark ── */
   .fire-tab {
-    --fire-bg-hero:        rgba(30, 15, 0, 0.85);
-    --fire-bg-cost:        rgba(40, 8, 5, 0.8);
-    --fire-bg-card:        rgba(255, 255, 255, 0.04);
-    --fire-bg-consequence: rgba(231, 76, 60, 0.07);
-    --fire-bg-step:        rgba(10, 35, 10, 0.85);
-    --fire-bg-mantra:      rgba(25, 20, 5, 0.7);
-    --fire-border-hero:    rgba(255, 140, 0, 0.22);
-    --fire-border-cost:    rgba(231, 76, 60, 0.35);
-    --fire-border-card:    rgba(255, 255, 255, 0.08);
-    --fire-border-cons:    rgba(231, 76, 60, 0.22);
-    --fire-border-step:    rgba(46, 204, 113, 0.3);
-    --fire-border-mantra:  rgba(255, 180, 0, 0.12);
-    --fire-text-primary:   rgba(255, 255, 255, 0.9);
-    --fire-text-secondary: rgba(255, 255, 255, 0.55);
-    --fire-text-muted:     rgba(255, 255, 255, 0.32);
-    --fire-text-cons:      rgba(255, 255, 255, 0.48);
     padding: 0 0 40px 0;
     font-family: inherit;
   }
 
-  /* Light mode overrides */
-  body.light .fire-tab {
-    --fire-bg-hero:        rgba(255, 240, 220, 0.9);
-    --fire-bg-cost:        rgba(255, 235, 230, 0.9);
-    --fire-bg-card:        rgba(0, 0, 0, 0.04);
-    --fire-bg-consequence: rgba(231, 76, 60, 0.06);
-    --fire-bg-step:        rgba(220, 255, 230, 0.85);
-    --fire-bg-mantra:      rgba(255, 248, 220, 0.85);
-    --fire-border-hero:    rgba(200, 100, 0, 0.25);
-    --fire-border-cost:    rgba(200, 50, 30, 0.3);
-    --fire-border-card:    rgba(0, 0, 0, 0.1);
-    --fire-border-cons:    rgba(200, 50, 30, 0.2);
-    --fire-border-step:    rgba(30, 160, 80, 0.3);
-    --fire-border-mantra:  rgba(180, 130, 0, 0.2);
-    --fire-text-primary:   rgba(20, 10, 0, 0.92);
-    --fire-text-secondary: rgba(30, 20, 0, 0.62);
-    --fire-text-muted:     rgba(30, 20, 0, 0.42);
-    --fire-text-cons:      rgba(30, 20, 0, 0.55);
-  }
-
-  /* ── HERO ── */
+  /* ─── HERO — black with blazing orange border ─── */
   .fire-hero {
-    background: var(--fire-bg-hero);
-    border: 1px solid var(--fire-border-hero);
-    border-radius: 16px;
-    padding: 28px 24px 24px;
-    margin-bottom: 14px;
+    background: #0a0a0a;
+    border: 2px solid #FF6B00;
+    border-radius: 12px;
+    padding: 26px 22px;
+    margin-bottom: 12px;
     position: relative;
     overflow: hidden;
   }
-  .fire-hero::before {
+  body.light .fire-hero {
+    background: #111;
+    border-color: #FF6B00;
+  }
+  .fire-hero::after {
     content: '';
     position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, #ff6a00, #ffb347, #ff6a00, transparent);
-    opacity: 0.5;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #FF6B00, #FFD000, #FF6B00);
   }
   .fire-eyebrow {
     font-size: 9px;
     font-weight: 900;
-    letter-spacing: 3px;
+    letter-spacing: 4px;
     text-transform: uppercase;
     margin-bottom: 10px;
-    opacity: 0.85;
   }
-  .fire-eyebrow.orange { color: #e07800; }
-  .fire-eyebrow.red    { color: #c0392b; }
-  .fire-eyebrow.green  { color: #1a8a4a; }
+  .fire-eyebrow.orange { color: #FF6B00; }
+  .fire-eyebrow.red    { color: #FF2020; }
+  .fire-eyebrow.green  { color: #00D46A; }
 
   .fire-hero-headline {
-    font-size: 22px;
+    font-size: 26px;
     font-weight: 900;
-    color: var(--fire-text-primary);
-    line-height: 1.25;
-    letter-spacing: -0.3px;
+    color: #FFFFFF;
+    line-height: 1.2;
+    letter-spacing: -0.5px;
     margin-bottom: 18px;
+    text-transform: uppercase;
   }
-  .fire-hero-headline span { color: #d47000; }
-
-  body.light .fire-hero-headline span { color: #c05e00; }
+  .fire-hero-headline span { color: #FF6B00; }
 
   .fire-dream-list {
     list-style: none; padding: 0; margin: 0;
-    display: flex; flex-direction: column; gap: 9px;
+    display: flex; flex-direction: column; gap: 8px;
   }
   .fire-dream-item {
     display: flex; align-items: flex-start; gap: 10px;
     font-size: 13px;
-    color: var(--fire-text-secondary);
+    font-weight: 600;
+    color: #CCCCCC;
     line-height: 1.4;
   }
   .fire-dream-item::before {
-    content: '→';
-    color: #c07000;
-    font-weight: 900;
+    content: '▶';
+    color: #FF6B00;
+    font-size: 9px;
     flex-shrink: 0;
-    margin-top: 1px;
+    margin-top: 3px;
   }
 
-  /* ── COST COUNTER ── */
+  /* ─── COST COUNTER ─── */
   .fire-cost-block {
-    background: var(--fire-bg-cost);
-    border: 1px solid var(--fire-border-cost);
-    border-radius: 14px;
-    padding: 22px 24px;
-    margin-bottom: 14px;
+    background: #0a0a0a;
+    border: 2px solid #FF2020;
+    border-radius: 12px;
+    padding: 22px 20px;
+    margin-bottom: 12px;
     text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  body.light .fire-cost-block {
+    background: #111;
+    border-color: #FF2020;
+  }
+  .fire-cost-block::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: #FF2020;
   }
   .fire-cost-label {
     font-size: 11px;
-    color: var(--fire-text-muted);
-    margin-bottom: 8px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #888;
+    margin-bottom: 6px;
+    text-transform: uppercase;
   }
   .fire-cost-number {
-    font-size: 52px;
+    font-size: 58px;
     font-weight: 900;
-    color: #c0392b;
-    letter-spacing: -1px;
+    color: #FF2020;
+    letter-spacing: -2px;
     line-height: 1;
     margin-bottom: 10px;
     font-variant-numeric: tabular-nums;
-    animation: firePulse 3s ease-in-out infinite;
+    animation: firePulse 2s ease-in-out infinite;
+    text-shadow: 0 0 30px rgba(255, 32, 32, 0.4);
   }
   .fire-cost-sub {
     font-size: 11px;
-    color: var(--fire-text-muted);
+    font-weight: 600;
+    color: #666;
     line-height: 1.6;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
-  .fire-cost-sub strong { color: var(--fire-text-secondary); }
+  .fire-cost-sub strong { color: #aaa; }
 
-  /* ── URGENCY GRID ── */
+  /* ─── URGENCY GRID ─── */
   .fire-urgency-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
   }
   .fire-urgency-card {
-    background: var(--fire-bg-card);
-    border: 1px solid var(--fire-border-card);
-    border-radius: 12px;
+    background: #0a0a0a;
+    border: 1px solid #222;
+    border-radius: 10px;
     padding: 16px;
     text-align: center;
   }
+  body.light .fire-urgency-card {
+    background: #111;
+    border-color: #333;
+  }
   .fire-urgency-value {
-    font-size: 30px;
+    font-size: 36px;
     font-weight: 900;
     line-height: 1;
     margin-bottom: 5px;
-    letter-spacing: -0.5px;
+    letter-spacing: -1px;
   }
-  .fire-urgency-value.amber { color: #c07800; }
-  .fire-urgency-value.red   { color: #c0392b; }
-  .fire-urgency-value.green { color: #1a8a4a; }
+  .fire-urgency-value.amber { color: #FFB300; }
+  .fire-urgency-value.red   { color: #FF2020; text-shadow: 0 0 20px rgba(255,32,32,0.35); }
+  .fire-urgency-value.green { color: #00D46A; }
   .fire-urgency-label {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: var(--fire-text-muted);
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 2.5px;
+    color: #555;
     text-transform: uppercase;
   }
 
-  /* ── CONSEQUENCE ── */
+  /* ─── CONSEQUENCE ─── */
   .fire-consequence-block {
-    background: var(--fire-bg-consequence);
-    border: 1px solid var(--fire-border-cons);
-    border-radius: 14px;
-    padding: 22px 24px;
-    margin-bottom: 14px;
+    background: #0a0a0a;
+    border: 2px solid #FF2020;
+    border-left: 5px solid #FF2020;
+    border-radius: 12px;
+    padding: 22px;
+    margin-bottom: 12px;
+  }
+  body.light .fire-consequence-block {
+    background: #111;
   }
   .fire-consequence-headline {
     font-size: 15px;
-    font-weight: 800;
-    color: var(--fire-text-primary);
+    font-weight: 900;
+    color: #FFFFFF;
     margin-bottom: 16px;
-    line-height: 1.4;
+    line-height: 1.35;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
   }
   .fire-consequence-list {
     list-style: none; padding: 0; margin: 0;
@@ -248,72 +243,87 @@ export function renderFireTab(deps) {
   }
   .fire-consequence-item {
     display: flex; align-items: flex-start; gap: 10px;
-    font-size: 12.5px;
-    color: var(--fire-text-cons);
+    font-size: 13px;
+    font-weight: 600;
+    color: #999;
     line-height: 1.4;
   }
   .fire-consequence-item::before {
     content: '✗';
-    color: #c0392b;
+    color: #FF2020;
     font-weight: 900;
+    font-size: 14px;
     flex-shrink: 0;
+    line-height: 1.3;
   }
 
-  /* ── FIRST STEP ── */
+  /* ─── FIRST STEP ─── */
   .fire-step-block {
-    background: var(--fire-bg-step);
-    border: 1px solid var(--fire-border-step);
-    border-radius: 14px;
-    padding: 22px 24px;
-    margin-bottom: 14px;
+    background: #001a0d;
+    border: 2px solid #00D46A;
+    border-radius: 12px;
+    padding: 22px;
+    margin-bottom: 12px;
     position: relative;
     overflow: hidden;
+  }
+  body.light .fire-step-block {
+    background: #001a0d;
+    border-color: #00D46A;
   }
   .fire-step-block::after {
     content: '';
     position: absolute;
     top: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, #1a8a4a, transparent);
+    height: 3px;
+    background: #00D46A;
+    box-shadow: 0 0 12px rgba(0, 212, 106, 0.6);
   }
   .fire-step-headline {
-    font-size: 21px;
+    font-size: 24px;
     font-weight: 900;
-    color: var(--fire-text-primary);
+    color: #FFFFFF;
     margin-bottom: 10px;
-    line-height: 1.2;
+    line-height: 1.15;
     letter-spacing: -0.3px;
+    text-transform: uppercase;
   }
   .fire-step-sub {
     font-size: 13px;
-    color: var(--fire-text-secondary);
+    font-weight: 600;
+    color: #999;
     line-height: 1.65;
   }
 
-  /* ── MANTRA ── */
+  /* ─── MANTRA ─── */
   .fire-mantra {
-    background: var(--fire-bg-mantra);
-    border: 1px solid var(--fire-border-mantra);
-    border-radius: 14px;
-    padding: 24px;
-    text-align: center;
+    background: #0a0a0a;
+    border: 1px solid #333;
+    border-left: 4px solid #FF6B00;
+    border-radius: 12px;
+    padding: 22px;
+    text-align: left;
+  }
+  body.light .fire-mantra {
+    background: #111;
+    border-color: #333;
+    border-left-color: #FF6B00;
   }
   .fire-mantra-text {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--fire-text-secondary);
-    line-height: 1.65;
-    font-style: italic;
+    font-size: 15px;
+    font-weight: 800;
+    color: #FFFFFF;
+    line-height: 1.55;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
   }
   .fire-mantra-text span {
-    color: #c07000;
-    font-style: normal;
-    font-weight: 900;
+    color: #FF6B00;
   }
 
   @keyframes firePulse {
     0%, 100% { opacity: 1; }
-    50%       { opacity: 0.6; }
+    50%       { opacity: 0.55; }
   }
 </style>
 
@@ -328,11 +338,11 @@ export function renderFireTab(deps) {
   </div>
 
   <div class="fire-cost-block">
-    <div class="fire-eyebrow red">💸 The cost of today</div>
-    <div class="fire-cost-label">Since midnight, inaction has already cost you</div>
+    <div class="fire-eyebrow red">💸 Cost of inaction today</div>
+    <div class="fire-cost-label">Since midnight you have lost</div>
     <div class="fire-cost-number" id="fire-lost-counter">£${lostToday}</div>
     <div class="fire-cost-sub">
-      Your £10k/month target = <strong>£333 every single day.</strong><br>
+      £10k/month = <strong>£333 every single day.</strong><br>
       That clock never stops. Neither should you.
     </div>
   </div>
@@ -372,8 +382,7 @@ export function renderFireTab(deps) {
 
   <div class="fire-mantra">
     <div class="fire-mantra-text">
-      "The life you want is on the other side of the action<br>
-      you keep putting off. <span>Do it now.</span>"
+      "The life you want is on the other side of the action you keep putting off. <span>Do it now.</span>"
     </div>
   </div>
 
