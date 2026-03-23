@@ -58,7 +58,7 @@ function renderNewStepSlide() {
 </div>`;
   setTimeout(() => {
     const wrap = document.getElementById(`new-drum-wrap-${si}`);
-    if (wrap) wrap.innerHTML = window.buildDrum(drumId, hiddenId, s.timeBlock || 30);
+    if (wrap) wrap.innerHTML = window._buildDrum(drumId, hiddenId, s.timeBlock || 30);
     setTimeout(() => window.initDrum(drumId, s.timeBlock || 30), 20);
   }, 20);
 }
@@ -115,7 +115,7 @@ function renderEditStepSlide(batchId) {
 </div>`;
   setTimeout(() => {
     const wrap = document.getElementById(`be-drum-wrap-${batchId}`);
-    if (wrap) wrap.innerHTML = window.buildDrum(drumId, hiddenId, s.timeBlock || 30);
+    if (wrap) wrap.innerHTML = window._buildDrum(drumId, hiddenId, s.timeBlock || 30);
     setTimeout(() => window.initDrum(drumId, s.timeBlock || 30), 20);
   }, 20);
 }
