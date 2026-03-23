@@ -16,6 +16,7 @@ import { renderMarchTab as renderMarchTabExternal } from './renderMarchTab.js';
 import { renderProgressTab as renderProgressTabExternal } from './renderProgressTab.js';
 import { renderCRMTab as renderCRMTabExternal, renderVaultTab as renderVaultTabExternal } from './renderExtras.js';
 import { renderVintedTab as renderVintedTabExternal, renderNottinghamTab as renderNottinghamTabExternal } from './renderProjects.js';
+import { renderFireTab as renderFireTabExternal } from './renderFireTab.js';
 import { renderDayPlannerModal as renderDayPlannerModalExternal, renderEmbeddedDayPlanner as renderEmbeddedDayPlannerExternal, renderTimePickerModal as renderTimePickerModalExternal, renderWeekPlanModal as renderWeekPlanModalExternal, renderDatePickerModal as renderDatePickerModalExternal, renderSoldModal as renderSoldModalExternal } from './renderModals.js';
 import { renderRetentionModal as renderRetentionModalExternal, renderPastDaysModal as renderPastDaysModalExternal, renderMonthTargetsModal as renderMonthTargetsModalExternal, renderChallengeModal as renderChallengeModalExternal } from './renderMoreModals.js';
 
@@ -165,6 +166,7 @@ function renderCRMTab() { return renderCRMTabExternal(renderCRMDeps); }
 function renderVaultTab() { return renderVaultTabExternal(renderVaultDeps); }
 function renderVintedTab() { return renderVintedTabExternal(renderProjectsDeps); }
 function renderNottinghamTab() { return renderNottinghamTabExternal(renderProjectsDeps); }
+function renderFireTab() { return renderFireTabExternal(renderTabDeps); }
 function renderDayPlannerModal() { return renderDayPlannerModalExternal(renderModalDeps); }
 function renderTimePickerModal() { return renderTimePickerModalExternal(renderModalDeps); }
 function renderWeekPlanModal() { return renderWeekPlanModalExternal(renderModalDeps); }
@@ -216,6 +218,7 @@ function render() {
     </div>
     <div style="display:flex;gap:6px;">
     <button class="tab ${state.activeTab === 'journal' ? 'active' : ''}" onclick="setTab('journal')" style="flex:1;">JOURNAL</button>
+    <button class="tab ${state.activeTab === 'fire' ? 'active' : ''}" onclick="setTab('fire')" style="flex:1;">🔥 FIRE</button>
     </div>
     </div>
     <div class="content">
@@ -230,6 +233,7 @@ function render() {
     ${(() => { try { return state.activeTab === 'vinted' ? renderVintedTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">VINTED ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'notts' ? renderNottinghamTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">NOTTS ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'journal' ? renderJournalTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">JOURNAL ERROR: '+ e.message + '</div>'; }})()}
+    ${(() => { try { return state.activeTab === 'fire' ? renderFireTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">FIRE ERROR: ' + e.message + '</div>'; }})()}
     </div>
     <button class="logout-btn" onclick="handleLogout()">Sign Out</button>
     ${state.retentionModal ? renderRetentionModal() : ''}
