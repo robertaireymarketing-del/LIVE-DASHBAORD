@@ -96,11 +96,11 @@ function buildStepChain({ steps, expandedIdx, batchId, isNew, batchDeadline, c }
   </div>
 </div>`;
 
-    const cardW = isDesktop ? 'flex:0 0 auto;width:200px;box-sizing:border-box;' : 'width:100%;';
+    const cardW = isDesktop ? 'flex:0 0 auto;min-width:180px;max-width:280px;width:auto;box-sizing:border-box;' : 'width:100%;';
 
     return `<div style="${cardW}border-radius:12px;border:2px solid ${cardBorder};background:${cardBg};padding:12px;${isDone?'opacity:0.65;':''}transition:border-color 0.15s;">
   <div style="display:flex;align-items:center;gap:5px;margin-bottom:9px;">
-    <div style="width:22px;height:22px;flex-shrink:0;border-radius:6px;background:${badgeBg};border:1px solid ${badgeBord};color:${badgeCol};font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;">${isDone?'✓':i+1}</div>
+    <div style="width:30px;height:30px;flex-shrink:0;border-radius:8px;background:${badgeBg};border:1.5px solid ${badgeBord};color:${badgeCol};font-size:14px;font-weight:900;display:flex;align-items:center;justify-content:center;">${isDone?'✓':i+1}</div>
     <select id="${timeId}" onchange="${onTime}"
       style="flex-shrink:0;font-size:10px;font-weight:800;color:rgba(201,168,76,0.95);background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);padding:3px 5px;border-radius:20px;cursor:pointer;font-family:inherit;outline:none;">${timeOpts}</select>
     <button onclick="${onToggle}" title="${isNotesOpen?'Close notes':'Edit notes & deadline'}"
@@ -108,11 +108,11 @@ function buildStepChain({ steps, expandedIdx, batchId, isNew, batchDeadline, c }
     <button onclick="event.stopPropagation();${onDelete}"
       style="flex-shrink:0;background:transparent;border:1px solid transparent;border-radius:6px;width:22px;height:22px;color:rgba(231,76,60,0.55);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;">×</button>
   </div>
-  <input id="${nameId}" placeholder="Step name..."
-    value="${(s.name||'').replace(/"/g,'&quot;')}"
-    oninput="${onName}"
-    style="width:100%;box-sizing:border-box;background:transparent;border:none;border-bottom:1.5px solid ${nameBorder};border-radius:0;padding:3px 2px 5px;font-size:13px;font-weight:800;color:${c.textPrimary};font-family:inherit;outline:none;${isDone?'text-decoration:line-through;':''}">
-  ${s.notes && !isNotesOpen ? `<div style="font-size:11px;color:${c.textMuted};margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.notes}</div>` : ''}
+  <textarea id="${nameId}" placeholder="Step name..."
+    oninput="${onName};this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+    style="width:100%;box-sizing:border-box;background:transparent;border:none;border-bottom:1.5px solid ${nameBorder};border-radius:0;padding:3px 2px 5px;font-size:13px;font-weight:800;color:${c.textPrimary};font-family:inherit;outline:none;resize:none;overflow:hidden;line-height:1.4;${isDone?'text-decoration:line-through;':''}"
+    rows="1">${(s.name||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+  ${s.notes && !isNotesOpen ? `<div style="font-size:11px;color:${c.textMuted};margin-top:5px;line-height:1.4;white-space:pre-wrap;word-break:break-word;">${s.notes}</div>` : ''}
   ${s.deadline && !isNotesOpen ? `<div style="font-size:10px;font-weight:700;color:rgba(231,76,60,0.75);margin-top:4px;">📅 ${fmtDeadlineDisplay(s.deadline)}</div>` : ''}
   ${isNotesOpen ? notesSection : ''}
 </div>`;
@@ -187,7 +187,13 @@ function renderNewStepSlide() {
   <div style="font-size:13px;font-weight:900;letter-spacing:1.5px;color:${c.headingCol};">ALL ${total} STEP${total===1?'':' S'}</div>
   ${toggleBtn}
 </div>${chain}`;
-    // (no drum init needed — time block uses native select in chain view)
+    // Auto-size name textareas after render
+    setTimeout(() => {
+      container.querySelectorAll('textarea[rows="1"]').forEach(ta => {
+        ta.style.height = 'auto';
+        ta.style.height = ta.scrollHeight + 'px';
+      });
+    }, 0);
     return;
   }
 
@@ -253,7 +259,13 @@ function renderEditStepSlide(batchId) {
   <div style="font-size:13px;font-weight:900;letter-spacing:1.5px;color:${c.headingCol};">ALL ${total} STEP${total===1?'':' S'}</div>
   ${toggleBtn}
 </div>${chain}`;
-    // (no drum init needed — time block uses native select in chain view)
+    // Auto-size name textareas after render
+    setTimeout(() => {
+      container.querySelectorAll('textarea[rows="1"]').forEach(ta => {
+        ta.style.height = 'auto';
+        ta.style.height = ta.scrollHeight + 'px';
+      });
+    }, 0);
     return;
   }
 
