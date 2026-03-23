@@ -433,6 +433,137 @@ export function initJournalTab(deps) {
   function evaluateMorningCompletion(){ const complete=[morningFields.identity,morningFields.purpose,morningFields.stateConfidence,morningFields.mission,morningFields.priority1,morningFields.priority2,morningFields.priority3,morningFields.obstacles].every(el=>isFilled(el.value)); morningCard.classList.toggle('complete-block', complete); morningBadge.textContent=complete?'Complete':'In progress'; morningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
   function evaluateEveningCompletion(){ const complete=[eveningFields.missionDebrief,eveningFields.biggestWin,eveningFields.biggestLesson,eveningFields.identityReflection,eveningFields.improveTomorrow].every(el=>isFilled(el.value)); eveningCard.classList.toggle('complete-block', complete); eveningBadge.textContent=complete?'Complete':'In progress'; eveningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
 
+  // ── Morning Launch Overlay ─────────────────────────────────────────────
+  const STOIC_QUOTES = [
+    { text: "You have power over your mind, not outside events. Realise this, and you will find strength.", attr: "Marcus Aurelius" },
+    { text: "Waste no more time arguing what a good man should be. Be one.", attr: "Marcus Aurelius" },
+    { text: "The impediment to action advances action. What stands in the way becomes the way.", attr: "Marcus Aurelius" },
+    { text: "Begin at once to live, and count each separate day as a separate life.", attr: "Seneca" },
+    { text: "Do not indulge in dreams of what you do not have, but count the blessings you actually possess.", attr: "Marcus Aurelius" },
+    { text: "Confine yourself to the present.", attr: "Marcus Aurelius" },
+    { text: "How long are you going to wait before you demand the best for yourself?", attr: "Epictetus" },
+  ];
+
+  function showMorningLaunchOverlay(payload) {
+    // Only fire on today's entry, and only once per day
+    if (!isToday()) return;
+    const todayKey = keyFromDate(currentDate);
+    const alreadyShown = sessionStorage.getItem('launchOverlayShown_' + todayKey);
+    if (alreadyShown) return;
+    sessionStorage.setItem('launchOverlayShown_' + todayKey, '1');
+
+    const quote = STOIC_QUOTES[Math.floor(Math.random() * STOIC_QUOTES.length)];
+    const mission = (payload.mission || '').trim();
+    const p1 = (payload.priority1 || '').trim();
+    const p2 = (payload.priority2 || '').trim();
+    const p3 = (payload.priority3 || '').trim();
+    const priorities = [p1, p2, p3].filter(Boolean);
+
+    // Build overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'morningLaunchOverlay';
+    overlay.style.cssText = [
+      'position:fixed;inset:0;z-index:99999;',
+      'background:#050A14;',
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;',
+      'padding:24px;overflow:auto;',
+      'animation:launchFadeIn 0.35s ease forwards;',
+    ].join('');
+
+    const COUNTDOWN_SECS = 60;
+
+    overlay.innerHTML = `
+      <style>
+        @keyframes launchFadeIn { from { opacity:0; transform:scale(1.04); } to { opacity:1; transform:scale(1); } }
+        @keyframes launchPulse { 0%,100% { box-shadow:0 0 0 0 rgba(201,168,76,0.35); } 50% { box-shadow:0 0 0 18px rgba(201,168,76,0); } }
+        @keyframes launchBarShrink { from { width:100%; } to { width:0%; } }
+        #launchGetUpBtn { animation: launchPulse 2s ease-in-out infinite; }
+      </style>
+
+      <div style="width:min(520px,100%);display:flex;flex-direction:column;gap:20px;text-align:center;">
+
+        <!-- Header -->
+        <div>
+          <div style="font-size:10px;font-weight:900;letter-spacing:3px;color:#C9A84C;text-transform:uppercase;margin-bottom:10px;">Morning Protocol Complete</div>
+          <div style="font-size:42px;font-weight:900;color:#ffffff;line-height:1;letter-spacing:-1px;">GET UP.<br><span style="color:#C9A84C;">RIGHT NOW.</span></div>
+          <div style="font-size:14px;color:rgba(255,255,255,0.45);margin-top:10px;">The bed is done. The day begins.</div>
+        </div>
+
+        <!-- Mission -->
+        ${mission ? `
+        <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:14px;padding:16px 18px;text-align:left;">
+          <div style="font-size:9px;font-weight:900;letter-spacing:2.5px;color:#C9A84C;text-transform:uppercase;margin-bottom:8px;">Today's Mission</div>
+          <div style="font-size:16px;font-weight:800;color:#ffffff;line-height:1.4;">"${mission}"</div>
+        </div>` : ''}
+
+        <!-- Priorities -->
+        ${priorities.length ? `
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px 18px;text-align:left;">
+          <div style="font-size:9px;font-weight:900;letter-spacing:2.5px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:10px;">Your 3 Priorities</div>
+          ${priorities.map((p,i) => `
+            <div style="display:flex;gap:12px;align-items:flex-start;${i>0?'margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);':''}">
+              <div style="width:22px;height:22px;flex-shrink:0;border-radius:6px;background:#C9A84C;color:#050A14;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;">${i+1}</div>
+              <div style="font-size:14px;font-weight:700;color:rgba(255,255,255,0.85);line-height:1.4;padding-top:2px;">${p}</div>
+            </div>`).join('')}
+        </div>` : ''}
+
+        <!-- Stoic quote -->
+        <div style="padding:0 8px;">
+          <div style="font-size:13px;font-style:italic;color:rgba(255,255,255,0.38);line-height:1.6;">"${quote.text}"</div>
+          <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.22);margin-top:6px;letter-spacing:1px;">— ${quote.attr}</div>
+        </div>
+
+        <!-- CTA button -->
+        <div>
+          <button id="launchGetUpBtn" type="button" style="
+            width:100%;padding:18px 24px;
+            background:#C9A84C;color:#050A14;
+            border:none;border-radius:14px;
+            font-size:18px;font-weight:900;letter-spacing:0.5px;
+            cursor:pointer;font-family:inherit;
+          ">I'M UP — LET'S GET IT</button>
+        </div>
+
+        <!-- Countdown bar -->
+        <div>
+          <div id="launchCountdownText" style="font-size:11px;color:rgba(255,255,255,0.25);margin-bottom:6px;">Closing in <span id="launchCountdownNum">${COUNTDOWN_SECS}</span>s — put the phone down</div>
+          <div style="height:3px;background:rgba(255,255,255,0.08);border-radius:99px;overflow:hidden;">
+            <div id="launchCountdownBar" style="height:100%;width:100%;background:rgba(201,168,76,0.5);border-radius:99px;animation:launchBarShrink ${COUNTDOWN_SECS}s linear forwards;"></div>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+
+    // Vibrate on mobile (pattern: buzz buzz buzz)
+    if (navigator.vibrate) navigator.vibrate([120, 80, 120, 80, 200]);
+
+    function closeOverlay() {
+      overlay.style.transition = 'opacity 0.3s';
+      overlay.style.opacity = '0';
+      setTimeout(() => {
+        overlay.remove();
+        document.body.style.overflow = '';
+      }, 300);
+      clearInterval(countdownInterval);
+    }
+
+    document.getElementById('launchGetUpBtn').addEventListener('click', closeOverlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
+
+    // Countdown
+    let remaining = COUNTDOWN_SECS;
+    const numEl = document.getElementById('launchCountdownNum');
+    const countdownInterval = setInterval(() => {
+      remaining--;
+      if (numEl) numEl.textContent = remaining;
+      if (remaining <= 0) closeOverlay();
+    }, 1000);
+  }
+
   function saveMorning(){
     const complete = evaluateMorningCompletion();
     const now = new Date();
@@ -445,6 +576,7 @@ export function initJournalTab(deps) {
     setTimeout(()=>morningSavedPill.style.display='none',2500);
     entryStatus.textContent='Saved morning entry for '+fullDate.textContent;
     updateAverageNotes(); updateBestVersionPercent(); updateStreakDisplay(); updateLauncherButtons();
+    if (complete) setTimeout(() => showMorningLaunchOverlay(payload), 400);
   }
 
   function saveEvening(){
