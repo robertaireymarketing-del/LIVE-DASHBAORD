@@ -108,7 +108,75 @@ export function initDayPlannerActions({
     if (didAdd) saveDataQuiet();
   }
 
-  // ── Objectives Modal ───────────────────────────────────────────────────
+  // ── Batch step rollover helper ─────────────────────────────────────────
+  // Runs once per calendar day. Scans the previous 7 days for batch steps
+  // that were scheduled but not marked done, and carries them into today's
+  // plan so they surface automatically in the planner.
+  async function rolloverIncompleteBatchSteps() {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const todayISO = today.toISOString().split('T')[0];
+
+    // Only run once per calendar day
+    if (state.data.lastBatchRolloverDate === todayISO) return 0;
+
+    const DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
+    const todayDayKey = DAY_KEYS[today.getDay()];
+    const todayWeekKey = getWeekKey(today);
+
+    // Ensure today's plan structure exists
+    if (!state.data.dayBatchPlan) state.data.dayBatchPlan = {};
+    if (!state.data.dayBatchPlan[todayWeekKey]) state.data.dayBatchPlan[todayWeekKey] = {};
+    if (!state.data.dayBatchPlan[todayWeekKey][todayDayKey]) {
+      state.data.dayBatchPlan[todayWeekKey][todayDayKey] = { _batch: [], _streams: [] };
+    }
+    const todayBatch = state.data.dayBatchPlan[todayWeekKey][todayDayKey]._batch || [];
+    const todayKeys = new Set(todayBatch.map(s => `${s.batchId}:${s.stepIdx}`));
+
+    // Build a set of all globally-completed step keys (completedAt on the batch step itself)
+    const globallyDoneKeys = new Set();
+    (state.data.tjmBatches || []).forEach(b =>
+      (b.steps || []).forEach((s, si) => { if (s.completedAt) globallyDoneKeys.add(`${b.id}:${si}`); })
+    );
+
+    let rolledOver = 0;
+
+    // Check past 7 days
+    for (let daysBack = 1; daysBack <= 7; daysBack++) {
+      const past = new Date(today);
+      past.setDate(today.getDate() - daysBack);
+      const pastDayKey = DAY_KEYS[past.getDay()];
+      const pastWeekKey = getWeekKey(past);
+
+      const pastBatch = state.data.dayBatchPlan?.[pastWeekKey]?.[pastDayKey]?._batch || [];
+      const incomplete = pastBatch.filter(s =>
+        !s.done &&
+        !globallyDoneKeys.has(`${s.batchId}:${s.stepIdx}`) &&
+        !todayKeys.has(`${s.batchId}:${s.stepIdx}`)
+      );
+
+      for (const step of incomplete) {
+        const key = `${step.batchId}:${step.stepIdx}`;
+        todayBatch.push({ ...step, done: false, startTime: '', rolledOver: true, rolledOverFrom: pastDayKey });
+        todayKeys.add(key);
+        rolledOver++;
+      }
+    }
+
+    if (rolledOver > 0) {
+      state.data.dayBatchPlan[todayWeekKey][todayDayKey]._batch = todayBatch;
+    }
+
+    state.data.lastBatchRolloverDate = todayISO;
+    if (rolledOver > 0) {
+      await saveData();
+    } else {
+      saveDataQuiet();
+    }
+
+    return rolledOver;
+  }
+
+
   function getObjectiveBaseDate() {
     return state.objModalDate ? new Date(state.objModalDate) : new Date();
   }
@@ -133,6 +201,7 @@ export function initDayPlannerActions({
   }
 
   function initEmbeddedDayPlanner() {
+    rolloverIncompleteBatchSteps(); // fire-and-forget — updates Firebase in background
     if (state.dayPlannerDraft && state.dayPlannerDay) return; // already initialised
     const weekKey = getWeekKey();
     const fronts = getProjectFronts();
@@ -257,7 +326,8 @@ export function initDayPlannerActions({
   };
 
   // ── Day Planner ────────────────────────────────────────────────────────
-  window.openDayPlanner = () => {
+  window.openDayPlanner = async () => {
+    await rolloverIncompleteBatchSteps();
     const weekKey = getWeekKey();
     const fronts = getProjectFronts();
     const activeDay = getTodayDayKey();

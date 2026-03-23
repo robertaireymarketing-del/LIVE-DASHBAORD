@@ -201,7 +201,7 @@ export function renderDayPlannerModal({state, getProjectFronts, getTodayDayKey, 
                         <div style="width:8px;height:8px;border-radius:50%;background:${hex};flex-shrink:0;${s.done?'opacity:0.4':''}"></div>
                         <div style="min-width:0;">
                           <div style="font-size:14px;font-weight:700;color:${s.done?'rgba(255,255,255,0.3)':'#fff'};${s.done?'text-decoration:line-through;':''}white-space:normal;word-break:break-word;">${s.stepName}</div>
-                          <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:2px;">${s.batchName} · ⏱ ${timeStr}</div>
+                          <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:2px;">${s.batchName} · ⏱ ${timeStr}${s.rolledOver ? ` <span style="color:#e67e22;font-weight:900;font-size:9px;letter-spacing:0.5px;background:rgba(230,126,34,0.12);border:1px solid rgba(230,126,34,0.3);border-radius:10px;padding:1px 5px;">↩ ROLLED OVER</span>` : ''}</div>
                         </div>
                       </div>
                       <div style="display:flex;gap:6px;flex-shrink:0;">
@@ -445,7 +445,7 @@ export function renderEmbeddedDayPlanner({state, getProjectFronts, getTodayDayKe
                       <div style="width:8px;height:8px;border-radius:50%;background:${hex};flex-shrink:0;${s.done?'opacity:0.4':''}"></div>
                       <div style="min-width:0;">
                         <div style="font-size:14px;font-weight:700;color:${s.done?'rgba(255,255,255,0.3)':'#fff'};${s.done?'text-decoration:line-through;':''}white-space:normal;word-break:break-word;">${s.stepName}</div>
-                        <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:2px;">${s.batchName} · ⏱ ${timeStr}</div>
+                        <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:2px;">${s.batchName} · ⏱ ${timeStr}${s.rolledOver ? ` <span style="color:#e67e22;font-weight:900;font-size:9px;letter-spacing:0.5px;background:rgba(230,126,34,0.12);border:1px solid rgba(230,126,34,0.3);border-radius:10px;padding:1px 5px;">↩ ROLLED OVER</span>` : ''}</div>
                       </div>
                     </div>
                     <div style="display:flex;gap:6px;flex-shrink:0;">
