@@ -107,13 +107,13 @@ const didGym = !!dayData.gym;
 
 const didMeditate = !!dayData.meditation;
 
-const habitCount = [didLive, didRetention, didGym, didMeditate].filter(Boolean).length;
+// Core habits = retention + gym + meditation only (live is bonus, not core)
+const coreHabitCount = [didRetention, didGym, didMeditate].filter(Boolean).length;
 
 const isPast = !isFuture && !isToday;
 
-// Colour based on habit count (only for past/today days with any data)
-
-const hasAnyData = habitCount > 0 || (dayData.sales || 0) > 0;
+// Colour based on CORE habit count (only for past/today days with any data)
+const hasAnyData = coreHabitCount > 0 || didLive || (dayData.sales || 0) > 0;
 
 let habitBg = '';
 
@@ -121,33 +121,30 @@ let habitBorder = '';
 
 if (!isFuture && hasAnyData) {
 
-if (habitCount === 0) { habitBg = 'rgba(0,0,0,0)'; habitBorder = ''; }
+if (coreHabitCount === 0) { habitBg = 'rgba(231,76,60,0.18)'; habitBorder = 'rgba(231,76,60,0.45)'; }
 
-else if (habitCount === 1) { habitBg = 'rgba(231,76,60,0.2)'; habitBorder = 'rgba(231,76,60,0.5)'; }
+else if (coreHabitCount === 1) { habitBg = 'rgba(243,156,18,0.18)'; habitBorder = 'rgba(243,156,18,0.5)'; }
 
-else if (habitCount === 2) { habitBg = 'rgba(243,156,18,0.2)'; habitBorder = 'rgba(243,156,18,0.5)'; }
+else if (coreHabitCount === 2) { habitBg = 'rgba(243,156,18,0.22)'; habitBorder = 'rgba(243,156,18,0.55)'; }
 
-else if (habitCount === 3) { habitBg = 'rgba(241,196,15,0.2)'; habitBorder = 'rgba(241,196,15,0.5)'; }
-
-else if (habitCount === 4) { habitBg = 'rgba(39,174,96,0.25)'; habitBorder = 'rgba(39,174,96,0.6)'; }
+else if (coreHabitCount === 3) { habitBg = 'rgba(39,174,96,0.22)'; habitBorder = 'rgba(39,174,96,0.55)'; }
 
 }
 
-// Fixed 2x2 emoji grid — always same positions: retention, gym, meditation, live
-
+// Emoji row: retention, gym, meditation — plus gold star if live done
 const hasAny = didRetention || didGym || didMeditate || didLive || (dayData.sales||0)>0;
 
 const emojiGrid = hasAny ? `
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:0px;margin-top:2px;">
+<div style="display:flex;justify-content:center;gap:1px;margin-top:2px;flex-wrap:wrap;">
 
-<span style="font-size:8px;text-align:center;line-height:1.4;opacity:${didRetention?1:0.15};">${didRetention?'🩸':'·'}</span>
+<span style="font-size:8px;line-height:1.4;opacity:${didRetention?1:0.15};">${didRetention?'🩸':'·'}</span>
 
-<span style="font-size:8px;text-align:center;line-height:1.4;opacity:${didGym?1:0.15};">${didGym?'🏋️':'·'}</span>
+<span style="font-size:8px;line-height:1.4;opacity:${didGym?1:0.15};">${didGym?'🏋️':'·'}</span>
 
-<span style="font-size:8px;text-align:center;line-height:1.4;opacity:${didMeditate?1:0.15};">${didMeditate?'🧘':'·'}</span>
+<span style="font-size:8px;line-height:1.4;opacity:${didMeditate?1:0.15};">${didMeditate?'🧘':'·'}</span>
 
-<span style="font-size:8px;text-align:center;line-height:1.4;opacity:${didLive?1:(dayData.sales||0)>0?1:0.15};">${didLive?'📷':(dayData.sales||0)>0?'💰':'·'}</span>
+${didLive?'<span style="font-size:8px;line-height:1.4;" title="Live stream done">⭐</span>':''}
 
 </div>` : '';
 
@@ -157,7 +154,10 @@ const todayStyle = isToday ? 'border:2px solid #D4AF37;color:#D4AF37;font-weight
 
 const selectedStyle = isSelected ? 'background:rgba(212,175,55,0.3);border:2px solid #D4AF37;' : '';
 
-const journalRating = !isFuture ? getJournalWordRating(dateStr) : null;
+const morning = getJournalEntry(dateStr, 'morning');
+const evening = getJournalEntry(dateStr, 'evening');
+const bothComplete = morning?.complete && evening?.complete;
+const journalRating = (!isFuture && bothComplete) ? getJournalWordRating(dateStr) : null;
 
 // ── WORD RATING: dominant element, day number secondary ──
 const ratingHtml = journalRating
