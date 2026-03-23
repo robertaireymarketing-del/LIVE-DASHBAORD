@@ -6,6 +6,8 @@ let newBatchSteps = [];
 let newBatchStepIdx = 0;
 let batchSwipeX = 0;
 let autoSaveTimer = null;
+let newStepsShowAll = false;
+const editStepsShowAll = {}; // keyed by batchId
 
 function scheduleAutoSave() {
   clearTimeout(autoSaveTimer);
@@ -26,16 +28,53 @@ function flushEditStep(batchId) {
   if (deadlineEl) b.steps[si].deadline = deadlineEl.value || '';
 }
 
+function fmtMinsShort(m) { return m < 60 ? `${m}m` : m % 60 === 0 ? `${m/60}h` : `${Math.floor(m/60)}h ${m%60}m`; }
+
 function renderNewStepSlide() {
   const container = document.getElementById('new-steps-slider');
   if (!container) return;
   const total = newBatchSteps.length;
   if (total === 0) { container.innerHTML = ''; return; }
+
+  // Flush current values before re-render
+  const prevNameEl = document.getElementById(`new-step-name-${newBatchStepIdx}`);
+  const prevNotesEl = document.getElementById(`new-step-notes-${newBatchStepIdx}`);
+  const prevHidden = document.getElementById(`new-drum-hidden-${newBatchStepIdx}`);
+  if (prevNameEl && newBatchSteps[newBatchStepIdx]) newBatchSteps[newBatchStepIdx].name = prevNameEl.value;
+  if (prevNotesEl && newBatchSteps[newBatchStepIdx]) newBatchSteps[newBatchStepIdx].notes = prevNotesEl.value;
+  if (prevHidden && newBatchSteps[newBatchStepIdx]) newBatchSteps[newBatchStepIdx].timeBlock = parseInt(prevHidden.value) || 30;
+
+  const toggleBtn = `<button onclick="toggleNewStepsView()" style="font-size:11px;font-weight:800;letter-spacing:0.8px;padding:5px 10px;border-radius:20px;border:1px solid rgba(255,255,255,0.15);background:${newStepsShowAll?'rgba(201,168,76,0.18)':'rgba(255,255,255,0.06)'};color:${newStepsShowAll?'#C9A84C':'rgba(255,255,255,0.5)'};cursor:pointer;font-family:inherit;">${newStepsShowAll?'☰ COLLAPSE':'☰ VIEW ALL'}</button>`;
+
+  if (newStepsShowAll) {
+    container.innerHTML = `
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+  <div style="font-size:13px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.7);">ALL ${total} STEP${total===1?'':'S'}</div>
+  ${toggleBtn}
+</div>
+<div style="display:flex;flex-direction:column;gap:6px;">
+  ${newBatchSteps.map((s,i)=>`
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,${i===newBatchStepIdx?'0.25':'0.08'});background:rgba(255,255,255,${i===newBatchStepIdx?'0.07':'0.03'});cursor:pointer;" onclick="jumpToNewStep(${i})">
+    <div style="width:22px;height:22px;flex-shrink:0;border-radius:6px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);color:#C9A84C;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;">${i+1}</div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:14px;font-weight:700;color:${s.name?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.25)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.name||'Unnamed step'}</div>
+      ${s.notes?`<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.notes}</div>`:''}
+    </div>
+    <div style="flex-shrink:0;font-size:11px;font-weight:800;color:rgba(201,168,76,0.7);background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.2);padding:3px 8px;border-radius:20px;">${fmtMinsShort(s.timeBlock||30)}</div>
+    <button onclick="event.stopPropagation();removeNewBatchStep(${i})" style="flex-shrink:0;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:6px;width:26px;height:26px;color:rgba(231,76,60,0.7);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">×</button>
+  </div>`).join('')}
+</div>`;
+    return;
+  }
+
   const si = newBatchStepIdx;
   const s = newBatchSteps[si];
   const drumId = `new-drum-${si}`;
   const hiddenId = `new-drum-hidden-${si}`;
   container.innerHTML = `
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+  ${toggleBtn}
+</div>
 <div class="step-editor-nav">
   <button class="step-editor-arrow" onclick="navNewStep(-1)" ${si===0?'disabled':''}>&#8249;</button>
   <div style="text-align:center;">
@@ -75,10 +114,38 @@ function renderEditStepSlide(batchId) {
     container.innerHTML = `<div style="font-size:12px;color:rgba(255,255,255,0.25);text-align:center;padding:12px;">No steps yet — tap Add Step below</div>`;
     return;
   }
+
+  const showAll = !!editStepsShowAll[batchId];
+  const toggleBtn = `<button onclick="toggleEditStepsView('${batchId}')" style="font-size:11px;font-weight:800;letter-spacing:0.8px;padding:5px 10px;border-radius:20px;border:1px solid rgba(255,255,255,0.15);background:${showAll?'rgba(201,168,76,0.18)':'rgba(255,255,255,0.06)'};color:${showAll?'#C9A84C':'rgba(255,255,255,0.5)'};cursor:pointer;font-family:inherit;">${showAll?'☰ COLLAPSE':'☰ VIEW ALL'}</button>`;
+
+  if (showAll) {
+    container.innerHTML = `
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+  <div style="font-size:13px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.7);">ALL ${total} STEP${total===1?'':'S'}</div>
+  ${toggleBtn}
+</div>
+<div style="display:flex;flex-direction:column;gap:6px;">
+  ${steps.map((s,i)=>`
+  <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,${i===si?'0.25':'0.08'});background:rgba(255,255,255,${i===si?'0.07':'0.03'});cursor:pointer;${s.completedAt?'opacity:0.5;':''}" onclick="jumpToEditStep('${batchId}',${i})">
+    <div style="width:22px;height:22px;flex-shrink:0;border-radius:6px;background:${s.completedAt?'rgba(46,204,113,0.15)':'rgba(201,168,76,0.15)'};border:1px solid ${s.completedAt?'rgba(46,204,113,0.3)':'rgba(201,168,76,0.3)'};color:${s.completedAt?'#2ecc71':'#C9A84C'};font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;">${s.completedAt?'✓':i+1}</div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:14px;font-weight:700;color:${s.name?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.25)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${s.completedAt?'text-decoration:line-through;':''}">${s.name||'Unnamed step'}</div>
+      ${s.notes?`<div style="font-size:11px;color:rgba(255,255,255,0.35);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.notes}</div>`:''}
+    </div>
+    <div style="flex-shrink:0;font-size:11px;font-weight:800;color:rgba(201,168,76,0.7);background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.2);padding:3px 8px;border-radius:20px;">${fmtMinsShort(s.timeBlock||30)}</div>
+    <button onclick="event.stopPropagation();removeBatchStep('${batchId}',${i})" style="flex-shrink:0;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:6px;width:26px;height:26px;color:rgba(231,76,60,0.7);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">×</button>
+  </div>`).join('')}
+</div>`;
+    return;
+  }
+
   const s = steps[si] || {};
   const drumId = `be-drum-${batchId}`;
   const hiddenId = `be-drum-hidden-${batchId}`;
   container.innerHTML = `
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+  ${toggleBtn}
+</div>
 <div class="step-editor-nav">
   <button class="step-editor-arrow" onclick="navEditStep('${batchId}',-1)" ${si===0?'disabled':''}>&#8249;</button>
   <div style="text-align:center;">
@@ -148,8 +215,46 @@ window.liveEditStep = (batchId, si, field, val) => {
   scheduleAutoSave();
 };
 
+window.batchFieldAutoSave = (batchId, field, val) => {
+  const b = (state.data.tjmBatches || []).find(b => b.id === batchId);
+  if (!b) return;
+  b[field] = val;
+  scheduleAutoSave();
+};
+
 window.syncNewStep = (si, field, val) => {
   if (newBatchSteps[si]) newBatchSteps[si][field] = val;
+};
+
+window.toggleNewStepsView = () => {
+  // Flush current step before toggling
+  const hidden = document.getElementById(`new-drum-hidden-${newBatchStepIdx}`);
+  const nameEl = document.getElementById(`new-step-name-${newBatchStepIdx}`);
+  const notesEl = document.getElementById(`new-step-notes-${newBatchStepIdx}`);
+  if (hidden && newBatchSteps[newBatchStepIdx]) newBatchSteps[newBatchStepIdx].timeBlock = parseInt(hidden.value) || 30;
+  if (nameEl && newBatchSteps[newBatchStepIdx]) newBatchSteps[newBatchStepIdx].name = nameEl.value;
+  if (notesEl && newBatchSteps[newBatchStepIdx]) newBatchSteps[newBatchStepIdx].notes = notesEl.value;
+  newStepsShowAll = !newStepsShowAll;
+  renderNewStepSlide();
+};
+
+window.jumpToNewStep = (idx) => {
+  newBatchStepIdx = idx;
+  newStepsShowAll = false;
+  renderNewStepSlide();
+};
+
+window.toggleEditStepsView = (batchId) => {
+  flushEditStep(batchId);
+  editStepsShowAll[batchId] = !editStepsShowAll[batchId];
+  renderEditStepSlide(batchId);
+};
+
+window.jumpToEditStep = (batchId, idx) => {
+  flushEditStep(batchId);
+  state.editBatchStepIdx = idx;
+  editStepsShowAll[batchId] = false;
+  renderEditStepSlide(batchId);
 };
 
 window.navNewStep = (dir) => {
@@ -403,6 +508,8 @@ window.selectBatchColour = (batchId, colourId) => {
       )
     );
   }
+  const b = (state.data.tjmBatches||[]).find(b=>b.id===batchId);
+  if(b) { b.colour = colourId; scheduleAutoSave(); }
 };
 
 window.selectNewBatchColour = (colourId) => {
@@ -424,6 +531,8 @@ window.selectBatchProj = (id, proj) => {
   document.querySelectorAll(`#be-proj-${id} .batch-proj-btn`).forEach(b=>b.classList.toggle('selected', b.textContent===labels[proj]));
   const wrap = document.getElementById(`be-proj-custom-wrap-${id}`);
   if(wrap) wrap.style.display = proj==='other'?'':'none';
+  const b = (state.data.tjmBatches||[]).find(b=>b.id===id);
+  if(b) { b.project = proj; scheduleAutoSave(); }
 };
 
 window.selectNewBatchProj = (proj) => {

@@ -439,7 +439,7 @@ ${batches.map((b, i) => {
   ${isEditing ? `
   <div class="batch-editor">
   <div class="batch-editor-field"><div class="batch-editor-label">Batch Name</div>
-  <input class="batch-editor-input" id="be-name-${b.id}" value="${b.name || ''}"></div>
+  <input class="batch-editor-input" id="be-name-${b.id}" value="${b.name || ''}" oninput="batchFieldAutoSave('${b.id}','name',this.value)"></div>
   <div class="batch-editor-field"><div class="batch-editor-label">Project</div>
   <div class="batch-proj-btns" id="be-proj-${b.id}">
   ${['tjm','vinted','notts','other'].map(p => `<button class="batch-proj-btn ${(b.project||'tjm')===p?'selected':''}" onclick="selectBatchProj('${b.id}','${p}')">${PROJECT_LABELS[p]}</button>`).join('')}
@@ -449,12 +449,12 @@ ${batches.map((b, i) => {
   </div>
   </div>
   <div class="batch-editor-field"><div class="batch-editor-label">Link to Monthly Objective (optional)</div>
-  <select class="batch-editor-select" id="be-monthobj-${b.id}">
+  <select class="batch-editor-select" id="be-monthobj-${b.id}" onchange="batchFieldAutoSave('${b.id}','monthlyObjId',this.value)">
     <option value="">— None —</option>
     ${(state.data.monthObjectives?.[monthKey]||[]).map(o => `<option value="${o.id}" ${b.monthlyObjId===o.id?'selected':''}>${o.text}</option>`).join('')}
   </select></div>
   <div class="batch-editor-field"><div class="batch-editor-label">Status</div>
-  <select class="batch-editor-select" id="be-status-${b.id}">
+  <select class="batch-editor-select" id="be-status-${b.id}" onchange="batchFieldAutoSave('${b.id}','status',this.value)">
   ${['planning','building','scheduled'].map(s=>`<option value="${s}" ${(b.status||'planning')===s?'selected':''}>${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join('')}
   </select></div>
   <div class="batch-editor-field"><div class="batch-editor-label">Colour</div>
@@ -464,7 +464,7 @@ ${batches.map((b, i) => {
   <input type="hidden" id="be-colour-hidden-${b.id}" value="${b.colour||'gold'}">
   </div>
   <div class="batch-editor-field"><div class="batch-editor-label">Focus / Overview</div>
-  <textarea class="batch-editor-input batch-focus-textarea" id="be-focus-${b.id}" placeholder="What this batch is about — brain dump everything here..." oninput="autoResizeTextarea(this)">${b.focus||''}</textarea></div>
+  <textarea class="batch-editor-input batch-focus-textarea" id="be-focus-${b.id}" placeholder="What this batch is about — brain dump everything here..." oninput="autoResizeTextarea(this);batchFieldAutoSave('${b.id}','focus',this.value)">${b.focus||''}</textarea></div>
   <div class="batch-editor-field">
   <div class="batch-editor-label">Batch Deadline (optional)</div>
   <div style="display:flex;gap:8px;align-items:stretch;">
@@ -483,7 +483,7 @@ ${batches.map((b, i) => {
   <button class="batch-add-step-btn batch-add-step-btn--big" onclick="addBatchStep('${b.id}')">＋ Add New Step</button>
   </div>
   <div style="display:flex;gap:8px;margin-top:4px;">
-  <button class="batch-editor-save" onclick="saveBatch('${b.id}')">Save</button>
+  <button class="batch-editor-save" onclick="saveBatch('${b.id}')" style="flex:1;padding:16px;font-size:16px;font-weight:900;letter-spacing:0.5px;">&#128190; Save Batch</button>
   <button class="batch-edit-btn" onclick="cancelBatchEdit()">Cancel</button>
   </div>
   </div>
@@ -614,7 +614,7 @@ ${BATCH_COLOURS.map((c,ci)=>`<div class="batch-colour-swatch${ci===0?' selected'
 <button class="batch-add-step-btn batch-add-step-btn--big" onclick="addNewBatchStep()">＋ Add New Step</button>
 </div>
 <div style="display:flex;gap:8px;margin-top:4px;">
-<button class="batch-editor-save" onclick="addNewBatch()">Add Batch</button>
+<button class="batch-editor-save" onclick="addNewBatch()" style="flex:1;padding:16px;font-size:16px;font-weight:900;letter-spacing:0.5px;">&#128190; Save Batch</button>
 <button class="batch-edit-btn" onclick="cancelAddBatch()">Cancel</button>
 </div>
 </div>
