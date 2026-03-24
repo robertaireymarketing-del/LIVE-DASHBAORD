@@ -206,21 +206,7 @@ function render() {
     <div class="quote-author">— ${quote.author}</div>
     <div class="quote-interpretation">${quote.interpretation}</div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px;">
-    <div style="display:flex;gap:6px;">
-    ${[['today','TODAY'],['march',['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date().getMonth()].toUpperCase()],['progress','BODY'],['vault','IDEAS']].map(([t,label]) => `<button class="tab ${state.activeTab === t ? 'active' : ''}" onclick="setTab('${t}')" style="flex:1;">${label}</button>`).join('')}
-    </div>
-    <div style="display:flex;gap:6px;">
-    ${[['crm','CRM'],['vinted','VINTED'],['notts','NOTTS']].map(([t,label]) => {
-      const needsAction = t === 'crm' ? getCRMNeedsAction() : 0;
-      return `<button class="tab ${state.activeTab === t ? 'active' : ''} ${needsAction > 0 ? 'crm-alert' : ''}" onclick="setTab('${t}')" style="flex:1;">${label}${needsAction > 0 ? ' 🔴' : ''}</button>`;
-    }).join('')}
-    </div>
-    <div style="display:flex;gap:6px;">
-    <button class="tab ${state.activeTab === 'journal' ? 'active' : ''}" onclick="setTab('journal')" style="flex:1;">JOURNAL</button>
-    <button class="tab ${state.activeTab === 'fire' ? 'active' : ''}" onclick="setTab('fire')" style="flex:1;">🔥 FIRE</button>
-    </div>
-    </div>
+    <div class="content-shell">
     <div class="content">
     ${(() => { try {
       if (state.activeTab !== 'today') return '';
@@ -236,6 +222,20 @@ function render() {
     ${(() => { try { return state.activeTab === 'fire' ? renderFireTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">FIRE ERROR: ' + e.message + '</div>'; }})()}
     </div>
     <button class="logout-btn" onclick="handleLogout()">Sign Out</button>
+    <div class="bottom-nav">
+      <button class="bottom-nav-btn ${state.activeTab === 'today' ? 'active' : ''}" onclick="setTab('today')">Today</button>
+      <button class="bottom-nav-btn ${state.activeTab === 'journal' ? 'active' : ''}" onclick="setTab('journal')">Journal</button>
+      <button class="bottom-nav-btn ${state.activeTab === 'progress' ? 'active' : ''}" onclick="setTab('progress')">Health</button>
+      <button class="bottom-nav-btn ${state.activeTab === 'fire' ? 'active' : ''}" onclick="setTab('fire')">Fire</button>
+      <button class="bottom-nav-btn ${(state.activeTab === 'march' || state.activeTab === 'vault' || state.activeTab === 'crm' || state.activeTab === 'vinted' || state.activeTab === 'notts') ? 'active' : ''}" onclick="toggleMoreMenu()">More</button>
+    </div>
+    <div class="bottom-more-menu ${state.moreMenuOpen ? '' : 'hidden'}">
+      <button class="bottom-more-btn ${state.activeTab === 'march' ? 'active' : ''}" onclick="setTab('march')">${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date().getMonth()]}</button>
+      <button class="bottom-more-btn ${state.activeTab === 'vault' ? 'active' : ''}" onclick="setTab('vault')">Ideas</button>
+      <button class="bottom-more-btn ${state.activeTab === 'crm' ? 'active' : ''}" onclick="setTab('crm')">CRM</button>
+      <button class="bottom-more-btn ${state.activeTab === 'vinted' ? 'active' : ''}" onclick="setTab('vinted')">Vinted</button>
+      <button class="bottom-more-btn ${state.activeTab === 'notts' ? 'active' : ''}" onclick="setTab('notts')">Notts</button>
+    </div>
     ${state.retentionModal ? renderRetentionModal() : ''}
     ${state.weekPlanModal ? renderWeekPlanModal() : ''}
     ${state.dayPlannerOpen ? renderDayPlannerModal() : ''}
@@ -282,7 +282,8 @@ initDayPlannerActions({ state, saveData, saveDataQuiet, render, getWeekKey, getN
 // ── Core window functions ──────────────────────────────────────────────────
 window.handleLogin = async () => { try { await signInWithPopup(auth, provider); } catch (e) { console.error('Login failed:', e); } };
 window.handleLogout = async () => { await signOut(auth); state.user = null; state.data = null; render(); };
-window.setTab = (tab) => { state.activeTab = tab; state.selectedEditDate = null; render(); };
+window.setTab = (tab) => { state.activeTab = tab; state.selectedEditDate = null; state.moreMenuOpen = false; render(); };
+window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render(); };
 window._weekObjsHtml = function(weekObjectivesData, weekKey, clickable) {
   const raw = weekObjectivesData?.[weekKey];
   const objs = Array.isArray(raw) ? raw : (raw ? [{text: raw, done: false}] : []);
