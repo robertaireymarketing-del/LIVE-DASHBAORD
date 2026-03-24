@@ -166,51 +166,8 @@ const sundayPrompt = isSunday() ? `
 <button class="week-plan-prompt-btn" onclick="openWeekPlan('tjm')">Plan Week</button>
 </div>` : '';
 
-// ── Identity Lock ──────────────────────────────────────────────────────
-const identitySection = state.identityEditing ? `
-<div class="cc-card identity-lock-card">
-<div class="identity-lock-label">IDENTITY LOCK</div>
-<div style="margin-bottom:8px;"><div class="identity-core-label" style="margin-bottom:4px;">HEADLINE</div>
-<textarea class="identity-edit-area" rows="2" id="id-headline">${identity.headline}</textarea></div>
-<div style="margin-bottom:8px;"><div class="identity-core-label" style="margin-bottom:4px;">CORE IDENTITY</div>
-<textarea class="identity-edit-area" rows="3" id="id-core">${identity.coreIdentity}</textarea></div>
-<div style="margin-bottom:12px;"><div class="identity-core-label" style="margin-bottom:4px;">DAILY COMMAND</div>
-<textarea class="identity-edit-area" rows="2" id="id-command">${identity.dailyCommand}</textarea></div>
-<div style="display:flex;gap:8px;">
-<button class="identity-save-btn" onclick="saveIdentity()">Save</button>
-<button class="identity-edit-btn" onclick="cancelIdentityEdit()">Cancel</button>
-</div>
-</div>` : `
-<div class="cc-card identity-lock-card">
-<div class="identity-lock-label">IDENTITY LOCK</div>
-<div class="identity-headline">${identity.headline}</div>
-<div class="identity-core-box">
-<div class="identity-core-label">CORE IDENTITY</div>
-<div class="identity-core-text">${identity.coreIdentity}</div>
-</div>
-<div class="identity-command">${identity.dailyCommand}</div>
-<button class="identity-edit-btn" onclick="editIdentity()">✎ Edit</button>
-</div>`;
-
-// ── Body stats ─────────────────────────────────────────────────────────
-const bodyStats = `
-<div class="body-stats-row">
-<div class="cc-card body-stat-card">
-<div class="body-stat-label">WEIGHT</div>
-<div class="body-stat-value">${currentWeight}</div>
-<div class="body-stat-target">Sunday Target: ${weekTargetWeight} lbs</div>
-<div class="body-stat-start">Cut start: ${settings.startWeight} lbs</div>
-<div style="margin-top:8px;font-size:10px;color:rgba(255,255,255,0.28);letter-spacing:0.5px;">${formatSyncLabel(getLatestWeightDate())}</div>
-</div>
-<div class="cc-card body-stat-card">
-<div class="body-stat-label">BODY FAT</div>
-<div class="body-stat-value">${currentBF}%</div>
-<div class="body-stat-target">Sunday Target: ${weekTarget}%</div>
-<div class="body-stat-start">Final target: ${settings.targetBodyFat}%</div>
-<div style="margin-top:8px;font-size:10px;color:rgba(255,255,255,0.28);letter-spacing:0.5px;">${formatSyncLabel(getLatestBodyFatDate())}</div>
-</div>
-</div>`;
-
+// ── Identity Lock removed ─────────────────────────────────────────────
+// ── Body stats removed ────────────────────────────────────────────────
 // ── Mission targets ────────────────────────────────────────────────────
 const missionSection = `
 <div class="cc-section-title">Mission Targets</div>
@@ -891,7 +848,7 @@ body.light .obj-month-calendar-meta--empty { color: #AAB4C4 !important; }
 </style>`;
 
 // ── ORDER: planMyObjBanner is now above monthly/weekly objectives ───────
-return injectedCSS + identitySection + habitsSection + bodyStats + missionSection + planMyObjBanner + monthlyObjsSection + weeklyObjsSection + frontsSection + batchesSection + `
+return injectedCSS + habitsSection + missionSection + planMyObjBanner + monthlyObjsSection + weeklyObjsSection + frontsSection + batchesSection + `
 <div style="margin-top:16px;margin-bottom:8px;">
 <button onclick="openPastDays()" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:14px;color:rgba(255,255,255,0.5);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
 📅 Review Previous Days
