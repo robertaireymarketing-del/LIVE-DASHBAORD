@@ -206,6 +206,7 @@ function render() {
     <div class="quote-author">— ${quote.author}</div>
     <div class="quote-interpretation">${quote.interpretation}</div>
     </div>
+
     <div class="content">
     ${(() => { try {
       if (state.activeTab !== 'today') return '';
@@ -220,36 +221,26 @@ function render() {
     ${(() => { try { return state.activeTab === 'journal' ? renderJournalTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">JOURNAL ERROR: '+ e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'fire' ? renderFireTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">FIRE ERROR: ' + e.message + '</div>'; }})()}
     </div>
-    <div class="bottom-nav">
-      <button class="nav-btn ${state.activeTab === 'today' ? 'active' : ''}" onclick="setTab('today')">
-        <span class="nav-btn-icon">⌂</span>
-        <span class="nav-btn-label">Today</span>
-      </button>
-      <button class="nav-btn ${state.activeTab === 'journal' ? 'active' : ''}" onclick="setTab('journal')">
-        <span class="nav-btn-icon">✎</span>
-        <span class="nav-btn-label">Journal</span>
-      </button>
-      <button class="nav-btn ${state.activeTab === 'progress' ? 'active' : ''}" onclick="setTab('progress')">
-        <span class="nav-btn-icon">❤</span>
-        <span class="nav-btn-label">Health</span>
-      </button>
-      <button class="nav-btn ${state.activeTab === 'fire' ? 'active' : ''}" onclick="setTab('fire')">
-        <span class="nav-btn-icon">🔥</span>
-        <span class="nav-btn-label">Fire</span>
-      </button>
-      <button class="nav-btn ${['march','vault','crm','vinted','notts'].includes(state.activeTab) ? 'active' : ''}" onclick="toggleMoreMenu()">
-        <span class="nav-btn-icon">⋯</span>
-        <span class="nav-btn-label">More</span>
-      </button>
+    <div class="mobile-more-sheet ${state.moreMenuOpen ? 'open' : ''}">
+      <button class="mobile-more-sheet-close" onclick="toggleMoreMenu()">Close</button>
+      <div class="mobile-more-sheet-title">More Pages</div>
+      <div class="mobile-more-sheet-grid">
+        <button class="mobile-more-sheet-btn ${state.activeTab === 'march' ? 'active' : ''}" onclick="setTab('march')">${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date().getMonth()]}</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab === 'vault' ? 'active' : ''}" onclick="setTab('vault')">Ideas</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab === 'crm' ? 'active' : ''}" onclick="setTab('crm')">CRM${getCRMNeedsAction() > 0 ? ' 🔴' : ''}</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab === 'vinted' ? 'active' : ''}" onclick="setTab('vinted')">Vinted</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab === 'notts' ? 'active' : ''}" onclick="setTab('notts')">Notts</button>
+        <button class="mobile-more-sheet-btn danger" onclick="handleLogout()">Sign Out</button>
+      </div>
     </div>
-    <div id="moreMenu" class="more-menu ${state.moreMenuOpen ? '' : 'hidden'}">
-      <button class="more-menu-btn ${state.activeTab === 'march' ? 'active' : ''}" onclick="setTab('march')">${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date().getMonth()]} page</button>
-      <button class="more-menu-btn ${state.activeTab === 'vault' ? 'active' : ''}" onclick="setTab('vault')">Ideas</button>
-      <button class="more-menu-btn ${state.activeTab === 'crm' ? 'active' : ''}" onclick="setTab('crm')">CRM</button>
-      <button class="more-menu-btn ${state.activeTab === 'vinted' ? 'active' : ''}" onclick="setTab('vinted')">Vinted</button>
-      <button class="more-menu-btn ${state.activeTab === 'notts' ? 'active' : ''}" onclick="setTab('notts')">Notts</button>
-    </div>
-    <button class="logout-btn" onclick="handleLogout()">Sign Out</button>
+    <div class="mobile-more-backdrop ${state.moreMenuOpen ? 'open' : ''}" onclick="toggleMoreMenu()"></div>
+    <nav class="bottom-nav-app">
+      <button class="bottom-nav-app-btn ${state.activeTab === 'today' ? 'active' : ''}" onclick="setTab('today')"><span class="bottom-nav-icon">⌂</span><span class="bottom-nav-label">Today</span></button>
+      <button class="bottom-nav-app-btn ${state.activeTab === 'journal' ? 'active' : ''}" onclick="setTab('journal')"><span class="bottom-nav-icon">✎</span><span class="bottom-nav-label">Journal</span></button>
+      <button class="bottom-nav-app-btn ${state.activeTab === 'progress' ? 'active' : ''}" onclick="setTab('progress')"><span class="bottom-nav-icon">❤</span><span class="bottom-nav-label">Health</span></button>
+      <button class="bottom-nav-app-btn ${state.activeTab === 'fire' ? 'active' : ''}" onclick="setTab('fire')"><span class="bottom-nav-icon">🔥</span><span class="bottom-nav-label">Fire</span></button>
+      <button class="bottom-nav-app-btn ${state.moreMenuOpen ? 'active' : ''}" onclick="toggleMoreMenu()"><span class="bottom-nav-icon">⋯</span><span class="bottom-nav-label">More</span></button>
+    </nav>
     ${state.retentionModal ? renderRetentionModal() : ''}
     ${state.weekPlanModal ? renderWeekPlanModal() : ''}
     ${state.dayPlannerOpen ? renderDayPlannerModal() : ''}
