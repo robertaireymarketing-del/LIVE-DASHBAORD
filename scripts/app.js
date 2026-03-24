@@ -206,6 +206,7 @@ function render() {
     <div class="quote-author">— ${quote.author}</div>
     <div class="quote-interpretation">${quote.interpretation}</div>
     </div>
+
     <div class="content">
     ${(() => { try {
       if (state.activeTab !== 'today') return '';
@@ -221,25 +222,6 @@ function render() {
     ${(() => { try { return state.activeTab === 'fire' ? renderFireTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">FIRE ERROR: ' + e.message + '</div>'; }})()}
     </div>
     <button class="logout-btn" onclick="handleLogout()">Sign Out</button>
-    <div class="bottom-nav-shell">
-      <div class="bottom-nav">
-        <button class="bottom-nav-btn ${state.activeTab === 'today' ? 'active' : ''}" onclick="setTab('today')"><span class="bottom-nav-label">Today</span></button>
-        <button class="bottom-nav-btn ${state.activeTab === 'journal' ? 'active' : ''}" onclick="setTab('journal')"><span class="bottom-nav-label">Journal</span></button>
-        <button class="bottom-nav-btn ${state.activeTab === 'progress' ? 'active' : ''}" onclick="setTab('progress')"><span class="bottom-nav-label">Health</span></button>
-        <button class="bottom-nav-btn ${state.activeTab === 'fire' ? 'active' : ''}" onclick="setTab('fire')"><span class="bottom-nav-label">Fire</span></button>
-        <button class="bottom-nav-btn ${(state.activeTab === 'march' || state.activeTab === 'vault' || state.activeTab === 'crm' || state.activeTab === 'vinted' || state.activeTab === 'notts') ? 'active' : ''}" onclick="toggleMoreMenu()"><span class="bottom-nav-label">More</span></button>
-      </div>
-    </div>
-    <div class="bottom-more-menu ${state.moreMenuOpen ? '' : 'hidden'}">
-      <div class="bottom-more-menu-header">More Pages</div>
-      <div class="bottom-more-grid">
-        <button class="bottom-more-btn ${state.activeTab === 'march' ? 'active' : ''}" onclick="setTab('march')">${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date().getMonth()]}</button>
-        <button class="bottom-more-btn ${state.activeTab === 'vault' ? 'active' : ''}" onclick="setTab('vault')">Ideas</button>
-        <button class="bottom-more-btn ${state.activeTab === 'crm' ? 'active' : ''}" onclick="setTab('crm')">CRM</button>
-        <button class="bottom-more-btn ${state.activeTab === 'vinted' ? 'active' : ''}" onclick="setTab('vinted')">Vinted</button>
-        <button class="bottom-more-btn ${state.activeTab === 'notts' ? 'active' : ''}" onclick="setTab('notts')">Notts</button>
-      </div>
-    </div>
     ${state.retentionModal ? renderRetentionModal() : ''}
     ${state.weekPlanModal ? renderWeekPlanModal() : ''}
     ${state.dayPlannerOpen ? renderDayPlannerModal() : ''}
@@ -264,6 +246,21 @@ function render() {
     <button onclick="cancelStepConfirm()" style="margin-top:10px;width:100%;background:none;border:none;color:rgba(255,255,255,0.25);font-size:12px;cursor:pointer;padding:8px;font-family:inherit;">Cancel</button>
     </div>
     </div>` : ''}
+    <div class="more-menu ${state.moreMenuOpen ? '' : 'hidden'}">
+      <button class="more-menu-btn ${state.activeTab === 'march' ? 'active' : ''}" onclick="setTab('march')">${['January','February','March','April','May','June','July','August','September','October','November','December'][new Date().getMonth()]} Dashboard</button>
+      <button class="more-menu-btn ${state.activeTab === 'vault' ? 'active' : ''}" onclick="setTab('vault')">Ideas</button>
+      <button class="more-menu-btn ${state.activeTab === 'crm' ? 'active' : ''}" onclick="setTab('crm')">CRM${getCRMNeedsAction() > 0 ? ` (${getCRMNeedsAction()})` : ''}</button>
+      <button class="more-menu-btn ${state.activeTab === 'vinted' ? 'active' : ''}" onclick="setTab('vinted')">Vinted</button>
+      <button class="more-menu-btn ${state.activeTab === 'notts' ? 'active' : ''}" onclick="setTab('notts')">Nottingham</button>
+      <button class="more-menu-btn more-menu-btn--danger" onclick="handleLogout()">Sign Out</button>
+    </div>
+    <nav class="bottom-nav">
+      <button class="nav-btn ${state.activeTab === 'today' ? 'active' : ''}" onclick="setTab('today')"><span class="nav-label">Today</span></button>
+      <button class="nav-btn ${state.activeTab === 'journal' ? 'active' : ''}" onclick="setTab('journal')"><span class="nav-label">Journal</span></button>
+      <button class="nav-btn ${state.activeTab === 'progress' ? 'active' : ''}" onclick="setTab('progress')"><span class="nav-label">Health</span></button>
+      <button class="nav-btn ${state.activeTab === 'fire' ? 'active' : ''}" onclick="setTab('fire')"><span class="nav-label">Fire</span></button>
+      <button class="nav-btn ${['march','vault','crm','vinted','notts'].includes(state.activeTab) || state.moreMenuOpen ? 'active' : ''}" onclick="toggleMoreMenu()"><span class="nav-label">More</span></button>
+    </nav>
     `;
 
     if (state.activeTab === 'journal') setTimeout(() => { try { initJournalTab({ state, getToday, saveDataQuiet, getWeekKey }); } catch(e) { console.error('Journal init error:', e); } }, 0);
