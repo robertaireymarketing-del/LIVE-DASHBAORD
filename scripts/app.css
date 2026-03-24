@@ -19,64 +19,6 @@
     body.light * { -webkit-font-smoothing: antialiased; }
     /* Base text throughout */
     body.light p, body.light span, body.light div { color: inherit; }
-
-    /* ═══════════════════════════════════════════════════════════════════
-       FORCE-DARK UTILITY
-       ───────────────────────────────────────────────────────────────────
-       Any overlay, modal, or panel that should always render dark
-       (regardless of light/dark mode) should carry class="force-dark".
-
-       HOW IT WORKS:
-         body.light sets color:#0A1628 on <body>, and the rule above
-         cascades that dark navy into every div/span/p via `color:inherit`.
-         .force-dark short-circuits that cascade: it resets color to #ffffff
-         on the container, so all descendants inherit white instead of navy.
-         Higher specificity (0,2,0) beats the div rule (0,1,1) — no !important needed.
-
-       HOW TO USE:
-         • JS-created overlays/modals: add class="force-dark" to the dark root element.
-         • CSS-class overlays: add the class name to the body.light .force-dark rule below.
-         • Children with explicit inline colors are unaffected — only uncoloured divs change.
-
-       DO NOT add .force-dark to light-mode panels (white background cards, etc.)
-       ═══════════════════════════════════════════════════════════════════ */
-
-    /* 1. In dark mode: .force-dark is a no-op (body is already dark) */
-    .force-dark { color: #ffffff; }
-
-    /* 2. In light mode: force white on the container and let children inherit it */
-    body.light .force-dark,
-    body.light .past-days-modal,
-    body.light .month-targets-modal,
-    body.light .obj-modal-inner,
-    body.light .panic-overlay,
-    body.light .retention-overlay,
-    body.light .week-plan-overlay,
-    body.light .step-confirm-overlay,
-    body.light .challenge-overlay { color: #ffffff; }
-
-    body.light .force-dark div,   body.light .force-dark span,
-    body.light .force-dark p,     body.light .force-dark small,
-    body.light .force-dark label, body.light .force-dark button,
-    body.light .force-dark h1,    body.light .force-dark h2,
-    body.light .force-dark h3,
-    body.light .past-days-modal div,    body.light .past-days-modal span,
-    body.light .past-days-modal p,      body.light .past-days-modal small,
-    body.light .past-days-modal button,
-    body.light .month-targets-modal div, body.light .month-targets-modal span,
-    body.light .month-targets-modal p,   body.light .month-targets-modal small,
-    body.light .month-targets-modal button,
-    body.light .obj-modal-inner div,    body.light .obj-modal-inner span,
-    body.light .obj-modal-inner p,      body.light .obj-modal-inner small,
-    body.light .panic-overlay div,      body.light .panic-overlay span,
-    body.light .panic-overlay p,        body.light .panic-overlay small,
-    body.light .retention-overlay div,  body.light .retention-overlay span,
-    body.light .retention-overlay p,    body.light .retention-overlay small,
-    body.light .week-plan-overlay div,  body.light .week-plan-overlay span,
-    body.light .week-plan-overlay p,    body.light .week-plan-overlay small,
-    body.light .step-confirm-overlay div, body.light .step-confirm-overlay span,
-    body.light .challenge-overlay div,  body.light .challenge-overlay span { color: inherit; }
-
     /* Dashboard title */
     body.light .dash-title { font-size: 22px !important; font-weight: 900 !important; color: #0A1628 !important; }
     /* Tab bar */
@@ -2075,101 +2017,200 @@
     body.light button.week-objective-tick.done { border-color:rgba(30,132,73,0.4) !important; background:rgba(30,132,73,0.1) !important; }
 
 
-/* ── BOTTOM NAV ───────────────────────────────────────────────────── */
-.content-shell { padding-bottom: 96px; }
+/* ── PREMIUM BOTTOM NAV ─────────────────────────────────────────────── */
+.content-shell { padding-bottom: 132px; }
 .logout-btn { margin-bottom: 18px; }
-.bottom-nav {
+
+.bottom-nav-shell {
   position: fixed;
-  left: 12px;
-  right: 12px;
-  bottom: max(12px, env(safe-area-inset-bottom));
-  height: 64px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1200;
+  padding: 0 0 calc(env(safe-area-inset-bottom) + 6px) 0;
+  background: linear-gradient(to top, rgba(5,7,10,0.98) 0%, rgba(5,7,10,0.92) 62%, rgba(5,7,10,0) 100%);
+  pointer-events: none;
+}
+
+.bottom-nav {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  min-height: 74px;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
-  padding: 8px;
-  border-radius: 18px;
-  background: rgba(10,10,10,0.96);
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.35);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  z-index: 1200;
+  padding: 10px 12px 0;
+  pointer-events: auto;
 }
+
 .bottom-nav-btn {
-  border: none;
-  border-radius: 12px;
-  background: transparent;
-  color: rgba(255,255,255,0.42);
+  min-width: 0;
+  min-height: 58px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.015) 100%),
+    rgba(17,20,24,0.96);
+  color: rgba(255,255,255,0.52);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: 0.2px;
   cursor: pointer;
   font-family: inherit;
-  transition: all 0.2s ease;
+  transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.24);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
+.bottom-nav-btn:hover {
+  transform: translateY(-1px);
+  color: rgba(255,255,255,0.82);
+}
+
+.bottom-nav-btn:active {
+  transform: translateY(0);
+}
+
 .bottom-nav-btn.active {
-  background: rgba(201,168,76,0.14);
-  color: #C9A84C;
-  box-shadow: inset 0 0 0 1px rgba(201,168,76,0.2);
+  background:
+    linear-gradient(180deg, rgba(201,168,76,0.22) 0%, rgba(201,168,76,0.12) 100%),
+    rgba(22,24,29,0.98);
+  color: #F3D88E;
+  border-color: rgba(201,168,76,0.38);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 12px 28px rgba(0,0,0,0.28);
 }
+
+.bottom-nav-label {
+  display: block;
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .bottom-more-menu {
   position: fixed;
+  left: 12px;
   right: 12px;
-  bottom: calc(max(12px, env(safe-area-inset-bottom)) + 74px);
-  min-width: 170px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  border-radius: 16px;
-  background: rgba(10,10,10,0.96);
+  bottom: calc(env(safe-area-inset-bottom) + 82px);
+  width: auto;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 14px;
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(18,22,28,0.98) 0%, rgba(10,12,16,0.98) 100%);
   border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+  box-shadow: 0 18px 42px rgba(0,0,0,0.38);
   z-index: 1199;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
+
+.bottom-more-menu-header {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 2.4px;
+  text-transform: uppercase;
+  color: rgba(201,168,76,0.72);
+  margin: 2px 2px 12px;
+}
+
+.bottom-more-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .bottom-more-btn {
-  border: none;
-  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
   background: rgba(255,255,255,0.04);
-  color: rgba(255,255,255,0.78);
-  text-align: left;
-  padding: 12px 14px;
+  color: rgba(255,255,255,0.82);
+  text-align: center;
+  padding: 14px 12px;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 900;
   cursor: pointer;
   font-family: inherit;
-  transition: all 0.2s ease;
+  transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  min-height: 50px;
 }
+
+.bottom-more-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,0.07);
+}
+
 .bottom-more-btn.active {
-  background: rgba(201,168,76,0.14);
-  color: #C9A84C;
-  box-shadow: inset 0 0 0 1px rgba(201,168,76,0.2);
+  background: rgba(201,168,76,0.16);
+  color: #F3D88E;
+  border-color: rgba(201,168,76,0.34);
+  box-shadow: inset 0 0 0 1px rgba(201,168,76,0.12);
 }
-body.light .bottom-nav {
-  background: rgba(255,255,255,0.97);
+
+body.light .bottom-nav-shell {
+  background: linear-gradient(to top, rgba(232,235,240,0.98) 0%, rgba(232,235,240,0.94) 62%, rgba(232,235,240,0) 100%);
+}
+
+body.light .bottom-nav-btn {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(244,247,251,0.98) 100%),
+    #ffffff;
   border-color: #CDD4E0;
-  box-shadow: 0 12px 30px rgba(10,22,40,0.12);
+  color: #6B7A90;
+  box-shadow: 0 10px 24px rgba(10,22,40,0.08);
 }
-body.light .bottom-nav-btn { color: #7B8798; }
+
+body.light .bottom-nav-btn:hover {
+  color: #0A1628;
+}
+
 body.light .bottom-nav-btn.active {
-  background: rgba(27,58,107,0.10);
+  background:
+    linear-gradient(180deg, rgba(27,58,107,0.12) 0%, rgba(27,58,107,0.08) 100%),
+    #ffffff;
   color: #1B3A6B;
-  box-shadow: inset 0 0 0 1px rgba(27,58,107,0.12);
+  border-color: rgba(27,58,107,0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.65),
+    0 10px 24px rgba(10,22,40,0.10);
 }
+
 body.light .bottom-more-menu {
-  background: rgba(255,255,255,0.98);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(244,247,251,0.98) 100%);
   border-color: #CDD4E0;
-  box-shadow: 0 12px 30px rgba(10,22,40,0.12);
+  box-shadow: 0 18px 42px rgba(10,22,40,0.14);
 }
-body.light .bottom-more-btn {
-  background: #F4F7FB;
+
+body.light .bottom-more-menu-header {
   color: #1B3A6B;
 }
+
+body.light .bottom-more-btn {
+  background: #FFFFFF;
+  color: #1B3A6B;
+  border-color: #D7DEE9;
+}
+
 body.light .bottom-more-btn.active {
   background: rgba(27,58,107,0.10);
   color: #1B3A6B;
-  box-shadow: inset 0 0 0 1px rgba(27,58,107,0.12);
+  border-color: rgba(27,58,107,0.18);
+  box-shadow: inset 0 0 0 1px rgba(27,58,107,0.08);
+}
+
+@media (max-width: 640px) {
+  .content-shell { padding-bottom: 128px; }
+  .bottom-nav { padding: 10px 10px 0; gap: 7px; }
+  .bottom-nav-btn { min-height: 56px; border-radius: 16px; font-size: 11px; }
+  .bottom-more-menu { left: 10px; right: 10px; bottom: calc(env(safe-area-inset-bottom) + 80px); padding: 12px; border-radius: 18px; }
+  .bottom-more-grid { grid-template-columns: 1fr; }
 }
