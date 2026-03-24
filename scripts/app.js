@@ -222,7 +222,7 @@ function render() {
     </div>
     <div class="bottom-nav">
       <button class="nav-btn ${state.activeTab === 'today' ? 'active' : ''}" onclick="setTab('today')">
-        <span class="nav-btn-icon">◉</span>
+        <span class="nav-btn-icon">⌂</span>
         <span class="nav-btn-label">Today</span>
       </button>
       <button class="nav-btn ${state.activeTab === 'journal' ? 'active' : ''}" onclick="setTab('journal')">
@@ -230,7 +230,7 @@ function render() {
         <span class="nav-btn-label">Journal</span>
       </button>
       <button class="nav-btn ${state.activeTab === 'progress' ? 'active' : ''}" onclick="setTab('progress')">
-        <span class="nav-btn-icon">▣</span>
+        <span class="nav-btn-icon">❤</span>
         <span class="nav-btn-label">Health</span>
       </button>
       <button class="nav-btn ${state.activeTab === 'fire' ? 'active' : ''}" onclick="setTab('fire')">

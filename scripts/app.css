@@ -2017,9 +2017,9 @@
     body.light button.week-objective-tick.done { border-color:rgba(30,132,73,0.4) !important; background:rgba(30,132,73,0.1) !important; }
 
 
-/* ── PREMIUM FULL-WIDTH BOTTOM NAV ───────────────────────── */
+/* ── IOS-STYLE FULL-WIDTH BOTTOM NAV ───────────────────────── */
 #app {
-  padding-bottom: 108px;
+  padding-bottom: 118px;
 }
 
 .bottom-nav {
@@ -2028,57 +2028,83 @@
   right: 0;
   bottom: 0;
   width: 100%;
-  height: 88px;
+  height: calc(96px + env(safe-area-inset-bottom));
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: stretch;
   gap: 0;
-  padding: 0 max(10px, env(safe-area-inset-left)) calc(10px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-right));
-  background: rgba(10, 10, 10, 0.96);
+  padding: 0;
+  background: rgba(10, 10, 10, 0.98);
   border-top: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  box-shadow: 0 -10px 30px rgba(0,0,0,0.28);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 -12px 30px rgba(0,0,0,0.24);
   z-index: 9999;
 }
 
 body.light .bottom-nav {
-  background: rgba(255,255,255,0.97);
+  background: rgba(255,255,255,0.98);
   border-top: 1px solid rgba(10,22,40,0.10);
-  box-shadow: 0 -10px 30px rgba(10,22,40,0.10);
+  box-shadow: 0 -12px 30px rgba(10,22,40,0.08);
 }
 
 .nav-btn {
+  position: relative;
   border: none;
   background: transparent;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
-  color: rgba(255,255,255,0.45);
+  min-height: 96px;
+  padding: 12px 4px calc(12px + env(safe-area-inset-bottom));
+  color: rgba(255,255,255,0.55);
   font-family: inherit;
   cursor: pointer;
-  transition: transform 0.18s ease, color 0.18s ease, background 0.18s ease;
-  border-radius: 0;
+  transition: transform 0.16s ease, color 0.16s ease, background 0.16s ease;
+}
+
+.nav-btn + .nav-btn {
+  border-left: 1px solid rgba(255,255,255,0.05);
+}
+
+body.light .nav-btn + .nav-btn {
+  border-left: 1px solid rgba(10,22,40,0.06);
+}
+
+.nav-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 18%;
+  right: 18%;
+  height: 4px;
+  border-radius: 0 0 999px 999px;
+  background: transparent;
+  transition: background 0.16s ease;
 }
 
 .nav-btn-icon {
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1;
 }
 
 .nav-btn-label {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 800;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.15px;
   white-space: nowrap;
 }
 
 .nav-btn.active {
   color: #ffffff;
-  background: linear-gradient(180deg, rgba(201,168,76,0.16), rgba(201,168,76,0.06));
+  background: rgba(255,255,255,0.045);
+}
+
+.nav-btn.active::before {
+  background: #C9A84C;
 }
 
 .nav-btn.active .nav-btn-icon,
@@ -2087,7 +2113,7 @@ body.light .bottom-nav {
 }
 
 .nav-btn:active {
-  transform: scale(0.96);
+  transform: scale(0.97);
 }
 
 body.light .nav-btn {
@@ -2096,7 +2122,11 @@ body.light .nav-btn {
 
 body.light .nav-btn.active {
   color: #0A1628;
-  background: linear-gradient(180deg, rgba(27,58,107,0.10), rgba(27,58,107,0.04));
+  background: rgba(27,58,107,0.05);
+}
+
+body.light .nav-btn.active::before {
+  background: #1B3A6B;
 }
 
 body.light .nav-btn.active .nav-btn-icon,
@@ -2108,7 +2138,7 @@ body.light .nav-btn.active .nav-btn-label {
   position: fixed;
   left: 12px;
   right: 12px;
-  bottom: calc(98px + env(safe-area-inset-bottom));
+  bottom: calc(108px + env(safe-area-inset-bottom));
   background: rgba(18,18,18,0.98);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 18px;
@@ -2128,11 +2158,11 @@ body.light .nav-btn.active .nav-btn-label {
 
 .more-menu-btn {
   border: 1px solid rgba(255,255,255,0.09);
-  border-radius: 12px;
+  border-radius: 14px;
   background: rgba(255,255,255,0.04);
-  min-height: 52px;
-  color: rgba(255,255,255,0.82);
-  font-size: 14px;
+  min-height: 56px;
+  color: rgba(255,255,255,0.86);
+  font-size: 15px;
   font-weight: 800;
   font-family: inherit;
   cursor: pointer;
@@ -2165,8 +2195,11 @@ body.light .more-menu-btn.active {
 }
 
 @media (max-width: 640px) {
-  #app { padding-bottom: 114px; }
-  .bottom-nav { height: 92px; }
-  .nav-btn-label { font-size: 12px; }
+  #app { padding-bottom: 122px; }
+  .bottom-nav { height: calc(100px + env(safe-area-inset-bottom)); }
+  .nav-btn { min-height: 100px; }
+  .nav-btn-icon { font-size: 23px; }
+  .nav-btn-label { font-size: 15px; }
   .more-menu { grid-template-columns: 1fr; }
 }
+
