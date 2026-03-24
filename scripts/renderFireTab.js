@@ -40,8 +40,8 @@ export function renderFireTab(deps) {
   }
 
   const dreamLines = [
-    "A front door you chose. A home that's yours — no landlord, no permission.",
-    "Warda next to you — living, not just waiting.",
+    "Your own front door. A home that's yours.",
+    "Warda next to you — not worrying, not waiting — just living.",
     "An income that doesn't stop when you do.",
     "No alarm set by someone else. No shift. No ceiling.",
     "Every idea you've ever had — the resources to actually build it.",
@@ -49,11 +49,11 @@ export function renderFireTab(deps) {
   ];
 
   const consequences = [
-    "Still in the family shop at 32. Then 35. Still calling it temporary.",
-    "Watching someone else build the brand that was in your head. Doing it worse. Winning anyway.",
-    "The discipline was there. The vision was there. The 20s — the best window you'll ever get — were there.",
-    "You didn't miss ability. You didn't miss ideas. You missed the moment you should have gone all in.",
-    "That's the one you won't be able to explain to yourself at 40.",
+    "Still working the family shop at 35.",
+    "Watching someone else live in the home you pictured.",
+    "The ideas you had — built by someone else, for someone else's dream.",
+    "Warda watching you play small, year after year.",
+    "Never knowing how far you could have actually gone.",
   ];
 
   return `
@@ -335,7 +335,7 @@ export function renderFireTab(deps) {
   <!-- CONSEQUENCE -->
   <div class="fc fc-cons">
     <span class="fe fe-red">⚠ If you stay comfortable</span>
-    <span class="cons-headline">This is the life that's already being written for you.</span>
+    <span class="cons-headline">This is the life waiting for the version of you who doesn't act.</span>
     <ul class="cons-list">
       ${consequences.map(c => `<li class="cons-item">${c}</li>`).join('')}
     </ul>
