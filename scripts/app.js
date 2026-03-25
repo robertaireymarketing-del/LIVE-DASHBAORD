@@ -298,6 +298,8 @@ window.handleLogin = async () => { try { await signInWithPopup(auth, provider); 
 window.handleLogout = async () => { await signOut(auth); state.user = null; state.data = null; render(); };
 window.setTab = (tab) => { state.activeTab = tab; state.selectedEditDate = null; state.moreMenuOpen = false; render(); };
 window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render(); };
+window.toggleObjectivesCollapsed = () => { state.objectivesCollapsed = !state.objectivesCollapsed; render(); };
+window.toggleBatchesCollapsed    = () => { state.batchesCollapsed    = !state.batchesCollapsed;    render(); };
 window._weekObjsHtml = function(weekObjectivesData, weekKey, clickable) {
   const raw = weekObjectivesData?.[weekKey];
   const objs = Array.isArray(raw) ? raw : (raw ? [{text: raw, done: false}] : []);

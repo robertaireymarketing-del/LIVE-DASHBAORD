@@ -336,7 +336,7 @@ const allTodayTasks = [];
 const frontsSection = `
 <div class="cc-section-title">Today's Fronts</div>
 ${allTodayTasks.length === 0
-  ? `<div style="text-align:center;padding:16px 0;color:rgba(255,255,255,0.2);font-size:13px;font-style:italic;">Nothing scheduled for today yet — plan your week via the objectives menu above</div>`
+  ? `<div class="fronts-empty-state" style="text-align:center;padding:16px 0;color:rgba(255,255,255,0.2);font-size:13px;font-style:italic;">Nothing scheduled for today yet — plan your week via the objectives menu above</div>`
   : allTodayTasks.map(item => {
     const isDone = item.type==='batch' ? item.done : ((state.data.frontsDone||{})[getToday()]?.[item.key+':'+item.task]||false);
     const hex = item.hex;
@@ -845,6 +845,7 @@ body.light .obj-month-calendar-cell.is-today { border-color: rgba(201,168,76,0.7
 body.light .obj-month-calendar-day { color: #0A1628 !important; }
 body.light .obj-month-calendar-meta { color: #5B6B82 !important; }
 body.light .obj-month-calendar-meta--empty { color: #AAB4C4 !important; }
+body.light .fronts-empty-state { color: rgba(10,22,40,0.35) !important; }
 </style>`;
 
 // ── Objectives group (monthly + weekly) with collapse toggle ──────────
@@ -856,7 +857,7 @@ const objectivesGroupSection = `
     <div class="cc-section-title" style="margin-bottom:0;">Objectives</div>
     <div style="display:flex;align-items:center;gap:8px;">
       <button onclick="openObjectivesModal('monthly')" style="background:transparent;border:1px solid rgba(201,168,76,0.35);border-radius:8px;padding:4px 12px;color:#C9A84C;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.5px;">+ Edit</button>
-      <button onclick="window._toggleObjectives&&window._toggleObjectives()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:4px 12px;color:rgba(255,255,255,0.5);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.5px;">${objectivesVisible ? '▲ Hide' : '▼ Show'}</button>
+      <button onclick="toggleObjectivesCollapsed()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:4px 12px;color:rgba(255,255,255,0.5);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.5px;">${objectivesVisible ? '▲ Hide' : '▼ Show'}</button>
     </div>
   </div>
   ${objectivesVisible ? `
@@ -934,32 +935,13 @@ const batchesGroupSection = `
 <div style="margin-bottom:4px;">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${batchesVisible ? '10px' : '4px'};">
     <div class="cc-section-title" style="margin-bottom:0;">Active Batches</div>
-    <button onclick="window._toggleBatches&&window._toggleBatches()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:4px 12px;color:rgba(255,255,255,0.5);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.5px;">${batchesVisible ? '▲ Hide' : '▼ Show'}</button>
+    <button onclick="toggleBatchesCollapsed()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:4px 12px;color:rgba(255,255,255,0.5);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.5px;">${batchesVisible ? '▲ Hide' : '▼ Show'}</button>
   </div>
   ${batchesVisible ? batchesSection.replace('<div class="cc-section-title">Active Batches</div>', '') : ''}
 </div>`;
 
-// ── Inject toggle handlers (idempotent) ──────────────────────────────
-const toggleHandlers = `<script>
-if(!window._objToggleAttached){
-  window._objToggleAttached=true;
-  window._toggleObjectives=function(){
-    if(typeof state!=='undefined'&&typeof renderApp==='function'){
-      state.objectivesCollapsed=!state.objectivesCollapsed;
-      renderApp();
-    }
-  };
-  window._toggleBatches=function(){
-    if(typeof state!=='undefined'&&typeof renderApp==='function'){
-      state.batchesCollapsed=!state.batchesCollapsed;
-      renderApp();
-    }
-  };
-}
-</script>`;
-
 // ── ORDER: Habits → Today's Fronts → Objectives (collapsible) → Batches (collapsible) ──
-return injectedCSS + toggleHandlers + habitsSection + frontsSection + objectivesGroupSection + batchesGroupSection + `
+return injectedCSS + habitsSection + frontsSection + objectivesGroupSection + batchesGroupSection + `
 <div style="margin-top:16px;margin-bottom:8px;">
 <button onclick="openPastDays()" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:14px;color:rgba(255,255,255,0.5);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
 📅 Review Previous Days
