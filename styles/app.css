@@ -2029,3 +2029,71 @@ body.light .toggle-label { font-size: 11px !important; line-height: 1.15 !import
 body.light .toggle-icon { font-size: 18px !important; }
 body.light .streak-badge { font-size: 10px !important; line-height: 1.2 !important; }
 body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
+
+
+/* ── PERMANENT FIXED BOTTOM NAV ─────────────────────────────────────────── */
+.bottom-nav-app {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 900;
+  display: flex;
+  background: #0d0d0d;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.bottom-nav-app-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.28);
+  padding: 16px 4px;
+  transition: color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+.bottom-nav-app-btn.active {
+  color: #d4af37;
+  border-top: 2px solid #d4af37;
+}
+
+.bottom-nav-app-btn:hover:not(.active) {
+  color: rgba(255,255,255,0.55);
+}
+
+/* Light mode */
+body.light .bottom-nav-app {
+  background: #f0f0f0;
+  border-top: 1px solid rgba(0,0,0,0.1);
+}
+body.light .bottom-nav-app-btn {
+  color: rgba(0,0,0,0.3);
+}
+body.light .bottom-nav-app-btn.active {
+  color: #a07820;
+  border-top: 2px solid #a07820;
+}
+
+/* Push page content up so it's never hidden behind the bar */
+.content {
+  padding-bottom: calc(68px + env(safe-area-inset-bottom)) !important;
+}
+
+/* More sheet and backdrop sit above the nav */
+.mobile-more-sheet {
+  z-index: 950 !important;
+  bottom: calc(64px + env(safe-area-inset-bottom)) !important;
+}
+.mobile-more-backdrop {
+  z-index: 940 !important;
+}
+/* ─────────────────────────────────────────────────────────────────────────── */
