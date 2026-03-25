@@ -80,7 +80,7 @@ export function renderProgressTab(deps) {
         }
   
         const effectivePace = (blendedPace !== null && blendedPace > 0) ? blendedPace : bfLossRate;
-        const isGaining = blendedPace !== null && blendedPace <= 0;
+        const isGaining = blendedPace !== null && blendedPace < -0.05;
   
         // Weight pace: mirror BF pace proportionally
         const effectiveWtPace = +(currentWeight * effectivePace / 100).toFixed(2);
