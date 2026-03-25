@@ -186,7 +186,7 @@ function renderBottomNav() {
     <button class="bottom-nav-app-btn ${state.activeTab==='journal'?'active':''}" onclick="setTab('journal')">Journal</button>
     <button class="bottom-nav-app-btn ${state.activeTab==='progress'?'active':''}" onclick="setTab('progress')">Health</button>
     <button class="bottom-nav-app-btn ${state.activeTab==='fire'?'active':''}" onclick="setTab('fire')">Fire</button>
-    <button class="bottom-nav-app-btn ${state.activeTab==='roadmap'?'active':''}" onclick="setTab('roadmap')">Roadmap</button>
+    <button class="bottom-nav-app-btn ${state.activeTab==='roadmap'?'active':''}" onclick="setTab('roadmap')">Map</button>
     <button class="bottom-nav-app-btn ${moreActive?'active':''}" onclick="toggleMoreMenu()">More</button>
   </nav>`;
 }

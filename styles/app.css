@@ -2054,15 +2054,19 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
   border-top: 2px solid transparent;
   cursor: pointer;
   font-family: inherit;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.3px;
   text-transform: uppercase;
   color: rgba(255,255,255,0.28);
-  padding: 14px 2px;
+  padding: 14px 1px;
   transition: color 0.15s, border-color 0.15s;
   -webkit-tap-highlight-color: transparent;
   outline: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .bottom-nav-app-btn.active {
