@@ -1,0 +1,67 @@
+/* ── PERMANENT BOTTOM NAV ─────────────────────────────────────────────────── */
+/* Paste this into styles/app.css — find & replace any existing .bottom-nav-app rules */
+
+.bottom-nav-app {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 900;
+  display: flex;
+  background: #0d0d0d;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  /* iOS safe area — pads above home bar on notched iPhones */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.bottom-nav-app-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.28);
+  padding: 14px 4px;
+  transition: color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-nav-app-btn.active {
+  color: #d4af37; /* TJM gold */
+}
+
+.bottom-nav-app-btn:hover:not(.active) {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Light mode overrides */
+body.light .bottom-nav-app {
+  background: #f5f5f5;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body.light .bottom-nav-app-btn {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+body.light .bottom-nav-app-btn.active {
+  color: #b8952a;
+}
+
+/* ── CONTENT PADDING — stops content hiding behind the fixed nav ────────── */
+/* Find your existing .content rule and update padding-bottom, or add this: */
+.content {
+  padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important;
+}
+
+/* More sheet sits above the nav */
+.mobile-more-sheet {
+  z-index: 950;
+}
+.mobile-more-backdrop {
+  z-index: 940;
+}

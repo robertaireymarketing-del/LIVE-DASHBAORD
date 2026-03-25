@@ -177,13 +177,26 @@ function renderPastDaysModal() { return renderPastDaysModalExternal(renderMoreMo
 function renderMonthTargetsModal() { return renderMonthTargetsModalExternal(renderMoreModalDeps); }
 function renderChallengeModal() { return renderChallengeModalExternal(renderMoreModalDeps); }
 
+// ── Bottom nav (permanent, shown on every page) ────────────────────────────
+function renderBottomNav() {
+  const moreActive = state.moreMenuOpen || ['march','vault','crm','vinted','notts','roadmap'].includes(state.activeTab);
+  return `
+  <nav class="bottom-nav-app">
+    <button class="bottom-nav-app-btn ${state.activeTab === 'today' ? 'active' : ''}" onclick="setTab('today')">Today</button>
+    <button class="bottom-nav-app-btn ${state.activeTab === 'journal' ? 'active' : ''}" onclick="setTab('journal')">Journal</button>
+    <button class="bottom-nav-app-btn ${state.activeTab === 'progress' ? 'active' : ''}" onclick="setTab('progress')">Health</button>
+    <button class="bottom-nav-app-btn ${state.activeTab === 'fire' ? 'active' : ''}" onclick="setTab('fire')">Fire</button>
+    <button class="bottom-nav-app-btn ${moreActive ? 'active' : ''}" onclick="toggleMoreMenu()">More</button>
+  </nav>`;
+}
+
 // ── Main render ────────────────────────────────────────────────────────────
 function render() {
   const app = document.getElementById('app');
   document.body.className = state.theme === 'light' ? 'light' : '';
   if (!state.user) { app.innerHTML = renderLogin(); return; }
   if (!state.data) { app.innerHTML = '<div class="loading">Loading your data...</div>'; return; }
-  if (state.dayPlannerOpen) { app.innerHTML = renderDayPlannerModal(); return; }
+  if (state.dayPlannerOpen) { app.innerHTML = renderDayPlannerModal() + renderBottomNav(); return; }
 
   try {
     const quote = getDailyQuote();
@@ -238,13 +251,7 @@ function render() {
       </div>
     </div>
     <div class="mobile-more-backdrop ${state.moreMenuOpen ? 'open' : ''}" onclick="toggleMoreMenu()"></div>
-    <nav class="bottom-nav-app">
-      <button class="bottom-nav-app-btn ${state.activeTab === 'today' ? 'active' : ''}" onclick="setTab('today')"><span class="bottom-nav-icon">⌂</span><span class="bottom-nav-label">Today</span></button>
-      <button class="bottom-nav-app-btn ${state.activeTab === 'journal' ? 'active' : ''}" onclick="setTab('journal')"><span class="bottom-nav-icon">✎</span><span class="bottom-nav-label">Journal</span></button>
-      <button class="bottom-nav-app-btn ${state.activeTab === 'progress' ? 'active' : ''}" onclick="setTab('progress')"><span class="bottom-nav-icon">❤</span><span class="bottom-nav-label">Health</span></button>
-      <button class="bottom-nav-app-btn ${state.activeTab === 'fire' ? 'active' : ''}" onclick="setTab('fire')"><span class="bottom-nav-icon">🔥</span><span class="bottom-nav-label">Fire</span></button>
-      <button class="bottom-nav-app-btn ${state.moreMenuOpen ? 'active' : ''}" onclick="toggleMoreMenu()"><span class="bottom-nav-icon">⋯</span><span class="bottom-nav-label">More</span></button>
-    </nav>
+    ${renderBottomNav()}
     ${state.retentionModal ? renderRetentionModal() : ''}
     ${state.weekPlanModal ? renderWeekPlanModal() : ''}
     ${state.dayPlannerOpen ? renderDayPlannerModal() : ''}
