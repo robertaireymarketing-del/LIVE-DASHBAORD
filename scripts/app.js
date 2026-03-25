@@ -216,12 +216,13 @@ function render() {
     </div>
     </div>
     <button class="panic-trigger" onclick="openPanic()" style="margin-bottom:12px;margin-top:4px;"><span>🆘</span> PANIC BUTTON</button>
+    ${(state.activeTab === 'today' || state.activeTab === 'journal') ? `
     <div class="quote-card">
     <div class="quote-icon">✦</div>
     <div class="quote-text">"${quote.text}"</div>
     <div class="quote-author">— ${quote.author}</div>
     <div class="quote-interpretation">${quote.interpretation}</div>
-    </div>
+    </div>` : ''}
 
     <div class="content">
     ${(() => { try {
