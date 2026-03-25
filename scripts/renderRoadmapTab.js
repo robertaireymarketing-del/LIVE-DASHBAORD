@@ -15,9 +15,15 @@ return `
 .rm-math-value { font-size:22px;font-weight:900;color:#D4AF37;line-height:1; }
 .rm-math-sub { font-size:11px;color:rgba(255,255,255,0.35);margin-top:3px; }
 .rm-note { background:#141414;border-left:2px solid #C9A84C;padding:10px 14px;border-radius:0 6px 6px 0;font-size:11px;color:rgba(255,255,255,0.4);line-height:1.5; }
-.rm-milestone-table { width:100%;border-collapse:collapse;font-size:12px; }
-.rm-milestone-table th { font-size:9px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.3);text-transform:uppercase;text-align:left;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.08); }
-.rm-milestone-table td { padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.04); }
+.rm-milestone-wrap { overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:6px; }
+.rm-milestone-table { width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed; }
+.rm-milestone-table col.c-mo      { width:13%; }
+.rm-milestone-table col.c-tjm     { width:22%; }
+.rm-milestone-table col.c-vinted  { width:22%; }
+.rm-milestone-table col.c-combined{ width:27%; }
+.rm-milestone-table col.c-bar     { width:16%; }
+.rm-milestone-table th { font-size:9px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.3);text-transform:uppercase;text-align:left;padding:8px 8px;border-bottom:1px solid rgba(255,255,255,0.08);white-space:nowrap;overflow:hidden; }
+.rm-milestone-table td { padding:8px 8px;border-bottom:1px solid rgba(255,255,255,0.04);overflow:hidden; }
 .rm-milestone-table tr.rm-current td { background:rgba(201,168,76,0.06); }
 .rm-milestone-table tr.rm-target td { background:rgba(201,168,76,0.12);font-weight:700; }
 .rm-milestone-table tr:last-child td { border-bottom:none; }
@@ -27,6 +33,21 @@ return `
 .rm-total { color:#D4AF37;font-weight:700; }
 .rm-bar-wrap { }
 .rm-bar { height:3px;border-radius:2px;background:linear-gradient(90deg,#C9A84C,#D4AF37);margin-top:5px;transition:width 0.3s ease; }
+/* ── PROJECTED ROWS (cascade) ── */
+.rm-milestone-table tr.rm-projected td.rm-edit-tjm,
+.rm-milestone-table tr.rm-projected td.rm-edit-vinted { opacity:0.65;font-style:italic; }
+/* ── MOBILE TABLE ── */
+@media (max-width:480px) {
+  .rm-milestone-table { font-size:11px; }
+  .rm-milestone-table th,.rm-milestone-table td { padding:7px 6px; }
+  .rm-milestone-table col.c-mo      { width:15%; }
+  .rm-milestone-table col.c-tjm     { width:25%; }
+  .rm-milestone-table col.c-vinted  { width:25%; }
+  .rm-milestone-table col.c-combined{ width:35%; }
+  .rm-milestone-table col.c-bar     { width:0;display:none; }
+  .rm-milestone-table th.th-bar,
+  .rm-milestone-table td.td-bar      { display:none; }
+}
 .rm-phase { border:1px solid rgba(201,168,76,0.18);border-radius:10px;overflow:hidden;margin-bottom:10px; }
 .rm-phase-header { padding:16px;display:flex;align-items:flex-start;gap:12px;cursor:pointer;background:#141414;-webkit-tap-highlight-color:transparent; }
 .rm-phase-num { font-size:28px;font-weight:900;color:rgba(255,255,255,0.08);line-height:1;min-width:28px; }
@@ -204,110 +225,115 @@ body.light [contenteditable="true"]:focus { background:rgba(201,168,76,0.15);box
 <div class="rm-section">
   <div class="rm-section-label" contenteditable="true">Section 02</div>
   <div class="rm-section-title" contenteditable="true">Monthly Profit Milestones</div>
+  <div class="rm-milestone-wrap">
   <table class="rm-milestone-table">
+    <colgroup>
+      <col class="c-mo"><col class="c-tjm"><col class="c-vinted"><col class="c-combined"><col class="c-bar">
+    </colgroup>
     <thead>
       <tr>
         <th contenteditable="true">Mo</th>
         <th contenteditable="true">TJM</th>
         <th contenteditable="true">Vinted</th>
         <th>Combined <span class="rm-calc-tag">auto</span></th>
-        <th style="width:60px"></th>
+        <th class="th-bar"></th>
       </tr>
     </thead>
     <tbody id="rm-milestone-tbody">
-      <tr class="rm-current" data-month="0">
+      <tr class="rm-current" data-month="0" data-def-tjm="200" data-def-vint="0">
         <td class="rm-mo" contenteditable="true">Now</td>
-        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£200</td>
-        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£0</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'tjm')">£200</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'vint')">£0</td>
         <td class="rm-total rm-calc-combined">£200</td>
-        <td><div class="rm-bar" style="width:1%"></div></td>
+        <td class="td-bar"><div class="rm-bar" style="width:1%"></div></td>
       </tr>
-      <tr data-month="1">
+      <tr data-month="1" data-def-tjm="400" data-def-vint="300">
         <td class="rm-mo" contenteditable="true">M1</td>
-        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£400</td>
-        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£300</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'tjm')">£400</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'vint')">£300</td>
         <td class="rm-total rm-calc-combined">£700</td>
-        <td><div class="rm-bar" style="width:5%"></div></td>
+        <td class="td-bar"><div class="rm-bar" style="width:5%"></div></td>
       </tr>
-      <tr data-month="2">
+      <tr data-month="2" data-def-tjm="700" data-def-vint="600">
         <td class="rm-mo" contenteditable="true">M2</td>
-        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£700</td>
-        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£600</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'tjm')">£700</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'vint')">£600</td>
         <td class="rm-total rm-calc-combined">£1,300</td>
-        <td><div class="rm-bar" style="width:9%"></div></td>
+        <td class="td-bar"><div class="rm-bar" style="width:9%"></div></td>
       </tr>
-      <tr data-month="3">
+      <tr data-month="3" data-def-tjm="1100" data-def-vint="1000">
         <td class="rm-mo" contenteditable="true">M3</td>
-        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£1,100</td>
-        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£1,000</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'tjm')">£1,100</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'vint')">£1,000</td>
         <td class="rm-total rm-calc-combined">£2,100</td>
-        <td><div class="rm-bar" style="width:15%"></div></td>
+        <td class="td-bar"><div class="rm-bar" style="width:15%"></div></td>
       </tr>
-      <tr data-month="4">
+      <tr data-month="4" data-def-tjm="1700" data-def-vint="1500">
         <td class="rm-mo" contenteditable="true">M4</td>
-        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£1,700</td>
-        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£1,500</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'tjm')">£1,700</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'vint')">£1,500</td>
         <td class="rm-total rm-calc-combined">£3,200</td>
-        <td><div class="rm-bar" style="width:23%"></div></td>
+        <td class="td-bar"><div class="rm-bar" style="width:23%"></div></td>
       </tr>
-      <tr data-month="5">
+      <tr data-month="5" data-def-tjm="2400" data-def-vint="2000">
         <td class="rm-mo" contenteditable="true">M5</td>
-        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£2,400</td>
-        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£2,000</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'tjm')">£2,400</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'vint')">£2,000</td>
         <td class="rm-total rm-calc-combined">£4,400</td>
-        <td><div class="rm-bar" style="width:31%"></div></td>
+        <td class="td-bar"><div class="rm-bar" style="width:31%"></div></td>
       </tr>
-      <tr data-month="6">
+      <tr data-month="6" data-def-tjm="3200" data-def-vint="2500">
         <td class="rm-mo" contenteditable="true">M6</td>
-        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£3,200</td>
-        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£2,500</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'tjm')">£3,200</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'vint')">£2,500</td>
         <td class="rm-total rm-calc-combined">£5,700</td>
-        <td><div class="rm-bar" style="width:41%"></div></td>
+        <td class="td-bar"><div class="rm-bar" style="width:41%"></div></td>
       </tr>
-      <tr data-month="7">
+      <tr data-month="7" data-def-tjm="4200" data-def-vint="3000">
         <td class="rm-mo" contenteditable="true">M7</td>
-        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£4,200</td>
-        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£3,000</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'tjm')">£4,200</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'vint')">£3,000</td>
         <td class="rm-total rm-calc-combined">£7,200</td>
-        <td><div class="rm-bar" style="width:51%"></div></td>
+        <td class="td-bar"><div class="rm-bar" style="width:51%"></div></td>
       </tr>
-      <tr data-month="8">
+      <tr data-month="8" data-def-tjm="5200" data-def-vint="3800">
         <td class="rm-mo" contenteditable="true">M8</td>
-        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£5,200</td>
-        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£3,800</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'tjm')">£5,200</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'vint')">£3,800</td>
         <td class="rm-total rm-calc-combined">£9,000</td>
-        <td><div class="rm-bar" style="width:64%"></div></td>
+        <td class="td-bar"><div class="rm-bar" style="width:64%"></div></td>
       </tr>
-      <tr data-month="9">
+      <tr data-month="9" data-def-tjm="6000" data-def-vint="4500">
         <td class="rm-mo" contenteditable="true">M9</td>
-        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£6,000</td>
-        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£4,500</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'tjm')">£6,000</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'vint')">£4,500</td>
         <td class="rm-total rm-calc-combined">£10,500</td>
-        <td><div class="rm-bar" style="width:75%"></div></td>
+        <td class="td-bar"><div class="rm-bar" style="width:75%"></div></td>
       </tr>
-      <tr data-month="10">
+      <tr data-month="10" data-def-tjm="6800" data-def-vint="5200">
         <td class="rm-mo" contenteditable="true">M10</td>
-        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£6,800</td>
-        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£5,200</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'tjm')">£6,800</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'vint')">£5,200</td>
         <td class="rm-total rm-calc-combined">£12,000</td>
-        <td><div class="rm-bar" style="width:86%"></div></td>
+        <td class="td-bar"><div class="rm-bar" style="width:86%"></div></td>
       </tr>
-      <tr data-month="11">
+      <tr data-month="11" data-def-tjm="7500" data-def-vint="5700">
         <td class="rm-mo" contenteditable="true">M11</td>
-        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£7,500</td>
-        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£5,700</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'tjm')">£7,500</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'vint')">£5,700</td>
         <td class="rm-total rm-calc-combined">£13,200</td>
-        <td><div class="rm-bar" style="width:94%"></div></td>
+        <td class="td-bar"><div class="rm-bar" style="width:94%"></div></td>
       </tr>
-      <tr class="rm-target" data-month="12">
+      <tr class="rm-target" data-month="12" data-def-tjm="8000" data-def-vint="6000">
         <td class="rm-mo" contenteditable="true">M12</td>
-        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£8,000</td>
-        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£6,000</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'tjm')">£8,000</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmCascade)window.rmCascade(this,'vint')">£6,000</td>
         <td class="rm-total rm-calc-combined">£14,000</td>
-        <td><div class="rm-bar" style="width:100%"></div></td>
+        <td class="td-bar"><div class="rm-bar" style="width:100%"></div></td>
       </tr>
     </tbody>
   </table>
+  </div>
 </div>
 
 <!-- SECTION 3: PHASES -->
@@ -494,6 +520,8 @@ body.light [contenteditable="true"]:focus { background:rgba(201,168,76,0.15);box
 
 <!-- INIT TRIGGER: onerror fires even from innerHTML, unlike <script> tags -->
 <img src="__rm_no_load__" onerror="this.remove();(function(){
+
+  /* ── RECALC: combined totals + bars + phase target labels ── */
   window.rmRecalc = function() {
     var tbody = document.getElementById('rm-milestone-tbody');
     if (!tbody) return;
@@ -507,13 +535,9 @@ body.light [contenteditable="true"]:focus { background:rgba(201,168,76,0.15);box
       var combEl = row.querySelector('.rm-calc-combined');
       var barEl  = row.querySelector('.rm-bar');
       if (!tjmEl || !vintEl || !combEl) return;
-
-      var tjmRaw  = tjmEl.textContent.replace(/[^0-9.]/g,'');
-      var vintRaw = vintEl.textContent.replace(/[^0-9.]/g,'');
-      var tjm  = parseFloat(tjmRaw)  || 0;
-      var vint = parseFloat(vintRaw) || 0;
+      var tjm  = parseFloat(tjmEl.textContent.replace(/[^0-9.]/g,''))  || 0;
+      var vint = parseFloat(vintEl.textContent.replace(/[^0-9.]/g,'')) || 0;
       var comb = tjm + vint;
-
       data.push({ combEl: combEl, barEl: barEl, comb: comb });
       if (comb > maxComb) maxComb = comb;
     });
@@ -532,7 +556,6 @@ body.light [contenteditable="true"]:focus { background:rgba(201,168,76,0.15);box
       rmPhase3Target: [6, 9],
       rmPhase4Target: [10, 12]
     };
-
     Object.keys(phaseMap).forEach(function(targetId) {
       var targetEl = document.getElementById(targetId);
       if (!targetEl) return;
@@ -548,7 +571,52 @@ body.light [contenteditable="true"]:focus { background:rgba(201,168,76,0.15);box
     });
   };
 
-  /* Prevent Enter key from inserting line breaks in single-line fields */
+  /* ── CASCADE: project future months when a cell is edited ── */
+  window.rmCascade = function(cell, stream) {
+    var tbody = document.getElementById('rm-milestone-tbody');
+    if (!tbody) return;
+
+    var editedRow = cell.closest('tr[data-month]');
+    if (!editedRow) { window.rmRecalc(); return; }
+
+    var editedMonth = parseInt(editedRow.getAttribute('data-month'), 10);
+    var editedVal   = parseFloat(cell.textContent.replace(/[^0-9.]/g,'')) || 0;
+
+    /* Default value for this stream at this month (stored on the row as data-attr) */
+    var defKey  = stream === 'tjm' ? 'data-def-tjm' : 'data-def-vint';
+    var defBase = parseFloat(editedRow.getAttribute(defKey)) || 0;
+
+    /* Can't cascade if the default base is zero (Vinted 'Now' row = £0) */
+    var canCascade = defBase > 0;
+
+    /* Walk forward from editedMonth+1 to 12 */
+    var allRows = tbody.querySelectorAll('tr[data-month]');
+    allRows.forEach(function(row) {
+      var month = parseInt(row.getAttribute('data-month'), 10);
+      if (month <= editedMonth) return;
+
+      if (canCascade) {
+        var defFuture = parseFloat(row.getAttribute(defKey)) || 0;
+        /* Project: scale the default future value by ratio of newVal / defaultBase */
+        var projected = Math.round((editedVal * (defFuture / defBase)) / 50) * 50;
+        projected = Math.max(0, projected);
+
+        var targetCell = stream === 'tjm'
+          ? row.querySelector('.rm-edit-tjm')
+          : row.querySelector('.rm-edit-vinted');
+
+        if (targetCell) {
+          targetCell.textContent = '\u00a3' + projected.toLocaleString('en-GB');
+          /* Mark as projected so user knows it was auto-filled */
+          row.classList.add('rm-projected');
+        }
+      }
+    });
+
+    window.rmRecalc();
+  };
+
+  /* ── KEYBOARD: Enter confirms + blurs on single-line fields ── */
   document.querySelectorAll('[contenteditable=\"true\"]').forEach(function(el) {
     var multiline = el.classList.contains('rm-task-text') ||
                     el.classList.contains('rm-task-note') ||
@@ -560,7 +628,7 @@ body.light [contenteditable="true"]:focus { background:rgba(201,168,76,0.15);box
     }
   });
 
-  /* Stop phase accordion toggling when clicking inside editable children */
+  /* ── ACCORDION: stop phase toggle when clicking editable children ── */
   document.querySelectorAll('.rm-phase-body [contenteditable=\"true\"]').forEach(function(el) {
     el.addEventListener('click', function(e) { e.stopPropagation(); });
   });
