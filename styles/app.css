@@ -2042,11 +2042,13 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
   right: 0;
   z-index: 900;
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
   background: #0d0d0d;
   border-top: 1px solid rgba(255,255,255,0.08);
-  /* Fixed 52px tap area + safe area below it */
-  height: calc(52px + env(safe-area-inset-bottom));
+  /* Tall enough so buttons show above iPhone home bar */
+  padding-top: 10px;
+  padding-bottom: env(safe-area-inset-bottom);
+  min-height: calc(56px + env(safe-area-inset-bottom));
 }
 
 .bottom-nav-app-btn {
@@ -2061,9 +2063,8 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
   letter-spacing: 0.3px;
   text-transform: uppercase;
   color: rgba(255,255,255,0.28);
-  /* Padding only at top, bottom pads into safe area zone */
-  padding: 0 1px;
-  padding-bottom: env(safe-area-inset-bottom);
+  padding: 4px 1px 0;
+  height: 36px;
   transition: color 0.15s, border-color 0.15s;
   -webkit-tap-highlight-color: transparent;
   outline: none;
@@ -2087,7 +2088,7 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
 
 /* Push content above the bar */
 .content {
-  padding-bottom: calc(60px + env(safe-area-inset-bottom)) !important;
+  padding-bottom: calc(66px + env(safe-area-inset-bottom)) !important;
 }
 
 /* Light mode */
@@ -2104,7 +2105,7 @@ body.light .bottom-nav-app-btn.active { color: #a07820; border-top-color: #a0782
 ═══════════════════════════════════════════════════════════════════════════ */
 .mobile-more-sheet {
   position: fixed;
-  bottom: calc(52px + env(safe-area-inset-bottom));
+  bottom: calc(56px + env(safe-area-inset-bottom));
   left: 0;
   right: 0;
   z-index: 950;
