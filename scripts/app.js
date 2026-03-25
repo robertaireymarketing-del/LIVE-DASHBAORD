@@ -17,6 +17,7 @@ import { renderProgressTab as renderProgressTabExternal } from './renderProgress
 import { renderCRMTab as renderCRMTabExternal, renderVaultTab as renderVaultTabExternal } from './renderExtras.js';
 import { renderVintedTab as renderVintedTabExternal, renderNottinghamTab as renderNottinghamTabExternal } from './renderProjects.js';
 import { renderFireTab as renderFireTabExternal } from './renderFireTab.js';
+import { renderRoadmapTab as renderRoadmapTabExternal } from './renderRoadmapTab.js';
 import { renderDayPlannerModal as renderDayPlannerModalExternal, renderEmbeddedDayPlanner as renderEmbeddedDayPlannerExternal, renderTimePickerModal as renderTimePickerModalExternal, renderWeekPlanModal as renderWeekPlanModalExternal, renderDatePickerModal as renderDatePickerModalExternal, renderSoldModal as renderSoldModalExternal } from './renderModals.js';
 import { renderRetentionModal as renderRetentionModalExternal, renderPastDaysModal as renderPastDaysModalExternal, renderMonthTargetsModal as renderMonthTargetsModalExternal, renderChallengeModal as renderChallengeModalExternal } from './renderMoreModals.js';
 
@@ -167,6 +168,7 @@ function renderVaultTab() { return renderVaultTabExternal(renderVaultDeps); }
 function renderVintedTab() { return renderVintedTabExternal(renderProjectsDeps); }
 function renderNottinghamTab() { return renderNottinghamTabExternal(renderProjectsDeps); }
 function renderFireTab() { return renderFireTabExternal(renderTabDeps); }
+function renderRoadmapTab() { return renderRoadmapTabExternal(); }
 function renderDayPlannerModal() { return renderDayPlannerModalExternal(renderModalDeps); }
 function renderTimePickerModal() { return renderTimePickerModalExternal(renderModalDeps); }
 function renderWeekPlanModal() { return renderWeekPlanModalExternal(renderModalDeps); }
@@ -220,6 +222,7 @@ function render() {
     ${(() => { try { return state.activeTab === 'notts' ? renderNottinghamTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">NOTTS ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'journal' ? renderJournalTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">JOURNAL ERROR: '+ e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'fire' ? renderFireTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">FIRE ERROR: ' + e.message + '</div>'; }})()}
+    ${(() => { try { return state.activeTab === 'roadmap' ? renderRoadmapTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">ROADMAP ERROR: ' + e.message + '</div>'; }})()}
     </div>
     <div class="mobile-more-sheet ${state.moreMenuOpen ? 'open' : ''}">
       <button class="mobile-more-sheet-close" onclick="toggleMoreMenu()">Close</button>
@@ -230,6 +233,7 @@ function render() {
         <button class="mobile-more-sheet-btn ${state.activeTab === 'crm' ? 'active' : ''}" onclick="setTab('crm')">CRM${getCRMNeedsAction() > 0 ? ' 🔴' : ''}</button>
         <button class="mobile-more-sheet-btn ${state.activeTab === 'vinted' ? 'active' : ''}" onclick="setTab('vinted')">Vinted</button>
         <button class="mobile-more-sheet-btn ${state.activeTab === 'notts' ? 'active' : ''}" onclick="setTab('notts')">Notts</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab === 'roadmap' ? 'active' : ''}" onclick="setTab('roadmap')">Roadmap</button>
         <button class="mobile-more-sheet-btn danger" onclick="handleLogout()">Sign Out</button>
       </div>
     </div>
