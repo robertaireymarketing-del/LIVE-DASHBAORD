@@ -2042,9 +2042,11 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
   right: 0;
   z-index: 900;
   display: flex;
+  align-items: stretch;
   background: #0d0d0d;
   border-top: 1px solid rgba(255,255,255,0.08);
-  padding-bottom: env(safe-area-inset-bottom);
+  /* Fixed 52px tap area + safe area below it */
+  height: calc(52px + env(safe-area-inset-bottom));
 }
 
 .bottom-nav-app-btn {
@@ -2059,7 +2061,9 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
   letter-spacing: 0.3px;
   text-transform: uppercase;
   color: rgba(255,255,255,0.28);
-  padding: 14px 1px;
+  /* Padding only at top, bottom pads into safe area zone */
+  padding: 0 1px;
+  padding-bottom: env(safe-area-inset-bottom);
   transition: color 0.15s, border-color 0.15s;
   -webkit-tap-highlight-color: transparent;
   outline: none;
@@ -2067,6 +2071,9 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .bottom-nav-app-btn.active {
@@ -2080,7 +2087,7 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
 
 /* Push content above the bar */
 .content {
-  padding-bottom: calc(70px + env(safe-area-inset-bottom)) !important;
+  padding-bottom: calc(60px + env(safe-area-inset-bottom)) !important;
 }
 
 /* Light mode */
@@ -2097,7 +2104,7 @@ body.light .bottom-nav-app-btn.active { color: #a07820; border-top-color: #a0782
 ═══════════════════════════════════════════════════════════════════════════ */
 .mobile-more-sheet {
   position: fixed;
-  bottom: calc(60px + env(safe-area-inset-bottom));
+  bottom: calc(52px + env(safe-area-inset-bottom));
   left: 0;
   right: 0;
   z-index: 950;
