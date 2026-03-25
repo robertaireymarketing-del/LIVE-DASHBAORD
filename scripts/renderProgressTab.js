@@ -560,8 +560,16 @@ export function renderProgressTab(deps) {
           })()}
   
           <!-- SYNC LOG -->
-          <div class="section-title">Sync Log</div>
-          <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div class="section-title" style="margin-bottom:0;">Sync Log</div>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <span style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);" id="syncLogToggleLabel">${localStorage.getItem('syncLogHidden')==='true' ? 'Show' : 'Hide'}</span>
+              <div onclick="(function(){const h=localStorage.getItem('syncLogHidden')==='true';localStorage.setItem('syncLogHidden',!h);document.getElementById('syncLogEntries').style.display=h?'flex':'none';document.getElementById('syncLogToggleLabel').textContent=h?'Hide':'Show';const sw=document.getElementById('syncLogSwitch');sw.style.background=h?'#C9A84C':'rgba(255,255,255,0.15)';sw.querySelector('span').style.transform=h?'translateX(18px)':'translateX(2px)';})()" id="syncLogSwitch" style="width:38px;height:22px;border-radius:11px;background:${localStorage.getItem('syncLogHidden')==='true' ? 'rgba(255,255,255,0.15)' : '#C9A84C'};position:relative;transition:background 0.2s;cursor:pointer;">
+                <span style="position:absolute;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform 0.2s;transform:${localStorage.getItem('syncLogHidden')==='true' ? 'translateX(2px)' : 'translateX(18px)'};display:block;"></span>
+              </div>
+            </label>
+          </div>
+          <div id="syncLogEntries" style="display:${localStorage.getItem('syncLogHidden')==='true' ? 'none' : 'flex'};flex-direction:column;gap:6px;">
             ${[...( state.healthData||[])].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,14).map(h => {
               let fmtDate = h.date || '—';
               if (h.date && h.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
