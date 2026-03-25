@@ -3,6 +3,7 @@ export function renderRoadmapTab() {
 return `
 
 <style>
+/* ── CORE LAYOUT ── */
 .rm-section { margin-bottom: 24px; }
 .rm-section-label { font-size:9px;font-weight:900;letter-spacing:3px;color:rgba(255,255,255,0.3);text-transform:uppercase;margin-bottom:4px; }
 .rm-section-title { font-size:18px;font-weight:900;color:#fff;letter-spacing:0.5px;margin-bottom:16px; }
@@ -25,7 +26,7 @@ return `
 .rm-vinted { color:#4CAF79; }
 .rm-total { color:#D4AF37;font-weight:700; }
 .rm-bar-wrap { }
-.rm-bar { height:3px;border-radius:2px;background:linear-gradient(90deg,#C9A84C,#D4AF37);margin-top:5px; }
+.rm-bar { height:3px;border-radius:2px;background:linear-gradient(90deg,#C9A84C,#D4AF37);margin-top:5px;transition:width 0.3s ease; }
 .rm-phase { border:1px solid rgba(201,168,76,0.18);border-radius:10px;overflow:hidden;margin-bottom:10px; }
 .rm-phase-header { padding:16px;display:flex;align-items:flex-start;gap:12px;cursor:pointer;background:#141414;-webkit-tap-highlight-color:transparent; }
 .rm-phase-num { font-size:28px;font-weight:900;color:rgba(255,255,255,0.08);line-height:1;min-width:28px; }
@@ -65,6 +66,50 @@ return `
 .rm-truth { padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.5; }
 .rm-truth:last-child { border-bottom:none; }
 
+/* ── EDIT SYSTEM ── */
+.rm-edit-bar {
+  display:flex;align-items:center;gap:8px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);
+  border-radius:8px;padding:9px 14px;margin-bottom:18px;font-size:11px;color:rgba(255,255,255,0.5);
+}
+.rm-edit-bar-dot { width:6px;height:6px;border-radius:50%;background:#C9A84C;animation:rmPulse 2s infinite; }
+@keyframes rmPulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+.rm-edit-bar strong { color:#D4AF37;font-weight:700; }
+.rm-calc-tag {
+  display:inline-block;font-size:8px;font-weight:900;letter-spacing:1px;color:rgba(201,168,76,0.5);
+  text-transform:uppercase;vertical-align:middle;margin-left:4px;
+}
+
+[contenteditable="true"] {
+  outline: none;
+  cursor: text;
+  border-radius: 3px;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+[contenteditable="true"]:hover {
+  background: rgba(201,168,76,0.07);
+}
+[contenteditable="true"]:focus {
+  background: rgba(201,168,76,0.12);
+  box-shadow: 0 0 0 1.5px rgba(201,168,76,0.4);
+}
+/* Milestone table edit cells */
+.rm-edit-tjm[contenteditable="true"],
+.rm-edit-vinted[contenteditable="true"] {
+  padding: 2px 4px;
+  border-radius: 3px;
+  min-width: 30px;
+  display: inline-block;
+}
+/* Time chips editable */
+.rm-time[contenteditable="true"] {
+  cursor: text;
+}
+/* Calculated (non-editable) combined cells */
+.rm-calc-combined {
+  pointer-events: none;
+  opacity: 0.9;
+}
+
 /* ── LIGHT MODE OVERRIDES ── */
 body.light .rm-section-label { color:rgba(0,0,0,0.4); }
 body.light .rm-section-title { color:#111; }
@@ -97,264 +142,430 @@ body.light .rm-hero-sub { color:rgba(0,0,0,0.5) !important; }
 body.light .rm-hero-wrap { background:linear-gradient(145deg,#fdf9ee,#f5f0e0) !important;border-color:rgba(201,168,76,0.4) !important; }
 body.light .rm-strong { color:#111 !important; }
 body.light .rm-metric-item-muted { color:rgba(0,0,0,0.4) !important; }
+body.light .rm-edit-bar { background:rgba(201,168,76,0.06);color:rgba(0,0,0,0.45); }
+body.light [contenteditable="true"]:hover { background:rgba(201,168,76,0.08); }
+body.light [contenteditable="true"]:focus { background:rgba(201,168,76,0.15);box-shadow:0 0 0 1.5px rgba(201,168,76,0.5); }
 .rm-strong { color:#fff; }
 </style>
+
+<!-- EDIT HINT BAR -->
+<div class="rm-edit-bar">
+  <div class="rm-edit-bar-dot"></div>
+  <span><strong>Fully editable.</strong> Tap any text, number, or time block to edit it. Milestone table updates totals &amp; phase targets automatically.</span>
+</div>
 
 <!-- HERO BANNER -->
 <div class="rm-hero-wrap" style="background:linear-gradient(145deg,#111008,#0a0a0a);border:1px solid rgba(201,168,76,0.25);border-radius:12px;padding:20px;margin-bottom:24px;position:relative;overflow:hidden;">
   <div style="position:absolute;top:-40px;right:-40px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(201,168,76,0.07) 0%,transparent 70%);pointer-events:none;"></div>
-  <div style="font-size:9px;font-weight:900;letter-spacing:3px;color:#C9A84C;text-transform:uppercase;margin-bottom:10px;">TJM + Vinted — 12 Month Plan</div>
-  <div class="rm-hero-text-main" style="font-size:26px;font-weight:900;color:#fff;line-height:1.1;margin-bottom:4px;">£10k/<span style="color:#D4AF37;">Month</span></div>
-  <div class="rm-hero-sub" style="font-size:12px;color:rgba(255,255,255,0.35);margin-bottom:16px;">Two income streams. One number to hit. 12 months.</div>
+  <div style="font-size:9px;font-weight:900;letter-spacing:3px;color:#C9A84C;text-transform:uppercase;margin-bottom:10px;" contenteditable="true">TJM + Vinted — 12 Month Plan</div>
+  <div class="rm-hero-text-main" style="font-size:26px;font-weight:900;color:#fff;line-height:1.1;margin-bottom:4px;" contenteditable="true">£10k/<span style="color:#D4AF37;">Month</span></div>
+  <div class="rm-hero-sub" style="font-size:12px;color:rgba(255,255,255,0.35);margin-bottom:16px;" contenteditable="true">Two income streams. One number to hit. 12 months.</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.2);border-radius:4px;padding:5px 10px;font-size:10px;font-weight:700;color:#D4AF37;letter-spacing:0.5px;">TJM Target: £8k profit/mo</div>
-    <div style="background:rgba(76,175,121,0.1);border:1px solid rgba(76,175,121,0.2);border-radius:4px;padding:5px 10px;font-size:10px;font-weight:700;color:#4CAF79;letter-spacing:0.5px;">Vinted Target: £6k profit/mo</div>
+    <div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.2);border-radius:4px;padding:5px 10px;font-size:10px;font-weight:700;color:#D4AF37;letter-spacing:0.5px;" contenteditable="true">TJM Target: £8k profit/mo</div>
+    <div style="background:rgba(76,175,121,0.1);border:1px solid rgba(76,175,121,0.2);border-radius:4px;padding:5px 10px;font-size:10px;font-weight:700;color:#4CAF79;letter-spacing:0.5px;" contenteditable="true">Vinted Target: £6k profit/mo</div>
   </div>
 </div>
 
 <!-- SECTION 1: THE MATH -->
 <div class="rm-section">
-  <div class="rm-section-label">Section 01</div>
-  <div class="rm-section-title">The Numbers</div>
+  <div class="rm-section-label" contenteditable="true">Section 01</div>
+  <div class="rm-section-title" contenteditable="true">The Numbers</div>
   <div class="rm-math-grid">
     <div class="rm-math-card">
-      <div class="rm-math-label">Business profit needed (Ltd Co)</div>
-      <div class="rm-math-value">£14k</div>
-      <div class="rm-math-sub">per month gross</div>
+      <div class="rm-math-label" contenteditable="true">Business profit needed (Ltd Co)</div>
+      <div class="rm-math-value" contenteditable="true">£14k</div>
+      <div class="rm-math-sub" contenteditable="true">per month gross</div>
     </div>
     <div class="rm-math-card">
-      <div class="rm-math-label">After corp tax + dividends</div>
-      <div class="rm-math-value">~£10k</div>
-      <div class="rm-math-sub">take-home</div>
+      <div class="rm-math-label" contenteditable="true">After corp tax + dividends</div>
+      <div class="rm-math-value" contenteditable="true">~£10k</div>
+      <div class="rm-math-sub" contenteditable="true">take-home</div>
     </div>
     <div class="rm-math-card">
-      <div class="rm-math-label">TJM — Orders needed/day</div>
-      <div class="rm-math-value">7–8</div>
-      <div class="rm-math-sub">at £75 AOV, 47.5% margin → £8k profit</div>
+      <div class="rm-math-label" contenteditable="true">TJM — Orders needed/day</div>
+      <div class="rm-math-value" contenteditable="true">7–8</div>
+      <div class="rm-math-sub" contenteditable="true">at £75 AOV, 47.5% margin → £8k profit</div>
     </div>
     <div class="rm-math-card">
-      <div class="rm-math-label">Vinted — Sales needed/day</div>
-      <div class="rm-math-value">11–12</div>
-      <div class="rm-math-sub">at £20 avg, 55% margin → £6k profit</div>
+      <div class="rm-math-label" contenteditable="true">Vinted — Sales needed/day</div>
+      <div class="rm-math-value" contenteditable="true">11–12</div>
+      <div class="rm-math-sub" contenteditable="true">at £20 avg, 55% margin → £6k profit</div>
     </div>
     <div class="rm-math-card full highlight">
-      <div class="rm-math-label">Gap to close from today</div>
-      <div class="rm-math-value">£13,500/month profit</div>
-      <div class="rm-math-sub">= +£1,125 profit per month, every month for 12 months</div>
+      <div class="rm-math-label" contenteditable="true">Gap to close from today</div>
+      <div class="rm-math-value" contenteditable="true">£13,500/month profit</div>
+      <div class="rm-math-sub" contenteditable="true">= +£1,125 profit per month, every month for 12 months</div>
     </div>
   </div>
-  <div class="rm-note">⚠️ Verify exact tax position with your accountant. £14k→£10k assumes basic-rate dividends above personal allowance salary. Corp tax at 25% main rate.</div>
+  <div class="rm-note" contenteditable="true">⚠️ Verify exact tax position with your accountant. £14k→£10k assumes basic-rate dividends above personal allowance salary. Corp tax at 25% main rate.</div>
 </div>
 
 <!-- SECTION 2: MILESTONES -->
 <div class="rm-section">
-  <div class="rm-section-label">Section 02</div>
-  <div class="rm-section-title">Monthly Profit Milestones</div>
+  <div class="rm-section-label" contenteditable="true">Section 02</div>
+  <div class="rm-section-title" contenteditable="true">Monthly Profit Milestones</div>
   <table class="rm-milestone-table">
     <thead>
       <tr>
-        <th>Mo</th><th>TJM</th><th>Vinted</th><th>Combined</th><th style="width:60px"></th>
+        <th contenteditable="true">Mo</th>
+        <th contenteditable="true">TJM</th>
+        <th contenteditable="true">Vinted</th>
+        <th>Combined <span class="rm-calc-tag">auto</span></th>
+        <th style="width:60px"></th>
       </tr>
     </thead>
-    <tbody>
-      <tr class="rm-current"><td class="rm-mo">Now</td><td class="rm-tjm">£200</td><td class="rm-vinted">£0</td><td class="rm-total">£200</td><td><div class="rm-bar" style="width:1%"></div></td></tr>
-      <tr><td class="rm-mo">M1</td><td class="rm-tjm">£400</td><td class="rm-vinted">£300</td><td class="rm-total">£700</td><td><div class="rm-bar" style="width:5%"></div></td></tr>
-      <tr><td class="rm-mo">M2</td><td class="rm-tjm">£700</td><td class="rm-vinted">£600</td><td class="rm-total">£1,300</td><td><div class="rm-bar" style="width:9%"></div></td></tr>
-      <tr><td class="rm-mo">M3</td><td class="rm-tjm">£1,100</td><td class="rm-vinted">£1,000</td><td class="rm-total">£2,100</td><td><div class="rm-bar" style="width:15%"></div></td></tr>
-      <tr><td class="rm-mo">M4</td><td class="rm-tjm">£1,700</td><td class="rm-vinted">£1,500</td><td class="rm-total">£3,200</td><td><div class="rm-bar" style="width:23%"></div></td></tr>
-      <tr><td class="rm-mo">M5</td><td class="rm-tjm">£2,400</td><td class="rm-vinted">£2,000</td><td class="rm-total">£4,400</td><td><div class="rm-bar" style="width:31%"></div></td></tr>
-      <tr><td class="rm-mo">M6</td><td class="rm-tjm">£3,200</td><td class="rm-vinted">£2,500</td><td class="rm-total">£5,700</td><td><div class="rm-bar" style="width:41%"></div></td></tr>
-      <tr><td class="rm-mo">M7</td><td class="rm-tjm">£4,200</td><td class="rm-vinted">£3,000</td><td class="rm-total">£7,200</td><td><div class="rm-bar" style="width:51%"></div></td></tr>
-      <tr><td class="rm-mo">M8</td><td class="rm-tjm">£5,200</td><td class="rm-vinted">£3,800</td><td class="rm-total">£9,000</td><td><div class="rm-bar" style="width:64%"></div></td></tr>
-      <tr><td class="rm-mo">M9</td><td class="rm-tjm">£6,000</td><td class="rm-vinted">£4,500</td><td class="rm-total">£10,500</td><td><div class="rm-bar" style="width:75%"></div></td></tr>
-      <tr><td class="rm-mo">M10</td><td class="rm-tjm">£6,800</td><td class="rm-vinted">£5,200</td><td class="rm-total">£12,000</td><td><div class="rm-bar" style="width:86%"></div></td></tr>
-      <tr><td class="rm-mo">M11</td><td class="rm-tjm">£7,500</td><td class="rm-vinted">£5,700</td><td class="rm-total">£13,200</td><td><div class="rm-bar" style="width:94%"></div></td></tr>
-      <tr class="rm-target"><td class="rm-mo">M12</td><td class="rm-tjm">£8,000</td><td class="rm-vinted">£6,000</td><td class="rm-total">£14,000</td><td><div class="rm-bar" style="width:100%"></div></td></tr>
+    <tbody id="rm-milestone-tbody">
+      <tr class="rm-current" data-month="0">
+        <td class="rm-mo" contenteditable="true">Now</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£200</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£0</td>
+        <td class="rm-total rm-calc-combined">£200</td>
+        <td><div class="rm-bar" style="width:1%"></div></td>
+      </tr>
+      <tr data-month="1">
+        <td class="rm-mo" contenteditable="true">M1</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£400</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£300</td>
+        <td class="rm-total rm-calc-combined">£700</td>
+        <td><div class="rm-bar" style="width:5%"></div></td>
+      </tr>
+      <tr data-month="2">
+        <td class="rm-mo" contenteditable="true">M2</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£700</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£600</td>
+        <td class="rm-total rm-calc-combined">£1,300</td>
+        <td><div class="rm-bar" style="width:9%"></div></td>
+      </tr>
+      <tr data-month="3">
+        <td class="rm-mo" contenteditable="true">M3</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£1,100</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£1,000</td>
+        <td class="rm-total rm-calc-combined">£2,100</td>
+        <td><div class="rm-bar" style="width:15%"></div></td>
+      </tr>
+      <tr data-month="4">
+        <td class="rm-mo" contenteditable="true">M4</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£1,700</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£1,500</td>
+        <td class="rm-total rm-calc-combined">£3,200</td>
+        <td><div class="rm-bar" style="width:23%"></div></td>
+      </tr>
+      <tr data-month="5">
+        <td class="rm-mo" contenteditable="true">M5</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£2,400</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£2,000</td>
+        <td class="rm-total rm-calc-combined">£4,400</td>
+        <td><div class="rm-bar" style="width:31%"></div></td>
+      </tr>
+      <tr data-month="6">
+        <td class="rm-mo" contenteditable="true">M6</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£3,200</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£2,500</td>
+        <td class="rm-total rm-calc-combined">£5,700</td>
+        <td><div class="rm-bar" style="width:41%"></div></td>
+      </tr>
+      <tr data-month="7">
+        <td class="rm-mo" contenteditable="true">M7</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£4,200</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£3,000</td>
+        <td class="rm-total rm-calc-combined">£7,200</td>
+        <td><div class="rm-bar" style="width:51%"></div></td>
+      </tr>
+      <tr data-month="8">
+        <td class="rm-mo" contenteditable="true">M8</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£5,200</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£3,800</td>
+        <td class="rm-total rm-calc-combined">£9,000</td>
+        <td><div class="rm-bar" style="width:64%"></div></td>
+      </tr>
+      <tr data-month="9">
+        <td class="rm-mo" contenteditable="true">M9</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£6,000</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£4,500</td>
+        <td class="rm-total rm-calc-combined">£10,500</td>
+        <td><div class="rm-bar" style="width:75%"></div></td>
+      </tr>
+      <tr data-month="10">
+        <td class="rm-mo" contenteditable="true">M10</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£6,800</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£5,200</td>
+        <td class="rm-total rm-calc-combined">£12,000</td>
+        <td><div class="rm-bar" style="width:86%"></div></td>
+      </tr>
+      <tr data-month="11">
+        <td class="rm-mo" contenteditable="true">M11</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£7,500</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£5,700</td>
+        <td class="rm-total rm-calc-combined">£13,200</td>
+        <td><div class="rm-bar" style="width:94%"></div></td>
+      </tr>
+      <tr class="rm-target" data-month="12">
+        <td class="rm-mo" contenteditable="true">M12</td>
+        <td class="rm-tjm rm-edit-tjm" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£8,000</td>
+        <td class="rm-vinted rm-edit-vinted" contenteditable="true" oninput="if(window.rmRecalc)window.rmRecalc()">£6,000</td>
+        <td class="rm-total rm-calc-combined">£14,000</td>
+        <td><div class="rm-bar" style="width:100%"></div></td>
+      </tr>
     </tbody>
   </table>
 </div>
 
 <!-- SECTION 3: PHASES -->
 <div class="rm-section">
-  <div class="rm-section-label">Section 03</div>
-  <div class="rm-section-title">Daily Tasks by Phase</div>
-  <p style="font-size:12px;color:rgba(255,255,255,0.35);margin-bottom:16px;">Tap each phase to expand your daily actions.</p>
+  <div class="rm-section-label" contenteditable="true">Section 03</div>
+  <div class="rm-section-title" contenteditable="true">Daily Tasks by Phase</div>
+  <p style="font-size:12px;color:rgba(255,255,255,0.35);margin-bottom:16px;" contenteditable="true">Tap each phase to expand your daily actions.</p>
 
   <!-- PHASE 1 -->
   <div class="rm-phase rm-open" id="rmPhase1">
     <div class="rm-phase-header" onclick="document.getElementById('rmPhase1').classList.toggle('rm-open')">
-      <div class="rm-phase-num">01</div>
+      <div class="rm-phase-num" contenteditable="true" onclick="event.stopPropagation()">01</div>
       <div class="rm-phase-text">
-        <div class="rm-phase-badge" style="color:#5B9BD5;">Foundation</div>
-        <div class="rm-phase-title">Build the Machine</div>
-        <div class="rm-phase-months">Months 1–2</div>
+        <div class="rm-phase-badge" style="color:#5B9BD5;" contenteditable="true" onclick="event.stopPropagation()">Foundation</div>
+        <div class="rm-phase-title" contenteditable="true" onclick="event.stopPropagation()">Build the Machine</div>
+        <div class="rm-phase-months" contenteditable="true" onclick="event.stopPropagation()">Months 1–2</div>
       </div>
       <div class="rm-phase-right">
-        <div class="rm-phase-target">£700 → £1,300</div>
+        <div class="rm-phase-target" id="rmPhase1Target">£700 → £1,300</div>
         <div class="rm-phase-chevron">▾</div>
       </div>
     </div>
     <div class="rm-phase-body">
-      <div class="rm-stream-head tjm">— TJM Daily Tasks</div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Go live on TikTok (5pm–6:30pm) <span class="rm-badge-nn">Non-negotiable</span><span class="rm-task-note">5x per week minimum. This is your #1 revenue driver right now.</span></div><div class="rm-time">90 min</div></div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Post 1 sales content piece<span class="rm-task-note">Product shot + price + clear CTA. Simple. Repeat daily.</span></div><div class="rm-time">10 min</div></div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Post 1 growth/value piece<span class="rm-task-note">Education, story, behind-the-scenes. Builds the audience that buys.</span></div><div class="rm-time">10 min</div></div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Send 10 DMs to warm leads<span class="rm-task-note">Anyone who watched your live, commented or followed in last 7 days.</span></div><div class="rm-time">20 min</div></div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Add 1 product to Shopify with full copy + photos<span class="rm-task-note">Proper title, description, tags, SEO slug. No half-done listings.</span></div><div class="rm-time">15 min</div></div>
-      <div class="rm-stream-head va">— VA Daily Tasks (Brief this week)</div>
-      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text">Edit + schedule 2 TikTok posts from raw footage <span class="rm-badge-va">VA</span></div></div>
-      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text">Reply to all TikTok/Instagram comments within 2 hours <span class="rm-badge-va">VA</span></div></div>
-      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text">Log every new lead/enquiry into CRM <span class="rm-badge-va">VA</span></div></div>
-      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text">Photograph + basic edit 10 Vinted items per day <span class="rm-badge-va">VA</span></div></div>
-      <div class="rm-stream-head vinted">— Vinted Daily Tasks</div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">List 10 items (until all current stock is live)<span class="rm-task-note">Goal: 100+ listings live by end of Month 1. You have the stock — this is just execution.</span></div><div class="rm-time">30 min</div></div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">Reply to all buyer messages within 1 hour <span class="rm-badge-va">VA assists</span></div></div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">Package + ship sold items daily (batch at post office)</div></div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">Note what sells and at what price<span class="rm-task-note">This data tells you what to restock. Don't skip it.</span></div></div>
+      <div class="rm-stream-head tjm" contenteditable="true">— TJM Daily Tasks</div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Go live on TikTok (5pm–6:30pm) <span class="rm-badge-nn">Non-negotiable</span><span class="rm-task-note">5x per week minimum. This is your #1 revenue driver right now.</span></div><div class="rm-time" contenteditable="true">90 min</div></div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Post 1 sales content piece<span class="rm-task-note">Product shot + price + clear CTA. Simple. Repeat daily.</span></div><div class="rm-time" contenteditable="true">10 min</div></div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Post 1 growth/value piece<span class="rm-task-note">Education, story, behind-the-scenes. Builds the audience that buys.</span></div><div class="rm-time" contenteditable="true">10 min</div></div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Send 10 DMs to warm leads<span class="rm-task-note">Anyone who watched your live, commented or followed in last 7 days.</span></div><div class="rm-time" contenteditable="true">20 min</div></div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Add 1 product to Shopify with full copy + photos<span class="rm-task-note">Proper title, description, tags, SEO slug. No half-done listings.</span></div><div class="rm-time" contenteditable="true">15 min</div></div>
+      <div class="rm-stream-head va" contenteditable="true">— VA Daily Tasks (Brief this week)</div>
+      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text" contenteditable="true">Edit + schedule 2 TikTok posts from raw footage <span class="rm-badge-va">VA</span></div></div>
+      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text" contenteditable="true">Reply to all TikTok/Instagram comments within 2 hours <span class="rm-badge-va">VA</span></div></div>
+      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text" contenteditable="true">Log every new lead/enquiry into CRM <span class="rm-badge-va">VA</span></div></div>
+      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text" contenteditable="true">Photograph + basic edit 10 Vinted items per day <span class="rm-badge-va">VA</span></div></div>
+      <div class="rm-stream-head vinted" contenteditable="true">— Vinted Daily Tasks</div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">List 10 items (until all current stock is live)<span class="rm-task-note">Goal: 100+ listings live by end of Month 1. You have the stock — this is just execution.</span></div><div class="rm-time" contenteditable="true">30 min</div></div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">Reply to all buyer messages within 1 hour <span class="rm-badge-va">VA assists</span></div></div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">Package + ship sold items daily (batch at post office)</div></div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">Note what sells and at what price<span class="rm-task-note">This data tells you what to restock. Don't skip it.</span></div></div>
     </div>
   </div>
 
   <!-- PHASE 2 -->
   <div class="rm-phase" id="rmPhase2">
     <div class="rm-phase-header" onclick="document.getElementById('rmPhase2').classList.toggle('rm-open')">
-      <div class="rm-phase-num">02</div>
+      <div class="rm-phase-num" contenteditable="true" onclick="event.stopPropagation()">02</div>
       <div class="rm-phase-text">
-        <div class="rm-phase-badge" style="color:#4CAF79;">Momentum</div>
-        <div class="rm-phase-title">Turn Up the Dial</div>
-        <div class="rm-phase-months">Months 3–5</div>
+        <div class="rm-phase-badge" style="color:#4CAF79;" contenteditable="true" onclick="event.stopPropagation()">Momentum</div>
+        <div class="rm-phase-title" contenteditable="true" onclick="event.stopPropagation()">Turn Up the Dial</div>
+        <div class="rm-phase-months" contenteditable="true" onclick="event.stopPropagation()">Months 3–5</div>
       </div>
       <div class="rm-phase-right">
-        <div class="rm-phase-target">£2,100 → £4,400</div>
+        <div class="rm-phase-target" id="rmPhase2Target">£2,100 → £4,400</div>
         <div class="rm-phase-chevron">▾</div>
       </div>
     </div>
     <div class="rm-phase-body">
-      <div class="rm-stream-head tjm">— TJM Daily Tasks</div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">TikTok Live every weekday <span class="rm-badge-nn">Non-negotiable</span><span class="rm-task-note">You now have a track record — protect it. Consistency builds algorithmic trust.</span></div><div class="rm-time">90 min</div></div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">1 sales post — start testing formats<span class="rm-task-note">Rotate: bundles, urgency, social proof, before/after. Track which converts best.</span></div><div class="rm-time">10 min</div></div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">15+ DM follow-ups per day<span class="rm-task-note">Prioritise anyone who engaged in last 7 days. Use a script — vary the opener.</span></div><div class="rm-time">25 min</div></div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Weekly email to your list (even if 50 people — start now)<span class="rm-task-note">You write the angle, VA formats and sends. One revenue email per week.</span></div><div class="rm-time">20 min/wk</div></div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Add 2 new products to Shopify per week</div><div class="rm-time">30 min/wk</div></div>
-      <div class="rm-stream-head va">— VA Daily Tasks (Expand their role)</div>
-      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text">Edit + schedule 3 TikTok posts per day <span class="rm-badge-va">VA</span></div></div>
-      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text">Repurpose 1 TikTok as Instagram Reel daily <span class="rm-badge-va">VA</span></div></div>
-      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text">CRM updated daily — new leads, follow-up dates logged <span class="rm-badge-va">VA</span></div></div>
-      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text">Vinted pipeline: VA now manages all listing (15+ items/day) <span class="rm-badge-va">VA leads</span></div></div>
-      <div class="rm-stream-head vinted">— Vinted Daily Tasks</div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">VA leads listing (15+ items/day) — Robert reviews pricing weekly <span class="rm-badge-va">VA leads</span></div></div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">Target: 150+ active listings live by end of Month 3<span class="rm-task-note">More listings = more surface area = more passive sales while you sleep.</span></div></div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">Restock order placed when live listings drop below 100</div></div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">Ship daily or batch every 2 days</div><div class="rm-time">15 min</div></div>
+      <div class="rm-stream-head tjm" contenteditable="true">— TJM Daily Tasks</div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">TikTok Live every weekday <span class="rm-badge-nn">Non-negotiable</span><span class="rm-task-note">You now have a track record — protect it. Consistency builds algorithmic trust.</span></div><div class="rm-time" contenteditable="true">90 min</div></div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">1 sales post — start testing formats<span class="rm-task-note">Rotate: bundles, urgency, social proof, before/after. Track which converts best.</span></div><div class="rm-time" contenteditable="true">10 min</div></div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">15+ DM follow-ups per day<span class="rm-task-note">Prioritise anyone who engaged in last 7 days. Use a script — vary the opener.</span></div><div class="rm-time" contenteditable="true">25 min</div></div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Weekly email to your list (even if 50 people — start now)<span class="rm-task-note">You write the angle, VA formats and sends. One revenue email per week.</span></div><div class="rm-time" contenteditable="true">20 min/wk</div></div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Add 2 new products to Shopify per week</div><div class="rm-time" contenteditable="true">30 min/wk</div></div>
+      <div class="rm-stream-head va" contenteditable="true">— VA Daily Tasks (Expand their role)</div>
+      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text" contenteditable="true">Edit + schedule 3 TikTok posts per day <span class="rm-badge-va">VA</span></div></div>
+      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text" contenteditable="true">Repurpose 1 TikTok as Instagram Reel daily <span class="rm-badge-va">VA</span></div></div>
+      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text" contenteditable="true">CRM updated daily — new leads, follow-up dates logged <span class="rm-badge-va">VA</span></div></div>
+      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text" contenteditable="true">Vinted pipeline: VA now manages all listing (15+ items/day) <span class="rm-badge-va">VA leads</span></div></div>
+      <div class="rm-stream-head vinted" contenteditable="true">— Vinted Daily Tasks</div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">VA leads listing (15+ items/day) — Robert reviews pricing weekly <span class="rm-badge-va">VA leads</span></div></div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">Target: 150+ active listings live by end of Month 3<span class="rm-task-note">More listings = more surface area = more passive sales while you sleep.</span></div></div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">Restock order placed when live listings drop below 100</div></div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">Ship daily or batch every 2 days</div><div class="rm-time" contenteditable="true">15 min</div></div>
     </div>
   </div>
 
   <!-- PHASE 3 -->
   <div class="rm-phase" id="rmPhase3">
     <div class="rm-phase-header" onclick="document.getElementById('rmPhase3').classList.toggle('rm-open')">
-      <div class="rm-phase-num">03</div>
+      <div class="rm-phase-num" contenteditable="true" onclick="event.stopPropagation()">03</div>
       <div class="rm-phase-text">
-        <div class="rm-phase-badge" style="color:#D4AF37;">Scale</div>
-        <div class="rm-phase-title">Systemise Everything</div>
-        <div class="rm-phase-months">Months 6–9</div>
+        <div class="rm-phase-badge" style="color:#D4AF37;" contenteditable="true" onclick="event.stopPropagation()">Scale</div>
+        <div class="rm-phase-title" contenteditable="true" onclick="event.stopPropagation()">Systemise Everything</div>
+        <div class="rm-phase-months" contenteditable="true" onclick="event.stopPropagation()">Months 6–9</div>
       </div>
       <div class="rm-phase-right">
-        <div class="rm-phase-target">£5,700 → £10,500</div>
+        <div class="rm-phase-target" id="rmPhase3Target">£5,700 → £10,500</div>
         <div class="rm-phase-chevron">▾</div>
       </div>
     </div>
     <div class="rm-phase-body">
-      <div class="rm-stream-head tjm">— TJM Daily Tasks (Robert's time drops)</div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Live 5x/week <span class="rm-badge-nn">Non-negotiable</span><span class="rm-task-note">Robert's one remaining daily job is the live stream + DM closing. Everything else delegated.</span></div><div class="rm-time">90 min</div></div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Close DMs from live — 20+ per day, use urgency and social proof</div><div class="rm-time">30 min</div></div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Weekly: review sales data — identify top 20% SKUs, reorder stock</div><div class="rm-time">20 min/wk</div></div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Monthly: launch 1 new product line or bundle offer</div></div>
-      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text">VA handles 100% of content scheduling, CRM, email sends <span class="rm-badge-va">VA</span></div></div>
-      <div class="rm-stream-head vinted">— Vinted (VA-Led)</div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">VA fully manages listing pipeline end-to-end <span class="rm-badge-va">VA</span></div></div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">Target: 400+ active listings maintained<span class="rm-task-note">At 2% daily sell-through on 400 listings = 8 sales/day. The maths works at volume.</span></div></div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">Robert: weekly audit only — sell-through, pricing, profit vs target</div><div class="rm-time">15 min/wk</div></div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">Monthly restock placed from Vinted profits (self-funding)</div></div>
+      <div class="rm-stream-head tjm" contenteditable="true">— TJM Daily Tasks (Robert's time drops)</div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Live 5x/week <span class="rm-badge-nn">Non-negotiable</span><span class="rm-task-note">Robert's one remaining daily job is the live stream + DM closing. Everything else delegated.</span></div><div class="rm-time" contenteditable="true">90 min</div></div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Close DMs from live — 20+ per day, use urgency and social proof</div><div class="rm-time" contenteditable="true">30 min</div></div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Weekly: review sales data — identify top 20% SKUs, reorder stock</div><div class="rm-time" contenteditable="true">20 min/wk</div></div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Monthly: launch 1 new product line or bundle offer</div></div>
+      <div class="rm-task"><div class="rm-dot purple"></div><div class="rm-task-text" contenteditable="true">VA handles 100% of content scheduling, CRM, email sends <span class="rm-badge-va">VA</span></div></div>
+      <div class="rm-stream-head vinted" contenteditable="true">— Vinted (VA-Led)</div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">VA fully manages listing pipeline end-to-end <span class="rm-badge-va">VA</span></div></div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">Target: 400+ active listings maintained<span class="rm-task-note">At 2% daily sell-through on 400 listings = 8 sales/day. The maths works at volume.</span></div></div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">Robert: weekly audit only — sell-through, pricing, profit vs target</div><div class="rm-time" contenteditable="true">15 min/wk</div></div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">Monthly restock placed from Vinted profits (self-funding)</div></div>
     </div>
   </div>
 
   <!-- PHASE 4 -->
   <div class="rm-phase" id="rmPhase4">
     <div class="rm-phase-header" onclick="document.getElementById('rmPhase4').classList.toggle('rm-open')">
-      <div class="rm-phase-num">04</div>
+      <div class="rm-phase-num" contenteditable="true" onclick="event.stopPropagation()">04</div>
       <div class="rm-phase-text">
-        <div class="rm-phase-badge" style="color:#CF6679;">Optimise</div>
-        <div class="rm-phase-title">Hit the Number</div>
-        <div class="rm-phase-months">Months 10–12</div>
+        <div class="rm-phase-badge" style="color:#CF6679;" contenteditable="true" onclick="event.stopPropagation()">Optimise</div>
+        <div class="rm-phase-title" contenteditable="true" onclick="event.stopPropagation()">Hit the Number</div>
+        <div class="rm-phase-months" contenteditable="true" onclick="event.stopPropagation()">Months 10–12</div>
       </div>
       <div class="rm-phase-right">
-        <div class="rm-phase-target">£12,000 → £14,000</div>
+        <div class="rm-phase-target" id="rmPhase4Target">£12,000 → £14,000</div>
         <div class="rm-phase-chevron">▾</div>
       </div>
     </div>
     <div class="rm-phase-body">
-      <div class="rm-stream-head tjm">— TJM: Focus Shifts to AOV + Conversion</div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Introduce £100–150 products and bundle deals on live<span class="rm-task-note">You don't need more orders — you need bigger orders. Push AOV from £75 to £95+.</span></div></div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Email list becomes a weekly revenue channel — "drop" style sends</div></div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Shopify organic traffic starting to contribute (SEO from 5+ months of listings)</div></div>
-      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text">Review: what's driving 80% of revenue? Double it. Cut the rest.</div></div>
-      <div class="rm-stream-head vinted">— Vinted: Move Up the Value Chain</div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">Shift sourcing toward branded/hallmarked higher-margin pieces</div></div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">Push average selling price from £20 → £30+<span class="rm-task-note">Same volume, 50% more revenue. That's the Vinted lever at this stage.</span></div></div>
-      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text">VA handles 95% — Robert reviews P&L weekly, nothing more</div></div>
+      <div class="rm-stream-head tjm" contenteditable="true">— TJM: Focus Shifts to AOV + Conversion</div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Introduce £100–150 products and bundle deals on live<span class="rm-task-note">You don't need more orders — you need bigger orders. Push AOV from £75 to £95+.</span></div></div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Email list becomes a weekly revenue channel — "drop" style sends</div></div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Shopify organic traffic starting to contribute (SEO from 5+ months of listings)</div></div>
+      <div class="rm-task"><div class="rm-dot blue"></div><div class="rm-task-text" contenteditable="true">Review: what's driving 80% of revenue? Double it. Cut the rest.</div></div>
+      <div class="rm-stream-head vinted" contenteditable="true">— Vinted: Move Up the Value Chain</div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">Shift sourcing toward branded/hallmarked higher-margin pieces</div></div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">Push average selling price from £20 → £30+<span class="rm-task-note">Same volume, 50% more revenue. That's the Vinted lever at this stage.</span></div></div>
+      <div class="rm-task"><div class="rm-dot green"></div><div class="rm-task-text" contenteditable="true">VA handles 95% — Robert reviews P&amp;L weekly, nothing more</div></div>
     </div>
   </div>
 </div>
 
 <!-- SECTION 4: WEEKLY REVIEW -->
 <div class="rm-section">
-  <div class="rm-section-label">Section 04</div>
-  <div class="rm-section-title">Weekly Review — Every Sunday (30 min)</div>
-  <div class="rm-task"><div class="rm-dot gold"></div><div class="rm-task-text">TJM: Live viewers → DMs generated → conversion to sales. Is the funnel moving?</div></div>
-  <div class="rm-task"><div class="rm-dot gold"></div><div class="rm-task-text">TJM: Revenue vs monthly milestone — on track, behind, or ahead?</div></div>
-  <div class="rm-task"><div class="rm-dot gold"></div><div class="rm-task-text">Vinted: Active listings / items sold / avg sale price / weekly profit</div></div>
-  <div class="rm-task"><div class="rm-dot gold"></div><div class="rm-task-text">VA brief for next week — content themes, restock needs, priorities</div></div>
-  <div class="rm-task"><div class="rm-dot gold"></div><div class="rm-task-text">Personal energy check — what drained you most? Can it be delegated or cut?</div></div>
+  <div class="rm-section-label" contenteditable="true">Section 04</div>
+  <div class="rm-section-title" contenteditable="true">Weekly Review — Every Sunday (30 min)</div>
+  <div class="rm-task"><div class="rm-dot gold"></div><div class="rm-task-text" contenteditable="true">TJM: Live viewers → DMs generated → conversion to sales. Is the funnel moving?</div></div>
+  <div class="rm-task"><div class="rm-dot gold"></div><div class="rm-task-text" contenteditable="true">TJM: Revenue vs monthly milestone — on track, behind, or ahead?</div></div>
+  <div class="rm-task"><div class="rm-dot gold"></div><div class="rm-task-text" contenteditable="true">Vinted: Active listings / items sold / avg sale price / weekly profit</div></div>
+  <div class="rm-task"><div class="rm-dot gold"></div><div class="rm-task-text" contenteditable="true">VA brief for next week — content themes, restock needs, priorities</div></div>
+  <div class="rm-task"><div class="rm-dot gold"></div><div class="rm-task-text" contenteditable="true">Personal energy check — what drained you most? Can it be delegated or cut?</div></div>
 </div>
 
 <!-- SECTION 5: METRICS -->
 <div class="rm-section">
-  <div class="rm-section-label">Section 05</div>
-  <div class="rm-section-title">Metrics to Track</div>
+  <div class="rm-section-label" contenteditable="true">Section 05</div>
+  <div class="rm-section-title" contenteditable="true">Metrics to Track</div>
   <div class="rm-metrics-grid">
     <div class="rm-metric-card">
-      <div class="rm-metric-title">TJM Funnel (weekly)</div>
-      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span>Live viewers</div>
-      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span>Profile visits</div>
-      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span>DMs sent</div>
-      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span>Sales closed</div>
-      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span>Avg order value</div>
+      <div class="rm-metric-title" contenteditable="true">TJM Funnel (weekly)</div>
+      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span><span contenteditable="true">Live viewers</span></div>
+      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span><span contenteditable="true">Profile visits</span></div>
+      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span><span contenteditable="true">DMs sent</span></div>
+      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span><span contenteditable="true">Sales closed</span></div>
+      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span><span contenteditable="true">Avg order value</span></div>
     </div>
     <div class="rm-metric-card">
-      <div class="rm-metric-title">Vinted (weekly)</div>
-      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span>Active listings</div>
-      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span>Items sold</div>
-      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span>Avg sale price</div>
-      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span>Weekly profit</div>
-      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span>Sell-through rate</div>
+      <div class="rm-metric-title" contenteditable="true">Vinted (weekly)</div>
+      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span><span contenteditable="true">Active listings</span></div>
+      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span><span contenteditable="true">Items sold</span></div>
+      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span><span contenteditable="true">Avg sale price</span></div>
+      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span><span contenteditable="true">Weekly profit</span></div>
+      <div class="rm-metric-item"><span style="color:#C9A84C;font-size:10px;">→</span><span contenteditable="true">Sell-through rate</span></div>
     </div>
     <div class="rm-metric-card full">
-      <div class="rm-metric-title">The one number that tells you everything</div>
-      <div class="rm-metric-item" style="font-size:13px;color:#D4AF37;padding:8px 0;">Combined monthly profit vs milestone target — above or below the line?</div>
-      <div class="rm-metric-item rm-metric-item-muted" style="font-size:11px;color:rgba(255,255,255,0.3);">If behind by more than 20% two months in a row → review the plan, don't just push harder.</div>
+      <div class="rm-metric-title" contenteditable="true">The one number that tells you everything</div>
+      <div class="rm-metric-item" style="font-size:13px;color:#D4AF37;padding:8px 0;" contenteditable="true">Combined monthly profit vs milestone target — above or below the line?</div>
+      <div class="rm-metric-item rm-metric-item-muted" style="font-size:11px;color:rgba(255,255,255,0.3);" contenteditable="true">If behind by more than 20% two months in a row → review the plan, don't just push harder.</div>
     </div>
   </div>
 </div>
 
 <!-- SECTION 6: TRUTHS -->
 <div class="rm-section">
-  <div class="rm-section-label">Section 06</div>
-  <div class="rm-section-title">The Uncomfortable Truths</div>
-  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text"><strong class="rm-strong">TikTok lives are the only lever that matters in Months 1–6.</strong> Everything else is supporting cast. Skip lives = skip revenue.</div></div>
-  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text"><strong class="rm-strong">The VA is currently a bottleneck, not an asset.</strong> Brief them properly this week. 30 minutes of clarity now saves months of confusion.</div></div>
-  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text"><strong class="rm-strong">Vinted is a volume game.</strong> 10 listings won't move the needle. 400 listings maintained consistently will. Get the stock live fast.</div></div>
-  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text"><strong class="rm-strong">The milestones are not straight lines.</strong> Months 1–3 will feel slow. Months 6–9 is where compounding kicks in. Stay in the process.</div></div>
-  <div class="rm-truth"><div class="rm-dot gold" style="margin-top:6px;"></div><div class="rm-task-text" style="color:#D4AF37;"><strong>Your biggest competitive advantage is already doing this at 4:30am</strong> when everyone else hasn't started. The plan works — if the execution does.</div></div>
+  <div class="rm-section-label" contenteditable="true">Section 06</div>
+  <div class="rm-section-title" contenteditable="true">The Uncomfortable Truths</div>
+  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text" contenteditable="true"><strong class="rm-strong">TikTok lives are the only lever that matters in Months 1–6.</strong> Everything else is supporting cast. Skip lives = skip revenue.</div></div>
+  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text" contenteditable="true"><strong class="rm-strong">The VA is currently a bottleneck, not an asset.</strong> Brief them properly this week. 30 minutes of clarity now saves months of confusion.</div></div>
+  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text" contenteditable="true"><strong class="rm-strong">Vinted is a volume game.</strong> 10 listings won't move the needle. 400 listings maintained consistently will. Get the stock live fast.</div></div>
+  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text" contenteditable="true"><strong class="rm-strong">The milestones are not straight lines.</strong> Months 1–3 will feel slow. Months 6–9 is where compounding kicks in. Stay in the process.</div></div>
+  <div class="rm-truth"><div class="rm-dot gold" style="margin-top:6px;"></div><div class="rm-task-text" style="color:#D4AF37;" contenteditable="true"><strong>Your biggest competitive advantage is already doing this at 4:30am</strong> when everyone else hasn't started. The plan works — if the execution does.</div></div>
 </div>
+
+<!-- INIT TRIGGER: onerror fires even from innerHTML, unlike <script> tags -->
+<img src="__rm_no_load__" onerror="this.remove();(function(){
+  window.rmRecalc = function() {
+    var tbody = document.getElementById('rm-milestone-tbody');
+    if (!tbody) return;
+    var rows = tbody.querySelectorAll('tr[data-month]');
+    var maxComb = 1;
+    var data = [];
+
+    rows.forEach(function(row) {
+      var tjmEl  = row.querySelector('.rm-edit-tjm');
+      var vintEl = row.querySelector('.rm-edit-vinted');
+      var combEl = row.querySelector('.rm-calc-combined');
+      var barEl  = row.querySelector('.rm-bar');
+      if (!tjmEl || !vintEl || !combEl) return;
+
+      var tjmRaw  = tjmEl.textContent.replace(/[^0-9.]/g,'');
+      var vintRaw = vintEl.textContent.replace(/[^0-9.]/g,'');
+      var tjm  = parseFloat(tjmRaw)  || 0;
+      var vint = parseFloat(vintRaw) || 0;
+      var comb = tjm + vint;
+
+      data.push({ combEl: combEl, barEl: barEl, comb: comb });
+      if (comb > maxComb) maxComb = comb;
+    });
+
+    data.forEach(function(d) {
+      d.combEl.textContent = '\u00a3' + d.comb.toLocaleString('en-GB');
+      if (d.barEl) {
+        var pct = maxComb > 0 ? Math.round((d.comb / maxComb) * 100) : 0;
+        d.barEl.style.width = pct + '%';
+      }
+    });
+
+    var phaseMap = {
+      rmPhase1Target: [1, 2],
+      rmPhase2Target: [3, 5],
+      rmPhase3Target: [6, 9],
+      rmPhase4Target: [10, 12]
+    };
+
+    Object.keys(phaseMap).forEach(function(targetId) {
+      var targetEl = document.getElementById(targetId);
+      if (!targetEl) return;
+      var months = phaseMap[targetId];
+      var startRow = tbody.querySelector('tr[data-month=\"' + months[0] + '\"]');
+      var endRow   = tbody.querySelector('tr[data-month=\"' + months[1] + '\"]');
+      if (!startRow || !endRow) return;
+      var startComb = startRow.querySelector('.rm-calc-combined');
+      var endComb   = endRow.querySelector('.rm-calc-combined');
+      if (startComb && endComb) {
+        targetEl.textContent = startComb.textContent + ' \u2192 ' + endComb.textContent;
+      }
+    });
+  };
+
+  /* Prevent Enter key from inserting line breaks in single-line fields */
+  document.querySelectorAll('[contenteditable=\"true\"]').forEach(function(el) {
+    var multiline = el.classList.contains('rm-task-text') ||
+                    el.classList.contains('rm-task-note') ||
+                    el.classList.contains('rm-note');
+    if (!multiline) {
+      el.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+      });
+    }
+  });
+
+  /* Stop phase accordion toggling when clicking inside editable children */
+  document.querySelectorAll('.rm-phase-body [contenteditable=\"true\"]').forEach(function(el) {
+    el.addEventListener('click', function(e) { e.stopPropagation(); });
+  });
+
+})()" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;">
 
 `;
 
