@@ -177,16 +177,17 @@ function renderPastDaysModal() { return renderPastDaysModalExternal(renderMoreMo
 function renderMonthTargetsModal() { return renderMonthTargetsModalExternal(renderMoreModalDeps); }
 function renderChallengeModal() { return renderChallengeModalExternal(renderMoreModalDeps); }
 
-// ── Bottom nav (permanent, shown on every page) ────────────────────────────
+// ── Bottom nav (6 tabs — permanent on every page) ─────────────────────────
 function renderBottomNav() {
-  const moreActive = state.moreMenuOpen || ['march','vault','crm','vinted','notts','roadmap'].includes(state.activeTab);
+  const moreActive = state.moreMenuOpen || ['march','vault','crm','vinted','notts'].includes(state.activeTab);
   return `
   <nav class="bottom-nav-app">
-    <button class="bottom-nav-app-btn ${state.activeTab === 'today' ? 'active' : ''}" onclick="setTab('today')">Today</button>
-    <button class="bottom-nav-app-btn ${state.activeTab === 'journal' ? 'active' : ''}" onclick="setTab('journal')">Journal</button>
-    <button class="bottom-nav-app-btn ${state.activeTab === 'progress' ? 'active' : ''}" onclick="setTab('progress')">Health</button>
-    <button class="bottom-nav-app-btn ${state.activeTab === 'fire' ? 'active' : ''}" onclick="setTab('fire')">Fire</button>
-    <button class="bottom-nav-app-btn ${moreActive ? 'active' : ''}" onclick="toggleMoreMenu()">More</button>
+    <button class="bottom-nav-app-btn ${state.activeTab==='today'?'active':''}" onclick="setTab('today')">Today</button>
+    <button class="bottom-nav-app-btn ${state.activeTab==='journal'?'active':''}" onclick="setTab('journal')">Journal</button>
+    <button class="bottom-nav-app-btn ${state.activeTab==='progress'?'active':''}" onclick="setTab('progress')">Health</button>
+    <button class="bottom-nav-app-btn ${state.activeTab==='fire'?'active':''}" onclick="setTab('fire')">Fire</button>
+    <button class="bottom-nav-app-btn ${state.activeTab==='roadmap'?'active':''}" onclick="setTab('roadmap')">Roadmap</button>
+    <button class="bottom-nav-app-btn ${moreActive?'active':''}" onclick="toggleMoreMenu()">More</button>
   </nav>`;
 }
 
@@ -238,15 +239,13 @@ function render() {
     ${(() => { try { return state.activeTab === 'roadmap' ? renderRoadmapTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">ROADMAP ERROR: ' + e.message + '</div>'; }})()}
     </div>
     <div class="mobile-more-sheet ${state.moreMenuOpen ? 'open' : ''}">
-      <button class="mobile-more-sheet-close" onclick="toggleMoreMenu()">Close</button>
       <div class="mobile-more-sheet-title">More Pages</div>
       <div class="mobile-more-sheet-grid">
-        <button class="mobile-more-sheet-btn ${state.activeTab === 'march' ? 'active' : ''}" onclick="setTab('march')">${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date().getMonth()]}</button>
-        <button class="mobile-more-sheet-btn ${state.activeTab === 'vault' ? 'active' : ''}" onclick="setTab('vault')">Ideas</button>
-        <button class="mobile-more-sheet-btn ${state.activeTab === 'crm' ? 'active' : ''}" onclick="setTab('crm')">CRM${getCRMNeedsAction() > 0 ? ' 🔴' : ''}</button>
-        <button class="mobile-more-sheet-btn ${state.activeTab === 'vinted' ? 'active' : ''}" onclick="setTab('vinted')">Vinted</button>
-        <button class="mobile-more-sheet-btn ${state.activeTab === 'notts' ? 'active' : ''}" onclick="setTab('notts')">Notts</button>
-        <button class="mobile-more-sheet-btn ${state.activeTab === 'roadmap' ? 'active' : ''}" onclick="setTab('roadmap')">Roadmap</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab==='march'?'active':''}" onclick="setTab('march');toggleMoreMenu()">${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date().getMonth()]}</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab==='vault'?'active':''}" onclick="setTab('vault');toggleMoreMenu()">Ideas</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab==='crm'?'active':''}" onclick="setTab('crm');toggleMoreMenu()">CRM${getCRMNeedsAction()>0?' 🔴':''}</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab==='vinted'?'active':''}" onclick="setTab('vinted');toggleMoreMenu()">Vinted</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab==='notts'?'active':''}" onclick="setTab('notts');toggleMoreMenu()">Notts</button>
         <button class="mobile-more-sheet-btn danger" onclick="handleLogout()">Sign Out</button>
       </div>
     </div>
