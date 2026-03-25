@@ -64,14 +64,48 @@ return `
 .rm-metric-item:last-child { border-bottom:none; }
 .rm-truth { padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.5; }
 .rm-truth:last-child { border-bottom:none; }
+
+/* ── LIGHT MODE OVERRIDES ── */
+body.light .rm-section-label { color:rgba(0,0,0,0.4); }
+body.light .rm-section-title { color:#111; }
+body.light .rm-math-card { background:#f5f5f5;border-color:rgba(201,168,76,0.35); }
+body.light .rm-math-card.highlight { background:rgba(201,168,76,0.1);border-color:#C9A84C; }
+body.light .rm-math-label { color:rgba(0,0,0,0.45); }
+body.light .rm-math-sub { color:rgba(0,0,0,0.45); }
+body.light .rm-note { background:#f0f0f0;color:rgba(0,0,0,0.55); }
+body.light .rm-milestone-table th { color:rgba(0,0,0,0.4);border-bottom-color:rgba(0,0,0,0.1); }
+body.light .rm-milestone-table td { border-bottom-color:rgba(0,0,0,0.06); }
+body.light .rm-mo { color:rgba(0,0,0,0.4); }
+body.light .rm-phase { border-color:rgba(201,168,76,0.3); }
+body.light .rm-phase-header { background:#f5f5f5; }
+body.light .rm-phase-num { color:rgba(0,0,0,0.1); }
+body.light .rm-phase-title { color:#111; }
+body.light .rm-phase-months { color:rgba(0,0,0,0.4); }
+body.light .rm-phase-chevron { color:rgba(0,0,0,0.3); }
+body.light .rm-phase-body { background:#f5f5f5; }
+body.light .rm-stream-head { border-bottom-color:rgba(0,0,0,0.08); }
+body.light .rm-task { border-bottom-color:rgba(0,0,0,0.06); }
+body.light .rm-task-text { color:rgba(0,0,0,0.85); }
+body.light .rm-task-note { color:rgba(0,0,0,0.45); }
+body.light .rm-truth { border-bottom-color:rgba(0,0,0,0.06); }
+body.light .rm-truth .rm-task-text strong { color:#111 !important; }
+body.light .rm-metric-card { background:#f5f5f5;border-color:rgba(0,0,0,0.08); }
+body.light .rm-metric-title { color:rgba(0,0,0,0.4); }
+body.light .rm-metric-item { color:rgba(0,0,0,0.75);border-bottom-color:rgba(0,0,0,0.06); }
+body.light .rm-hero-text-main { color:#111 !important; }
+body.light .rm-hero-sub { color:rgba(0,0,0,0.5) !important; }
+body.light .rm-hero-wrap { background:linear-gradient(145deg,#fdf9ee,#f5f0e0) !important;border-color:rgba(201,168,76,0.4) !important; }
+body.light .rm-strong { color:#111 !important; }
+body.light .rm-metric-item-muted { color:rgba(0,0,0,0.4) !important; }
+.rm-strong { color:#fff; }
 </style>
 
 <!-- HERO BANNER -->
-<div style="background:linear-gradient(145deg,#111008,#0a0a0a);border:1px solid rgba(201,168,76,0.25);border-radius:12px;padding:20px;margin-bottom:24px;position:relative;overflow:hidden;">
+<div class="rm-hero-wrap" style="background:linear-gradient(145deg,#111008,#0a0a0a);border:1px solid rgba(201,168,76,0.25);border-radius:12px;padding:20px;margin-bottom:24px;position:relative;overflow:hidden;">
   <div style="position:absolute;top:-40px;right:-40px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(201,168,76,0.07) 0%,transparent 70%);pointer-events:none;"></div>
   <div style="font-size:9px;font-weight:900;letter-spacing:3px;color:#C9A84C;text-transform:uppercase;margin-bottom:10px;">TJM + Vinted — 12 Month Plan</div>
-  <div style="font-size:26px;font-weight:900;color:#fff;line-height:1.1;margin-bottom:4px;">£10k/<span style="color:#D4AF37;">Month</span></div>
-  <div style="font-size:12px;color:rgba(255,255,255,0.35);margin-bottom:16px;">Two income streams. One number to hit. 12 months.</div>
+  <div class="rm-hero-text-main" style="font-size:26px;font-weight:900;color:#fff;line-height:1.1;margin-bottom:4px;">£10k/<span style="color:#D4AF37;">Month</span></div>
+  <div class="rm-hero-sub" style="font-size:12px;color:rgba(255,255,255,0.35);margin-bottom:16px;">Two income streams. One number to hit. 12 months.</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <div style="background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.2);border-radius:4px;padding:5px 10px;font-size:10px;font-weight:700;color:#D4AF37;letter-spacing:0.5px;">TJM Target: £8k profit/mo</div>
     <div style="background:rgba(76,175,121,0.1);border:1px solid rgba(76,175,121,0.2);border-radius:4px;padding:5px 10px;font-size:10px;font-weight:700;color:#4CAF79;letter-spacing:0.5px;">Vinted Target: £6k profit/mo</div>
@@ -306,7 +340,7 @@ return `
     <div class="rm-metric-card full">
       <div class="rm-metric-title">The one number that tells you everything</div>
       <div class="rm-metric-item" style="font-size:13px;color:#D4AF37;padding:8px 0;">Combined monthly profit vs milestone target — above or below the line?</div>
-      <div class="rm-metric-item" style="font-size:11px;color:rgba(255,255,255,0.3);">If behind by more than 20% two months in a row → review the plan, don't just push harder.</div>
+      <div class="rm-metric-item rm-metric-item-muted" style="font-size:11px;color:rgba(255,255,255,0.3);">If behind by more than 20% two months in a row → review the plan, don't just push harder.</div>
     </div>
   </div>
 </div>
@@ -315,10 +349,10 @@ return `
 <div class="rm-section">
   <div class="rm-section-label">Section 06</div>
   <div class="rm-section-title">The Uncomfortable Truths</div>
-  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text"><strong style="color:#fff;">TikTok lives are the only lever that matters in Months 1–6.</strong> Everything else is supporting cast. Skip lives = skip revenue.</div></div>
-  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text"><strong style="color:#fff;">The VA is currently a bottleneck, not an asset.</strong> Brief them properly this week. 30 minutes of clarity now saves months of confusion.</div></div>
-  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text"><strong style="color:#fff;">Vinted is a volume game.</strong> 10 listings won't move the needle. 400 listings maintained consistently will. Get the stock live fast.</div></div>
-  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text"><strong style="color:#fff;">The milestones are not straight lines.</strong> Months 1–3 will feel slow. Months 6–9 is where compounding kicks in. Stay in the process.</div></div>
+  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text"><strong class="rm-strong">TikTok lives are the only lever that matters in Months 1–6.</strong> Everything else is supporting cast. Skip lives = skip revenue.</div></div>
+  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text"><strong class="rm-strong">The VA is currently a bottleneck, not an asset.</strong> Brief them properly this week. 30 minutes of clarity now saves months of confusion.</div></div>
+  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text"><strong class="rm-strong">Vinted is a volume game.</strong> 10 listings won't move the needle. 400 listings maintained consistently will. Get the stock live fast.</div></div>
+  <div class="rm-truth"><div class="rm-dot red" style="margin-top:6px;"></div><div class="rm-task-text"><strong class="rm-strong">The milestones are not straight lines.</strong> Months 1–3 will feel slow. Months 6–9 is where compounding kicks in. Stay in the process.</div></div>
   <div class="rm-truth"><div class="rm-dot gold" style="margin-top:6px;"></div><div class="rm-task-text" style="color:#D4AF37;"><strong>Your biggest competitive advantage is already doing this at 4:30am</strong> when everyone else hasn't started. The plan works — if the execution does.</div></div>
 </div>
 
