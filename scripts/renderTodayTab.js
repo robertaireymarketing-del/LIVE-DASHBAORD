@@ -847,8 +847,119 @@ body.light .obj-month-calendar-meta { color: #5B6B82 !important; }
 body.light .obj-month-calendar-meta--empty { color: #AAB4C4 !important; }
 </style>`;
 
-// ── ORDER: planMyObjBanner is now above monthly/weekly objectives ───────
-return injectedCSS + habitsSection + missionSection + planMyObjBanner + monthlyObjsSection + weeklyObjsSection + frontsSection + batchesSection + `
+// ── Objectives group (monthly + weekly) with collapse toggle ──────────
+const objectivesVisible = state.objectivesCollapsed !== true;
+const hasAnyObjectives = monthObjs.length > 0 || weekObjs.length > 0;
+const objectivesGroupSection = `
+<div style="margin-bottom:4px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${objectivesVisible ? '10px' : '4px'};">
+    <div class="cc-section-title" style="margin-bottom:0;">Objectives</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button onclick="openObjectivesModal('monthly')" style="background:transparent;border:1px solid rgba(201,168,76,0.35);border-radius:8px;padding:4px 12px;color:#C9A84C;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.5px;">+ Edit</button>
+      <button onclick="window._toggleObjectives&&window._toggleObjectives()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:4px 12px;color:rgba(255,255,255,0.5);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.5px;">${objectivesVisible ? '▲ Hide' : '▼ Show'}</button>
+    </div>
+  </div>
+  ${objectivesVisible ? `
+    ${planMyObjBanner}
+    ${hasAnyObjectives ? `
+      ${monthObjs.length > 0 ? `
+        <div style="font-size:10px;font-weight:900;letter-spacing:1.4px;color:rgba(255,255,255,0.35);margin-bottom:8px;margin-top:4px;">MONTHLY</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div class="month-obj-progress-track" style="flex:1;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
+            <div style="height:100%;width:${monthOverallPct}%;background:linear-gradient(90deg,#C9A84C,#e8c96a);border-radius:3px;transition:width 0.4s;"></div>
+          </div>
+          <span class="month-obj-score" style="font-size:12px;font-weight:900;color:#C9A84C;min-width:40px;text-align:right;">${monthDoneCount}/${monthObjs.length}</span>
+        </div>
+        <div style="margin-bottom:10px;">${monthObjs.map((obj, i) => {
+          const catLabel = obj.categoryCustom || MONTH_CAT_LABELS[obj.category] || 'Personal';
+          const catColor = MONTH_CAT_COLOURS[obj.category] || '#C9A84C';
+          const progress = getMonthObjProgress(obj.id);
+          let deadlineHtml = '';
+          if (obj.deadline) {
+            const dl = new Date(obj.deadline + 'T00:00:00');
+            const nowD = new Date(); nowD.setHours(0,0,0,0);
+            const daysLeft = Math.ceil((dl - nowD) / 86400000);
+            const isOverdue = daysLeft < 0 && !obj.done;
+            deadlineHtml = `<span class="month-obj-deadline${isOverdue?' month-obj-deadline-overdue':''}" style="font-size:10px;font-weight:700;color:${isOverdue?'#e74c3c':obj.done?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.35)'};${isOverdue?'background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.3);border-radius:20px;padding:2px 8px;':''}margin-left:4px;">${isOverdue?'⚠ OVERDUE · ':''}${fmtDeadlineShort(obj.deadline)}</span>`;
+          }
+          return `
+          <div onclick="toggleMonthObj('${monthKey}',${i})" class="month-obj-card${obj.done?' month-obj-card-done':''}" style="border:1.5px solid ${obj.done?'rgba(46,204,113,0.35)':catColor+'33'};background:${obj.done?'rgba(26,92,58,0.55)':'rgba(255,255,255,0.02)'};border-radius:14px;padding:14px 16px;margin-bottom:8px;border-left:3px solid ${obj.done?'#2ecc71':catColor};cursor:pointer;transition:all 0.2s;">
+            <div style="display:flex;align-items:flex-start;gap:12px;">
+              <div style="width:22px;height:22px;flex-shrink:0;margin-top:1px;border-radius:6px;border:2px solid ${obj.done?'rgba(46,204,113,0.7)':catColor+'88'};background:${obj.done?'rgba(46,204,113,0.2)':'transparent'};color:${obj.done?'#2ecc71':catColor};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
+                  <span style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${catColor};">${catLabel.toUpperCase()}</span>
+                  ${deadlineHtml}
+                  ${obj.done?`<span style="font-size:9px;font-weight:800;color:#2ecc71;background:rgba(46,204,113,0.15);padding:2px 7px;border-radius:20px;margin-left:2px;">DONE</span>`:''}
+                </div>
+                <div class="month-obj-title${obj.done?' obj-done-item-text':''}" style="font-size:16px;font-weight:800;color:${obj.done?'rgba(255,255,255,0.45)':'#fff'};${obj.done?'text-decoration:line-through;':''}line-height:1.3;">${obj.text}</div>
+                ${progress ? `
+                <div style="display:flex;align-items:center;gap:8px;margin-top:9px;">
+                  <div class="month-obj-sub-track" style="flex:1;height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:${progress.pct}%;background:${obj.done?'rgba(46,204,113,0.7)':catColor};border-radius:3px;transition:width 0.4s;box-shadow:0 0 6px ${catColor}66;"></div>
+                  </div>
+                  <span style="font-size:12px;font-weight:900;color:${obj.done?'rgba(46,204,113,0.7)':catColor};min-width:36px;text-align:right;">${progress.pct}%</span>
+                </div>` : ''}
+              </div>
+            </div>
+          </div>`;
+        }).join('')}</div>
+      ` : ''}
+      ${weekObjs.length > 0 ? `
+        <div style="font-size:10px;font-weight:900;letter-spacing:1.4px;color:rgba(100,163,214,0.7);margin-bottom:8px;margin-top:${monthObjs.length > 0 ? '6px' : '4px'};">THIS WEEK</div>
+        <div style="margin-bottom:8px;">${weekObjs.map((obj, i) => {
+          const text = typeof obj === 'string' ? obj : obj.text;
+          const done = typeof obj === 'object' ? !!obj.done : false;
+          const category = typeof obj === 'object' ? (obj.category || '') : '';
+          const categoryCustom = typeof obj === 'object' ? (obj.categoryCustom || '') : '';
+          const catLabel = category ? (categoryCustom || WEEK_CAT_LABELS[category] || 'Other') : '';
+          const catColor = WEEK_CAT_COLOURS[category] || '#6ba3d6';
+          return `
+          <div onclick="toggleWeekObj('${weekKey}',${i})" class="week-obj-card${done?' week-obj-card-done':''}" style="border:1.5px solid ${done?'rgba(46,204,113,0.3)':category?catColor+'33':'rgba(100,163,214,0.2)'};background:${done?'rgba(26,92,58,0.45)':category?catColor+'10':'rgba(100,163,214,0.04)'};border-radius:12px;padding:12px 16px;margin-bottom:6px;border-left:3px solid ${done?'#2ecc71':category?catColor:'rgba(100,163,214,0.55)'};cursor:pointer;display:flex;align-items:center;gap:12px;transition:all 0.2s;">
+            <div style="width:20px;height:20px;flex-shrink:0;border-radius:5px;border:2px solid ${done?'rgba(46,204,113,0.7)':category?catColor+'66':'rgba(100,163,214,0.55)'};background:${done?'rgba(46,204,113,0.15)':'transparent'};color:${done?'#2ecc71':category?catColor:'#6ba3d6'};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${done?'✓':''}</div>
+            <div style="flex:1;min-width:0;">
+              ${category ? `<div style="font-size:9px;font-weight:900;letter-spacing:1.2px;color:${catColor};margin-bottom:4px;">${catLabel.toUpperCase()}</div>` : ''}
+              <div class="week-obj-title${done?' obj-done-item-text':''}" style="font-size:14px;font-weight:700;color:${done?'rgba(255,255,255,0.4)':'#fff'};${done?'text-decoration:line-through;':''}line-height:1.3;">${text}</div>
+            </div>
+          </div>`;
+        }).join('')}</div>
+      ` : ''}
+    ` : `<div style="text-align:center;padding:14px 0 6px;color:rgba(255,255,255,0.2);font-size:13px;font-style:italic;">No objectives set yet — use the planner above</div>`}
+  ` : ''}
+</div>`;
+
+// ── Batches section with collapse toggle ──────────────────────────────
+const batchesVisible = state.batchesCollapsed !== true;
+const batchesGroupSection = `
+<div style="margin-bottom:4px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${batchesVisible ? '10px' : '4px'};">
+    <div class="cc-section-title" style="margin-bottom:0;">Active Batches</div>
+    <button onclick="window._toggleBatches&&window._toggleBatches()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:4px 12px;color:rgba(255,255,255,0.5);font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:0.5px;">${batchesVisible ? '▲ Hide' : '▼ Show'}</button>
+  </div>
+  ${batchesVisible ? batchesSection.replace('<div class="cc-section-title">Active Batches</div>', '') : ''}
+</div>`;
+
+// ── Inject toggle handlers (idempotent) ──────────────────────────────
+const toggleHandlers = `<script>
+if(!window._objToggleAttached){
+  window._objToggleAttached=true;
+  window._toggleObjectives=function(){
+    if(typeof state!=='undefined'&&typeof renderApp==='function'){
+      state.objectivesCollapsed=!state.objectivesCollapsed;
+      renderApp();
+    }
+  };
+  window._toggleBatches=function(){
+    if(typeof state!=='undefined'&&typeof renderApp==='function'){
+      state.batchesCollapsed=!state.batchesCollapsed;
+      renderApp();
+    }
+  };
+}
+</script>`;
+
+// ── ORDER: Habits → Today's Fronts → Objectives (collapsible) → Batches (collapsible) ──
+return injectedCSS + toggleHandlers + habitsSection + frontsSection + objectivesGroupSection + batchesGroupSection + `
 <div style="margin-top:16px;margin-bottom:8px;">
 <button onclick="openPastDays()" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:14px;color:rgba(255,255,255,0.5);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
 📅 Review Previous Days
