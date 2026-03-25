@@ -2033,7 +2033,7 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   PERMANENT FIXED BOTTOM NAV
+   PERMANENT FIXED BOTTOM NAV — Design 1: Command Bar
 ═══════════════════════════════════════════════════════════════════════════ */
 .bottom-nav-app {
   position: fixed;
@@ -2042,44 +2042,75 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
   right: 0;
   z-index: 900;
   display: flex;
-  align-items: flex-start;
-  background: #0d0d0d;
-  border-top: 1px solid rgba(255,255,255,0.08);
-  /* Tall enough so buttons show above iPhone home bar */
-  padding-top: 10px;
+  align-items: stretch;
+  background: #111111;
+  border-top: 1px solid rgba(255,255,255,0.07);
   padding-bottom: env(safe-area-inset-bottom);
-  min-height: calc(56px + env(safe-area-inset-bottom));
+  min-height: calc(64px + env(safe-area-inset-bottom));
 }
 
 .bottom-nav-app-btn {
   flex: 1;
   background: none;
   border: none;
-  border-top: 2px solid transparent;
   cursor: pointer;
   font-family: inherit;
   font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.3px;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
   color: rgba(255,255,255,0.28);
-  padding: 4px 1px 0;
-  height: 36px;
-  transition: color 0.15s, border-color 0.15s;
+  padding: 10px 4px 10px;
+  transition: color 0.15s ease, background 0.15s ease;
   -webkit-tap-highlight-color: transparent;
   outline: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   min-width: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 5px;
+  position: relative;
+  border-radius: 14px;
+  margin: 6px 2px 6px;
 }
 
+/* Icons via ::before on each tab button (nth-of-type targets by position) */
+.bottom-nav-app-btn::before {
+  content: '';
+  font-size: 18px;
+  line-height: 1;
+  display: block;
+}
+.bottom-nav-app-btn:nth-of-type(1)::before { content: '🏠'; }
+.bottom-nav-app-btn:nth-of-type(2)::before { content: '📓'; }
+.bottom-nav-app-btn:nth-of-type(3)::before { content: '❤️'; }
+.bottom-nav-app-btn:nth-of-type(4)::before { content: '🔥'; }
+.bottom-nav-app-btn:nth-of-type(5)::before { content: '🗺️'; }
+.bottom-nav-app-btn:nth-of-type(6)::before { content: '⋯'; font-size: 20px; }
+
+/* Active state */
 .bottom-nav-app-btn.active {
-  color: #d4af37;
-  border-top-color: #d4af37;
+  color: #c9a84c;
+  background: rgba(201,168,76,0.10);
+}
+
+/* Gold underline pill on active */
+.bottom-nav-app-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px;
+  height: 3px;
+  background: #c9a84c;
+  border-radius: 2px 2px 0 0;
+}
+
+/* Subtle icon glow on active */
+.bottom-nav-app-btn.active::before {
+  filter: drop-shadow(0 0 5px rgba(201,168,76,0.55));
 }
 
 .bottom-nav-app-btn:hover:not(.active) {
@@ -2088,16 +2119,19 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
 
 /* Push content above the bar */
 .content {
-  padding-bottom: calc(66px + env(safe-area-inset-bottom)) !important;
+  padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important;
 }
 
 /* Light mode */
 body.light .bottom-nav-app {
-  background: #efefef;
-  border-top: 1px solid rgba(0,0,0,0.1);
+  background: #ffffff;
+  border-top: 1px solid rgba(0,0,0,0.10);
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
 }
-body.light .bottom-nav-app-btn { color: rgba(0,0,0,0.3); }
-body.light .bottom-nav-app-btn.active { color: #a07820; border-top-color: #a07820; }
+body.light .bottom-nav-app-btn { color: rgba(0,0,0,0.25); }
+body.light .bottom-nav-app-btn.active { color: #b8860b; background: rgba(201,168,76,0.10); }
+body.light .bottom-nav-app-btn.active::after { background: #c9a84c; }
+body.light .bottom-nav-app-btn:hover:not(.active) { color: rgba(0,0,0,0.5); }
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
