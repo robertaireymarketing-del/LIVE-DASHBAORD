@@ -2217,3 +2217,58 @@ body.light .bottom-nav-app-btn:hover:not(.active) { color: rgba(0,0,0,0.5); }
 body.light .mobile-more-sheet { background: #f5f5f5; border-color: rgba(0,0,0,0.1); }
 body.light .mobile-more-sheet-btn { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); color: rgba(0,0,0,0.65); }
 body.light .mobile-more-sheet-btn.active { background: rgba(160,120,32,0.1); border-color: rgba(160,120,32,0.3); color: #a07820; }
+
+/* ================================================================
+   VISION TAB
+   ================================================================ */
+
+.vision-page { box-sizing: border-box; }
+.vision-card { -webkit-tap-highlight-color: transparent; user-select: none; }
+
+.vision-page textarea:focus,
+.vision-page input:focus {
+  border-color: #C9A84C !important;
+  box-shadow: 0 0 0 2px rgba(201, 168, 76, 0.18);
+}
+
+.vision-page button:active {
+  opacity: 0.75;
+  transform: scale(0.98);
+}
+
+/* Light mode — page background */
+body.light .vision-page {
+  background: #F0F4FA;
+}
+
+/* Light mode — cards */
+body.light .vision-card {
+  background: #FFFFFF !important;
+  border-color: #CDD4E0 !important;
+}
+
+/* Light mode — headings */
+body.light .vision-header-title {
+  color: #0A1628 !important;
+}
+
+/* Light mode — textarea / inputs */
+body.light .vision-page textarea,
+body.light .vision-page input {
+  background: #F0F4FA !important;
+  border-color: #CDD4E0 !important;
+  color: #0A1628 !important;
+}
+
+body.light .vision-page textarea::placeholder,
+body.light .vision-page input::placeholder {
+  color: #8899B0 !important;
+}
+
+body.light .vision-page textarea:focus,
+body.light .vision-page input:focus {
+  border-color: #B8962E !important;
+  box-shadow: 0 0 0 2px rgba(184,150,46,0.15) !important;
+}
+
+/* ================================================================ */

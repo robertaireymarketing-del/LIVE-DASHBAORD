@@ -18,6 +18,7 @@ import { renderCRMTab as renderCRMTabExternal, renderVaultTab as renderVaultTabE
 import { renderVintedTab as renderVintedTabExternal, renderNottinghamTab as renderNottinghamTabExternal } from './renderProjects.js';
 import { renderFireTab as renderFireTabExternal } from './renderFireTab.js';
 import { renderRoadmapTab as renderRoadmapTabExternal } from './renderRoadmapTab.js';
+import { renderVisionTab as renderVisionTabExternal } from './renderVisionTab.js';
 import { renderDayPlannerModal as renderDayPlannerModalExternal, renderEmbeddedDayPlanner as renderEmbeddedDayPlannerExternal, renderTimePickerModal as renderTimePickerModalExternal, renderWeekPlanModal as renderWeekPlanModalExternal, renderDatePickerModal as renderDatePickerModalExternal, renderSoldModal as renderSoldModalExternal } from './renderModals.js';
 import { renderRetentionModal as renderRetentionModalExternal, renderPastDaysModal as renderPastDaysModalExternal, renderMonthTargetsModal as renderMonthTargetsModalExternal, renderChallengeModal as renderChallengeModalExternal } from './renderMoreModals.js';
 
@@ -179,7 +180,7 @@ function renderChallengeModal() { return renderChallengeModalExternal(renderMore
 
 // ── Bottom nav (6 tabs — permanent on every page) ─────────────────────────
 function renderBottomNav() {
-  const moreActive = state.moreMenuOpen || ['march','vault','crm','vinted','notts'].includes(state.activeTab);
+  const moreActive = state.moreMenuOpen || ['march','vault','crm','vinted','notts','vision'].includes(state.activeTab);
   return `
   <nav class="bottom-nav-app">
     <button class="bottom-nav-app-btn ${state.activeTab==='today'?'active':''}" onclick="setTab('today')">Today</button>
@@ -238,6 +239,7 @@ function render() {
     ${(() => { try { return state.activeTab === 'journal' ? renderJournalTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">JOURNAL ERROR: '+ e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'fire' ? renderFireTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">FIRE ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'roadmap' ? renderRoadmapTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">ROADMAP ERROR: ' + e.message + '</div>'; }})()}
+    ${state.activeTab === 'vision' ? '<div id="tab-vision" style="min-height:100%;"></div>' : ''}
     </div>
     <div class="mobile-more-sheet ${state.moreMenuOpen ? 'open' : ''}">
       <div class="mobile-more-sheet-grid">
@@ -246,6 +248,7 @@ function render() {
         <button class="mobile-more-sheet-btn ${state.activeTab==='crm'?'active':''}" onclick="setTab('crm');toggleMoreMenu()">CRM${getCRMNeedsAction()>0?' 🔴':''}</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='vinted'?'active':''}" onclick="setTab('vinted');toggleMoreMenu()">Vinted</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='notts'?'active':''}" onclick="setTab('notts');toggleMoreMenu()">Notts</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab==='vision'?'active':''}" onclick="setTab('vision');toggleMoreMenu()">🔮 Vision</button>
         <button class="mobile-more-sheet-btn danger" onclick="handleLogout()">Sign Out</button>
       </div>
     </div>
@@ -278,6 +281,7 @@ function render() {
     `;
 
     if (state.activeTab === 'journal') setTimeout(() => { try { initJournalTab({ state, getToday, saveDataQuiet, getWeekKey }); } catch(e) { console.error('Journal init error:', e); } }, 0);
+    if (state.activeTab === 'vision') setTimeout(() => { try { renderVisionTabExternal({ db, user: state.user }); } catch(e) { console.error('Vision init error:', e); } }, 0);
   } catch(e) {
     app.innerHTML = '<div style="color:#e74c3c;padding:20px;font-size:13px;"><strong>Render error:</strong><br>' + e.message + '<br><br><small>' + e.stack + '</small></div>';
   }
