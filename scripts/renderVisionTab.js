@@ -7,6 +7,9 @@ const LS_KEY = 'tjm_anthropic_key';
 function getApiKey() { return localStorage.getItem(LS_KEY) || ''; }
 function saveApiKey(k) { localStorage.setItem(LS_KEY, k.trim()); }
 
+// Firebase modular imports (v9)
+import { collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, writeBatch } from './firebase.js';
+
 /* ─────────────────────────────────────────────────────────────────────
    ROOM CONFIGURATION
 ───────────────────────────────────────────────────────────────────── */
@@ -583,17 +586,16 @@ async function _loadRoomData(roomId) {
     if (!db || !uid) return;
 
     // Load statement doc
-    const stmtSnap = await db.collection('users').doc(uid)
-      .collection('visionRooms').doc(roomId).get();
-    if (stmtSnap.exists) {
-      const d = stmtSnap.data();
-      _statement = d.statement || '';
+    const stmtRef = doc(db, 'users', uid, 'visionRooms', roomId);
+    const stmtSnap = await getDoc(stmtRef);
+    if (stmtSnap.exists()) {
+      _statement = stmtSnap.data().statement || '';
     }
 
     // Load entries
-    const entriesSnap = await db.collection('users').doc(uid)
-      .collection('visionRooms').doc(roomId)
-      .collection('entries').orderBy('ts', 'desc').get();
+    const entriesRef = collection(db, 'users', uid, 'visionRooms', roomId, 'entries');
+    const entriesQ = query(entriesRef, orderBy('ts', 'desc'));
+    const entriesSnap = await getDocs(entriesQ);
     _entries = entriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   } catch (err) {
     console.error('[Vision] loadRoomData error:', err);
@@ -604,9 +606,8 @@ async function _saveEntry(text) {
   try {
     const db = _db(); const uid = _uid();
     if (!db || !uid || !_room) return;
-    const ref = await db.collection('users').doc(uid)
-      .collection('visionRooms').doc(_room.id)
-      .collection('entries').add({ text, ts: Date.now() });
+    const entriesRef = collection(db, 'users', uid, 'visionRooms', _room.id, 'entries');
+    const ref = await addDoc(entriesRef, { text, ts: Date.now() });
     _entries.unshift({ id: ref.id, text, ts: Date.now() });
   } catch (err) {
     console.error('[Vision] saveEntry error:', err);
@@ -617,9 +618,8 @@ async function _updateEntry(id, newText) {
   try {
     const db = _db(); const uid = _uid();
     if (!db || !uid || !_room) return;
-    await db.collection('users').doc(uid)
-      .collection('visionRooms').doc(_room.id)
-      .collection('entries').doc(id).update({ text: newText });
+    const entryRef = doc(db, 'users', uid, 'visionRooms', _room.id, 'entries', id);
+    await updateDoc(entryRef, { text: newText });
     const idx = _entries.findIndex(e => e.id === id);
     if (idx >= 0) _entries[idx].text = newText;
     _showEntries = true;
@@ -633,9 +633,8 @@ async function _deleteEntry(id) {
   try {
     const db = _db(); const uid = _uid();
     if (!db || !uid || !_room) return;
-    await db.collection('users').doc(uid)
-      .collection('visionRooms').doc(_room.id)
-      .collection('entries').doc(id).delete();
+    const entryRef = doc(db, 'users', uid, 'visionRooms', _room.id, 'entries', id);
+    await deleteDoc(entryRef);
     _entries = _entries.filter(e => e.id !== id);
     _showEntries = true;
     _paintRoom();
@@ -648,9 +647,8 @@ async function _saveStatement(statement) {
   try {
     const db = _db(); const uid = _uid();
     if (!db || !uid || !_room) return;
-    await db.collection('users').doc(uid)
-      .collection('visionRooms').doc(_room.id)
-      .set({ statement }, { merge: true });
+    const roomRef = doc(db, 'users', uid, 'visionRooms', _room.id);
+    await setDoc(roomRef, { statement }, { merge: true });
     _statement = statement;
   } catch (err) {
     console.error('[Vision] saveStatement error:', err);
@@ -662,13 +660,11 @@ async function _resetRoom() {
     const db = _db(); const uid = _uid();
     if (!db || !uid || !_room) return;
 
-    // Delete all entries
-    const snap = await db.collection('users').doc(uid)
-      .collection('visionRooms').doc(_room.id)
-      .collection('entries').get();
-    const batch = db.batch();
+    const entriesRef = collection(db, 'users', uid, 'visionRooms', _room.id, 'entries');
+    const snap = await getDocs(entriesRef);
+    const batch = writeBatch(db);
     snap.docs.forEach(d => batch.delete(d.ref));
-    batch.delete(db.collection('users').doc(uid).collection('visionRooms').doc(_room.id));
+    batch.delete(doc(db, 'users', uid, 'visionRooms', _room.id));
     await batch.commit();
 
     _entries = [];
@@ -684,8 +680,8 @@ async function _loadCustomSubRooms() {
   try {
     const db = _db(); const uid = _uid();
     if (!db || !uid) return;
-    const snap = await db.collection('users').doc(uid).collection('visionConfig').doc('customRooms').get();
-    if (snap.exists) {
+    const snap = await getDoc(doc(db, 'users', uid, 'visionConfig', 'customRooms'));
+    if (snap.exists()) {
       _customSubRooms = snap.data().rooms || [];
     } else {
       _customSubRooms = [];
@@ -700,9 +696,7 @@ async function _saveCustomSubRooms() {
   try {
     const db = _db(); const uid = _uid();
     if (!db || !uid) return;
-    await db.collection('users').doc(uid)
-      .collection('visionConfig').doc('customRooms')
-      .set({ rooms: _customSubRooms });
+    await setDoc(doc(db, 'users', uid, 'visionConfig', 'customRooms'), { rooms: _customSubRooms });
   } catch (err) {
     console.error('[Vision] saveCustomSubRooms error:', err);
   }
