@@ -51,6 +51,7 @@ let _focusPlan = '';            // AI-generated 30-day focus
 let _loadingRealityCheck = false;
 let _loading30Day = false;
 let _showReviewBanner = false;
+let _overdueRooms = new Set();  // room ids where weekly review is overdue
 
 /* ─────────────────────────────────────────────────────────────────────
    COLOUR TOKENS (light / dark aware)
@@ -94,6 +95,7 @@ export async function renderVisionTab(deps) {
   _folderId = null;
   _room = null;
   await _loadCustomSubRooms();
+  await _loadAllRoomReviewStatus();
   _paintOverview();
 }
 
@@ -104,6 +106,23 @@ function _paintOverview() {
   const c = colors();
   const panel = _panel();
   if (!panel) return;
+
+  // Inject keyframes once
+  if (!document.getElementById('vision-overdue-styles')) {
+    const style = document.createElement('style');
+    style.id = 'vision-overdue-styles';
+    style.textContent = `
+      @keyframes visionOverduePulse {
+        0%,100% { border-color: rgba(231,76,60,0.5); box-shadow: none; }
+        50%      { border-color: rgba(231,76,60,1);   box-shadow: 0 0 12px rgba(231,76,60,0.4); }
+      }
+      @keyframes visionDotPulse {
+        0%,100% { opacity:1; transform:scale(1); }
+        50%      { opacity:0.4; transform:scale(1.4); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
 
   const roomsWithMeta = DEFAULT_ROOMS.map(r => {
     if (r.isFolder) {
@@ -147,27 +166,42 @@ function _paintOverview() {
 
 function _roomCard(r, c) {
   const isFolder = !!r.isFolder;
+  const isOverdue = !isFolder && _overdueRooms.has(r.id);
+
+  // For folders, check if any sub-room is overdue
+  const folderOverdue = isFolder && (
+    [...(r.defaultSubRooms || []), ..._customSubRooms].some(s => _overdueRooms.has(s.id))
+  );
+  const needsAttention = isOverdue || folderOverdue;
+
   return `
     <div
       data-vision-room="${r.id}"
-      class="vision-card"
+      class="vision-card${needsAttention ? ' vision-overdue' : ''}"
       style="
         background:${c.cardBg};
-        border:1px solid ${c.cardBorder};
+        border:1px solid ${needsAttention ? 'rgba(231,76,60,0.7)' : c.cardBorder};
         border-radius:14px;
         padding:18px 14px 16px;
         cursor:pointer;
         transition:all .18s ease;
         position:relative;
         overflow:hidden;
+        ${needsAttention ? 'animation:visionOverduePulse 1.6s ease-in-out infinite;' : ''}
       "
-      onmouseover="this.style.background='${c.cardHover}';this.style.borderColor='${c.gold}'"
-      onmouseout="this.style.background='${c.cardBg}';this.style.borderColor='${c.cardBorder}'"
+      onmouseover="this.style.background='${c.cardHover}';this.style.borderColor='${needsAttention ? 'rgba(231,76,60,1)' : c.gold}'"
+      onmouseout="this.style.background='${c.cardBg}';this.style.borderColor='${needsAttention ? 'rgba(231,76,60,0.7)' : c.cardBorder}'"
     >
+      ${needsAttention ? `<div style="position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:#e74c3c;animation:visionDotPulse 1.6s ease-in-out infinite;"></div>` : ''}
       <div style="font-size:28px;margin-bottom:10px;">${r.emoji}</div>
-      <div style="font-size:12px;font-weight:900;letter-spacing:1.5px;color:${c.heading};text-transform:uppercase;line-height:1.3;margin-bottom:6px;">${r.label}</div>
+      <div style="font-size:12px;font-weight:900;letter-spacing:1.5px;color:${needsAttention ? '#e74c3c' : c.heading};text-transform:uppercase;line-height:1.3;margin-bottom:6px;">${r.label}</div>
       <div style="font-size:11px;color:${c.muted};font-weight:600;line-height:1.4;">${r.desc || ''}</div>
-      ${isFolder ? `<div style="margin-top:10px;font-size:10px;font-weight:800;letter-spacing:1px;color:${c.folderBadgeTxt};background:${c.folderBadge};border-radius:6px;padding:3px 8px;display:inline-block;">${r.count} ROOMS →</div>` : `<div style="margin-top:10px;font-size:10px;color:${c.gold};font-weight:800;letter-spacing:1px;">ENTER →</div>`}
+      ${isFolder
+        ? `<div style="margin-top:10px;font-size:10px;font-weight:800;letter-spacing:1px;color:${folderOverdue ? '#e74c3c' : c.folderBadgeTxt};background:${folderOverdue ? 'rgba(231,76,60,0.1)' : c.folderBadge};border-radius:6px;padding:3px 8px;display:inline-block;">${folderOverdue ? '⚠ REVIEW DUE' : r.count + ' ROOMS →'}</div>`
+        : isOverdue
+          ? `<div style="margin-top:10px;font-size:10px;color:#e74c3c;font-weight:900;letter-spacing:1px;">⚠ REVIEW DUE</div>`
+          : `<div style="margin-top:10px;font-size:10px;color:${c.gold};font-weight:800;letter-spacing:1px;">ENTER →</div>`
+      }
     </div>
   `;
 }
@@ -917,6 +951,45 @@ async function _saveCustomSubRooms() {
   }
 }
 
+async function _loadAllRoomReviewStatus() {
+  _overdueRooms = new Set();
+  try {
+    const db = _db(); const uid = _uid();
+    if (!db || !uid) return;
+
+    const today = new Date();
+    const isSunday = today.getDay() === 0;
+
+    // Collect all flat room IDs (non-folders)
+    const allRoomIds = [];
+    for (const r of DEFAULT_ROOMS) {
+      if (r.isFolder) {
+        [...(r.defaultSubRooms || []), ..._customSubRooms].forEach(s => allRoomIds.push(s.id));
+      } else {
+        allRoomIds.push(r.id);
+      }
+    }
+
+    // Check each room's last review timestamp
+    await Promise.all(allRoomIds.map(async (roomId) => {
+      try {
+        const snap = await getDoc(doc(db, 'users', uid, 'visionRooms', roomId));
+        if (!snap.exists()) {
+          // Never had a review — always overdue
+          _overdueRooms.add(roomId);
+          return;
+        }
+        const review = snap.data().weeklyReview;
+        if (!review) { _overdueRooms.add(roomId); return; }
+        const daysSince = (Date.now() - (review.ts || 0)) / (1000 * 60 * 60 * 24);
+        if (isSunday || daysSince >= 7) _overdueRooms.add(roomId);
+      } catch (e) { /* skip room on error */ }
+    }));
+  } catch (err) {
+    console.error('[Vision] loadAllRoomReviewStatus error:', err);
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────────────
    API KEY PROMPT (one-time setup, stored in localStorage)
 ───────────────────────────────────────────────────────────────────── */
@@ -1144,6 +1217,7 @@ function _showWeeklyReviewModal() {
     overlay.remove();
     await _saveWeeklyReview({ answers, ts: Date.now() });
     _showReviewBanner = false;
+    if (_room) _overdueRooms.delete(_room.id);
 
     // Trigger both AI analyses
     _loadingRealityCheck = true;

@@ -378,7 +378,7 @@ ${mBFVsExpected !== null ? `<div style="font-size:9px;font-weight:900;color:${mB
 
 <div class="section-title">Edit Past Days</div>
 
-<div class="cal-nav">
+<div class="cal-nav" style="box-sizing:border-box;width:100%;">
 
 <button class="cal-nav-btn" onclick="navigateCalendar(-1)">‹</button>
 
@@ -388,7 +388,7 @@ ${mBFVsExpected !== null ? `<div style="font-size:9px;font-weight:900;color:${mB
 
 </div>
 
-<div class="calendar-grid">
+<div class="calendar-grid" style="display:grid;grid-template-columns:repeat(7,1fr);width:100%;box-sizing:border-box;gap:3px;padding:0;overflow:hidden;">
 
 ${dayHeaders}
 
