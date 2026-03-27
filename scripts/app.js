@@ -181,6 +181,7 @@ function renderChallengeModal() { return renderChallengeModalExternal(renderMore
 // ── Bottom nav (6 tabs — permanent on every page) ─────────────────────────
 function renderBottomNav() {
   const moreActive = state.moreMenuOpen || ['march','vault','crm','vinted','notts','vision'].includes(state.activeTab);
+  const crmAlert = getCRMNeedsAction() > 0;
   return `
   <nav class="bottom-nav-app">
     <button class="bottom-nav-app-btn ${state.activeTab==='today'?'active':''}" onclick="setTab('today')">Today</button>
@@ -188,7 +189,7 @@ function renderBottomNav() {
     <button class="bottom-nav-app-btn ${state.activeTab==='progress'?'active':''}" onclick="setTab('progress')">Health</button>
     <button class="bottom-nav-app-btn ${state.activeTab==='fire'?'active':''}" onclick="setTab('fire')">Fire</button>
     <button class="bottom-nav-app-btn ${state.activeTab==='roadmap'?'active':''}" onclick="setTab('roadmap')">Map</button>
-    <button class="bottom-nav-app-btn ${moreActive?'active':''}" onclick="toggleMoreMenu()">More</button>
+    <button class="bottom-nav-app-btn ${moreActive?'active':''} ${crmAlert?'crm-nav-alert':''}" onclick="toggleMoreMenu()" style="position:relative;">More${crmAlert?'<span class="crm-nav-dot"></span>':''}</button>
   </nav>`;
 }
 
@@ -203,6 +204,26 @@ function render() {
   try {
     const quote = getDailyQuote();
     app.innerHTML = `
+    <style>
+      @keyframes crmPulse { 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+      @keyframes crmDotPop { 0%,100%{transform:scale(1);} 50%{transform:scale(1.4);} }
+      .crm-nav-dot {
+        position:absolute;top:4px;right:10px;
+        width:8px;height:8px;border-radius:50%;
+        background:#e74c3c;
+        animation:crmDotPop 1.2s ease-in-out infinite;
+        box-shadow:0 0 6px rgba(231,76,60,0.8);
+      }
+      .crm-nav-alert { animation:crmPulse 1.2s ease-in-out infinite; color:#e74c3c !important; }
+      .crm-sheet-alert { border-color:rgba(231,76,60,0.6) !important; color:#e74c3c !important; animation:crmPulse 1.2s ease-in-out infinite; }
+      .crm-sheet-badge {
+        display:inline-flex;align-items:center;justify-content:center;
+        background:#e74c3c;color:#fff;
+        font-size:10px;font-weight:900;
+        width:18px;height:18px;border-radius:50%;
+        margin-left:6px;vertical-align:middle;
+      }
+    </style>
     ${state.saving ? '<div class="saving-badge">Saving...</div>' : ''}
     <div class="header">
     <div class="logo" style="font-size:20px;letter-spacing:2px;">My Dashboard</div>
@@ -245,7 +266,7 @@ function render() {
       <div class="mobile-more-sheet-grid">
         <button class="mobile-more-sheet-btn ${state.activeTab==='march'?'active':''}" onclick="setTab('march');toggleMoreMenu()">${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date().getMonth()]}</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='vault'?'active':''}" onclick="setTab('vault');toggleMoreMenu()">Ideas</button>
-        <button class="mobile-more-sheet-btn ${state.activeTab==='crm'?'active':''}" onclick="setTab('crm');toggleMoreMenu()">CRM${getCRMNeedsAction()>0?' 🔴':''}</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab==='crm'?'active':''} ${getCRMNeedsAction()>0?'crm-sheet-alert':''}" onclick="setTab('crm');toggleMoreMenu()">CRM${getCRMNeedsAction()>0?` <span class="crm-sheet-badge">${getCRMNeedsAction()}</span>`:''}</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='vinted'?'active':''}" onclick="setTab('vinted');toggleMoreMenu()">Vinted</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='notts'?'active':''}" onclick="setTab('notts');toggleMoreMenu()">Notts</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='vision'?'active':''}" onclick="setTab('vision');toggleMoreMenu()">🔮 Vision</button>

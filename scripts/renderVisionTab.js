@@ -44,6 +44,14 @@ let _saving = false;
 let _editId = null;
 let _customSubRooms = []; // user-added ventures under business folder
 
+// Weekly review + accountability state
+let _weeklyReview = null;       // { answers, ts }
+let _realityCheck = '';         // AI-generated gap analysis
+let _focusPlan = '';            // AI-generated 30-day focus
+let _loadingRealityCheck = false;
+let _loading30Day = false;
+let _showReviewBanner = false;
+
 /* ─────────────────────────────────────────────────────────────────────
    COLOUR TOKENS (light / dark aware)
 ───────────────────────────────────────────────────────────────────── */
@@ -241,6 +249,14 @@ async function _openRoom(room) {
 
   // Load from Firebase
   await _loadRoomData(room.id);
+
+  // Check if Sunday review is due
+  const today = new Date();
+  const isSunday = today.getDay() === 0;
+  const lastReviewTs = _weeklyReview?.ts || 0;
+  const daysSinceReview = (Date.now() - lastReviewTs) / (1000 * 60 * 60 * 24);
+  _showReviewBanner = isSunday || daysSinceReview >= 7;
+
   _paintRoom(c);
 }
 
@@ -288,6 +304,142 @@ function _paintRoom(c) {
           </div>
         ` : ''}
       </div>
+
+      <!-- Weekly Review Banner -->
+      ${_showReviewBanner ? `
+        <div style="
+          background:linear-gradient(135deg, rgba(201,168,76,0.15), rgba(201,168,76,0.05));
+          border:1.5px solid ${c.gold};
+          border-radius:14px;
+          padding:16px;
+          margin-bottom:16px;
+          display:flex;align-items:center;gap:14px;
+        ">
+          <div style="font-size:28px;flex-shrink:0;">📋</div>
+          <div style="flex:1;">
+            <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:3px;">Weekly Review Due</div>
+            <div style="font-size:12px;color:${c.subheading};font-weight:600;line-height:1.5;">
+              ${_weeklyReview ? 'Time for your weekly check-in — update your reality to keep this sharp.' : 'Complete your first weekly review to unlock your Reality Check & 30-Day Focus.'}
+            </div>
+          </div>
+          <button id="vision-start-review" style="
+            background:${c.goldBtn};color:${c.goldBtnTxt};
+            border:none;border-radius:10px;
+            padding:10px 14px;font-size:11px;font-weight:900;
+            letter-spacing:1px;text-transform:uppercase;
+            cursor:pointer;white-space:nowrap;flex-shrink:0;
+          ">Start →</button>
+        </div>
+      ` : `
+        <button id="vision-start-review" style="
+          width:100%;padding:10px;
+          background:transparent;border:1px dashed ${c.cardBorder};
+          border-radius:10px;color:${c.muted};
+          font-size:10px;font-weight:800;letter-spacing:1.5px;
+          text-transform:uppercase;cursor:pointer;margin-bottom:16px;
+          transition:all .18s;
+        "
+        onmouseover="this.style.borderColor='${c.gold}';this.style.color='${c.gold}'"
+        onmouseout="this.style.borderColor='${c.cardBorder}';this.style.color='${c.muted}'"
+        >📋 ${_weeklyReview ? 'Update Weekly Review' : 'Do Weekly Review'}</button>
+      `}
+
+      <!-- Reality Check -->
+      ${hasStatement ? `
+        <div style="
+          background:${c.cardBg};
+          border:1px solid ${c.cardBorder};
+          border-radius:14px;
+          padding:18px 16px;
+          margin-bottom:14px;
+        ">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.muted};text-transform:uppercase;">🔍 Reality Check</div>
+            ${_weeklyReview ? `<button id="vision-refresh-reality" style="${_smallBtnStyle(c, false)}" ${_loadingRealityCheck ? 'disabled' : ''}>${_loadingRealityCheck ? '⟳ Analysing…' : '⟳ Refresh'}</button>` : ''}
+          </div>
+          ${_loadingRealityCheck
+            ? `<div style="font-size:12px;color:${c.muted};font-weight:600;font-style:italic;">Analysing the gap…</div>`
+            : _realityCheck
+              ? `<div style="font-size:13px;line-height:1.75;color:${c.subheading};font-weight:600;">${_nl2br(_realityCheck)}</div>
+                 ${_weeklyReview ? `<div style="font-size:10px;color:${c.muted};margin-top:10px;font-weight:700;">Last review: ${_fmtDate(_weeklyReview.ts)}</div>` : ''}`
+              : `<div style="font-size:12px;color:${c.emptyTxt};font-weight:600;font-style:italic;line-height:1.6;">
+                  Complete a weekly review and your reality check will appear here — an honest comparison of where you are vs who your vision says you are.
+                </div>`
+          }
+        </div>
+
+        <!-- 30-Day Focus -->
+        <div style="
+          background:${c.cardBg};
+          border:1px solid ${c.cardBorder};
+          border-radius:14px;
+          padding:18px 16px;
+          margin-bottom:20px;
+        ">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.muted};text-transform:uppercase;">🎯 Monthly Focus</div>
+            ${_weeklyReview ? `<button id="vision-refresh-focus" style="${_smallBtnStyle(c, false)}" ${_loading30Day ? 'disabled' : ''}>${_loading30Day ? '⟳ Building…' : '⟳ Refresh'}</button>` : ''}
+          </div>
+          ${_loading30Day
+            ? `<div style="font-size:12px;color:${c.muted};font-weight:600;font-style:italic;">Building your monthly plan…</div>`
+            : (() => {
+                if (!_focusPlan) return `<div style="font-size:12px;color:${c.emptyTxt};font-weight:600;font-style:italic;line-height:1.6;">Complete a weekly review to unlock your monthly plan — a calendar-month objective broken into 4 focused weeks with guidance to overcome what's holding you back.</div>`;
+                let plan;
+                try { plan = JSON.parse(_focusPlan); } catch(e) { plan = null; }
+                if (!plan || !plan.weeks) return `<div style="font-size:13px;line-height:1.75;color:${c.subheading};font-weight:600;">${_nl2br(_focusPlan)}</div>`;
+
+                const weekColors = ['#4A90D9','#C9A84C','#2ECC71','#9B59B6'];
+                const weekLabels = ['WEEK 1 — FOUNDATIONS','WEEK 2 — MOMENTUM','WEEK 3 — PUSH','WEEK 4 — LOCK IN'];
+
+                return `
+                  <!-- Month Objective -->
+                  <div style="
+                    background:${c.statementBg};
+                    border:1.5px solid ${c.statementBdr};
+                    border-radius:12px;
+                    padding:14px 16px;
+                    margin-bottom:16px;
+                  ">
+                    <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:6px;">THIS MONTH'S OBJECTIVE</div>
+                    <div style="font-size:13px;font-weight:800;color:${c.statementTxt};line-height:1.5;">${_escHtml(plan.monthObjective)}</div>
+                  </div>
+
+                  <!-- Week cards -->
+                  <div style="display:flex;flex-direction:column;gap:10px;">
+                    ${plan.weeks.map((w, i) => `
+                      <div style="
+                        border-left:3px solid ${weekColors[i] || c.gold};
+                        border-radius:0 10px 10px 0;
+                        background:${c.cardBg};
+                        border-top:1px solid ${c.cardBorder};
+                        border-right:1px solid ${c.cardBorder};
+                        border-bottom:1px solid ${c.cardBorder};
+                        padding:12px 14px;
+                      ">
+                        <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${weekColors[i] || c.gold};text-transform:uppercase;margin-bottom:5px;">${weekLabels[i] || 'WEEK ' + w.week}</div>
+                        <div style="font-size:13px;font-weight:800;color:${c.heading};margin-bottom:8px;line-height:1.4;">${_escHtml(w.focus)}</div>
+                        <ul style="margin:0 0 10px 0;padding-left:16px;">
+                          ${(w.actions || []).map(act => `<li style="font-size:12px;color:${c.subheading};font-weight:600;line-height:1.55;margin-bottom:3px;">${_escHtml(act)}</li>`).join('')}
+                        </ul>
+                        ${w.challenge ? `
+                          <div style="
+                            background:rgba(255,100,100,0.07);
+                            border:1px solid rgba(255,100,100,0.2);
+                            border-radius:8px;
+                            padding:9px 11px;
+                            font-size:11px;color:${c.subheading};font-weight:600;line-height:1.55;
+                          ">
+                            <span style="font-size:10px;font-weight:900;letter-spacing:1px;color:${c.dangerTxt};text-transform:uppercase;">⚠ Watch for: </span>${_escHtml(w.challenge)}
+                          </div>
+                        ` : ''}
+                      </div>
+                    `).join('')}
+                  </div>
+                `;
+              })()
+          }
+        </div>
+      ` : ''}
 
       <!-- Entry Composer -->
       <div style="
@@ -431,6 +583,31 @@ function _attachRoomListeners(fromFolder) {
     _paintRoom();
     await _doDistil();
     _distilling = false;
+    _paintRoom();
+  });
+
+  // Weekly Review
+  panel.querySelector('#vision-start-review')?.addEventListener('click', () => {
+    _showWeeklyReviewModal();
+  });
+
+  // Refresh Reality Check
+  panel.querySelector('#vision-refresh-reality')?.addEventListener('click', async () => {
+    if (_loadingRealityCheck) return;
+    _loadingRealityCheck = true;
+    _paintRoom();
+    await _doRealityCheck();
+    _loadingRealityCheck = false;
+    _paintRoom();
+  });
+
+  // Refresh 30-Day Focus
+  panel.querySelector('#vision-refresh-focus')?.addEventListener('click', async () => {
+    if (_loading30Day) return;
+    _loading30Day = true;
+    _paintRoom();
+    await _do30DayFocus();
+    _loading30Day = false;
     _paintRoom();
   });
 
@@ -581,15 +758,22 @@ function _uid() { return (_deps?.user || window.currentUser)?.uid; }
 async function _loadRoomData(roomId) {
   _statement = '';
   _entries = [];
+  _weeklyReview = null;
+  _realityCheck = '';
+  _focusPlan = '';
   try {
     const db = _db(); const uid = _uid();
     if (!db || !uid) return;
 
-    // Load statement doc
+    // Load statement doc (also holds realityCheck, focusPlan, weeklyReview)
     const stmtRef = doc(db, 'users', uid, 'visionRooms', roomId);
     const stmtSnap = await getDoc(stmtRef);
     if (stmtSnap.exists()) {
-      _statement = stmtSnap.data().statement || '';
+      const data = stmtSnap.data();
+      _statement    = data.statement    || '';
+      _realityCheck = data.realityCheck || '';
+      _focusPlan    = data.focusPlan    || '';
+      _weeklyReview = data.weeklyReview || null;
     }
 
     // Load entries
@@ -655,6 +839,33 @@ async function _saveStatement(statement) {
   }
 }
 
+async function _saveRealityCheck(text) {
+  try {
+    const db = _db(); const uid = _uid();
+    if (!db || !uid || !_room) return;
+    await setDoc(doc(db, 'users', uid, 'visionRooms', _room.id), { realityCheck: text }, { merge: true });
+    _realityCheck = text;
+  } catch (err) { console.error('[Vision] saveRealityCheck error:', err); }
+}
+
+async function _saveFocusPlan(text) {
+  try {
+    const db = _db(); const uid = _uid();
+    if (!db || !uid || !_room) return;
+    await setDoc(doc(db, 'users', uid, 'visionRooms', _room.id), { focusPlan: text }, { merge: true });
+    _focusPlan = text;
+  } catch (err) { console.error('[Vision] saveFocusPlan error:', err); }
+}
+
+async function _saveWeeklyReview(review) {
+  try {
+    const db = _db(); const uid = _uid();
+    if (!db || !uid || !_room) return;
+    await setDoc(doc(db, 'users', uid, 'visionRooms', _room.id), { weeklyReview: review }, { merge: true });
+    _weeklyReview = review;
+  } catch (err) { console.error('[Vision] saveWeeklyReview error:', err); }
+}
+
 async function _resetRoom() {
   try {
     const db = _db(); const uid = _uid();
@@ -669,6 +880,10 @@ async function _resetRoom() {
 
     _entries = [];
     _statement = '';
+    _realityCheck = '';
+    _focusPlan = '';
+    _weeklyReview = null;
+    _showReviewBanner = false;
     _showEntries = false;
     _paintRoom();
   } catch (err) {
@@ -819,8 +1034,282 @@ Distil these into a single, powerful Vision Statement.`;
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   HELPERS
+   WEEKLY REVIEW MODAL
 ───────────────────────────────────────────────────────────────────── */
+function _showWeeklyReviewModal() {
+  const c = colors();
+  const isLight = document.body.classList.contains('light');
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,0.82);
+    display:flex;align-items:flex-end;justify-content:center;
+    z-index:99999;padding:0;
+  `;
+
+  const prevAnswers = _weeklyReview?.answers || {};
+
+  overlay.innerHTML = `
+    <div style="
+      background:${isLight ? '#FFFFFF' : '#0E1C34'};
+      border-radius:20px 20px 0 0;
+      padding:28px 24px 48px;
+      width:100%;max-width:520px;
+      max-height:90vh;overflow-y:auto;
+    ">
+      <div style="text-align:center;margin-bottom:24px;">
+        <div style="font-size:28px;margin-bottom:8px;">📋</div>
+        <div style="font-size:15px;font-weight:900;letter-spacing:2px;color:${c.heading};text-transform:uppercase;">Weekly Review</div>
+        <div style="font-size:11px;color:${c.muted};font-weight:600;margin-top:4px;">${_room?.label} — Be brutally honest.</div>
+      </div>
+
+      ${[
+        { key: 'actions',   label: '1. What did you actually do this week towards this vision?', hint: 'Specific actions, not intentions.' },
+        { key: 'results',   label: '2. What results or outputs did you produce?',                hint: 'Numbers, evidence, proof.' },
+        { key: 'avoided',   label: '3. What did you avoid, delay or make excuses about?',       hint: 'Be honest — no one else is reading this.' },
+        { key: 'obstacle',  label: '5. What\'s your single biggest obstacle right now?',        hint: 'The real one, not the easy answer.' },
+      ].map(q => `
+        <div style="margin-bottom:18px;">
+          <div style="font-size:11px;font-weight:900;color:${c.subheading};letter-spacing:1px;margin-bottom:4px;">${q.label}</div>
+          <div style="font-size:10px;color:${c.muted};font-weight:600;margin-bottom:8px;font-style:italic;">${q.hint}</div>
+          <textarea
+            id="review-${q.key}"
+            style="
+              width:100%;min-height:72px;
+              background:${c.inputBg};border:1px solid ${c.inputBorder};
+              border-radius:10px;color:${c.inputText};
+              font-size:13px;line-height:1.65;padding:10px 12px;
+              font-family:inherit;font-weight:600;
+              resize:vertical;box-sizing:border-box;outline:none;
+            "
+            placeholder="…"
+          >${_escHtml(prevAnswers[q.key] || '')}</textarea>
+        </div>
+      `).join('')}
+
+      <div style="margin-bottom:22px;">
+        <div style="font-size:11px;font-weight:900;color:${c.subheading};letter-spacing:1px;margin-bottom:8px;">4. Honest effort rating this week (1–10)</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${[1,2,3,4,5,6,7,8,9,10].map(n => `
+            <button
+              data-effort="${n}"
+              class="effort-btn"
+              style="
+                width:40px;height:40px;border-radius:8px;
+                background:${prevAnswers.effort == n ? c.goldBtn : c.inputBg};
+                border:1.5px solid ${prevAnswers.effort == n ? c.gold : c.inputBorder};
+                color:${prevAnswers.effort == n ? c.goldBtnTxt : c.inputText};
+                font-size:13px;font-weight:900;cursor:pointer;
+                transition:all .15s;
+              "
+            >${n}</button>
+          `).join('')}
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <button id="review-cancel" style="flex:1;padding:14px;background:${c.cardBg};border:1px solid ${c.cardBorder};border-radius:10px;color:${c.muted};font-size:12px;font-weight:800;letter-spacing:1px;cursor:pointer;">CANCEL</button>
+        <button id="review-submit" style="flex:2;padding:14px;background:${c.goldBtn};color:${c.goldBtnTxt};border:none;border-radius:10px;font-size:12px;font-weight:900;letter-spacing:2px;cursor:pointer;text-transform:uppercase;">SAVE & ANALYSE →</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  // Effort selector
+  let selectedEffort = prevAnswers.effort || null;
+  overlay.querySelectorAll('.effort-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedEffort = parseInt(btn.dataset.effort);
+      overlay.querySelectorAll('.effort-btn').forEach(b => {
+        const active = parseInt(b.dataset.effort) === selectedEffort;
+        b.style.background = active ? c.goldBtn : c.inputBg;
+        b.style.borderColor = active ? c.gold : c.inputBorder;
+        b.style.color = active ? c.goldBtnTxt : c.inputText;
+      });
+    });
+  });
+
+  overlay.querySelector('#review-cancel').addEventListener('click', () => overlay.remove());
+
+  overlay.querySelector('#review-submit').addEventListener('click', async () => {
+    const answers = {
+      actions:  overlay.querySelector('#review-actions')?.value?.trim()  || '',
+      results:  overlay.querySelector('#review-results')?.value?.trim()  || '',
+      avoided:  overlay.querySelector('#review-avoided')?.value?.trim()  || '',
+      obstacle: overlay.querySelector('#review-obstacle')?.value?.trim() || '',
+      effort:   selectedEffort,
+      ts:       Date.now(),
+    };
+    overlay.remove();
+    await _saveWeeklyReview({ answers, ts: Date.now() });
+    _showReviewBanner = false;
+
+    // Trigger both AI analyses
+    _loadingRealityCheck = true;
+    _loading30Day = true;
+    _paintRoom();
+    await Promise.all([_doRealityCheck(), _do30DayFocus()]);
+    _loadingRealityCheck = false;
+    _loading30Day = false;
+    _paintRoom();
+    _toast('Review saved — analysis complete.', colors());
+  });
+
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   AI — REALITY CHECK
+───────────────────────────────────────────────────────────────────── */
+async function _doRealityCheck() {
+  if (!_statement || !_weeklyReview) return;
+
+  let apiKey = getApiKey();
+  if (!apiKey) {
+    apiKey = await _promptForApiKey();
+    if (!apiKey) return;
+    saveApiKey(apiKey);
+  }
+
+  try {
+    const a = _weeklyReview.answers || {};
+    const reviewText = [
+      a.actions   ? `Actions taken: ${a.actions}`     : '',
+      a.results   ? `Results produced: ${a.results}`  : '',
+      a.avoided   ? `Avoided/delayed: ${a.avoided}`   : '',
+      a.effort    ? `Effort rating: ${a.effort}/10`    : '',
+      a.obstacle  ? `Biggest obstacle: ${a.obstacle}` : '',
+    ].filter(Boolean).join('\n');
+
+    const system = `You are Robert's brutally honest but deeply believing mentor. He has given you his vision — who he is becoming — and his honest weekly review of where he actually is right now. 
+
+Your job: call out the gap with complete honesty. No sugarcoating. No softening. Name exactly where he is falling short, where he is making excuses, where he is playing small. Be specific to HIS situation — never generic. 
+
+But you also know what he is genuinely capable of. You have seen it in his vision. So after calling out the gap, remind him what is actually possible for him — not with empty hype, but with grounded belief. 
+
+Write 3-5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`;
+
+    const user = `My vision for ${_room?.label}:\n${_statement}\n\nMy weekly review:\n${reviewText}\n\nGive me my Reality Check.`;
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 350,
+        system,
+        messages: [{ role: 'user', content: user }],
+      }),
+    });
+
+    const data = await res.json();
+    const text = data?.content?.[0]?.text?.trim() || '';
+    if (text) await _saveRealityCheck(text);
+  } catch (err) {
+    console.error('[Vision] realityCheck error:', err);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   AI — MONTHLY + WEEKLY FOCUS PLAN
+───────────────────────────────────────────────────────────────────── */
+async function _do30DayFocus() {
+  if (!_statement || !_weeklyReview) return;
+
+  let apiKey = getApiKey();
+  if (!apiKey) {
+    apiKey = await _promptForApiKey();
+    if (!apiKey) return;
+    saveApiKey(apiKey);
+  }
+
+  try {
+    const a = _weeklyReview.answers || {};
+    const now = new Date();
+    const monthName = now.toLocaleString('en-GB', { month: 'long' });
+    const year = now.getFullYear();
+
+    const reviewText = [
+      a.actions   ? `Actions taken this week: ${a.actions}`     : '',
+      a.results   ? `Results produced: ${a.results}`            : '',
+      a.avoided   ? `Avoided/delayed: ${a.avoided}`             : '',
+      a.effort    ? `Effort rating: ${a.effort}/10`              : '',
+      a.obstacle  ? `Biggest obstacle right now: ${a.obstacle}` : '',
+    ].filter(Boolean).join('\n');
+
+    const system = `You are a sharp, direct coach creating a structured monthly plan for someone working toward their vision.
+
+You must respond with ONLY a valid JSON object — no markdown, no backticks, no explanation. Exactly this structure:
+
+{
+  "monthObjective": "One bold, specific, measurable objective for this calendar month. Start with the month name.",
+  "weeks": [
+    {
+      "week": 1,
+      "focus": "The single most important focus for this week (one sentence, specific)",
+      "actions": ["Specific daily/weekly action 1", "Specific daily/weekly action 2", "Specific daily/weekly action 3"],
+      "challenge": "The specific obstacle from their review this week will likely trigger, and exactly how to overcome it (2 sentences)"
+    },
+    { "week": 2, "focus": "...", "actions": ["...", "...", "..."], "challenge": "..." },
+    { "week": 3, "focus": "...", "actions": ["...", "...", "..."], "challenge": "..." },
+    { "week": 4, "focus": "...", "actions": ["...", "...", "..."], "challenge": "..." }
+  ]
+}
+
+Rules:
+- Be brutally specific to THEIR situation — use details from their vision and review
+- Each week should build on the last — Week 1 foundations, Week 2 momentum, Week 3 push, Week 4 consolidate
+- Actions must be concrete and measurable, not vague ("Go live on TikTok at 7pm every day" not "post more")
+- The challenge field must directly reference their stated obstacle and give a concrete coping strategy
+- Return ONLY the JSON. Nothing else.`;
+
+    const user = `Month: ${monthName} ${year}
+Room: ${_room?.label}
+
+My vision:\n${_statement}\n\nMy current reality:\n${reviewText}`;
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 800,
+        system,
+        messages: [{ role: 'user', content: user }],
+      }),
+    });
+
+    const data = await res.json();
+    const raw = data?.content?.[0]?.text?.trim() || '';
+    if (!raw) return;
+
+    // Parse and validate JSON
+    try {
+      const clean = raw.replace(/^```json|^```|```$/gm, '').trim();
+      const parsed = JSON.parse(clean);
+      if (parsed.monthObjective && Array.isArray(parsed.weeks)) {
+        await _saveFocusPlan(JSON.stringify(parsed));
+      }
+    } catch (parseErr) {
+      console.error('[Vision] 30dayFocus parse error:', parseErr, raw);
+    }
+  } catch (err) {
+    console.error('[Vision] 30dayFocus error:', err);
+  }
+}
+
+
 function _panel() {
   return document.getElementById('tab-vision')
       || document.getElementById('vision-tab')
