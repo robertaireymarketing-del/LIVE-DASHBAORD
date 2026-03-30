@@ -155,14 +155,145 @@ export function renderVaultTab(deps) {
         const mins = Math.floor(diff / 60000);
         const hrs  = Math.floor(diff / 3600000);
         const days = Math.floor(diff / 86400000);
-        if (mins < 1)  return 'just now';
-        if (mins < 60) return `${mins}m ago`;
-        if (hrs  < 24) return `${hrs}h ago`;
+        if (mins < 1)   return 'just now';
+        if (mins < 60)  return `${mins}m ago`;
+        if (hrs  < 24)  return `${hrs}h ago`;
         if (days === 1) return 'yesterday';
         return `${days}d ago`;
       }
 
-      const ideas = getVaultIdeas();
+      const ideas      = getVaultIdeas();
+      const activeStage = state.vaultStage || 'Raw';
+      const stale      = vaultStaleCount();
+      const capturing  = state.vaultCapturing || false;
+      const expandedId = state.vaultExpanded || null;
+      const filtered   = ideas.filter(i => i.stage === activeStage);
+
+      const capturePanel = capturing ? `
+        <div class="vault-capture-panel" style="border-radius:10px;padding:20px;margin-bottom:20px;">
+          <div class="vault-capture-label">NEW CAPTURE</div>
+          <input id="vault-title" placeholder="What's the idea?" class="vault-title-input" style="width:100%;background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.15);padding:8px 0;font-size:20px;color:#fff;outline:none;margin-bottom:20px;"/>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+            <div>
+              <div class="vault-field-label">SOURCE</div>
+              <select id="vault-source" class="vault-select" style="width:100%;background:#1a1a1a;border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;padding:8px;font-size:13px;outline:none;">
+                ${VAULT_SOURCES.map(s => `<option value="${s}">${s}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <div class="vault-field-label">CATEGORY</div>
+              <select id="vault-category" class="vault-select" style="width:100%;background:#1a1a1a;border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;padding:8px;font-size:13px;outline:none;">
+                ${VAULT_CATS.map(c => `<option value="${c}">${c}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div style="margin-bottom:14px;">
+            <div class="vault-field-label">WHAT'S THE SPARK?</div>
+            <textarea id="vault-spark" rows="2" placeholder="Why did this hit? What was the insight?" class="vault-field-input" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#ccc;padding:10px;font-size:13px;outline:none;resize:vertical;font-family:inherit;line-height:1.5;"></textarea>
+          </div>
+          <div class="vault-action-box" style="border-radius:6px;padding:12px;margin-bottom:14px;">
+            <div style="font-size:10px;letter-spacing:1px;color:#7EB8C9;margin-bottom:6px;font-weight:600;">SO WHAT? → ONE ACTION THIS REQUIRES</div>
+            <input id="vault-action" placeholder="e.g. Test as TikTok hook, delegate to VA, add to strategy doc..." class="vault-action-input" style="width:100%;background:transparent;border:none;color:#fff;padding:4px 0;font-size:13px;outline:none;"/>
+          </div>
+          <div style="margin-bottom:18px;">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="vaultToggleVA()">
+              <div id="vault-va-toggle" style="width:36px;height:20px;border-radius:10px;background:#222;border:1px solid #333;position:relative;transition:all 0.2s;flex-shrink:0;">
+                <div style="width:14px;height:14px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left 0.2s;"></div>
+              </div>
+              <span class="vault-va-label">DELEGATE TO VA</span>
+            </label>
+            <div id="vault-va-notes-wrap" style="display:none;margin-top:10px;">
+              <input id="vault-va-notes" placeholder="Brief for VA..." style="width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(212,175,55,0.2);border-radius:6px;color:#D4AF37;padding:8px;font-size:13px;outline:none;"/>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button onclick="vaultSaveIdea()" class="vault-save-btn">VAULT IT</button>
+            <button onclick="vaultCancelCapture()" class="vault-cancel-btn">Cancel</button>
+          </div>
+        </div>` :
+        `<button onclick="vaultStartCapture()" class="vault-capture-btn" style="width:100%;padding:16px;background:rgba(212,175,55,0.06);border:1.5px dashed rgba(212,175,55,0.35);border-radius:8px;color:#D4AF37;font-size:14px;cursor:pointer;margin-bottom:20px;text-align:center;font-weight:600;letter-spacing:0.5px;">
+          + Capture an idea...
+        </button>`;
+
+      const stageTabs = `<div class="vault-tabs-row" style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap;">
+        ${VAULT_STAGES.map(s => {
+          const cnt = ideas.filter(i => i.stage === s).length;
+          const active = activeStage === s;
+          const col = VAULT_STAGE_COLORS[s];
+          return `<button onclick="setVaultStage('${s}')" class="vault-pill-tab ${active ? 'active' : ''}" style="${active ? `background:${col};border-color:${col};color:#fff;` : ''}">
+            ${s} <span class="vault-pill-count" style="${active ? 'background:rgba(255,255,255,0.25);color:#fff;' : ''}">${cnt}</span>
+          </button>`;
+        }).join('')}
+      </div>`;
+
+      const ideaCards = filtered.length === 0
+        ? `<div class="vault-empty-state">No ideas in ${activeStage.toLowerCase()} yet</div>`
+        : filtered.map(idea => {
+            const isExpanded = expandedId === idea.id;
+            const isStale    = idea.stage === 'Raw' && (Date.now() - idea.createdAt) > 7 * 86400000;
+            const col        = VAULT_STAGE_COLORS[idea.stage];
+            const catCol     = VAULT_CAT_COLORS[idea.category] || '#888';
+            const stripeGrad = `linear-gradient(90deg, ${col}, ${col}88)`;
+            return `
+              <div class="vault-idea-card ${isExpanded ? 'expanded' : ''}">
+                <div class="vault-card-stripe" style="background:${stripeGrad};"></div>
+                <div class="vault-card-body" onclick="toggleVaultExpand('${idea.id}')">
+                  <div style="flex:1;min-width:0;">
+                    <div class="vault-idea-title">
+                      ${idea.title}
+                      ${idea.vaFlag ? `<span class="vault-va-badge">VA</span>` : ''}
+                      ${isStale ? `<span class="vault-stale-badge">STALE</span>` : ''}
+                    </div>
+                    <div class="vault-card-pills">
+                      <span class="vault-pill-cat" style="background:${catCol}22;color:${catCol};">${idea.category}</span>
+                      <span class="vault-pill-src">${idea.source}</span>
+                      <span class="vault-pill-time">${vaultTimeAgo(idea.createdAt)}</span>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                    <button class="vault-delete-quick-btn" onclick="event.stopPropagation();if(confirm('Delete this idea?'))deleteVaultIdea('${idea.id}')" title="Delete">✕</button>
+                    <span class="vault-expand-arrow">${isExpanded ? '▲' : '▼'}</span>
+                  </div>
+                </div>
+                ${isExpanded ? `
+                  <div class="vault-expanded-body">
+                    ${idea.spark ? `<div class="vault-spark-wrap">
+                      <div class="vault-field-label">THE SPARK</div>
+                      <p class="vault-spark-text">${idea.spark}</p>
+                    </div>` : ''}
+                    ${idea.action ? `<div class="vault-action-display">
+                      <div style="font-size:10px;letter-spacing:1px;color:#7EB8C9;margin-bottom:4px;font-weight:600;">ACTION</div>
+                      <p class="vault-action-text">${idea.action}</p>
+                    </div>` : ''}
+                    ${idea.vaFlag && idea.vaNotes ? `<div class="vault-va-display">
+                      <div style="font-size:10px;letter-spacing:1px;color:#D4AF37;margin-bottom:4px;font-weight:600;">VA BRIEF</div>
+                      <p style="margin:0;font-size:13px;color:rgba(212,175,55,0.8);">${idea.vaNotes}</p>
+                    </div>` : ''}
+                    <div class="vault-move-row">
+                      <span class="vault-move-label">Move to →</span>
+                      ${VAULT_STAGES.filter(s => s !== idea.stage).map(s => `<button class="vault-stage-move-btn" onclick="moveVaultStage('${idea.id}','${s}')" style="color:${VAULT_STAGE_COLORS[s]};border-color:${VAULT_STAGE_COLORS[s]}33;">${s}</button>`).join('')}
+                    </div>
+                  </div>` : ''}
+              </div>`;
+          }).join('');
+
+      return `
+        <div class="vault-header">
+          <div>
+            <div class="section-title vault-title-text" style="margin-top:0;">Idea Vault</div>
+            <div class="vault-tagline">Capture. Process. Deploy.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${stale > 0 ? `<div class="vault-stale-alert">⚑ ${stale} stale</div>` : ''}
+            <div class="vault-count-badge">${ideas.length} ${ideas.length === 1 ? 'idea' : 'ideas'}</div>
+          </div>
+        </div>
+        ${capturePanel}
+        ${stageTabs}
+        ${ideaCards}
+      `;
+    
+}
       const activeStage = state.vaultStage || 'Raw';
       const stale = vaultStaleCount();
       const capturing = state.vaultCapturing || false;
@@ -227,7 +358,7 @@ export function renderVaultTab(deps) {
       </div>`;
 
       const ideaCards = filtered.length === 0
-        ? `<div class="vault-empty-state" style="text-align:center;padding:48px 0;color:rgba(255,255,255,0.2);font-style:italic;">No ideas in ${activeStage.toLowerCase()} yet</div>`
+        ? `<div style="text-align:center;padding:48px 0;color:rgba(255,255,255,0.2);font-style:italic;">No ideas in ${activeStage.toLowerCase()} yet</div>`
         : filtered.map(idea => {
             const isExpanded = expandedId === idea.id;
             const isStale = idea.stage === 'Raw' && (Date.now() - idea.createdAt) > 7 * 86400000;
@@ -238,38 +369,36 @@ export function renderVaultTab(deps) {
                 <div onclick="toggleVaultExpand('${idea.id}')" style="padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;">
                   <div style="flex:1;min-width:0;">
                     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
-                      <span class="vault-idea-title" style="font-size:15px;color:#f0f0f0;">${idea.title}</span>
+                      <span style="font-size:15px;color:#f0f0f0;">${idea.title}</span>
                       ${idea.vaFlag ? `<span style="font-size:9px;color:#D4AF37;border:1px solid rgba(212,175,55,0.3);border-radius:3px;padding:1px 4px;letter-spacing:1px;">VA</span>` : ''}
                       ${isStale ? `<span style="font-size:9px;color:#D4AF37;background:rgba(212,175,55,0.1);border-radius:3px;padding:1px 4px;letter-spacing:1px;">STALE</span>` : ''}
                     </div>
                     <div style="display:flex;gap:10px;font-size:11px;">
                       <span style="color:${catCol}">${idea.category}</span>
-                      <span class="vault-idea-source">${idea.source}</span>
-                      <span class="vault-idea-time">${vaultTimeAgo(idea.createdAt)}</span>
+                      <span style="color:rgba(255,255,255,0.3)">${idea.source}</span>
+                      <span style="color:rgba(255,255,255,0.2)">${vaultTimeAgo(idea.createdAt)}</span>
                     </div>
                   </div>
-                  <div style="display:flex;align-items:center;gap:8px;">
-                    <button class="vault-delete-quick-btn" onclick="event.stopPropagation();if(confirm('Delete this idea?'))deleteVaultIdea('${idea.id}')" title="Delete idea">✕</button>
-                    <span class="vault-expand-arrow">${isExpanded ? '▲' : '▼'}</span>
-                  </div>
+                  <span style="color:rgba(255,255,255,0.25);font-size:11px;">${isExpanded ? '▲' : '▼'}</span>
                 </div>
                 ${isExpanded ? `
                   <div style="padding:0 16px 16px;border-top:1px solid rgba(255,255,255,0.06);">
                     ${idea.spark ? `<div style="margin-top:14px;margin-bottom:12px;">
-                      <div class="vault-field-label">THE SPARK</div>
-                      <p class="vault-spark-text" style="margin:0;font-size:13px;line-height:1.6;font-style:italic;">${idea.spark}</p>
+                      <div style="font-size:10px;letter-spacing:1px;color:rgba(255,255,255,0.3);margin-bottom:4px;">THE SPARK</div>
+                      <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.6);line-height:1.6;font-style:italic;">${idea.spark}</p>
                     </div>` : ''}
                     ${idea.action ? `<div style="background:rgba(126,184,201,0.07);border:1px solid rgba(126,184,201,0.15);border-radius:6px;padding:10px 12px;margin-bottom:12px;">
                       <div style="font-size:10px;letter-spacing:1px;color:#7EB8C9;margin-bottom:4px;">ACTION</div>
-                      <p class="vault-action-text" style="margin:0;font-size:13px;">${idea.action}</p>
+                      <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.8);">${idea.action}</p>
                     </div>` : ''}
                     ${idea.vaFlag && idea.vaNotes ? `<div style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.15);border-radius:6px;padding:10px 12px;margin-bottom:14px;">
                       <div style="font-size:10px;letter-spacing:1px;color:#D4AF37;margin-bottom:4px;">VA BRIEF</div>
                       <p style="margin:0;font-size:13px;color:rgba(212,175,55,0.7);">${idea.vaNotes}</p>
                     </div>` : ''}
                     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-                      <span class="vault-move-label">Move to →</span>
-                      ${VAULT_STAGES.filter(s => s !== idea.stage).map(s => `<button class="vault-stage-move-btn" onclick="moveVaultStage('${idea.id}','${s}')" style="color:${VAULT_STAGE_COLORS[s]};">${s}</button>`).join('')}
+                      <span style="font-size:10px;color:rgba(255,255,255,0.25);margin-right:4px;">Move to →</span>
+                      ${VAULT_STAGES.filter(s => s !== idea.stage).map(s => `<button onclick="moveVaultStage('${idea.id}','${s}')" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:${VAULT_STAGE_COLORS[s]};padding:4px 10px;font-size:11px;cursor:pointer;letter-spacing:0.5px;">${s}</button>`).join('')}
+                      <button onclick="deleteVaultIdea('${idea.id}')" style="margin-left:auto;background:transparent;border:1px solid rgba(255,255,255,0.07);border-radius:4px;color:rgba(255,255,255,0.25);padding:4px 10px;font-size:11px;cursor:pointer;">Delete</button>
                     </div>
                   </div>` : ''}
               </div>`;
@@ -279,10 +408,10 @@ export function renderVaultTab(deps) {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
           <div>
             <div class="section-title" style="margin-top:0;">Idea Vault</div>
-            <div class="vault-tagline">Capture. Process. Deploy.</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.3);font-style:italic;margin-top:4px;">Capture. Process. Deploy.</div>
           </div>
           <div style="text-align:right;">
-            <div class="vault-total-count">${ideas.length} total</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.25);">${ideas.length} total</div>
             ${stale > 0 ? `<div style="font-size:10px;color:#D4AF37;background:rgba(212,175,55,0.1);border:1px solid rgba(212,175,55,0.25);border-radius:4px;padding:2px 8px;margin-top:4px;letter-spacing:1px;">⚑ ${stale} STALE 7D+</div>` : ''}
           </div>
         </div>
