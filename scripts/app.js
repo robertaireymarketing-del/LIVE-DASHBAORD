@@ -38,7 +38,7 @@ const {
   getStartLeanMass, getCurrentLeanMass, getDerivedTargetWeight,
   getTodayData, getStreak, formatSyncLabel, getCurrentBmr,
   getMonthDaysRemaining, getMonthStats, getMonthTargets,
-  syncCalendarToDataMonth, getDaysRemaining,
+  syncCalendarToDataMonth, getDaysRemaining, vaultTimeAgo,
 } = createHelpers({ state, defaultSettings, STOIC_QUOTES });
 
 const crmHelpers = createCRMHelpers({ state, getToday });
