@@ -309,49 +309,92 @@
     body.light .crm-sold-profit { background: rgba(46,204,113,0.1); border-color: rgba(46,204,113,0.3); }
     body.light .crm-sold-profit-label { color: rgba(0,0,0,0.5); }
     body.light .week-markers span { color: rgba(0,0,0,0.25); }
-    body.light .vault-capture-btn { background: rgba(212,175,55,0.08); border-color: rgba(212,175,55,0.25); color: #8B6914; }
-    body.light .vault-capture-panel { background: rgba(212,175,55,0.05); border-color: rgba(212,175,55,0.2); }
-    body.light .vault-field-input { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); color: #1a1a1a; }
-    body.light .vault-field-input::placeholder { color: rgba(0,0,0,0.3); }
-    body.light .vault-title-input { border-color: rgba(0,0,0,0.15); color: #1a1a1a; }
-    body.light .vault-action-box { background: rgba(126,184,201,0.08); border-color: rgba(126,184,201,0.2); }
-    body.light .vault-stage-btn { color: rgba(0,0,0,0.4); }
-    body.light .vault-idea-card { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
-    body.light .vault-stale-badge { background: rgba(212,175,55,0.15); }
-    body.light .vault-select { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); color: #1a1a1a; }
+    /* ── VAULT LIGHT MODE – bold & clear ─────────────────────────────── */
+    body.light .vault-capture-btn {
+      background: #fff; border: 1.5px dashed #C9A84C; color: #8B6914;
+      font-weight: 800; font-size: 14px; letter-spacing: 0.5px;
+    }
 
-    /* Vault idea card classes */
-    .vault-idea-title   { font-size:15px; color:#f0f0f0; }
-    .vault-idea-source  { font-size:11px; color:rgba(255,255,255,0.3); }
-    .vault-idea-time    { font-size:11px; color:rgba(255,255,255,0.2); }
-    .vault-expand-arrow { color:rgba(255,255,255,0.25); font-size:11px; flex-shrink:0; }
-    .vault-spark-text   { color:rgba(255,255,255,0.6); }
-    .vault-action-text  { color:rgba(255,255,255,0.8); }
-    .vault-field-label  { font-size:10px; letter-spacing:1px; color:rgba(255,255,255,0.3); margin-bottom:4px; }
-    .vault-move-label   { font-size:10px; color:rgba(255,255,255,0.25); margin-right:4px; }
-    .vault-empty-state  { text-align:center; padding:48px 0; color:rgba(255,255,255,0.2); font-style:italic; }
-    .vault-tagline      { font-size:12px; color:rgba(255,255,255,0.3); font-style:italic; margin-top:4px; }
-    .vault-total-count  { font-size:11px; color:rgba(255,255,255,0.25); }
-    .vault-stage-move-btn { background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:4px 10px; font-size:11px; cursor:pointer; letter-spacing:0.5px; }
-    .vault-delete-quick-btn { background:transparent; border:1px solid rgba(231,76,60,0.25); border-radius:4px; color:rgba(231,76,60,0.5); padding:3px 8px; font-size:12px; cursor:pointer; line-height:1; flex-shrink:0; }
-    .vault-delete-quick-btn:hover { background:rgba(231,76,60,0.12); border-color:rgba(231,76,60,0.6); color:#e74c3c; }
+    /* Capture panel */
+    body.light [style*="background:rgba(212,175,55,0.06)"][style*="border:1px solid rgba(212,175,55,0.2)"] {
+      background: #FFFDF5 !important; border: 1.5px solid #C9A84C !important; border-radius: 10px;
+    }
+    body.light .vault-capture-panel { background: #FFFDF5; border-color: #C9A84C; }
 
-    /* Vault light mode overrides */
-    body.light .vault-idea-card   { background:#fff !important; border-color:#CDD4E0 !important; }
-    body.light .vault-idea-title  { color:#0A1628 !important; }
-    body.light .vault-idea-source { color:#8899B0 !important; }
-    body.light .vault-idea-time   { color:#AAB4C4 !important; }
-    body.light .vault-expand-arrow { color:#8899B0 !important; }
-    body.light .vault-spark-text  { color:#3D4F6B !important; }
-    body.light .vault-action-text { color:#0A1628 !important; }
-    body.light .vault-field-label { color:#8899B0 !important; }
-    body.light .vault-move-label  { color:#8899B0 !important; }
-    body.light .vault-empty-state { color:#AAB4C4 !important; }
-    body.light .vault-tagline     { color:#8899B0 !important; }
-    body.light .vault-total-count { color:#AAB4C4 !important; }
-    body.light .vault-stage-move-btn { background:rgba(0,0,0,0.03) !important; border-color:#CDD4E0 !important; }
-    body.light .vault-delete-quick-btn { border-color:rgba(192,57,43,0.3) !important; color:rgba(192,57,43,0.55) !important; }
-    body.light .vault-delete-quick-btn:hover { background:rgba(192,57,43,0.06) !important; border-color:rgba(192,57,43,0.5) !important; color:#c0392b !important; }
+    /* NEW CAPTURE label */
+    body.light [style*="letter-spacing:2px"][style*="color:#D4AF37"] { color: #8B6914 !important; font-weight: 900 !important; }
+
+    /* Title input */
+    body.light .vault-title-input {
+      border-color: #CDD4E0 !important; color: #0A1628 !important;
+      font-weight: 800 !important; font-size: 20px !important;
+    }
+    body.light .vault-title-input::placeholder { color: #AAB4C4 !important; font-weight: 600 !important; }
+
+    /* SOURCE / CATEGORY labels */
+    body.light [style*="letter-spacing:1px"][style*="color:rgba(255,255,255,0.4)"] { color: #8899B0 !important; font-weight: 800 !important; letter-spacing: 1.5px !important; }
+
+    /* Dropdowns */
+    body.light .vault-select {
+      background: #fff !important; border: 1.5px solid #CDD4E0 !important;
+      color: #0A1628 !important; font-weight: 700 !important; font-size: 13px !important;
+      border-radius: 6px !important;
+    }
+
+    /* Spark textarea */
+    body.light .vault-field-input {
+      background: #fff !important; border: 1.5px solid #CDD4E0 !important;
+      color: #0A1628 !important; font-weight: 600 !important;
+    }
+    body.light .vault-field-input::placeholder { color: #AAB4C4 !important; font-weight: 500 !important; }
+
+    /* Action box */
+    body.light .vault-action-box {
+      background: rgba(126,184,201,0.08) !important; border: 1.5px solid rgba(126,184,201,0.35) !important;
+    }
+    body.light .vault-action-box input {
+      color: #0A1628 !important; font-weight: 700 !important;
+    }
+    body.light .vault-action-box input::placeholder { color: #AAB4C4 !important; }
+
+    /* VA toggle label */
+    body.light [style*="color:rgba(255,255,255,0.6)"][style*="letter-spacing:1px"] { color: #6B7A90 !important; font-weight: 800 !important; }
+
+    /* VAULT IT button */
+    body.light [onclick="vaultSaveIdea()"] { background: #C9A84C !important; color: #fff !important; font-weight: 900 !important; }
+
+    /* Stage tabs */
+    body.light .vault-stage-btn {
+      color: #8899B0 !important; font-weight: 800 !important; font-size: 12px !important;
+    }
+    body.light [style*="border-bottom:1px solid rgba(255,255,255,0.07)"] { border-color: #E0E6F0 !important; }
+
+    /* Idea cards */
+    body.light .vault-idea-card {
+      background: #fff !important; border-color: #CDD4E0 !important;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06) !important;
+    }
+    body.light .vault-idea-title  { color: #0A1628 !important; font-weight: 800 !important; }
+    body.light .vault-idea-source { color: #8899B0 !important; font-weight: 700 !important; }
+    body.light .vault-idea-time   { color: #AAB4C4 !important; font-weight: 600 !important; }
+    body.light .vault-expand-arrow { color: #8899B0 !important; }
+    body.light .vault-field-label  { color: #8899B0 !important; font-weight: 800 !important; letter-spacing: 1.5px !important; }
+    body.light .vault-spark-text   { color: #3D4F6B !important; font-weight: 600 !important; }
+    body.light .vault-action-text  { color: #0A1628 !important; font-weight: 700 !important; }
+    body.light .vault-move-label   { color: #8899B0 !important; font-weight: 700 !important; }
+    body.light .vault-stage-move-btn { background: #F0F4FA !important; border: 1px solid #CDD4E0 !important; font-weight: 700 !important; }
+    body.light .vault-empty-state  { color: #AAB4C4 !important; font-weight: 600 !important; }
+    body.light .vault-tagline      { color: #8899B0 !important; font-weight: 600 !important; }
+    body.light .vault-total-count  { color: #8899B0 !important; font-weight: 700 !important; }
+
+    /* Expanded section divider */
+    body.light .vault-idea-card [style*="border-top:1px solid rgba(255,255,255"] { border-color: #E8EEF5 !important; }
+    body.light .vault-idea-card [style*="border-top: 1px solid rgba(255,255,255"] { border-color: #E8EEF5 !important; }
+
+    /* Delete button */
+    body.light .vault-delete-quick-btn { border-color: rgba(192,57,43,0.3) !important; color: rgba(192,57,43,0.55) !important; }
+    body.light .vault-delete-quick-btn:hover { background: rgba(192,57,43,0.06) !important; border-color: #c0392b !important; color: #c0392b !important; }
+    /* ─────────────────────────────────────────────────────────────────── */
     .theme-btn {
       background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
       border-radius: 20px; padding: 6px 12px; cursor: pointer;
