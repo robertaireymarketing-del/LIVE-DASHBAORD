@@ -319,6 +319,22 @@
     body.light .vault-idea-card { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.1); }
     body.light .vault-stale-badge { background: rgba(212,175,55,0.15); }
     body.light .vault-select { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.12); color: #1a1a1a; }
+    body.light .vault-idea-title { color: #0A1628 !important; }
+    body.light .vault-idea-source { color: #8899B0 !important; }
+    body.light .vault-idea-time { color: #AAB4C4 !important; }
+    body.light .vault-expand-arrow { color: #8899B0 !important; }
+    body.light .vault-spark-text { color: #3D4F6B !important; }
+    body.light .vault-action-text { color: #0A1628 !important; }
+    body.light .vault-field-label { color: #8899B0 !important; }
+    body.light .vault-move-label { color: #8899B0 !important; }
+    body.light .vault-empty-state { color: #AAB4C4 !important; }
+    body.light .vault-tagline { color: #8899B0 !important; }
+    body.light .vault-total-count { color: #AAB4C4 !important; }
+    body.light .vault-idea-card { background: #fff !important; border-color: #CDD4E0 !important; }
+    body.light .vault-idea-card [style*="border-top:1px solid rgba(255,255,255"] { border-color: #E0E6F0 !important; }
+    body.light .vault-idea-card [style*="background:rgba(126,184,201"] { background: rgba(126,184,201,0.08) !important; }
+    body.light .vault-idea-card [style*="background:rgba(255,255,255,0.03)"] { background: #F8FAFC !important; }
+    body.light .vault-stage-btn[style*="background:rgba(255,255,255,0.08)"] { background: rgba(27,58,107,0.08) !important; }
     .theme-btn {
       background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
       border-radius: 20px; padding: 6px 12px; cursor: pointer;

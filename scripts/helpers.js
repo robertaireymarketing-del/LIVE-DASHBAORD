@@ -254,6 +254,19 @@ export function createHelpers({ state, defaultSettings, STOIC_QUOTES }) {
     return Math.max(0, Math.ceil((deadline - today) / (1000 * 60 * 60 * 24)));
   }
 
+  function vaultTimeAgo(ts) {
+    if (!ts) return '';
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    const hrs = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    if (hrs < 24) return `${hrs}h ago`;
+    if (days === 1) return 'yesterday';
+    return `${days}d ago`;
+  }
+
   return {
     getToday, getAllDays, normalizeDateKey, getDayByDate,
     getWeekKey, getNextWeekKey, getTodayDayKey, isSunday,
@@ -264,6 +277,6 @@ export function createHelpers({ state, defaultSettings, STOIC_QUOTES }) {
     getStartLeanMass, getCurrentLeanMass, getDerivedTargetWeight,
     getTodayData, getStreak, formatSyncLabel, getCurrentBmr,
     getMonthDaysRemaining, getMonthStats, getMonthTargets,
-    syncCalendarToDataMonth, getDaysRemaining,
+    syncCalendarToDataMonth, getDaysRemaining, vaultTimeAgo,
   };
 }
