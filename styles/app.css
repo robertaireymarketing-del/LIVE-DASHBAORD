@@ -331,10 +331,9 @@
     body.light .vault-tagline { color: #8899B0 !important; }
     body.light .vault-total-count { color: #AAB4C4 !important; }
     body.light .vault-idea-card { background: #fff !important; border-color: #CDD4E0 !important; }
-    body.light .vault-idea-card [style*="border-top:1px solid rgba(255,255,255"] { border-color: #E0E6F0 !important; }
-    body.light .vault-idea-card [style*="background:rgba(126,184,201"] { background: rgba(126,184,201,0.08) !important; }
-    body.light .vault-idea-card [style*="background:rgba(255,255,255,0.03)"] { background: #F8FAFC !important; }
-    body.light .vault-stage-btn[style*="background:rgba(255,255,255,0.08)"] { background: rgba(27,58,107,0.08) !important; }
+    body.light .vault-delete-quick-btn { border-color: rgba(192,57,43,0.3) !important; color: rgba(192,57,43,0.55) !important; }
+    body.light .vault-delete-quick-btn:hover { background: rgba(192,57,43,0.06) !important; border-color: rgba(192,57,43,0.5) !important; color: #c0392b !important; }
+    body.light .vault-stage-move-btn { background: rgba(0,0,0,0.03) !important; border-color: #CDD4E0 !important; }
     .theme-btn {
       background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
       border-radius: 20px; padding: 6px 12px; cursor: pointer;

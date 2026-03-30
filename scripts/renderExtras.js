@@ -146,8 +146,7 @@ export function renderVaultTab(deps) {
     VAULT_SOURCES,
     VAULT_CATS,
     VAULT_STAGE_COLORS,
-    VAULT_CAT_COLORS,
-    vaultTimeAgo
+    VAULT_CAT_COLORS
   } = deps;
 
       const ideas = getVaultIdeas();
@@ -236,12 +235,15 @@ export function renderVaultTab(deps) {
                       <span class="vault-idea-time" style="color:rgba(255,255,255,0.2)">${vaultTimeAgo(idea.createdAt)}</span>
                     </div>
                   </div>
-                  <span class="vault-expand-arrow" style="color:rgba(255,255,255,0.25);font-size:11px;">${isExpanded ? '▲' : '▼'}</span>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <button class="vault-delete-quick-btn" onclick="event.stopPropagation();if(confirm('Delete this idea?'))deleteVaultIdea('${idea.id}')" title="Delete idea" style="background:transparent;border:1px solid rgba(231,76,60,0.25);border-radius:4px;color:rgba(231,76,60,0.5);padding:3px 8px;font-size:12px;cursor:pointer;line-height:1;flex-shrink:0;">✕</button>
+                    <span class="vault-expand-arrow" style="color:rgba(255,255,255,0.25);font-size:11px;">${isExpanded ? '▲' : '▼'}</span>
+                  </div>
                 </div>
                 ${isExpanded ? `
                   <div style="padding:0 16px 16px;border-top:1px solid rgba(255,255,255,0.06);">
                     ${idea.spark ? `<div style="margin-top:14px;margin-bottom:12px;">
-                      <div style="font-size:10px;letter-spacing:1px;color:rgba(255,255,255,0.3);margin-bottom:4px;" class="vault-field-label">THE SPARK</div>
+                      <div class="vault-field-label" style="font-size:10px;letter-spacing:1px;color:rgba(255,255,255,0.3);margin-bottom:4px;">THE SPARK</div>
                       <p class="vault-spark-text" style="margin:0;font-size:13px;color:rgba(255,255,255,0.6);line-height:1.6;font-style:italic;">${idea.spark}</p>
                     </div>` : ''}
                     ${idea.action ? `<div style="background:rgba(126,184,201,0.07);border:1px solid rgba(126,184,201,0.15);border-radius:6px;padding:10px 12px;margin-bottom:12px;">
@@ -254,8 +256,7 @@ export function renderVaultTab(deps) {
                     </div>` : ''}
                     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
                       <span class="vault-move-label" style="font-size:10px;color:rgba(255,255,255,0.25);margin-right:4px;">Move to →</span>
-                      ${VAULT_STAGES.filter(s => s !== idea.stage).map(s => `<button onclick="moveVaultStage('${idea.id}','${s}')" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:${VAULT_STAGE_COLORS[s]};padding:4px 10px;font-size:11px;cursor:pointer;letter-spacing:0.5px;">${s}</button>`).join('')}
-                      <button onclick="deleteVaultIdea('${idea.id}')" style="margin-left:auto;background:transparent;border:1px solid rgba(255,255,255,0.07);border-radius:4px;color:rgba(255,255,255,0.25);padding:4px 10px;font-size:11px;cursor:pointer;">Delete</button>
+                      ${VAULT_STAGES.filter(s => s !== idea.stage).map(s => `<button class="vault-stage-move-btn" onclick="moveVaultStage('${idea.id}','${s}')" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:${VAULT_STAGE_COLORS[s]};padding:4px 10px;font-size:11px;cursor:pointer;letter-spacing:0.5px;">${s}</button>`).join('')}
                     </div>
                   </div>` : ''}
               </div>`;
