@@ -156,7 +156,7 @@ const renderCRMDeps = {
   renderSoldModal: () => renderSoldModalExternal({ state }),
 };
 
-const renderVaultDeps = { state, getVaultIdeas, vaultStaleCount, VAULT_STAGES, VAULT_SOURCES, VAULT_CATS, VAULT_STAGE_COLORS, VAULT_CAT_COLORS };
+const renderVaultDeps = { state, getVaultIdeas, vaultStaleCount, VAULT_STAGES, VAULT_SOURCES, VAULT_CATS, VAULT_STAGE_COLORS, VAULT_CAT_COLORS, vaultTimeAgo };
 const renderProjectsDeps = { state, VINTED_STAGES, getVintedItems, getNottinghamData, getProjectFronts, getWeekKey, isSunday, getNextWeekKey, getTodayDayKey };
 const renderModalDeps = { state, getProjectFronts, getTodayDayKey, BATCH_COLOURS };
 const renderMoreModalDeps = { state, getStreak, RETENTION_SCIENCE, getToday, getSettings, getDayNumber, getMonthTargets };
