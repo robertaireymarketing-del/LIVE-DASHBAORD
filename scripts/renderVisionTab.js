@@ -21,6 +21,7 @@ export const DEFAULT_ROOMS = [
       { id: 'biz_wealth', label: 'Wealth & Finances',      emoji: '💰', desc: 'Net worth, income and financial freedom' },
       { id: 'biz_tjm',    label: 'The Jewellery Merchant', emoji: '💍', desc: 'Brand, scale and global impact' },
       { id: 'biz_vinted', label: 'Vinted',                 emoji: '👗', desc: 'Reselling income and pipeline' },
+      { id: 'biz_total',  label: 'Total Picture',          emoji: '🗺️', desc: 'AI-synthesised command centre — all rooms blended', isTotalPicture: true },
     ]
   },
   { id: 'lifestyle',     label: 'Lifestyle & Home',     emoji: '🏠', desc: 'Where you live and how you spend your days' },
@@ -43,6 +44,12 @@ let _distilling = false;
 let _saving = false;
 let _editId = null;
 let _customSubRooms = []; // user-added ventures under business folder
+
+// Total Picture state
+let _tp_data       = null;   // { vision, currentReality, objectives, weeklyRoadmap, amendments, generatedAt }
+let _tp_generating = false;
+let _tp_amending   = false;
+let _tp_amendDraft = '';
 
 // Weekly review + accountability state
 let _weeklyReview = null;       // { answers, ts }
@@ -265,6 +272,9 @@ function _openFolder(folder) {
    ROOM VIEW — vision statement + entry form
 ───────────────────────────────────────────────────────────────────── */
 async function _openRoom(room) {
+  // Total Picture is a special read-only AI room — route separately
+  if (room.id === 'biz_total') { await _openTotalPicture(); return; }
+
   _view = 'room';
   _room = room;
   _showEntries = false;
@@ -1384,7 +1394,485 @@ My vision:\n${_statement}\n\nMy current reality:\n${reviewText}`;
 }
 
 
-function _panel() {
+/* ─────────────────────────────────────────────────────────────────────
+   TOTAL PICTURE — AI-synthesised business & wealth command centre
+───────────────────────────────────────────────────────────────────── */
+
+async function _openTotalPicture() {
+  _view = 'room';
+  _room = { id: 'biz_total', label: 'Total Picture', emoji: '🗺️' };
+  const c = colors();
+  const panel = _panel();
+  if (!panel) return;
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;height:200px;">
+      <div style="color:${c.muted};font-size:13px;font-weight:700;letter-spacing:2px;">LOADING…</div>
+    </div>
+  `;
+
+  await _tpLoad();
+
+  // Auto-refresh if never generated or older than 24h
+  const age = _tp_data?.generatedAt ? (Date.now() - _tp_data.generatedAt) : Infinity;
+  if (!_tp_data?.vision || age > 24 * 60 * 60 * 1000) {
+    _tp_generating = true;
+    _paintTotalPicture();
+    await _tpGenerate();
+    _tp_generating = false;
+  }
+
+  _paintTotalPicture();
+}
+
+async function _tpLoad() {
+  try {
+    const db = _db(); const uid = _uid();
+    if (!db || !uid) return;
+    const snap = await getDoc(doc(db, 'users', uid, 'visionRooms', 'biz_total'));
+    _tp_data = snap.exists() ? snap.data() : null;
+  } catch (err) {
+    console.error('[Vision] tpLoad error:', err);
+    _tp_data = null;
+  }
+}
+
+async function _tpSave() {
+  try {
+    const db = _db(); const uid = _uid();
+    if (!db || !uid || !_tp_data) return;
+    await setDoc(doc(db, 'users', uid, 'visionRooms', 'biz_total'), _tp_data, { merge: true });
+  } catch (err) {
+    console.error('[Vision] tpSave error:', err);
+  }
+}
+
+async function _tpLoadAllRoomsData() {
+  const db = _db(); const uid = _uid();
+  if (!db || !uid) return [];
+  const bizFolder = DEFAULT_ROOMS.find(r => r.isFolder);
+  if (!bizFolder) return [];
+  const subs = [...bizFolder.defaultSubRooms, ..._customSubRooms].filter(r => r.id !== 'biz_total');
+  const rooms = [];
+  await Promise.all(subs.map(async (sub) => {
+    try {
+      const snap = await getDoc(doc(db, 'users', uid, 'visionRooms', sub.id));
+      const data = snap.exists() ? snap.data() : {};
+      rooms.push({
+        label:       sub.label,
+        emoji:       sub.emoji,
+        statement:   data.statement    || '',
+        realityCheck:data.realityCheck || '',
+        weeklyReview:data.weeklyReview?.answers || null,
+      });
+    } catch (e) {
+      rooms.push({ label: sub.label, emoji: sub.emoji, statement: '', realityCheck: '', weeklyReview: null });
+    }
+  }));
+  return rooms;
+}
+
+async function _tpGenerate() {
+  let apiKey = getApiKey();
+  if (!apiKey) {
+    apiKey = await _promptForApiKey();
+    if (!apiKey) return;
+    saveApiKey(apiKey);
+  }
+  try {
+    const rooms = await _tpLoadAllRoomsData();
+    const now = new Date();
+    const monthName = now.toLocaleString('en-GB', { month: 'long' });
+    const year = now.getFullYear();
+
+    const contextStr = rooms.map(r => {
+      const parts = [`${r.emoji} ${r.label}`];
+      if (r.statement)    parts.push(`Vision: ${r.statement}`);
+      if (r.realityCheck) parts.push(`Reality Check: ${r.realityCheck}`);
+      if (r.weeklyReview) {
+        const a = r.weeklyReview;
+        if (a.actions)  parts.push(`Recent Actions: ${a.actions}`);
+        if (a.results)  parts.push(`Results: ${a.results}`);
+        if (a.avoided)  parts.push(`Avoided/Delayed: ${a.avoided}`);
+        if (a.obstacle) parts.push(`Biggest Obstacle: ${a.obstacle}`);
+        if (a.effort)   parts.push(`Effort: ${a.effort}/10`);
+      }
+      return parts.join('\n');
+    }).join('\n\n---\n\n');
+
+    const amendments    = _tp_data?.amendments || [];
+    const amendmentStr  = amendments.length > 0
+      ? `\n\nAmendments from Robert:\n${amendments.map((a, i) => `${i + 1}. ${a}`).join('\n')}`
+      : '';
+
+    const system = `You are a sharp strategic coach building an AI-powered command centre for Robert's business and wealth. You have data from all his business vision rooms. Synthesise this into a clear, actionable Total Picture.
+
+Respond with ONLY a valid JSON object — no markdown, no backticks, no explanation. Exactly this structure:
+
+{
+  "vision": "2–4 sentence synthesis of Robert's overall business and wealth vision — what he is building and why. Present tense, vivid, specific to his actual ventures.",
+  "currentReality": "2–4 sentence honest summary of where Robert is right now across his business and wealth — reference his reality checks and reviews. What's working and what's not.",
+  "objectives": [
+    "Specific measurable objective for ${monthName} — action verb + concrete outcome",
+    "Specific measurable objective for ${monthName}",
+    "Specific measurable objective for ${monthName}",
+    "Specific measurable objective for ${monthName}",
+    "Specific measurable objective for ${monthName}"
+  ],
+  "weeklyRoadmap": {
+    "month": "${monthName} ${year}",
+    "weeks": [
+      { "week": 1, "focus": "Single most important focus for Week 1 (one bold sentence)", "actions": ["Specific action 1", "Specific action 2", "Specific action 3"] },
+      { "week": 2, "focus": "…", "actions": ["…", "…", "…"] },
+      { "week": 3, "focus": "…", "actions": ["…", "…", "…"] },
+      { "week": 4, "focus": "…", "actions": ["…", "…", "…"] }
+    ]
+  }
+}
+
+Rules: Be brutally specific to Robert's actual businesses. Objectives must be achievable this calendar month. Actions must be concrete, not generic. Build the roadmap week by week with momentum. Return ONLY valid JSON.`;
+
+    const user = `Month: ${monthName} ${year}\n\nBusiness & Wealth room data:\n\n${contextStr}${amendmentStr}\n\nBuild the Total Picture.`;
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1400,
+        system,
+        messages: [{ role: 'user', content: user }],
+      }),
+    });
+
+    const data = await res.json();
+    const raw  = data?.content?.[0]?.text?.trim() || '';
+    if (!raw) return;
+
+    const clean  = raw.replace(/^```json|^```|```$/gm, '').trim();
+    const parsed = JSON.parse(clean);
+
+    // Preserve existing checkbox state
+    const prevMap = {};
+    (_tp_data?.objectives || []).forEach(o => { prevMap[o.text] = o.checked; });
+    const objectives = (parsed.objectives || []).map(text => ({
+      text,
+      checked: prevMap[text] || false,
+    }));
+
+    _tp_data = {
+      ...(_tp_data || {}),
+      vision:        parsed.vision        || '',
+      currentReality:parsed.currentReality|| '',
+      objectives,
+      weeklyRoadmap: parsed.weeklyRoadmap || null,
+      amendments:    _tp_data?.amendments || [],
+      generatedAt:   Date.now(),
+    };
+
+    await _tpSave();
+  } catch (err) {
+    console.error('[Vision] tpGenerate error:', err);
+  }
+}
+
+async function _tpRegenerateRoadmap(amendment) {
+  if (!amendment.trim()) return;
+  let apiKey = getApiKey();
+  if (!apiKey) {
+    apiKey = await _promptForApiKey();
+    if (!apiKey) return;
+    saveApiKey(apiKey);
+  }
+
+  // Append amendment
+  _tp_data = {
+    ...(_tp_data || {}),
+    amendments: [...(_tp_data?.amendments || []), amendment.trim()],
+  };
+
+  try {
+    const now        = new Date();
+    const monthName  = now.toLocaleString('en-GB', { month: 'long' });
+    const year       = now.getFullYear();
+    const current    = _tp_data.weeklyRoadmap ? JSON.stringify(_tp_data.weeklyRoadmap) : 'None yet';
+    const allAmends  = (_tp_data.amendments || []).map((a, i) => `${i + 1}. ${a}`).join('\n');
+
+    const system = `You are a strategic coach refining a monthly roadmap for Robert based on his corrections. Return ONLY a valid JSON object — no markdown, no explanation:
+
+{
+  "month": "${monthName} ${year}",
+  "weeks": [
+    { "week": 1, "focus": "…", "actions": ["…", "…", "…"] },
+    { "week": 2, "focus": "…", "actions": ["…", "…", "…"] },
+    { "week": 3, "focus": "…", "actions": ["…", "…", "…"] },
+    { "week": 4, "focus": "…", "actions": ["…", "…", "…"] }
+  ]
+}
+
+Rules: Incorporate ALL amendments — they override the original. Keep what works, refine the rest. Actions must be concrete. Return ONLY valid JSON.`;
+
+    const user = `Current roadmap:\n${current}\n\nRobert's amendments:\n${allAmends}`;
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 900,
+        system,
+        messages: [{ role: 'user', content: user }],
+      }),
+    });
+
+    const data   = await res.json();
+    const raw    = data?.content?.[0]?.text?.trim() || '';
+    if (!raw) return;
+    const clean  = raw.replace(/^```json|^```|```$/gm, '').trim();
+    const parsed = JSON.parse(clean);
+    _tp_data.weeklyRoadmap = parsed;
+    await _tpSave();
+  } catch (err) {
+    console.error('[Vision] tpRegenerateRoadmap error:', err);
+  }
+}
+
+function _paintTotalPicture() {
+  const c     = colors();
+  const panel = _panel();
+  if (!panel) return;
+  const d       = _tp_data;
+  const hasData = d && d.vision;
+  const monthLabel = d?.weeklyRoadmap?.month
+    || new Date().toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+
+  panel.innerHTML = `
+    <div class="vision-page" style="background:${c.pageBg};min-height:100%;padding:24px 20px 80px;">
+
+      <!-- Header -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+        <button id="tp-back" style="${_backBtnStyle(c)}">← Back</button>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:17px;font-weight:900;letter-spacing:2px;color:${c.heading};text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🗺️ Total Picture</div>
+          <div style="font-size:10px;color:${c.muted};letter-spacing:1px;font-weight:600;">AI-synthesised from all your business rooms</div>
+        </div>
+        <button id="tp-refresh" style="
+          background:${c.goldBtn};color:${c.goldBtnTxt};
+          border:none;border-radius:8px;
+          font-size:10px;font-weight:900;letter-spacing:1px;
+          padding:8px 12px;cursor:pointer;white-space:nowrap;flex-shrink:0;
+          opacity:${_tp_generating ? '0.6' : '1'};
+        " ${_tp_generating ? 'disabled' : ''}>${_tp_generating ? '⟳ Generating…' : '⟳ Refresh'}</button>
+      </div>
+
+      ${_tp_generating ? `
+        <div style="
+          background:${c.cardBg};border:1px solid ${c.cardBorder};
+          border-radius:14px;padding:40px 16px;text-align:center;
+        ">
+          <div style="font-size:28px;margin-bottom:14px;">🗺️</div>
+          <div style="font-size:12px;font-weight:900;letter-spacing:2px;color:${c.muted};text-transform:uppercase;">Synthesising your rooms…</div>
+          <div style="font-size:11px;color:${c.muted};margin-top:8px;font-weight:600;line-height:1.6;">Pulling vision, reality checks & weekly reviews from all business rooms</div>
+        </div>
+
+      ` : !hasData ? `
+        <div style="
+          background:${c.cardBg};border:1px solid ${c.cardBorder};
+          border-radius:14px;padding:40px 16px;text-align:center;
+        ">
+          <div style="font-size:32px;margin-bottom:12px;">🗺️</div>
+          <div style="font-size:13px;font-weight:900;letter-spacing:1px;color:${c.heading};margin-bottom:8px;">No picture yet</div>
+          <div style="font-size:12px;color:${c.muted};font-weight:600;line-height:1.6;margin-bottom:20px;">
+            Add vision entries and weekly reviews to your business rooms, then generate your Total Picture.
+          </div>
+          <button id="tp-generate-now" style="
+            background:${c.goldBtn};color:${c.goldBtnTxt};border:none;
+            border-radius:10px;padding:12px 24px;
+            font-size:12px;font-weight:900;letter-spacing:1px;cursor:pointer;text-transform:uppercase;
+          ">Generate Now →</button>
+        </div>
+
+      ` : `
+
+        <!-- 0. OVERALL VISION -->
+        <div style="
+          background:${c.statementBg};border:1.5px solid ${c.statementBdr};
+          border-radius:14px;padding:18px 16px;margin-bottom:14px;
+        ">
+          <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.gold};text-transform:uppercase;margin-bottom:10px;">✦ 0 — Overall Vision & Goal</div>
+          <div style="font-size:14px;line-height:1.75;color:${c.statementTxt};font-weight:600;">${_nl2br(_escHtml(d.vision || ''))}</div>
+        </div>
+
+        <!-- 1. WHERE I AM NOW -->
+        <div style="
+          background:${c.cardBg};border:1px solid ${c.cardBorder};
+          border-radius:14px;padding:18px 16px;margin-bottom:14px;
+        ">
+          <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.muted};text-transform:uppercase;margin-bottom:10px;">🔍 1 — Where I Am Now</div>
+          <div style="font-size:13px;line-height:1.75;color:${c.subheading};font-weight:600;">${_nl2br(_escHtml(d.currentReality || ''))}</div>
+        </div>
+
+        <!-- 2. MONTHLY OBJECTIVES -->
+        <div style="
+          background:${c.cardBg};border:1px solid ${c.cardBorder};
+          border-radius:14px;padding:18px 16px;margin-bottom:14px;
+        ">
+          <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.muted};text-transform:uppercase;margin-bottom:14px;">
+            📋 2 — ${monthLabel.toUpperCase()} OBJECTIVES
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            ${(d.objectives || []).map((obj, i) => `
+              <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
+                <input
+                  type="checkbox"
+                  data-tp-obj="${i}"
+                  ${obj.checked ? 'checked' : ''}
+                  style="width:18px;height:18px;margin-top:3px;flex-shrink:0;accent-color:${c.gold};cursor:pointer;"
+                >
+                <span style="
+                  font-size:13px;font-weight:600;line-height:1.55;
+                  color:${obj.checked ? c.muted : c.subheading};
+                  ${obj.checked ? 'text-decoration:line-through;opacity:0.55;' : ''}
+                ">${_escHtml(obj.text)}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- 3. WEEKLY ROADMAP -->
+        <div style="
+          background:${c.cardBg};border:1px solid ${c.cardBorder};
+          border-radius:14px;padding:18px 16px;margin-bottom:14px;
+        ">
+          <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.muted};text-transform:uppercase;margin-bottom:14px;">
+            🗓️ 3 — Weekly Roadmap — ${monthLabel.toUpperCase()}
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
+            ${(d.weeklyRoadmap?.weeks || []).map(w => `
+              <div style="border:1px solid ${c.cardBorder};border-radius:10px;padding:14px;">
+                <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;">
+                  <div style="
+                    background:${c.goldBtn};color:${c.goldBtnTxt};
+                    border-radius:6px;padding:3px 10px;
+                    font-size:10px;font-weight:900;letter-spacing:1px;
+                    white-space:nowrap;flex-shrink:0;margin-top:1px;
+                  ">WK ${w.week}</div>
+                  <div style="font-size:12px;font-weight:800;color:${c.heading};line-height:1.45;">${_escHtml(w.focus || '')}</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;padding-left:2px;">
+                  ${(w.actions || []).map(a => `
+                    <div style="display:flex;align-items:flex-start;gap:8px;">
+                      <div style="color:${c.gold};font-size:11px;font-weight:900;margin-top:2px;flex-shrink:0;">→</div>
+                      <div style="font-size:12px;color:${c.subheading};font-weight:600;line-height:1.5;">${_escHtml(a)}</div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- Amendment box -->
+          <div style="border-top:1px solid ${c.divider};padding-top:16px;">
+            <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:${c.muted};text-transform:uppercase;margin-bottom:8px;">✏️ Amend the Roadmap</div>
+            <textarea
+              id="tp-amendment"
+              placeholder="Tell AI what to change — e.g. 'Push week 3 TikTok content to week 4, I have a trade show week 3' or 'Focus more on Vinted in week 2'…"
+              style="
+                width:100%;min-height:80px;
+                background:${c.inputBg};border:1px solid ${c.inputBorder};
+                border-radius:10px;color:${c.inputText};
+                font-size:13px;line-height:1.65;padding:10px 12px;
+                font-family:inherit;font-weight:600;resize:vertical;
+                box-sizing:border-box;outline:none;
+              "
+              ${_tp_amending ? 'disabled' : ''}
+            >${_escHtml(_tp_amendDraft)}</textarea>
+            <button id="tp-amend-submit" style="
+              margin-top:10px;width:100%;
+              background:${c.goldBtn};color:${c.goldBtnTxt};
+              border:none;border-radius:10px;
+              padding:12px;font-size:11px;font-weight:900;
+              letter-spacing:2px;text-transform:uppercase;cursor:pointer;
+              opacity:${_tp_amending ? '0.6' : '1'};
+            " ${_tp_amending ? 'disabled' : ''}>${_tp_amending ? '⟳ Updating Roadmap…' : 'SUBMIT AMENDMENT →'}</button>
+          </div>
+        </div>
+
+        ${d.generatedAt ? `
+          <div style="font-size:10px;color:${c.muted};text-align:center;font-weight:600;letter-spacing:1px;">
+            Last generated ${_fmtDate(d.generatedAt)}
+          </div>
+        ` : ''}
+      `}
+    </div>
+  `;
+
+  // Back
+  panel.querySelector('#tp-back')?.addEventListener('click', () => {
+    const folder = DEFAULT_ROOMS.find(r => r.isFolder);
+    if (folder) _openFolder(folder);
+  });
+
+  // Refresh
+  panel.querySelector('#tp-refresh')?.addEventListener('click', async () => {
+    if (_tp_generating) return;
+    _tp_generating = true;
+    _paintTotalPicture();
+    await _tpGenerate();
+    _tp_generating = false;
+    _paintTotalPicture();
+    _toast('Total Picture refreshed.', colors());
+  });
+
+  // Generate now (empty state)
+  panel.querySelector('#tp-generate-now')?.addEventListener('click', async () => {
+    _tp_generating = true;
+    _paintTotalPicture();
+    await _tpGenerate();
+    _tp_generating = false;
+    _paintTotalPicture();
+  });
+
+  // Objective checkboxes
+  panel.querySelectorAll('[data-tp-obj]').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      const idx = parseInt(cb.dataset.tpObj);
+      if (!_tp_data?.objectives?.[idx]) return;
+      _tp_data.objectives[idx].checked = cb.checked;
+      await _tpSave();
+      _paintTotalPicture();
+    });
+  });
+
+  // Amendment submit
+  panel.querySelector('#tp-amend-submit')?.addEventListener('click', async () => {
+    if (_tp_amending) return;
+    const ta   = panel.querySelector('#tp-amendment');
+    const text = (ta?.value || '').trim();
+    if (!text) { _toast('Write your amendment first.', colors()); return; }
+    _tp_amendDraft = text;
+    _tp_amending   = true;
+    _paintTotalPicture();
+    await _tpRegenerateRoadmap(text);
+    _tp_amendDraft = '';
+    _tp_amending   = false;
+    _paintTotalPicture();
+    _toast('Roadmap updated with your amendment.', colors());
+  });
+}
+
+
   return document.getElementById('tab-vision')
       || document.getElementById('vision-tab')
       || document.querySelector('[data-tab="vision"]');

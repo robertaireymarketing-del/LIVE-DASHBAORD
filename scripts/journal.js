@@ -190,8 +190,8 @@ export function initJournalTab(deps) {
       ['Drive', Number(morningFields.drive?.value ?? getJournalEntry(dateKey, 'morning')?.drive ?? 0), 5],
     ];
     const rawTotal = round1(rows.reduce((sum, [, score]) => sum + Number(score || 0), 0));
-    const weightedTotal = scaleScore(rawTotal, 30, 20);
-    return { rows, rawTotal, weightedTotal, rawMax: 30, max: 20 };
+    const weightedTotal = scaleScore(rawTotal, 30, 15);
+    return { rows, rawTotal, weightedTotal, rawMax: 30, max: 15 };
   }
 
   function getEveningBreakdown(dateKey = keyFromDate(currentDate)) {
@@ -204,8 +204,8 @@ export function initJournalTab(deps) {
       ['Sleep prep', Number(eveningFields.sleepprep?.value ?? getJournalEntry(dateKey, 'evening')?.sleepprep ?? 0), 5],
     ];
     const rawTotal = round1(rows.reduce((sum, [, score]) => sum + Number(score || 0), 0));
-    const weightedTotal = scaleScore(rawTotal, 30, 40);
-    return { rows, rawTotal, weightedTotal, rawMax: 30, max: 40 };
+    const weightedTotal = scaleScore(rawTotal, 30, 45);
+    return { rows, rawTotal, weightedTotal, rawMax: 30, max: 45 };
   }
 
   function getWeightedScores(dateKey = keyFromDate(currentDate)) {
@@ -361,9 +361,9 @@ export function initJournalTab(deps) {
         <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${muted};text-transform:uppercase;margin-bottom:10px;">Weighted tier totals</div>
         ${renderRows([
           ['Tier 1 habits', tier1.total, 40, 'Gym 15 + retention 10 + meditation 5 + sleep from evening score'],
-          ['Tier 2 evening rating', tier2.weightedTotal, 40, `Scaled from evening journal ${formatScore(tier2.rawTotal, 30)}`],
-          ['Tier 3 morning rating', tier3.weightedTotal, 20, `Scaled from morning journal ${formatScore(tier3.rawTotal, 30)}`],
-          ['Overall total', total, 100, '40% tier 1 · 40% tier 2 · 20% tier 3'],
+          ['Tier 2 evening rating', tier2.weightedTotal, 45, `Scaled from evening journal ${formatScore(tier2.rawTotal, 30)}`],
+          ['Tier 3 morning rating', tier3.weightedTotal, 15, `Scaled from morning journal ${formatScore(tier3.rawTotal, 30)}`],
+          ['Overall total', total, 100, '40% tier 1 · 45% tier 2 · 15% tier 3'],
         ])}
       </div>
 
@@ -375,7 +375,7 @@ export function initJournalTab(deps) {
       <div style="${cardStyle}margin-bottom:14px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
           <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${muted};text-transform:uppercase;">Tier 2 evening breakdown</div>
-          <div style="font-size:12px;color:${muted};">${formatScore(tier2.rawTotal, 30)} raw → ${formatScore(tier2.weightedTotal, 40)} weighted</div>
+          <div style="font-size:12px;color:${muted};">${formatScore(tier2.rawTotal, 30)} raw → ${formatScore(tier2.weightedTotal, 45)} weighted</div>
         </div>
         ${renderRows(tier2.rows)}
       </div>
@@ -383,7 +383,7 @@ export function initJournalTab(deps) {
       <div style="${cardStyle}margin-bottom:14px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
           <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${muted};text-transform:uppercase;">Tier 3 morning breakdown</div>
-          <div style="font-size:12px;color:${muted};">${formatScore(tier3.rawTotal, 30)} raw → ${formatScore(tier3.weightedTotal, 20)} weighted</div>
+          <div style="font-size:12px;color:${muted};">${formatScore(tier3.rawTotal, 30)} raw → ${formatScore(tier3.weightedTotal, 15)} weighted</div>
         </div>
         ${renderRows(tier3.rows)}
       </div>

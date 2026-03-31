@@ -29,24 +29,24 @@ function getJournalWordRating(dateStr) {
     Math.min(10, sleepRaw * 2)
   );
 
-  // Tier 2: evening journal (40pts weighted from 30 raw)
+  // Tier 2: evening journal (45pts weighted from 30 raw)
   const eveningRaw = round1(['execution','discipline','dopamine','physical','builder','sleepprep'].reduce((s,k) => s + g(evening, k), 0));
-  const tier2 = scale(eveningRaw, 30, 40);
+  const tier2 = scale(eveningRaw, 30, 45);
 
-  // Tier 3: morning journal (20pts weighted from 30 raw)
+  // Tier 3: morning journal (15pts weighted from 30 raw)
   const morningRaw = round1(['rested','sharpness','calm','motivation','clarity','drive'].reduce((s,k) => s + g(morning, k), 0));
-  const tier3 = scale(morningRaw, 30, 20);
+  const tier3 = scale(morningRaw, 30, 15);
 
   const total = round1(tier1 + tier2 + tier3);
   const pct = Math.round((total / 100) * 100);
 
-  if (pct >= 95) return { label: 'LEGENDARY', colour: '#D4AF37' };
-  if (pct >= 90) return { label: 'ELITE',      colour: '#2ecc71' };
-  if (pct >= 80) return { label: 'STRONG',     colour: '#3498db' };
-  if (pct >= 70) return { label: 'ABOVE AVG',  colour: '#1abc9c' };
-  if (pct >= 60) return { label: 'AVERAGE',    colour: '#f39c12' };
-  if (pct >= 50) return { label: 'WEAK',       colour: '#e67e22' };
-  return           { label: 'POOR',       colour: '#e74c3c' };
+  if (pct >= 95) return { label: 'LEGENDARY', colour: '#D4AF37', pct };
+  if (pct >= 90) return { label: 'ELITE',      colour: '#2ecc71', pct };
+  if (pct >= 80) return { label: 'STRONG',     colour: '#3498db', pct };
+  if (pct >= 70) return { label: 'ABOVE AVG',  colour: '#1abc9c', pct };
+  if (pct >= 60) return { label: 'AVERAGE',    colour: '#f39c12', pct };
+  if (pct >= 50) return { label: 'WEAK',       colour: '#e67e22', pct };
+  return           { label: 'POOR',       colour: '#e74c3c', pct };
 }
 
 const y = state.calendarYear, m = state.calendarMonth;
@@ -136,7 +136,7 @@ const hasAny = didRetention || didGym || didMeditate || didLive || (dayData.sale
 
 const emojiGrid = hasAny ? `
 
-<div style="display:flex;justify-content:center;gap:1px;margin-top:2px;flex-wrap:wrap;">
+<div style="display:flex;justify-content:center;gap:1px;margin-top:2px;flex-wrap:wrap;max-width:100%;overflow:hidden;">
 
 <span style="font-size:8px;line-height:1.4;opacity:${didRetention?1:0.15};">${didRetention?'🩸':'·'}</span>
 
@@ -161,16 +161,16 @@ const journalRating = (!isFuture && bothComplete) ? getJournalWordRating(dateStr
 
 // ── WORD RATING: dominant element, day number secondary ──
 const ratingHtml = journalRating
-  ? `<span style="display:block;font-size:13px;font-weight:900;letter-spacing:0.3px;color:${journalRating.colour};line-height:1;margin-top:1px;white-space:nowrap;text-shadow:0 0 12px ${journalRating.colour}80;">${journalRating.label}</span>`
+  ? `<span style="display:block;font-size:9px;font-weight:900;letter-spacing:0.2px;color:${journalRating.colour};line-height:1.1;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 0 8px ${journalRating.colour}80;">${journalRating.label}</span><span style="display:block;font-size:11px;font-weight:900;color:${journalRating.colour};line-height:1.1;opacity:0.9;">${journalRating.pct}<span style="font-size:7px;opacity:0.65;">/100</span></span>`
   : '';
 
 cells += `<button class="calendar-day${isFuture?' future':''}${isSelected?' selected':''}"
 
-style="min-height:76px;${baseStyle}${todayStyle}${selectedStyle}"
+style="min-height:72px;width:100%;box-sizing:border-box;overflow:hidden;${baseStyle}${todayStyle}${selectedStyle}"
 
 onclick="selectEditDate('${dateStr}')" ${isFuture ? 'disabled' : ''}>
 
-<span class="cal-day-num" style="font-size:${journalRating ? '10px' : '12px'};opacity:${journalRating ? '0.5' : '1'};">${day}</span>
+<span class="cal-day-num" style="font-size:${journalRating ? '9px' : '11px'};opacity:${journalRating ? '0.5' : '1'};">${day}</span>
 
 ${ratingHtml}
 
@@ -388,7 +388,7 @@ ${mBFVsExpected !== null ? `<div style="font-size:9px;font-weight:900;color:${mB
 
 </div>
 
-<div class="calendar-grid" style="display:grid;grid-template-columns:repeat(7,1fr);width:100%;box-sizing:border-box;gap:3px;padding:0;overflow:hidden;">
+<div class="calendar-grid" style="display:grid;grid-template-columns:repeat(7,1fr);width:100%;box-sizing:border-box;gap:2px;padding:0;overflow:hidden;">
 
 ${dayHeaders}
 
