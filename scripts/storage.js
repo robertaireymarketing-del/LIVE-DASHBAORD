@@ -37,7 +37,7 @@ export function createStorage({
     state.saving = true;
     render();
     try {
-      await setDoc(doc(db, 'users', state.user.uid), state.data);
+      await setDoc(doc(db, 'users', state.user.uid), state.data, { merge: true });
     } catch (e) {
       console.error('Save failed:', e);
     }
@@ -49,8 +49,17 @@ export function createStorage({
     if (!state.user || !state.data) return;
     state.data.days = state.data.days || state.days || {};
     state.days = state.data.days;
+
+    // ── Local backup (belt-and-braces) ──────────────────────
     try {
-      await setDoc(doc(db, 'users', state.user.uid), state.data);
+      localStorage.setItem('tjm_backup_journal', JSON.stringify(state.data.journal || {}));
+      localStorage.setItem('tjm_backup_days', JSON.stringify(state.data.days || {}));
+      localStorage.setItem('tjm_backup_at', new Date().toISOString());
+    } catch(e) { /* storage full — non-fatal */ }
+    // ────────────────────────────────────────────────────────
+
+    try {
+      await setDoc(doc(db, 'users', state.user.uid), state.data, { merge: true });
     } catch (e) {
       console.error('Quiet save failed:', e);
     }
@@ -67,6 +76,7 @@ export function createStorage({
       } else {
         state.data = {
           days: {},
+          journal: {},
           settings: defaultSettings,
           overrides: {},
           marchStats: { lives: 0, sales: 0, revenue: 0, warmLeads: 0, dmsSent: 0, gymDays: 0 }
@@ -75,8 +85,12 @@ export function createStorage({
       }
     } catch (e) {
       console.error('Load failed:', e);
+      // ── Restore from local backup if available ──
+      const backupJournal = localStorage.getItem('tjm_backup_journal');
+      const backupDays = localStorage.getItem('tjm_backup_days');
       state.data = {
-        days: {},
+        days: backupDays ? JSON.parse(backupDays) : {},
+        journal: backupJournal ? JSON.parse(backupJournal) : {},
         settings: defaultSettings,
         overrides: {},
         marchStats: { lives: 0, sales: 0, revenue: 0, warmLeads: 0, dmsSent: 0, gymDays: 0 }
