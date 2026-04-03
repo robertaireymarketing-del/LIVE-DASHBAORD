@@ -49,6 +49,38 @@ export function renderJournalTab() {
         </div>
       </div>
       <div class="journal-collapsible-content">
+
+        <!-- ── THE LOCK ─────────────────────────────────────────────────── -->
+        <div style="background:#050A14;border:1px solid rgba(201,168,76,0.2);border-left:3px solid #C9A84C;border-radius:14px;padding:20px 22px;margin-bottom:4px;">
+          <div style="font-size:9px;font-weight:900;letter-spacing:3px;color:#C9A84C;text-transform:uppercase;margin-bottom:12px;">The Lock</div>
+          <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.45);line-height:1.5;margin-bottom:10px;font-style:italic;">I am a man of total standard. These things do not exist in my world:</div>
+          <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px;">
+            ${[
+              ['🚫','No porn. No masturbation.'],
+              ['🚫','No food outside my diet.'],
+              ['🚫','No skipping the gym.'],
+              ['🚫','No mindless scrolling.'],
+            ].map(([icon, text]) => `
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:12px;opacity:0.6;">${icon}</span>
+                <span style="font-size:14px;font-weight:800;color:rgba(255,255,255,0.88);letter-spacing:0.1px;">${text}</span>
+              </div>
+            `).join('')}
+          </div>
+          <div style="font-size:12px;font-weight:700;color:rgba(201,168,76,0.6);letter-spacing:0.3px;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;font-style:italic;">The question never arises. It is already decided. I am already that man.</div>
+        </div>
+
+        <!-- ── STOIC PRINCIPLE OF THE DAY ──────────────────────────────── -->
+        <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:20px 22px;margin-bottom:4px;">
+          <div style="font-size:9px;font-weight:900;letter-spacing:3px;color:rgba(255,255,255,0.3);text-transform:uppercase;margin-bottom:14px;">Stoic Principle of the Day</div>
+          <div id="journalStoicName" style="font-size:22px;font-weight:900;color:#ffffff;letter-spacing:0.5px;line-height:1;"></div>
+          <div id="journalStoicMeaning" style="font-size:12px;font-weight:600;color:rgba(201,168,76,0.7);letter-spacing:1px;text-transform:uppercase;margin-top:4px;margin-bottom:14px;"></div>
+          <div id="journalStoicQuote" style="font-size:14px;font-style:italic;color:rgba(255,255,255,0.55);line-height:1.65;border-left:2px solid rgba(201,168,76,0.35);padding-left:14px;margin-bottom:6px;"></div>
+          <div id="journalStoicAttr" style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.22);letter-spacing:1px;margin-bottom:16px;padding-left:14px;"></div>
+          <div class="journal-prompt" style="margin-bottom:8px;">I will embody this today by...</div>
+          <textarea class="journal-textarea" id="journal-stoicEmbody" placeholder="...accepting what I cannot control and directing all energy into what I can — my work, my standard, my actions."></textarea>
+        </div>
+
         <div>
           <h2>Morning Readiness Scan</h2>
           <div class="journal-prompt">Score how you're feeling right now (0 = very low, 5 = excellent).</div>
@@ -60,7 +92,7 @@ export function renderJournalTab() {
           <div class="journal-score-total"><div class="journal-score-total-label">Morning Score Total (Readiness)</div><div class="journal-score-total-value"><span id="journalMorningScoreValue">18</span><span style="font-size:14px;color:inherit;font-weight:600;opacity:.6;"> / 30</span></div></div>
           <div class="journal-note" id="journalMorningAveragesNote">Vs last week: -- · Vs month: --</div>
           <div class="journal-note">These scores can later calculate weekly and monthly averages.</div>
-        </div>
+        </div></div>
         <div><h2>Identity</h2><div class="journal-prompt">I am showing up today as...</div><textarea class="journal-textarea" id="journal-identity" placeholder="...a focused, disciplined man who executes without hesitation and leads from the front."></textarea></div>
         <div><h2>Purpose</h2><div class="journal-prompt">The man I am becoming needs me to... because...</div><textarea class="journal-textarea" id="journal-purpose" placeholder="...show up fully today and execute without excuses... because every day I do compounds into the version of me I'm building."></textarea></div>
         <div><h2>State & Confidence</h2><div class="journal-prompt">Today I move like a man who... and nothing will shake my state today because...</div><textarea class="journal-textarea" id="journal-stateConfidence" placeholder="...has already decided to win... and nothing will shake my state today because I know who I am and what I'm here to do."></textarea></div>
