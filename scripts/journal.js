@@ -485,6 +485,36 @@ export function initJournalTab(deps) {
     meaningEl.textContent = p.meaning;
     quoteEl.textContent = '\u201C' + p.quote + '\u201D';
     attrEl.textContent = '\u2014 ' + p.attr;
+
+    const isLight = document.body.classList.contains('light');
+
+    // ── Theme: The Lock block ──────────────────────────────────────────
+    const lockBlock = document.getElementById('journalLockBlock');
+    const lockIntro = document.getElementById('journalLockIntro');
+    const lockItems = document.querySelectorAll('.journal-lock-item-text');
+    const lockDeclaration = document.getElementById('journalLockDeclaration');
+    if (lockBlock) {
+      lockBlock.style.background = isLight ? '#ffffff' : '#050A14';
+      lockBlock.style.border = isLight ? '1px solid rgba(201,168,76,0.35)' : '1px solid rgba(201,168,76,0.2)';
+      lockBlock.style.borderLeft = '3px solid #C9A84C';
+    }
+    if (lockIntro) lockIntro.style.color = isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.45)';
+    lockItems.forEach(el => { el.style.color = isLight ? '#0A1628' : 'rgba(255,255,255,0.88)'; });
+    if (lockDeclaration) {
+      lockDeclaration.style.borderTop = isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.06)';
+    }
+
+    // ── Theme: Stoic Principle block ───────────────────────────────────
+    const stoicBlock = document.getElementById('journalStoicBlock');
+    const stoicLabel = document.getElementById('journalStoicLabel');
+    if (stoicBlock) {
+      stoicBlock.style.background = isLight ? '#f8f9fb' : 'rgba(255,255,255,0.02)';
+      stoicBlock.style.border = isLight ? '1px solid #CDD4E0' : '1px solid rgba(255,255,255,0.08)';
+    }
+    if (stoicLabel) stoicLabel.style.color = isLight ? '#8899B0' : 'rgba(255,255,255,0.3)';
+    if (nameEl) nameEl.style.color = isLight ? '#0A1628' : '#ffffff';
+    if (quoteEl) quoteEl.style.color = isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.55)';
+    if (attrEl) attrEl.style.color = isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.22)';
   }
 
   const STOIC_QUOTES = [
@@ -623,7 +653,7 @@ export function initJournalTab(deps) {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     const existing = getJournalEntry(keyFromDate(currentDate),'morning') || {};
-    const payload={rested:morningFields.rested.value,sharpness:morningFields.sharpness.value,calm:morningFields.calm.value,motivation:morningFields.motivation.value,clarity:morningFields.clarity.value,drive:morningFields.drive.value,stoicEmbody:morningFields.stoicEmbody.value,identity:morningFields.identity.value,purpose:morningFields.purpose.value,stateConfidence:morningFields.stateConfidence.value,mission:morningFields.mission.value,priority1:morningFields.priority1.value,priority2:morningFields.priority2.value,priority3:morningFields.priority3.value,obstacles:morningFields.obstacles.value,score:computeMorningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
+    const payload={rested:morningFields.rested.value,sharpness:morningFields.sharpness.value,calm:morningFields.calm.value,motivation:morningFields.motivation.value,clarity:morningFields.clarity.value,drive:morningFields.drive.value,stoicEmbody:morningFields.stoicEmbody?.value??'',identity:morningFields.identity.value,purpose:morningFields.purpose.value,stateConfidence:morningFields.stateConfidence.value,mission:morningFields.mission.value,priority1:morningFields.priority1.value,priority2:morningFields.priority2.value,priority3:morningFields.priority3.value,obstacles:morningFields.obstacles.value,score:computeMorningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
     setJournalEntry(keyFromDate(currentDate),'morning',payload);
     morningSavedPill.textContent = `Saved ${timeStr}`;
     morningSavedPill.style.display='inline';
@@ -647,7 +677,7 @@ export function initJournalTab(deps) {
     updateAverageNotes(); updateBestVersionPercent(); updateStreakDisplay(); updateLauncherButtons();
   }
 
-  function loadMorning(){ const data=getJournalEntry(keyFromDate(currentDate),'morning')||{}; morningFields.rested.value=data.rested??3; morningFields.sharpness.value=data.sharpness??3; morningFields.calm.value=data.calm??3; morningFields.motivation.value=data.motivation??3; morningFields.clarity.value=data.clarity??3; morningFields.drive.value=data.drive??3; morningFields.stoicEmbody.value=data.stoicEmbody??''; morningFields.identity.value=data.identity??''; morningFields.purpose.value=data.purpose??''; morningFields.stateConfidence.value=data.stateConfidence??''; morningFields.mission.value=data.mission??''; morningFields.priority1.value=data.priority1??''; morningFields.priority2.value=data.priority2??''; morningFields.priority3.value=data.priority3??''; morningFields.obstacles.value=data.obstacles??''; morningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = morningFields[key].value; }); computeMorningScore(); evaluateMorningCompletion(); }
+  function loadMorning(){ const data=getJournalEntry(keyFromDate(currentDate),'morning')||{}; morningFields.rested.value=data.rested??3; morningFields.sharpness.value=data.sharpness??3; morningFields.calm.value=data.calm??3; morningFields.motivation.value=data.motivation??3; morningFields.clarity.value=data.clarity??3; morningFields.drive.value=data.drive??3; if(morningFields.stoicEmbody) morningFields.stoicEmbody.value=data.stoicEmbody??''; morningFields.identity.value=data.identity??''; morningFields.purpose.value=data.purpose??''; morningFields.stateConfidence.value=data.stateConfidence??''; morningFields.mission.value=data.mission??''; morningFields.priority1.value=data.priority1??''; morningFields.priority2.value=data.priority2??''; morningFields.priority3.value=data.priority3??''; morningFields.obstacles.value=data.obstacles??''; morningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = morningFields[key].value; }); computeMorningScore(); evaluateMorningCompletion(); }
 
   function loadEvening(){ const data=getJournalEntry(keyFromDate(currentDate),'evening')||{}; eveningFields.execution.value=data.execution??3; eveningFields.discipline.value=data.discipline??3; eveningFields.dopamine.value=data.dopamine??3; eveningFields.physical.value=data.physical??3; eveningFields.builder.value=data.builder??3; eveningFields.sleepprep.value=data.sleepprep??3; eveningFields.missionDebrief.value=data.missionDebrief??''; eveningFields.biggestWin.value=data.biggestWin??''; eveningFields.biggestLesson.value=data.biggestLesson??''; eveningFields.identityReflection.value=data.identityReflection??''; eveningFields.improveTomorrow.value=data.improveTomorrow??''; eveningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = eveningFields[key].value; }); computeEveningScore(); evaluateEveningCompletion();
     const morningEl = document.getElementById('journalTodayMissionReminder');
