@@ -92,7 +92,7 @@ export function renderJournalTab() {
           <div class="journal-score-total"><div class="journal-score-total-label">Morning Score Total (Readiness)</div><div class="journal-score-total-value"><span id="journalMorningScoreValue">18</span><span style="font-size:14px;color:inherit;font-weight:600;opacity:.6;"> / 30</span></div></div>
           <div class="journal-note" id="journalMorningAveragesNote">Vs last week: -- · Vs month: --</div>
           <div class="journal-note">These scores can later calculate weekly and monthly averages.</div>
-        </div></div>
+        </div>
         <div><h2>Identity</h2><div class="journal-prompt">I am showing up today as...</div><textarea class="journal-textarea" id="journal-identity" placeholder="...a focused, disciplined man who executes without hesitation and leads from the front."></textarea></div>
         <div><h2>Purpose</h2><div class="journal-prompt">The man I am becoming needs me to... because...</div><textarea class="journal-textarea" id="journal-purpose" placeholder="...show up fully today and execute without excuses... because every day I do compounds into the version of me I'm building."></textarea></div>
         <div><h2>State & Confidence</h2><div class="journal-prompt">Today I move like a man who... and nothing will shake my state today because...</div><textarea class="journal-textarea" id="journal-stateConfidence" placeholder="...has already decided to win... and nothing will shake my state today because I know who I am and what I'm here to do."></textarea></div>
