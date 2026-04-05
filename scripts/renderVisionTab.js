@@ -433,7 +433,73 @@ function _paintRoom(c) {
                 if (!plan || !plan.weeks) return `<div style="font-size:13px;line-height:1.75;color:${c.subheading};font-weight:600;">${_nl2br(_focusPlan)}</div>`;
 
                 const weekColors = ['#4A90D9','#C9A84C','#2ECC71','#9B59B6'];
-                const weekLabels = ['WEEK 1 — FOUNDATIONS','WEEK 2 — MOMENTUM','WEEK 3 — PUSH','WEEK 4 — LOCK IN'];
+                const weekPhases = ['FOUNDATIONS','MOMENTUM','PUSH','LOCK IN'];
+                const todayISO   = new Date().toISOString().slice(0,10);
+                const isHealthRoomPlan = _room?.id === 'health';
+
+                // Format date nicely: "Sun 12 Apr"
+                function fmtWeekDate(iso) {
+                  if (!iso) return '';
+                  const d = new Date(iso + 'T12:00:00');
+                  return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
+                }
+
+                // Month progress header (health room only)
+                const monthActuals = (isHealthRoomPlan && plan.monthStart)
+                  ? _getMonthHealthActuals(plan.monthStart) : null;
+
+                const monthProgressHtml = (monthActuals && isHealthRoomPlan) ? (() => {
+                  const now2 = new Date();
+                  const monthEnd2 = new Date(plan.monthEnd + 'T23:59:59');
+                  const monthStart2 = new Date(plan.monthStart + 'T00:00:00');
+                  const totalDays = Math.ceil((monthEnd2 - monthStart2) / 86400000);
+                  const daysElapsed = Math.min(totalDays, Math.ceil((now2 - monthStart2) / 86400000));
+                  const pctThrough = Math.round((daysElapsed / totalDays) * 100);
+
+                  const rows = [
+                    monthActuals.totalSteps != null ? `
+                      <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-size:11px;font-weight:700;color:${c.muted};">👟 Steps so far</span>
+                        <span style="font-size:12px;font-weight:900;color:${c.heading};">${monthActuals.totalSteps.toLocaleString()}</span>
+                      </div>` : '',
+                    monthActuals.weightChange != null ? (() => {
+                      const col = monthActuals.weightChange < 0 ? '#2ecc71' : monthActuals.weightChange > 0 ? '#e74c3c' : c.muted;
+                      const arrow = monthActuals.weightChange < 0 ? '▼' : monthActuals.weightChange > 0 ? '▲' : '—';
+                      return `<div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-size:11px;font-weight:700;color:${c.muted};">⚖️ Weight change</span>
+                        <span style="font-size:12px;font-weight:900;color:${col};">${arrow} ${Math.abs(monthActuals.weightChange)} lbs (${monthActuals.currentWeight?.toFixed(1)} lbs now)</span>
+                      </div>`;
+                    })() : '',
+                    monthActuals.bodyFatChange != null ? (() => {
+                      const col = monthActuals.bodyFatChange < 0 ? '#2ecc71' : monthActuals.bodyFatChange > 0 ? '#e74c3c' : c.muted;
+                      const arrow = monthActuals.bodyFatChange < 0 ? '▼' : monthActuals.bodyFatChange > 0 ? '▲' : '—';
+                      return `<div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-size:11px;font-weight:700;color:${c.muted};">📊 Body fat change</span>
+                        <span style="font-size:12px;font-weight:900;color:${col};">${arrow} ${Math.abs(monthActuals.bodyFatChange)}% (${monthActuals.currentBodyFat?.toFixed(1)}% now)</span>
+                      </div>`;
+                    })() : '',
+                  ].filter(Boolean);
+
+                  if (rows.length === 0) return '';
+                  return `
+                    <div style="
+                      background:rgba(201,168,76,0.06);
+                      border:1px solid rgba(201,168,76,0.25);
+                      border-radius:12px;padding:14px 16px;margin-bottom:14px;
+                    ">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;">📈 Month So Far</div>
+                        <div style="font-size:10px;font-weight:700;color:${c.muted};">${daysElapsed}/${totalDays} days · ${pctThrough}% through</div>
+                      </div>
+                      <div style="height:4px;background:${c.cardBorder};border-radius:2px;margin-bottom:12px;overflow:hidden;">
+                        <div style="height:100%;width:${pctThrough}%;background:${c.gold};border-radius:2px;transition:width 0.4s;"></div>
+                      </div>
+                      <div style="display:flex;flex-direction:column;gap:6px;">
+                        ${rows.join('')}
+                      </div>
+                    </div>
+                  `;
+                })() : '';
 
                 return `
                   <!-- Month Objective -->
@@ -442,42 +508,120 @@ function _paintRoom(c) {
                     border:1.5px solid ${c.statementBdr};
                     border-radius:12px;
                     padding:14px 16px;
-                    margin-bottom:16px;
+                    margin-bottom:12px;
                   ">
                     <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:6px;">THIS MONTH'S OBJECTIVE</div>
                     <div style="font-size:13px;font-weight:800;color:${c.statementTxt};line-height:1.5;">${_escHtml(plan.monthObjective)}</div>
+                    ${plan.monthEnd ? `<div style="font-size:10px;font-weight:700;color:${c.gold};margin-top:8px;letter-spacing:1px;">🏁 DEADLINE: ${fmtWeekDate(plan.monthEnd).toUpperCase()}</div>` : ''}
                   </div>
+
+                  <!-- Month so far progress (health room) -->
+                  ${monthProgressHtml}
 
                   <!-- Week cards -->
                   <div style="display:flex;flex-direction:column;gap:10px;">
-                    ${plan.weeks.map((w, i) => `
-                      <div style="
-                        border-left:3px solid ${weekColors[i] || c.gold};
-                        border-radius:0 10px 10px 0;
-                        background:${c.cardBg};
-                        border-top:1px solid ${c.cardBorder};
-                        border-right:1px solid ${c.cardBorder};
-                        border-bottom:1px solid ${c.cardBorder};
-                        padding:12px 14px;
-                      ">
-                        <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${weekColors[i] || c.gold};text-transform:uppercase;margin-bottom:5px;">${weekLabels[i] || 'WEEK ' + w.week}</div>
-                        <div style="font-size:13px;font-weight:800;color:${c.heading};margin-bottom:8px;line-height:1.4;">${_escHtml(w.focus)}</div>
-                        <ul style="margin:0 0 10px 0;padding-left:16px;">
-                          ${(w.actions || []).map(act => `<li style="font-size:12px;color:${c.subheading};font-weight:600;line-height:1.55;margin-bottom:3px;">${_escHtml(act)}</li>`).join('')}
-                        </ul>
-                        ${w.challenge ? `
-                          <div style="
-                            background:rgba(255,100,100,0.07);
-                            border:1px solid rgba(255,100,100,0.2);
-                            border-radius:8px;
-                            padding:9px 11px;
-                            font-size:11px;color:${c.subheading};font-weight:600;line-height:1.55;
-                          ">
-                            <span style="font-size:10px;font-weight:900;letter-spacing:1px;color:${c.dangerTxt};text-transform:uppercase;">⚠ Watch for: </span>${_escHtml(w.challenge)}
+                    ${plan.weeks.map(function(w, i) {
+                      const weekEnd   = w.weekEnd   || '';
+                      const weekStart = w.weekStart || '';
+                      const isPast    = weekEnd   && weekEnd   < todayISO;
+                      const isCurrent = weekStart && weekEnd   && weekStart <= todayISO && weekEnd >= todayISO;
+                      const colIdx    = i % weekColors.length;
+                      const wkColor   = weekColors[colIdx];
+                      const phase     = weekPhases[i] || ('WK ' + w.week);
+
+                      // Status pill
+                      const statusHtml = isPast
+                        ? `<span style="background:rgba(46,204,113,0.15);color:#2ecc71;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:900;letter-spacing:1px;">✓ DONE</span>`
+                        : isCurrent
+                          ? `<span style="background:rgba(201,168,76,0.2);color:${c.gold};border-radius:5px;padding:2px 7px;font-size:9px;font-weight:900;letter-spacing:1px;animation:visionDotPulse 2s ease-in-out infinite;">● NOW</span>`
+                          : `<span style="background:${c.cardBorder};color:${c.muted};border-radius:5px;padding:2px 7px;font-size:9px;font-weight:900;letter-spacing:1px;">UPCOMING</span>`;
+
+                      // End date label
+                      const endDateStr = weekEnd
+                        ? (w.isMonthEnd
+                            ? `Ends ${fmtWeekDate(weekEnd)} · month deadline`
+                            : `Ends ${fmtWeekDate(weekEnd)}`)
+                        : '';
+
+                      // Actuals for past/current weeks (health room)
+                      let actualsHtml = '';
+                      if (isHealthRoomPlan && (isPast || isCurrent) && weekStart && weekEnd) {
+                        const act = _getWeekHealthActuals(weekStart, weekEnd);
+                        if (act) {
+                          const stepsHtml = act.totalSteps != null
+                            ? `<div style="display:flex;justify-content:space-between;">
+                                <span style="font-size:11px;color:${c.muted};font-weight:700;">👟 Steps</span>
+                                <span style="font-size:11px;font-weight:900;color:#3498db;">${act.totalSteps.toLocaleString()}</span>
+                               </div>` : '';
+                          const wtHtml = act.endWeight != null ? (() => {
+                            const col = act.weightChange != null && act.weightChange < 0 ? '#2ecc71' : act.weightChange != null && act.weightChange > 0 ? '#e74c3c' : c.muted;
+                            const delta = act.weightChange != null ? ` (${act.weightChange > 0 ? '+' : ''}${act.weightChange} lbs)` : '';
+                            return `<div style="display:flex;justify-content:space-between;">
+                              <span style="font-size:11px;color:${c.muted};font-weight:700;">⚖️ Weight</span>
+                              <span style="font-size:11px;font-weight:900;color:${col};">${act.endWeight.toFixed(1)} lbs${delta}</span>
+                             </div>`;
+                          })() : '';
+                          const bfHtml = act.endBodyFat != null ? (() => {
+                            const col = act.bfChange != null && act.bfChange < 0 ? '#2ecc71' : act.bfChange != null && act.bfChange > 0 ? '#e74c3c' : c.muted;
+                            const delta = act.bfChange != null ? ` (${act.bfChange > 0 ? '+' : ''}${act.bfChange}%)` : '';
+                            return `<div style="display:flex;justify-content:space-between;">
+                              <span style="font-size:11px;color:${c.muted};font-weight:700;">📊 Body fat</span>
+                              <span style="font-size:11px;font-weight:900;color:${col};">${act.endBodyFat.toFixed(1)}%${delta}</span>
+                             </div>`;
+                          })() : '';
+
+                          const label = isPast ? 'ACTUAL RESULTS' : 'THIS WEEK SO FAR';
+                          if (stepsHtml || wtHtml || bfHtml) {
+                            actualsHtml = `
+                              <div style="
+                                border-top:1px solid ${c.divider};
+                                margin-top:10px;padding-top:10px;
+                              ">
+                                <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${isPast ? '#2ecc71' : c.gold};text-transform:uppercase;margin-bottom:7px;">${label}</div>
+                                <div style="display:flex;flex-direction:column;gap:5px;">
+                                  ${stepsHtml}${wtHtml}${bfHtml}
+                                </div>
+                              </div>`;
+                          }
+                        }
+                      }
+
+                      return `
+                        <div style="
+                          border-left:3px solid ${wkColor};
+                          border-radius:0 10px 10px 0;
+                          background:${c.cardBg};
+                          border-top:1px solid ${isPast ? 'rgba(46,204,113,0.2)' : c.cardBorder};
+                          border-right:1px solid ${isPast ? 'rgba(46,204,113,0.2)' : c.cardBorder};
+                          border-bottom:1px solid ${isPast ? 'rgba(46,204,113,0.2)' : c.cardBorder};
+                          padding:12px 14px;
+                          opacity:${isPast ? '0.85' : '1'};
+                        ">
+                          <!-- Week header -->
+                          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+                            <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${wkColor};text-transform:uppercase;">WK ${w.week} — ${phase}</div>
+                            ${statusHtml}
                           </div>
-                        ` : ''}
-                      </div>
-                    `).join('')}
+                          ${endDateStr ? `<div style="font-size:10px;font-weight:700;color:${w.isMonthEnd ? c.gold : c.muted};margin-bottom:8px;">${endDateStr}</div>` : ''}
+                          <div style="font-size:13px;font-weight:800;color:${c.heading};margin-bottom:8px;line-height:1.4;">${_escHtml(w.focus)}</div>
+                          <ul style="margin:0 0 10px 0;padding-left:16px;">
+                            ${(w.actions || []).map(function(act) { return `<li style="font-size:12px;color:${c.subheading};font-weight:600;line-height:1.55;margin-bottom:3px;">${_escHtml(act)}</li>`; }).join('')}
+                          </ul>
+                          ${w.challenge ? `
+                            <div style="
+                              background:rgba(255,100,100,0.07);
+                              border:1px solid rgba(255,100,100,0.2);
+                              border-radius:8px;
+                              padding:9px 11px;
+                              font-size:11px;color:${c.subheading};font-weight:600;line-height:1.55;
+                            ">
+                              <span style="font-size:10px;font-weight:900;letter-spacing:1px;color:${c.dangerTxt};text-transform:uppercase;">⚠ Watch for: </span>${_escHtml(w.challenge)}
+                            </div>
+                          ` : ''}
+                          ${actualsHtml}
+                        </div>
+                      `;
+                    }).join('')}
                   </div>
                 `;
               })()
@@ -1589,6 +1733,40 @@ My vision:\n${_statement}\n\nMy current reality:\n${reviewText}`;
       const clean = raw.replace(/^```json|^```|```$/gm, '').trim();
       const parsed = JSON.parse(clean);
       if (parsed.monthObjective && Array.isArray(parsed.weeks)) {
+
+        // Inject week date ranges programmatically — more reliable than asking AI
+        // Week end = next Sunday from today, then +7 each week, capped at month-end
+        const dayOfWeek    = now.getDay(); // 0=Sun
+        const daysToSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+        parsed.weeks.forEach(function(w, i) {
+          var weekEndRaw = new Date(now);
+          weekEndRaw.setDate(now.getDate() + daysToSunday + (i * 7));
+          var isLastWeek = (i === parsed.weeks.length - 1);
+          // Cap last week at month-end; also cap any week that overruns
+          if (weekEndRaw >= lastDayOfMonth || isLastWeek) {
+            w.weekEnd     = lastDayOfMonth.toISOString().slice(0, 10);
+            w.isMonthEnd  = true;
+          } else {
+            w.weekEnd    = weekEndRaw.toISOString().slice(0, 10);
+            w.isMonthEnd = false;
+          }
+          // Week start: Monday of this week for week 0, day-after-prev-end for rest
+          if (i === 0) {
+            var monday = new Date(now);
+            monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+            w.weekStart = monday.toISOString().slice(0, 10);
+          } else {
+            var prevEnd = new Date(parsed.weeks[i - 1].weekEnd);
+            prevEnd.setDate(prevEnd.getDate() + 1);
+            w.weekStart = prevEnd.toISOString().slice(0, 10);
+          }
+        });
+
+        // Store month start for progress tracking
+        parsed.monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        parsed.monthEnd   = lastDayOfMonth.toISOString().slice(0, 10);
+        parsed.generatedAt = Date.now();
+
         await _saveFocusPlan(JSON.stringify(parsed));
       }
     } catch (parseErr) {
@@ -2079,7 +2257,65 @@ function _paintTotalPicture() {
 }
 
 
-function _panel() {
+/* ─────────────────────────────────────────────────────────────────────
+   HEALTH ACTUALS — pull real data for a given date range from state
+───────────────────────────────────────────────────────────────────── */
+function _getWeekHealthActuals(weekStart, weekEnd) {
+  const healthData = _deps && _deps.state && _deps.state.healthData;
+  if (!healthData || !healthData.length) return null;
+
+  const entries = healthData.filter(function(h) {
+    return h.date >= weekStart && h.date <= weekEnd;
+  }).sort(function(a, b) { return a.date.localeCompare(b.date); });
+
+  if (entries.length === 0) return null;
+
+  const totalSteps  = entries.reduce(function(s, h) { return s + (h.steps || 0); }, 0);
+  const firstWeight = (entries.find(function(h) { return h.weight != null; }) || {}).weight || null;
+  const lastWeight  = [...entries].reverse().find(function(h) { return h.weight != null; });
+  const lastBF      = [...entries].reverse().find(function(h) { return h.bodyFat != null; });
+  const firstBF     = entries.find(function(h) { return h.bodyFat != null; });
+
+  return {
+    totalSteps:   totalSteps > 0 ? Math.round(totalSteps) : null,
+    endWeight:    lastWeight  ? lastWeight.weight   : null,
+    endBodyFat:   lastBF      ? lastBF.bodyFat      : null,
+    weightChange: (lastWeight && firstWeight) ? +(lastWeight.weight - firstWeight).toFixed(1) : null,
+    bfChange:     (lastBF && firstBF) ? +(lastBF.bodyFat - firstBF.bodyFat).toFixed(2) : null,
+    entryCount:   entries.length,
+  };
+}
+
+function _getMonthHealthActuals(monthStart) {
+  const healthData = _deps && _deps.state && _deps.state.healthData;
+  if (!healthData || !healthData.length) return null;
+
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const entries  = healthData.filter(function(h) {
+    return h.date >= monthStart && h.date <= todayISO;
+  }).sort(function(a, b) { return a.date.localeCompare(b.date); });
+
+  if (entries.length === 0) return null;
+
+  const totalSteps = entries.reduce(function(s, h) { return s + (h.steps || 0); }, 0);
+  const firstW     = entries.find(function(h) { return h.weight  != null; });
+  const lastW      = [...entries].reverse().find(function(h) { return h.weight  != null; });
+  const firstBF    = entries.find(function(h) { return h.bodyFat != null; });
+  const lastBF     = [...entries].reverse().find(function(h) { return h.bodyFat != null; });
+
+  return {
+    totalSteps:        totalSteps > 0 ? Math.round(totalSteps) : null,
+    startWeight:       firstW  ? firstW.weight   : null,
+    currentWeight:     lastW   ? lastW.weight    : null,
+    weightChange:      (firstW && lastW)  ? +(lastW.weight  - firstW.weight).toFixed(1)  : null,
+    startBodyFat:      firstBF ? firstBF.bodyFat : null,
+    currentBodyFat:    lastBF  ? lastBF.bodyFat  : null,
+    bodyFatChange:     (firstBF && lastBF) ? +(lastBF.bodyFat - firstBF.bodyFat).toFixed(2) : null,
+    daysWithData:      entries.length,
+  };
+}
+
+
   return document.getElementById('tab-vision')
       || document.getElementById('vision-tab')
       || document.querySelector('[data-tab="vision"]');
