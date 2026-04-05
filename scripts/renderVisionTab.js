@@ -55,6 +55,8 @@ let _tp_amendDraft = '';
 let _weeklyReview = null;       // { answers, ts }
 let _realityCheck = '';         // AI-generated gap analysis
 let _focusPlan = '';            // AI-generated 30-day focus
+let _baseline = '';             // user-written current reality baseline (grounds AI targets)
+let _editingBaseline = false;   // whether baseline edit mode is open
 let _loadingRealityCheck = false;
 let _loading30Day = false;
 let _showReviewBanner = false;
@@ -349,6 +351,52 @@ function _paintRoom(c) {
             </button>
           </div>
         ` : ''}
+      </div>
+
+      <!-- Current Reality Baseline -->
+      <div style="
+        background:${c.cardBg};
+        border:1px solid ${_baseline ? 'rgba(201,168,76,0.35)' : c.cardBorder};
+        border-radius:14px;
+        padding:16px;
+        margin-bottom:16px;
+      ">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${_baseline && !_editingBaseline ? '10px' : '0'};">
+          <div style="font-size:10px;font-weight:900;letter-spacing:2px;color:${_baseline ? c.gold : c.muted};text-transform:uppercase;">📍 Current Reality Baseline</div>
+          <button id="vision-baseline-edit" style="
+            background:transparent;border:1px solid ${c.cardBorder};border-radius:6px;
+            color:${c.muted};font-size:10px;font-weight:800;letter-spacing:1px;
+            padding:4px 10px;cursor:pointer;
+          ">${_editingBaseline ? 'Cancel' : (_baseline ? 'Edit' : '+ Add')}</button>
+        </div>
+        ${_editingBaseline ? `
+          <div style="margin-top:10px;">
+            <div style="font-size:11px;color:${c.muted};font-weight:600;line-height:1.55;margin-bottom:10px;">
+              Write where things <em>actually</em> stand right now — real numbers, real stage. The AI uses this to calibrate every target it sets for you.
+            </div>
+            <textarea id="vision-baseline-input" style="
+              width:100%;min-height:100px;
+              background:${c.inputBg};border:1px solid ${c.inputBorder};
+              border-radius:10px;color:${c.inputText};
+              font-size:13px;line-height:1.65;padding:10px 12px;
+              font-family:inherit;font-weight:600;resize:vertical;
+              box-sizing:border-box;outline:none;
+            " placeholder="e.g. Starting from zero — no active listings, no revenue yet, brand new Etsy account. Goal is to get first 10 sales before anything else...">${_escHtml(_baseline)}</textarea>
+            <button id="vision-baseline-save" style="
+              margin-top:10px;width:100%;
+              background:${c.goldBtn};color:${c.goldBtnTxt};
+              border:none;border-radius:10px;
+              padding:11px;font-size:11px;font-weight:900;
+              letter-spacing:2px;text-transform:uppercase;cursor:pointer;
+            ">Save Baseline</button>
+          </div>
+        ` : _baseline ? `
+          <div style="font-size:13px;line-height:1.65;color:${c.subheading};font-weight:600;">${_nl2br(_escHtml(_baseline))}</div>
+        ` : `
+          <div style="font-size:12px;color:${c.emptyTxt};font-weight:600;font-style:italic;line-height:1.5;margin-top:8px;">
+            Tell the AI where you actually are right now — stage, numbers, context. Without this it will set targets based on your vision alone, not your reality.
+          </div>
+        `}
       </div>
 
       <!-- Health Tracker (Health & Body room only) -->
@@ -759,6 +807,22 @@ function _attachRoomListeners(fromFolder) {
   if (!panel) return;
   const c = colors();
 
+  // Baseline edit toggle
+  panel.querySelector('#vision-baseline-edit')?.addEventListener('click', () => {
+    _editingBaseline = !_editingBaseline;
+    _paintRoom();
+  });
+
+  // Baseline save
+  panel.querySelector('#vision-baseline-save')?.addEventListener('click', async () => {
+    const ta = panel.querySelector('#vision-baseline-input');
+    const text = (ta?.value || '').trim();
+    await _saveBaseline(text);
+    _editingBaseline = false;
+    _paintRoom();
+    _toast('Baseline saved — AI will use this to calibrate targets.', colors());
+  });
+
   // Back
   panel.querySelector('#vision-back')?.addEventListener('click', () => {
     if (fromFolder) {
@@ -970,11 +1034,13 @@ async function _loadRoomData(roomId) {
   _weeklyReview = null;
   _realityCheck = '';
   _focusPlan = '';
+  _baseline = '';
+  _editingBaseline = false;
   try {
     const db = _db(); const uid = _uid();
     if (!db || !uid) return;
 
-    // Load statement doc (also holds realityCheck, focusPlan, weeklyReview)
+    // Load statement doc (also holds realityCheck, focusPlan, weeklyReview, baseline)
     const stmtRef = doc(db, 'users', uid, 'visionRooms', roomId);
     const stmtSnap = await getDoc(stmtRef);
     if (stmtSnap.exists()) {
@@ -983,6 +1049,7 @@ async function _loadRoomData(roomId) {
       _realityCheck = data.realityCheck || '';
       _focusPlan    = data.focusPlan    || '';
       _weeklyReview = data.weeklyReview || null;
+      _baseline     = data.baseline     || '';
     }
 
     // Load entries
@@ -1075,6 +1142,15 @@ async function _saveWeeklyReview(review) {
   } catch (err) { console.error('[Vision] saveWeeklyReview error:', err); }
 }
 
+async function _saveBaseline(text) {
+  try {
+    const db = _db(); const uid = _uid();
+    if (!db || !uid || !_room) return;
+    await setDoc(doc(db, 'users', uid, 'visionRooms', _room.id), { baseline: text }, { merge: true });
+    _baseline = text;
+  } catch (err) { console.error('[Vision] saveBaseline error:', err); }
+}
+
 async function _resetRoom() {
   try {
     const db = _db(); const uid = _uid();
@@ -1091,6 +1167,7 @@ async function _resetRoom() {
     _statement = '';
     _realityCheck = '';
     _focusPlan = '';
+    _baseline = '';
     _weeklyReview = null;
     _showReviewBanner = false;
     _showEntries = false;
@@ -1469,6 +1546,32 @@ async function _showWeeklyReviewModal() {
 
       ${healthBanner}
 
+      <!-- ── Step 0: Required baseline update ── -->
+      <div style="
+        background:rgba(201,168,76,0.07);
+        border:1.5px solid rgba(201,168,76,0.4);
+        border-radius:12px;
+        padding:14px 16px;
+        margin-bottom:22px;
+      ">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;">📍 Current Reality — Update Before Continuing</div>
+        </div>
+        <div style="font-size:10px;color:${c.muted};font-weight:600;margin-bottom:8px;font-style:italic;">Where things actually stand right now — numbers, stage, position. The AI calibrates every target from this.</div>
+        <textarea
+          id="review-baseline"
+          style="
+            width:100%;min-height:80px;
+            background:${c.inputBg};border:1px solid ${c.inputBorder};
+            border-radius:10px;color:${c.inputText};
+            font-size:13px;line-height:1.65;padding:10px 12px;
+            font-family:inherit;font-weight:600;
+            resize:vertical;box-sizing:border-box;outline:none;
+          "
+          placeholder="e.g. Still at zero listings on TJM, no sales yet. Just getting started…"
+        >${_escHtml(_baseline)}</textarea>
+      </div>
+
       ${questions.map(q => `
         <div style="margin-bottom:18px;">
           <div style="font-size:11px;font-weight:900;color:${c.subheading};letter-spacing:1px;margin-bottom:4px;">${q.label}</div>
@@ -1534,6 +1637,10 @@ async function _showWeeklyReviewModal() {
   overlay.querySelector('#review-cancel').addEventListener('click', () => overlay.remove());
 
   overlay.querySelector('#review-submit').addEventListener('click', async () => {
+    // Save the updated baseline first
+    const baselineVal = (overlay.querySelector('#review-baseline')?.value || '').trim();
+    if (baselineVal) await _saveBaseline(baselineVal);
+
     // Collect answers for whichever question set was shown
     const answers = { effort: selectedEffort, ts: Date.now() };
     const activeQuestions = isHealthRoom ? healthQuestions : genericQuestions;
@@ -1668,7 +1775,7 @@ async function _doRealityCheck() {
             ? `You are Robert's brutally honest business mentor for his Vinted reselling operation. He has given you his vision for the business and his honest weekly review of listings, sales, sourcing and margins.\n\nYour job: call out exactly where the numbers fell short, where effort was lacking, and what habits are holding the business back. Be specific to HIS figures. Then remind him of the scale this can reach if he executes consistently.\n\nWrite 3–5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`
             : systemBase;
 
-    const user = `My vision for ${_room?.label}:\n${_statement}\n\nMy weekly review:\n${reviewText}\n\nGive me my Reality Check.`;
+    const user = `My vision for ${_room?.label}:\n${_statement}${_baseline ? '\n\nCURRENT REALITY BASELINE (use this to calibrate — this is where I actually am RIGHT NOW):\n' + _baseline : ''}\n\nMy weekly review:\n${reviewText}\n\nGive me my Reality Check.`;
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -1823,6 +1930,7 @@ Rules:
 - We are currently in week ${currentWeekNum} of the month — only generate ${weeksToGenerate} week(s) (from week ${currentWeekNum} to the end of the month). Do NOT generate weeks that have already passed.
 - Each week should build on the previous — the final week locks in results before the month-end deadline
 - Actions must be concrete and measurable, not vague ("4 gym sessions this week" not "train more")
+- CRITICAL: The month objective and all week targets MUST be calibrated to the current reality baseline — do not set targets that are disconnected from where Robert actually is right now
 - The challenge field must directly reference their stated patterns and give a concrete coping strategy${planNote}
 - Return ONLY the JSON. Nothing else.`;
 
@@ -1833,7 +1941,7 @@ Days remaining: ${daysRemaining}
 Weeks remaining: ${weeksToGenerate} (starting at week ${currentWeekNum} of the month)
 Room: ${_room?.label}
 
-My vision:\n${_statement}\n\nMy current reality:\n${reviewText}`;
+My vision:\n${_statement}${_baseline ? '\n\nCURRENT REALITY BASELINE — where I actually am RIGHT NOW (calibrate ALL targets from this, not from the vision):\n' + _baseline : ''}\n\nMy weekly review this week:\n${reviewText}`;
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
