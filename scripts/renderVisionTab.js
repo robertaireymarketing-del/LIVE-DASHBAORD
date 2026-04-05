@@ -309,6 +309,8 @@ function _paintRoom(c) {
   const panel = _panel();
   if (!panel || !_room) return;
 
+  try {
+
   const fromFolder = _folderId !== null;
   const hasStatement = _statement && _statement.trim().length > 0;
   const todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -438,11 +440,11 @@ function _paintRoom(c) {
                 const isHealthRoomPlan = _room?.id === 'health';
 
                 // Format date nicely: "Sun 12 Apr"
-                function fmtWeekDate(iso) {
+                const fmtWeekDate = (iso) => {
                   if (!iso) return '';
                   const d = new Date(iso + 'T12:00:00');
                   return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
-                }
+                };
 
                 // Month progress header (health room only)
                 const monthActuals = (isHealthRoomPlan && plan.monthStart)
@@ -689,6 +691,22 @@ function _paintRoom(c) {
   `;
 
   _attachRoomListeners(fromFolder);
+  } catch (err) {
+    console.error('[Vision] _paintRoom error:', err);
+    panel.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:12px;padding:24px;">
+        <div style="font-size:24px;">⚠️</div>
+        <div style="font-size:13px;font-weight:700;color:${c.muted};text-align:center;line-height:1.6;">
+          Something went wrong rendering this room.<br>
+          <span style="font-size:11px;opacity:0.6;">${err.message || 'Unknown error'}</span>
+        </div>
+        <button onclick="history.back()" style="
+          background:${c.goldBtn};color:${c.goldBtnTxt};border:none;border-radius:8px;
+          padding:10px 20px;font-size:12px;font-weight:800;cursor:pointer;letter-spacing:1px;
+        ">← Go Back</button>
+      </div>
+    `;
+  }
 }
 
 function _renderEntriesList(c) {
