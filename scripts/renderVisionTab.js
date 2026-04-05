@@ -631,8 +631,8 @@ function _attachRoomListeners(fromFolder) {
   });
 
   // Weekly Review
-  panel.querySelector('#vision-start-review')?.addEventListener('click', () => {
-    _showWeeklyReviewModal();
+  panel.querySelector('#vision-start-review')?.addEventListener('click', async () => {
+    await _showWeeklyReviewModal();
   });
 
   // Refresh Reality Check
@@ -1117,11 +1117,52 @@ Distil these into a single, powerful Vision Statement.`;
 }
 
 /* ─────────────────────────────────────────────────────────────────────
+   HEALTH DATA AUTO-PULL
+   Reads directly from state.healthData (already loaded in memory by
+   the app — same array used by renderProgressTab). Computes:
+     latestWeight  — most recent synced weight (lbs)
+     latestBodyFat — most recent synced body fat %
+     weeklySteps   — total steps over the last 7 days
+───────────────────────────────────────────────────────────────────── */
+async function _fetchHealthData() {
+  try {
+    const healthData = _deps && _deps.state && _deps.state.healthData;
+    if (!healthData || healthData.length === 0) return null;
+
+    // Sort entries newest first
+    const sorted = [...healthData].sort((a, b) => b.date.localeCompare(a.date));
+
+    // Latest weight & body fat (most recent entry that has the value)
+    const latestWeight  = (sorted.find(h => h.weight  != null) || {}).weight  || null;
+    const latestBodyFat = (sorted.find(h => h.bodyFat != null) || {}).bodyFat || null;
+
+    // Steps: sum entries from the last 7 calendar days
+    const sevenDaysAgo  = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    const recentEntries = sorted.filter(h => h.date >= sevenDaysAgo && h.steps != null);
+    const weeklySteps   = recentEntries.length > 0
+      ? Math.round(recentEntries.reduce(function(sum, h) { return sum + h.steps; }, 0))
+      : null;
+
+    return { latestWeight, latestBodyFat, weeklySteps };
+  } catch (err) {
+    console.warn('[Vision] _fetchHealthData error:', err);
+    return null;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
    WEEKLY REVIEW MODAL
 ───────────────────────────────────────────────────────────────────── */
-function _showWeeklyReviewModal() {
+async function _showWeeklyReviewModal() {
   const c = colors();
   const isLight = document.body.classList.contains('light');
+  const isHealthRoom = _room?.id === 'health';
+
+  // Auto-pull health data for the health room
+  let healthData = null;
+  if (isHealthRoom) {
+    healthData = await _fetchHealthData();
+  }
 
   const overlay = document.createElement('div');
   overlay.style.cssText = `
@@ -1131,6 +1172,51 @@ function _showWeeklyReviewModal() {
   `;
 
   const prevAnswers = _weeklyReview?.answers || {};
+
+  // ── Health-specific questions ──────────────────────────────────────
+  const healthQuestions = [
+    { key: 'gymSessions',    label: '1. How many gym sessions did you complete this week?',                        hint: 'Be specific — how many and what did you do?' },
+    { key: 'extraActivity',  label: '2. Did you do any extra walks or runs on top of that?',                      hint: 'Distance, frequency, anything that counts.' },
+    { key: 'perfectDays',    label: '3. How many days did you maintain a perfect diet?',                          hint: 'Out of 7. Be honest.' },
+    { key: 'dietSlipUp',     label: '4. Where did your diet slip up — what was the situation?',                   hint: 'Be specific — what, when, why?' },
+    { key: 'sleep',          label: '5. How has your sleep been this week — are you getting enough and waking up rested?', hint: 'Average hours, quality, energy on waking.' },
+    { key: 'niggles',        label: '6. Did you notice any soreness, fatigue or physical niggles this week?',    hint: 'Anything your body is telling you.' },
+    { key: 'dietPattern',    label: '7. Were your diet slip-ups linked to a pattern — e.g. weekends, stress, being out?', hint: 'Patterns are what to fix, not one-offs.' },
+    { key: 'missedHabit',    label: '8. What\'s the one thing you didn\'t do this week that would have made the biggest difference?', hint: 'Be specific and honest.' },
+    { key: 'improvements',   label: '9. What specific improvements are you committing to for the week ahead?',   hint: 'Concrete commitments, not wishes.' },
+  ];
+
+  // ── Generic questions (all other rooms) ───────────────────────────
+  const genericQuestions = [
+    { key: 'actions',   label: '1. What did you actually do this week towards this vision?', hint: 'Specific actions, not intentions.' },
+    { key: 'results',   label: '2. What results or outputs did you produce?',                hint: 'Numbers, evidence, proof.' },
+    { key: 'avoided',   label: '3. What did you avoid, delay or make excuses about?',       hint: 'Be honest — no one else is reading this.' },
+    { key: 'obstacle',  label: '5. What\'s your single biggest obstacle right now?',        hint: 'The real one, not the easy answer.' },
+  ];
+
+  const questions = isHealthRoom ? healthQuestions : genericQuestions;
+
+  // ── Auto-pulled health metrics banner ─────────────────────────────
+  const healthBanner = (isHealthRoom && healthData) ? (() => {
+    const metrics = [
+      healthData.weeklySteps   != null ? `👟 ${Number(healthData.weeklySteps).toLocaleString()} steps (7 days)` : null,
+      healthData.latestWeight  != null ? `⚖️ ${healthData.latestWeight.toFixed(1)} lbs` : null,
+      healthData.latestBodyFat != null ? `📊 ${healthData.latestBodyFat.toFixed(1)}% body fat` : null,
+    ].filter(Boolean);
+    if (metrics.length === 0) return '';
+    return `
+      <div style="
+        background:rgba(201,168,76,0.08);
+        border:1px solid rgba(201,168,76,0.3);
+        border-radius:12px;padding:12px 16px;margin-bottom:20px;
+      ">
+        <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:8px;">📥 Auto-Pulled This Week</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+          ${metrics.map(m => `<div style="font-size:13px;font-weight:800;color:${c.heading};">${m}</div>`).join('')}
+        </div>
+      </div>
+    `;
+  })() : '';
 
   overlay.innerHTML = `
     <div style="
@@ -1146,12 +1232,9 @@ function _showWeeklyReviewModal() {
         <div style="font-size:11px;color:${c.muted};font-weight:600;margin-top:4px;">${_room?.label} — Be brutally honest.</div>
       </div>
 
-      ${[
-        { key: 'actions',   label: '1. What did you actually do this week towards this vision?', hint: 'Specific actions, not intentions.' },
-        { key: 'results',   label: '2. What results or outputs did you produce?',                hint: 'Numbers, evidence, proof.' },
-        { key: 'avoided',   label: '3. What did you avoid, delay or make excuses about?',       hint: 'Be honest — no one else is reading this.' },
-        { key: 'obstacle',  label: '5. What\'s your single biggest obstacle right now?',        hint: 'The real one, not the easy answer.' },
-      ].map(q => `
+      ${healthBanner}
+
+      ${questions.map(q => `
         <div style="margin-bottom:18px;">
           <div style="font-size:11px;font-weight:900;color:${c.subheading};letter-spacing:1px;margin-bottom:4px;">${q.label}</div>
           <div style="font-size:10px;color:${c.muted};font-weight:600;margin-bottom:8px;font-style:italic;">${q.hint}</div>
@@ -1171,7 +1254,7 @@ function _showWeeklyReviewModal() {
       `).join('')}
 
       <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:900;color:${c.subheading};letter-spacing:1px;margin-bottom:8px;">4. Honest effort rating this week (1–10)</div>
+        <div style="font-size:11px;font-weight:900;color:${c.subheading};letter-spacing:1px;margin-bottom:8px;">${isHealthRoom ? '10.' : '4.'} Honest effort rating this week (1–10)</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           ${[1,2,3,4,5,6,7,8,9,10].map(n => `
             <button
@@ -1216,14 +1299,22 @@ function _showWeeklyReviewModal() {
   overlay.querySelector('#review-cancel').addEventListener('click', () => overlay.remove());
 
   overlay.querySelector('#review-submit').addEventListener('click', async () => {
-    const answers = {
-      actions:  overlay.querySelector('#review-actions')?.value?.trim()  || '',
-      results:  overlay.querySelector('#review-results')?.value?.trim()  || '',
-      avoided:  overlay.querySelector('#review-avoided')?.value?.trim()  || '',
-      obstacle: overlay.querySelector('#review-obstacle')?.value?.trim() || '',
-      effort:   selectedEffort,
-      ts:       Date.now(),
-    };
+    // Collect answers for whichever question set was shown
+    const answers = { effort: selectedEffort, ts: Date.now() };
+    const activeQuestions = isHealthRoom ? healthQuestions : genericQuestions;
+    activeQuestions.forEach(q => {
+      answers[q.key] = overlay.querySelector(`#review-${q.key}`)?.value?.trim() || '';
+    });
+
+    // Attach auto-pulled health data so AI can use it
+    if (isHealthRoom && healthData) {
+      answers._healthData = {
+        weeklySteps:   healthData.weeklySteps   ?? null,
+        latestWeight:  healthData.latestWeight  ?? null,
+        latestBodyFat: healthData.latestBodyFat ?? null,
+      };
+    }
+
     overlay.remove();
     await _saveWeeklyReview({ answers, ts: Date.now() });
     _showReviewBanner = false;
@@ -1258,15 +1349,50 @@ async function _doRealityCheck() {
 
   try {
     const a = _weeklyReview.answers || {};
-    const reviewText = [
-      a.actions   ? `Actions taken: ${a.actions}`     : '',
-      a.results   ? `Results produced: ${a.results}`  : '',
-      a.avoided   ? `Avoided/delayed: ${a.avoided}`   : '',
-      a.effort    ? `Effort rating: ${a.effort}/10`    : '',
-      a.obstacle  ? `Biggest obstacle: ${a.obstacle}` : '',
-    ].filter(Boolean).join('\n');
+    const isHealthRoom = _room?.id === 'health';
 
-    const system = `You are Robert's brutally honest but deeply believing mentor. He has given you his vision — who he is becoming — and his honest weekly review of where he actually is right now. 
+    let reviewText;
+    if (isHealthRoom) {
+      // Health-specific field mapping
+      const hd = a._healthData || {};
+      const autoData = [
+        hd.weeklySteps   != null ? `Steps this week (auto-tracked): ${Number(hd.weeklySteps).toLocaleString()}` : '',
+        hd.latestWeight  != null ? `Current weight (auto-tracked): ${hd.latestWeight.toFixed(1)} lbs` : '',
+        hd.latestBodyFat != null ? `Body fat % (auto-tracked): ${hd.latestBodyFat.toFixed(1)}%` : '',
+      ].filter(Boolean);
+
+      reviewText = [
+        autoData.length ? `AUTO-TRACKED DATA:\n${autoData.join('\n')}` : '',
+        a.gymSessions  ? `Gym sessions completed: ${a.gymSessions}`   : '',
+        a.extraActivity? `Extra walks/runs: ${a.extraActivity}`        : '',
+        a.perfectDays  ? `Days on perfect diet: ${a.perfectDays}`     : '',
+        a.dietSlipUp   ? `Diet slip-up details: ${a.dietSlipUp}`      : '',
+        a.sleep        ? `Sleep this week: ${a.sleep}`                 : '',
+        a.niggles      ? `Soreness/niggles: ${a.niggles}`             : '',
+        a.dietPattern  ? `Diet pattern noticed: ${a.dietPattern}`     : '',
+        a.missedHabit  ? `Biggest missed habit: ${a.missedHabit}`     : '',
+        a.improvements ? `Commitments for next week: ${a.improvements}`: '',
+        a.effort       ? `Effort rating: ${a.effort}/10`               : '',
+      ].filter(Boolean).join('\n');
+    } else {
+      reviewText = [
+        a.actions   ? `Actions taken: ${a.actions}`     : '',
+        a.results   ? `Results produced: ${a.results}`  : '',
+        a.avoided   ? `Avoided/delayed: ${a.avoided}`   : '',
+        a.effort    ? `Effort rating: ${a.effort}/10`    : '',
+        a.obstacle  ? `Biggest obstacle: ${a.obstacle}` : '',
+      ].filter(Boolean).join('\n');
+    }
+
+    const system = isHealthRoom
+      ? `You are Robert's brutally honest but deeply believing health mentor. He has given you his physical vision — the body and health he is building — and his honest weekly review including real tracked data on his steps, weight and body fat.
+
+Your job: call out the gap with complete honesty. Name exactly where he is falling short, where discipline slipped, where he is making excuses. Be specific to HIS numbers and HIS situation — never generic.
+
+But you also know what he is genuinely capable of. So after calling out the gap, remind him what is actually possible for him — grounded belief, not hype.
+
+Write 3–5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`
+      : `You are Robert's brutally honest but deeply believing mentor. He has given you his vision — who he is becoming — and his honest weekly review of where he actually is right now. 
 
 Your job: call out the gap with complete honesty. No sugarcoating. No softening. Name exactly where he is falling short, where he is making excuses, where he is playing small. Be specific to HIS situation — never generic. 
 
@@ -1315,17 +1441,47 @@ async function _do30DayFocus() {
 
   try {
     const a = _weeklyReview.answers || {};
+    const isHealthRoom = _room?.id === 'health';
     const now = new Date();
     const monthName = now.toLocaleString('en-GB', { month: 'long' });
     const year = now.getFullYear();
 
-    const reviewText = [
-      a.actions   ? `Actions taken this week: ${a.actions}`     : '',
-      a.results   ? `Results produced: ${a.results}`            : '',
-      a.avoided   ? `Avoided/delayed: ${a.avoided}`             : '',
-      a.effort    ? `Effort rating: ${a.effort}/10`              : '',
-      a.obstacle  ? `Biggest obstacle right now: ${a.obstacle}` : '',
-    ].filter(Boolean).join('\n');
+    let reviewText;
+    if (isHealthRoom) {
+      const hd = a._healthData || {};
+      const autoData = [
+        hd.weeklySteps   != null ? `Steps this week (auto-tracked): ${Number(hd.weeklySteps).toLocaleString()}` : '',
+        hd.latestWeight  != null ? `Current weight (auto-tracked): ${hd.latestWeight.toFixed(1)} lbs` : '',
+        hd.latestBodyFat != null ? `Body fat % (auto-tracked): ${hd.latestBodyFat.toFixed(1)}%` : '',
+      ].filter(Boolean);
+
+      reviewText = [
+        autoData.length ? `AUTO-TRACKED DATA:\n${autoData.join('\n')}` : '',
+        a.gymSessions  ? `Gym sessions this week: ${a.gymSessions}`    : '',
+        a.extraActivity? `Extra walks/runs: ${a.extraActivity}`         : '',
+        a.perfectDays  ? `Days on perfect diet: ${a.perfectDays}/7`    : '',
+        a.dietSlipUp   ? `Diet slip-up: ${a.dietSlipUp}`               : '',
+        a.sleep        ? `Sleep quality: ${a.sleep}`                    : '',
+        a.niggles      ? `Physical niggles: ${a.niggles}`              : '',
+        a.dietPattern  ? `Diet pattern: ${a.dietPattern}`              : '',
+        a.missedHabit  ? `Biggest missed habit: ${a.missedHabit}`      : '',
+        a.improvements ? `Commitments: ${a.improvements}`              : '',
+        a.effort       ? `Effort rating: ${a.effort}/10`                : '',
+      ].filter(Boolean).join('\n');
+    } else {
+      reviewText = [
+        a.actions   ? `Actions taken this week: ${a.actions}`     : '',
+        a.results   ? `Results produced: ${a.results}`            : '',
+        a.avoided   ? `Avoided/delayed: ${a.avoided}`             : '',
+        a.effort    ? `Effort rating: ${a.effort}/10`              : '',
+        a.obstacle  ? `Biggest obstacle right now: ${a.obstacle}` : '',
+      ].filter(Boolean).join('\n');
+    }
+
+    const healthPlanNote = isHealthRoom ? `
+- For the health room, actions must be physical and measurable: number of gym sessions, diet targets (e.g. "5 out of 7 days perfect diet"), specific training focus
+- Reference the auto-tracked data (steps, weight, body fat) when setting the month objective — make it specific to where he actually is
+- The challenge field must address real patterns he mentioned (diet slippage, missed sessions, etc)` : '';
 
     const system = `You are a sharp, direct coach creating a structured monthly plan for someone working toward their vision.
 
@@ -1350,7 +1506,7 @@ Rules:
 - Be brutally specific to THEIR situation — use details from their vision and review
 - Each week should build on the last — Week 1 foundations, Week 2 momentum, Week 3 push, Week 4 consolidate
 - Actions must be concrete and measurable, not vague ("Go live on TikTok at 7pm every day" not "post more")
-- The challenge field must directly reference their stated obstacle and give a concrete coping strategy
+- The challenge field must directly reference their stated obstacle and give a concrete coping strategy${healthPlanNote}
 - Return ONLY the JSON. Nothing else.`;
 
     const user = `Month: ${monthName} ${year}
