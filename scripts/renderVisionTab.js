@@ -1120,9 +1120,11 @@ Distil these into a single, powerful Vision Statement.`;
    HEALTH DATA AUTO-PULL
    Reads directly from state.healthData (already loaded in memory by
    the app — same array used by renderProgressTab). Computes:
-     latestWeight  — most recent synced weight (lbs)
-     latestBodyFat — most recent synced body fat %
-     weeklySteps   — total steps over the last 7 days
+     latestWeight    — most recent synced weight (lbs)
+     latestBodyFat   — most recent synced body fat %
+     weeklySteps     — total steps over the last 7 days
+     weightDelta     — weight change vs 7 days ago (negative = lost)
+     bodyFatDelta    — body fat % change vs 7 days ago (negative = lost)
 ───────────────────────────────────────────────────────────────────── */
 async function _fetchHealthData() {
   try {
@@ -1133,17 +1135,32 @@ async function _fetchHealthData() {
     const sorted = [...healthData].sort((a, b) => b.date.localeCompare(a.date));
 
     // Latest weight & body fat (most recent entry that has the value)
-    const latestWeight  = (sorted.find(h => h.weight  != null) || {}).weight  || null;
-    const latestBodyFat = (sorted.find(h => h.bodyFat != null) || {}).bodyFat || null;
+    const latestWeightEntry  = sorted.find(h => h.weight  != null) || null;
+    const latestBodyFatEntry = sorted.find(h => h.bodyFat != null) || null;
+    const latestWeight  = latestWeightEntry  ? latestWeightEntry.weight  : null;
+    const latestBodyFat = latestBodyFatEntry ? latestBodyFatEntry.bodyFat : null;
+
+    // 7-day comparison — find the oldest entry that's within 5–10 days ago
+    // to give a meaningful "vs last week" delta
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    const tenDaysAgo   = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
+
+    const weekOldEntries = sorted.filter(h => h.date >= tenDaysAgo && h.date <= sevenDaysAgo);
+    const weekOldWeightEntry  = weekOldEntries.find(h => h.weight  != null) || null;
+    const weekOldBodyFatEntry = weekOldEntries.find(h => h.bodyFat != null) || null;
+
+    const weightDelta  = (latestWeight  != null && weekOldWeightEntry)
+      ? +(latestWeight  - weekOldWeightEntry.weight).toFixed(1)  : null;
+    const bodyFatDelta = (latestBodyFat != null && weekOldBodyFatEntry)
+      ? +(latestBodyFat - weekOldBodyFatEntry.bodyFat).toFixed(2) : null;
 
     // Steps: sum entries from the last 7 calendar days
-    const sevenDaysAgo  = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
     const recentEntries = sorted.filter(h => h.date >= sevenDaysAgo && h.steps != null);
     const weeklySteps   = recentEntries.length > 0
       ? Math.round(recentEntries.reduce(function(sum, h) { return sum + h.steps; }, 0))
       : null;
 
-    return { latestWeight, latestBodyFat, weeklySteps };
+    return { latestWeight, latestBodyFat, weeklySteps, weightDelta, bodyFatDelta };
   } catch (err) {
     console.warn('[Vision] _fetchHealthData error:', err);
     return null;
@@ -1198,21 +1215,36 @@ async function _showWeeklyReviewModal() {
 
   // ── Auto-pulled health metrics banner ─────────────────────────────
   const healthBanner = (isHealthRoom && healthData) ? (() => {
-    const metrics = [
-      healthData.weeklySteps   != null ? `👟 ${Number(healthData.weeklySteps).toLocaleString()} steps (7 days)` : null,
-      healthData.latestWeight  != null ? `⚖️ ${healthData.latestWeight.toFixed(1)} lbs` : null,
-      healthData.latestBodyFat != null ? `📊 ${healthData.latestBodyFat.toFixed(1)}% body fat` : null,
+    const fmt = (delta, unit, lowerIsBetter) => {
+      if (delta == null) return '';
+      const improved = lowerIsBetter ? delta < 0 : delta > 0;
+      const colour   = improved ? '#2ecc71' : (delta === 0 ? 'rgba(255,255,255,0.5)' : '#e74c3c');
+      const arrow    = delta < 0 ? '▼' : (delta > 0 ? '▲' : '—');
+      return `<span style="font-size:11px;font-weight:800;color:${colour};margin-left:6px;">${arrow} ${Math.abs(delta)}${unit} vs last wk</span>`;
+    };
+
+    const rows = [
+      healthData.weeklySteps   != null
+        ? `<div style="font-size:13px;font-weight:800;color:${c.heading};">👟 ${Number(healthData.weeklySteps).toLocaleString()} steps <span style="font-size:10px;font-weight:600;color:${c.muted};">7-day total</span></div>`
+        : null,
+      healthData.latestWeight  != null
+        ? `<div style="font-size:13px;font-weight:800;color:${c.heading};">⚖️ ${healthData.latestWeight.toFixed(1)} lbs${fmt(healthData.weightDelta, 'lbs', true)}</div>`
+        : null,
+      healthData.latestBodyFat != null
+        ? `<div style="font-size:13px;font-weight:800;color:${c.heading};">📊 ${healthData.latestBodyFat.toFixed(1)}% body fat${fmt(healthData.bodyFatDelta, '%', true)}</div>`
+        : null,
     ].filter(Boolean);
-    if (metrics.length === 0) return '';
+
+    if (rows.length === 0) return '';
     return `
       <div style="
         background:rgba(201,168,76,0.08);
         border:1px solid rgba(201,168,76,0.3);
         border-radius:12px;padding:12px 16px;margin-bottom:20px;
       ">
-        <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:8px;">📥 Auto-Pulled This Week</div>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;">
-          ${metrics.map(m => `<div style="font-size:13px;font-weight:800;color:${c.heading};">${m}</div>`).join('')}
+        <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:10px;">📥 Auto-Pulled This Week</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          ${rows.join('')}
         </div>
       </div>
     `;
@@ -1309,9 +1341,11 @@ async function _showWeeklyReviewModal() {
     // Attach auto-pulled health data so AI can use it
     if (isHealthRoom && healthData) {
       answers._healthData = {
-        weeklySteps:   healthData.weeklySteps   ?? null,
-        latestWeight:  healthData.latestWeight  ?? null,
-        latestBodyFat: healthData.latestBodyFat ?? null,
+        weeklySteps:   healthData.weeklySteps   != null ? healthData.weeklySteps   : null,
+        latestWeight:  healthData.latestWeight  != null ? healthData.latestWeight  : null,
+        latestBodyFat: healthData.latestBodyFat != null ? healthData.latestBodyFat : null,
+        weightDelta:   healthData.weightDelta   != null ? healthData.weightDelta   : null,
+        bodyFatDelta:  healthData.bodyFatDelta  != null ? healthData.bodyFatDelta  : null,
       };
     }
 
@@ -1357,8 +1391,8 @@ async function _doRealityCheck() {
       const hd = a._healthData || {};
       const autoData = [
         hd.weeklySteps   != null ? `Steps this week (auto-tracked): ${Number(hd.weeklySteps).toLocaleString()}` : '',
-        hd.latestWeight  != null ? `Current weight (auto-tracked): ${hd.latestWeight.toFixed(1)} lbs` : '',
-        hd.latestBodyFat != null ? `Body fat % (auto-tracked): ${hd.latestBodyFat.toFixed(1)}%` : '',
+        hd.latestWeight  != null ? `Current weight (auto-tracked): ${hd.latestWeight.toFixed(1)} lbs${hd.weightDelta != null ? ' (' + (hd.weightDelta > 0 ? '+' : '') + hd.weightDelta + 'lbs vs last week)' : ''}` : '',
+        hd.latestBodyFat != null ? `Body fat % (auto-tracked): ${hd.latestBodyFat.toFixed(1)}%${hd.bodyFatDelta != null ? ' (' + (hd.bodyFatDelta > 0 ? '+' : '') + hd.bodyFatDelta + '% vs last week)' : ''}` : '',
       ].filter(Boolean);
 
       reviewText = [
@@ -1442,17 +1476,29 @@ async function _do30DayFocus() {
   try {
     const a = _weeklyReview.answers || {};
     const isHealthRoom = _room?.id === 'health';
-    const now = new Date();
-    const monthName = now.toLocaleString('en-GB', { month: 'long' });
-    const year = now.getFullYear();
+
+    // ── Month timing — always deadline = last day of current month ──
+    const now          = new Date();
+    const monthName    = now.toLocaleString('en-GB', { month: 'long' });
+    const year         = now.getFullYear();
+    const todayStr     = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const deadlineStr  = lastDayOfMonth.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const daysRemaining = Math.ceil((lastDayOfMonth - now) / 86400000);
+    const weeksRemaining = Math.ceil(daysRemaining / 7);
+
+    // Which week of the month are we in? (1–4)
+    const dayOfMonth    = now.getDate();
+    const currentWeekNum = Math.min(4, Math.ceil(dayOfMonth / 7));
+    const weeksToGenerate = Math.max(1, Math.min(4, weeksRemaining));
 
     let reviewText;
     if (isHealthRoom) {
       const hd = a._healthData || {};
       const autoData = [
         hd.weeklySteps   != null ? `Steps this week (auto-tracked): ${Number(hd.weeklySteps).toLocaleString()}` : '',
-        hd.latestWeight  != null ? `Current weight (auto-tracked): ${hd.latestWeight.toFixed(1)} lbs` : '',
-        hd.latestBodyFat != null ? `Body fat % (auto-tracked): ${hd.latestBodyFat.toFixed(1)}%` : '',
+        hd.latestWeight  != null ? `Current weight (auto-tracked): ${hd.latestWeight.toFixed(1)} lbs${hd.weightDelta != null ? ' (' + (hd.weightDelta > 0 ? '+' : '') + hd.weightDelta + 'lbs vs last week)' : ''}` : '',
+        hd.latestBodyFat != null ? `Body fat % (auto-tracked): ${hd.latestBodyFat.toFixed(1)}%${hd.bodyFatDelta != null ? ' (' + (hd.bodyFatDelta > 0 ? '+' : '') + hd.bodyFatDelta + '% vs last week)' : ''}` : '',
       ].filter(Boolean);
 
       reviewText = [
@@ -1479,37 +1525,41 @@ async function _do30DayFocus() {
     }
 
     const healthPlanNote = isHealthRoom ? `
-- For the health room, actions must be physical and measurable: number of gym sessions, diet targets (e.g. "5 out of 7 days perfect diet"), specific training focus
-- Reference the auto-tracked data (steps, weight, body fat) when setting the month objective — make it specific to where he actually is
-- The challenge field must address real patterns he mentioned (diet slippage, missed sessions, etc)` : '';
+- Actions must be physical and measurable: specific gym session counts, diet targets (e.g. "5/7 days perfect diet"), exact training focus
+- Reference the auto-tracked data (steps, weight, body fat deltas) when setting the month objective — make it specific to where Robert actually is right now
+- If he is losing body fat week on week, acknowledge the momentum and push the target further; if gaining, confront that directly
+- The challenge field must address real patterns he mentioned (diet slippage, missed sessions, weekends, etc)` : '';
 
-    const system = `You are a sharp, direct coach creating a structured monthly plan for someone working toward their vision.
+    // Build week template string dynamically based on weeks remaining
+    const weekTemplates = Array.from({ length: weeksToGenerate }, (_, i) => {
+      const wkNum = currentWeekNum + i;
+      return `{ "week": ${wkNum}, "focus": "...", "actions": ["...", "...", "..."], "challenge": "..." }`;
+    }).join(',\n    ');
+
+    const system = `You are a sharp, direct coach creating a structured plan to take someone from TODAY to the end of this calendar month.
 
 You must respond with ONLY a valid JSON object — no markdown, no backticks, no explanation. Exactly this structure:
 
 {
-  "monthObjective": "One bold, specific, measurable objective for this calendar month. Start with the month name.",
+  "monthObjective": "One bold, specific, measurable objective to achieve by the end of ${monthName}. Must reference where Robert is TODAY and what he will achieve by ${deadlineStr}.",
   "weeks": [
-    {
-      "week": 1,
-      "focus": "The single most important focus for this week (one sentence, specific)",
-      "actions": ["Specific daily/weekly action 1", "Specific daily/weekly action 2", "Specific daily/weekly action 3"],
-      "challenge": "The specific obstacle from their review this week will likely trigger, and exactly how to overcome it (2 sentences)"
-    },
-    { "week": 2, "focus": "...", "actions": ["...", "...", "..."], "challenge": "..." },
-    { "week": 3, "focus": "...", "actions": ["...", "...", "..."], "challenge": "..." },
-    { "week": 4, "focus": "...", "actions": ["...", "...", "..."], "challenge": "..." }
+    ${weekTemplates}
   ]
 }
 
 Rules:
-- Be brutally specific to THEIR situation — use details from their vision and review
-- Each week should build on the last — Week 1 foundations, Week 2 momentum, Week 3 push, Week 4 consolidate
-- Actions must be concrete and measurable, not vague ("Go live on TikTok at 7pm every day" not "post more")
-- The challenge field must directly reference their stated obstacle and give a concrete coping strategy${healthPlanNote}
+- TODAY is ${todayStr}. The DEADLINE is ${deadlineStr} (last day of ${monthName}). There are ${daysRemaining} days and ${weeksToGenerate} week(s) remaining in the month.
+- We are currently in week ${currentWeekNum} of the month — only generate ${weeksToGenerate} week(s) (from week ${currentWeekNum} to the end of the month). Do NOT generate weeks that have already passed.
+- Each week should build on the previous — the final week locks in results before the month-end deadline
+- Actions must be concrete and measurable, not vague ("4 gym sessions this week" not "train more")
+- The challenge field must directly reference their stated patterns and give a concrete coping strategy${healthPlanNote}
 - Return ONLY the JSON. Nothing else.`;
 
     const user = `Month: ${monthName} ${year}
+Today: ${todayStr}
+Month-end deadline: ${deadlineStr}
+Days remaining: ${daysRemaining}
+Weeks remaining: ${weeksToGenerate} (starting at week ${currentWeekNum} of the month)
 Room: ${_room?.label}
 
 My vision:\n${_statement}\n\nMy current reality:\n${reviewText}`;
@@ -1524,7 +1574,7 @@ My vision:\n${_statement}\n\nMy current reality:\n${reviewText}`;
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 800,
+        max_tokens: 900,
         system,
         messages: [{ role: 'user', content: user }],
       }),
