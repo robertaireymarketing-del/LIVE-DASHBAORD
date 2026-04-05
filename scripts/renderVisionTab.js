@@ -2334,6 +2334,7 @@ function _getMonthHealthActuals(monthStart) {
 }
 
 
+function _panel() {
   return document.getElementById('tab-vision')
       || document.getElementById('vision-tab')
       || document.querySelector('[data-tab="vision"]');
