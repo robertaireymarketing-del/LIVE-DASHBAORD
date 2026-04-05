@@ -351,6 +351,9 @@ function _paintRoom(c) {
         ` : ''}
       </div>
 
+      <!-- Health Tracker (Health & Body room only) -->
+      ${_room.id === 'health' ? _buildHealthTrackerHtml(c) : ''}
+
       <!-- Weekly Review Banner -->
       ${_showReviewBanner ? `
         <div style="
@@ -2331,6 +2334,144 @@ function _getMonthHealthActuals(monthStart) {
     bodyFatChange:     (firstBF && lastBF) ? +(lastBF.bodyFat - firstBF.bodyFat).toFixed(2) : null,
     daysWithData:      entries.length,
   };
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────
+   HEALTH TRACKER CARD — live stats, on-track status & 4-week projection
+───────────────────────────────────────────────────────────────────── */
+function _buildHealthTrackerHtml(c) {
+  try {
+    const healthData = _deps && _deps.state && _deps.state.healthData;
+    if (!healthData || !healthData.length) return '';
+
+    const sorted = [...healthData].sort(function(a, b) { return b.date.localeCompare(a.date); });
+
+    // Latest values
+    const latestWeight = (sorted.find(function(h) { return h.weight  != null; }) || {}).weight  || null;
+    const latestBF     = (sorted.find(function(h) { return h.bodyFat != null; }) || {}).bodyFat || null;
+    if (latestWeight == null && latestBF == null) return '';
+
+    // Weekly deltas (compare vs 5–10 days ago)
+    const sevenDaysAgo = new Date(Date.now() - 7  * 86400000).toISOString().slice(0, 10);
+    const tenDaysAgo   = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
+    const weekOld      = sorted.filter(function(h) { return h.date >= tenDaysAgo && h.date <= sevenDaysAgo; });
+    const weekOldWt    = (weekOld.find(function(h) { return h.weight  != null; }) || {}).weight  || null;
+    const weekOldBF    = (weekOld.find(function(h) { return h.bodyFat != null; }) || {}).bodyFat || null;
+    const weightDelta  = (latestWeight != null && weekOldWt  != null) ? +(latestWeight - weekOldWt).toFixed(1)  : null;
+    const bfDelta      = (latestBF     != null && weekOldBF  != null) ? +(latestBF     - weekOldBF).toFixed(2) : null;
+
+    // 7-day BF pace (positive = losing)
+    const withBF   = sorted.filter(function(h) { return h.bodyFat != null; });
+    const recent7  = withBF.filter(function(h) { return h.date >= sevenDaysAgo; });
+    let pace7d = null;
+    if (recent7.length >= 2) {
+      var r7newest = recent7[0], r7oldest = recent7[recent7.length - 1];
+      var r7days = (new Date(r7newest.date) - new Date(r7oldest.date)) / 86400000;
+      if (r7days >= 1) pace7d = +(( r7oldest.bodyFat - r7newest.bodyFat) / (r7days / 7)).toFixed(3);
+    } else if (withBF.length >= 2) {
+      // Fall back to overall pace if not enough recent data
+      var bfNewest = withBF[0], bfOldest = withBF[withBF.length - 1];
+      var bfDays = (new Date(bfNewest.date) - new Date(bfOldest.date)) / 86400000;
+      if (bfDays >= 3) pace7d = +((bfOldest.bodyFat - bfNewest.bodyFat) / (bfDays / 7)).toFixed(3);
+    }
+
+    // Target rate from settings (default 0.75%/wk)
+    var targetRate = 0.75;
+    try { var s = _deps.getSettings && _deps.getSettings(); if (s && s.bfLossRate) targetRate = s.bfLossRate; } catch(e) {}
+
+    // On-track status
+    var trackStatus = 'no-data';
+    var trackLabel  = '';
+    var trackCol    = c.muted;
+    if (pace7d !== null) {
+      if (pace7d >= targetRate * 1.15)      { trackStatus = 'ahead';   trackLabel = '🚀 Ahead of pace';    trackCol = '#2ecc71'; }
+      else if (pace7d >= targetRate * 0.85) { trackStatus = 'on';      trackLabel = '✅ On track';          trackCol = '#2ecc71'; }
+      else if (pace7d > 0)                  { trackStatus = 'behind';  trackLabel = '⚠️ Behind pace';      trackCol = '#C9A84C'; }
+      else                                  { trackStatus = 'gaining'; trackLabel = '🔴 Not progressing';  trackCol = '#e74c3c'; }
+    }
+
+    const effectivePace = (pace7d != null && pace7d > 0) ? pace7d : targetRate;
+    const borderCol = trackStatus === 'ahead' || trackStatus === 'on'
+      ? 'rgba(46,204,113,0.3)' : trackStatus === 'behind'
+      ? 'rgba(201,168,76,0.3)' : trackStatus === 'gaining'
+      ? 'rgba(231,76,60,0.3)'  : c.cardBorder;
+
+    // Delta formatter
+    function dfmt(val, unit, lowerIsBetter) {
+      if (val == null) return '';
+      var improved = lowerIsBetter ? val < 0 : val > 0;
+      var col = improved ? '#2ecc71' : (val === 0 ? c.muted : '#e74c3c');
+      var arrow = val < 0 ? '▼' : '▲';
+      return '<span style="color:' + col + ';font-size:11px;font-weight:800;margin-left:4px;">' + arrow + ' ' + Math.abs(val) + unit + ' this wk</span>';
+    }
+
+    // 4-week projection rows
+    var projRows = [1,2,3,4].map(function(wk) {
+      var d = new Date();
+      d.setDate(d.getDate() + wk * 7);
+      var label = d.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+      var pBF  = latestBF     != null ? Math.max(0, +(latestBF     - effectivePace * wk).toFixed(1)) : null;
+      var pWt  = latestWeight != null ? Math.max(0, +(latestWeight - (latestWeight * effectivePace / 100) * wk).toFixed(1)) : null;
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:' + c.inputBg + ';border-radius:8px;">'
+        + '<div style="font-size:11px;font-weight:800;color:' + c.muted + ';">+' + wk + ' wk &nbsp;·&nbsp; ' + label + '</div>'
+        + '<div style="display:flex;gap:12px;align-items:center;">'
+        + (pWt  != null ? '<span style="font-size:11px;font-weight:900;color:' + c.subheading + ';">⚖️ ' + pWt.toFixed(1)  + ' lbs</span>' : '')
+        + (pBF  != null ? '<span style="font-size:11px;font-weight:900;color:' + c.gold       + ';">📊 ' + pBF.toFixed(1)  + '%</span>'    : '')
+        + '</div>'
+        + '</div>';
+    }).join('');
+
+    // Pace bar
+    var paceBarHtml = '';
+    if (pace7d !== null) {
+      var pct    = Math.min(100, Math.round((pace7d / targetRate) * 100));
+      var barCol = pct >= 100 ? '#2ecc71' : pct >= 60 ? '#C9A84C' : '#e74c3c';
+      paceBarHtml = '<div style="margin-bottom:14px;">'
+        + '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">'
+        + '<div style="font-size:10px;font-weight:800;color:' + c.muted + ';">Weekly BF loss pace</div>'
+        + '<div style="font-size:10px;font-weight:800;color:' + barCol + ';">' + (pace7d > 0 ? pace7d.toFixed(2) : '0.00') + '%/wk &nbsp;·&nbsp; target ' + targetRate + '%/wk</div>'
+        + '</div>'
+        + '<div style="height:5px;background:' + c.cardBorder + ';border-radius:3px;overflow:hidden;">'
+        + '<div style="height:100%;width:' + pct + '%;background:' + barCol + ';border-radius:3px;"></div>'
+        + '</div>'
+        + '</div>';
+    } else {
+      paceBarHtml = '<div style="font-size:11px;color:' + c.muted + ';font-weight:600;font-style:italic;margin-bottom:14px;">Target: ' + targetRate + '%/wk body fat loss — syncing data to measure your pace</div>';
+    }
+
+    return '<div style="background:' + c.cardBg + ';border:1px solid ' + borderCol + ';border-radius:14px;padding:18px 16px;margin-bottom:16px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
+      + '<div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:' + c.muted + ';text-transform:uppercase;">📊 Health Tracker</div>'
+      + (trackLabel ? '<div style="font-size:10px;font-weight:900;letter-spacing:1px;color:' + trackCol + ';">' + trackLabel + '</div>' : '')
+      + '</div>'
+
+      // Current stats
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'
+      + (latestWeight != null ? '<div style="background:' + c.inputBg + ';border-radius:10px;padding:12px;">'
+          + '<div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:' + c.muted + ';text-transform:uppercase;margin-bottom:4px;">⚖️ Weight</div>'
+          + '<div style="font-size:20px;font-weight:900;color:' + c.heading + ';">' + latestWeight.toFixed(1) + '<span style="font-size:11px;font-weight:600;color:' + c.muted + ';"> lbs</span></div>'
+          + dfmt(weightDelta, ' lbs', true)
+          + '</div>' : '')
+      + (latestBF != null ? '<div style="background:' + c.inputBg + ';border-radius:10px;padding:12px;">'
+          + '<div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:' + c.muted + ';text-transform:uppercase;margin-bottom:4px;">📊 Body Fat</div>'
+          + '<div style="font-size:20px;font-weight:900;color:' + c.heading + ';">' + latestBF.toFixed(1) + '<span style="font-size:11px;font-weight:600;color:' + c.muted + ';">%</span></div>'
+          + dfmt(bfDelta, '%', true)
+          + '</div>' : '')
+      + '</div>'
+
+      // Pace bar
+      + paceBarHtml
+
+      // 4-week projection
+      + '<div><div style="font-size:9px;font-weight:900;letter-spacing:2px;color:' + c.muted + ';text-transform:uppercase;margin-bottom:8px;">📅 Projected Path (' + (pace7d !== null ? 'at current pace' : 'at target pace') + ')</div>'
+      + '<div style="display:flex;flex-direction:column;gap:6px;">' + projRows + '</div>'
+      + '</div>'
+      + '</div>';
+  } catch(err) {
+    console.warn('[Vision] _buildHealthTrackerHtml error:', err);
+    return '';
+  }
 }
 
 
