@@ -1368,15 +1368,53 @@ async function _showWeeklyReviewModal() {
     { key: 'improvements',   label: '9. What specific improvements are you committing to for the week ahead?',   hint: 'Concrete commitments, not wishes.' },
   ];
 
+  // ── Wealth & Finances questions ───────────────────────────────────
+  const wealthQuestions = [
+    { key: 'income',      label: '1. What was your total income this week across all streams?',         hint: 'Break it down — TJM, Vinted, salary, other. Numbers.' },
+    { key: 'spending',    label: '2. What did you spend money on this week — was it intentional?',      hint: 'Identify any leaks or impulse spends.' },
+    { key: 'savingsHit',  label: '3. Did you hit your savings or investment targets this week?',         hint: 'Yes/no and by how much.' },
+    { key: 'leaks',       label: '4. Where did money leak or get wasted?',                              hint: 'Subscriptions, food, anything not aligned with your goals.' },
+    { key: 'position',    label: '5. What\'s your current financial position — savings, cash, debts?',  hint: 'Give real numbers if you can.' },
+    { key: 'opportunity', label: '6. Any new income opportunities identified or actively progressed?',  hint: 'Specific conversations, ideas, moves made.' },
+    { key: 'priority',    label: '7. What\'s your single biggest financial priority for next week?',    hint: 'One thing. Be specific.' },
+  ];
+
+  // ── The Jewellery Merchant questions ─────────────────────────────
+  const tjmQuestions = [
+    { key: 'sales',       label: '1. How many sales or orders did you fulfil this week?',               hint: 'Units, channels (Etsy, website, wholesale etc.).' },
+    { key: 'revenue',     label: '2. What was your total TJM revenue this week?',                       hint: 'Gross figure. Include any pending orders.' },
+    { key: 'listings',    label: '3. How many new listings or products did you add?',                   hint: 'Etsy, website, wholesale catalogue — be specific.' },
+    { key: 'marketing',   label: '4. What content or marketing did you put out — and what was the response?', hint: 'TikTok, Instagram, emails. Views, clicks, saves.' },
+    { key: 'biz',         label: '5. Any wholesale, stockist or B2B conversations progressed?',         hint: 'Leads, follow-ups, meetings, quotes sent.' },
+    { key: 'ops',         label: '6. What operational or fulfilment issues came up?',                   hint: 'Stock, packaging, delivery, customer issues.' },
+    { key: 'nextWeek',    label: '7. What\'s the single most important thing you need to do for TJM next week?', hint: 'One focus. Be ruthless.' },
+  ];
+
+  // ── Vinted questions ──────────────────────────────────────────────
+  const vintedQuestions = [
+    { key: 'listed',      label: '1. How many items did you list this week?',                           hint: 'Total new listings across all platforms.' },
+    { key: 'sales',       label: '2. How many sales did you make, and what was the total revenue?',     hint: 'Units sold and gross revenue — numbers only.' },
+    { key: 'sourced',     label: '3. What did you source or acquire for stock this week?',              hint: 'What, where from, and rough cost.' },
+    { key: 'momentum',    label: '4. What\'s moving quickly and what\'s sitting still?',               hint: 'Categories, price points, styles that work vs don\'t.' },
+    { key: 'repriced',    label: '5. Did you reprice or refresh any slow-moving listings?',             hint: 'How many, and has it made a difference?' },
+    { key: 'margin',      label: '6. What was your estimated profit margin or net take-home this week?', hint: 'Revenue minus cost of goods and fees.' },
+    { key: 'target',      label: '7. What\'s your listing and sourcing target for next week?',          hint: 'Specific numbers — listings to add, items to source.' },
+  ];
+
   // ── Generic questions (all other rooms) ───────────────────────────
   const genericQuestions = [
     { key: 'actions',   label: '1. What did you actually do this week towards this vision?', hint: 'Specific actions, not intentions.' },
     { key: 'results',   label: '2. What results or outputs did you produce?',                hint: 'Numbers, evidence, proof.' },
     { key: 'avoided',   label: '3. What did you avoid, delay or make excuses about?',       hint: 'Be honest — no one else is reading this.' },
-    { key: 'obstacle',  label: '5. What\'s your single biggest obstacle right now?',        hint: 'The real one, not the easy answer.' },
+    { key: 'obstacle',  label: '4. What\'s your single biggest obstacle right now?',        hint: 'The real one, not the easy answer.' },
   ];
 
-  const questions = isHealthRoom ? healthQuestions : genericQuestions;
+  const roomId = _room?.id;
+  const questions = roomId === 'health'      ? healthQuestions
+                  : roomId === 'biz_wealth'  ? wealthQuestions
+                  : roomId === 'biz_tjm'     ? tjmQuestions
+                  : roomId === 'biz_vinted'  ? vintedQuestions
+                  : genericQuestions;
 
   // ── Auto-pulled health metrics banner ─────────────────────────────
   const healthBanner = (isHealthRoom && healthData) ? (() => {
@@ -1451,7 +1489,7 @@ async function _showWeeklyReviewModal() {
       `).join('')}
 
       <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:900;color:${c.subheading};letter-spacing:1px;margin-bottom:8px;">${isHealthRoom ? '10.' : '4.'} Honest effort rating this week (1–10)</div>
+        <div style="font-size:11px;font-weight:900;color:${c.subheading};letter-spacing:1px;margin-bottom:8px;">${questions.length + 1}. Honest effort rating this week (1–10)</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           ${[1,2,3,4,5,6,7,8,9,10].map(n => `
             <button
@@ -1548,30 +1586,65 @@ async function _doRealityCheck() {
 
   try {
     const a = _weeklyReview.answers || {};
-    const isHealthRoom = _room?.id === 'health';
+    const rid = _room?.id;
+    const isHealthRoom  = rid === 'health';
+    const isWealthRoom  = rid === 'biz_wealth';
+    const isTJMRoom     = rid === 'biz_tjm';
+    const isVintedRoom  = rid === 'biz_vinted';
 
     let reviewText;
     if (isHealthRoom) {
-      // Health-specific field mapping
       const hd = a._healthData || {};
       const autoData = [
         hd.weeklySteps   != null ? `Steps this week (auto-tracked): ${Number(hd.weeklySteps).toLocaleString()}` : '',
         hd.latestWeight  != null ? `Current weight (auto-tracked): ${hd.latestWeight.toFixed(1)} lbs${hd.weightDelta != null ? ' (' + (hd.weightDelta > 0 ? '+' : '') + hd.weightDelta + 'lbs vs last week)' : ''}` : '',
         hd.latestBodyFat != null ? `Body fat % (auto-tracked): ${hd.latestBodyFat.toFixed(1)}%${hd.bodyFatDelta != null ? ' (' + (hd.bodyFatDelta > 0 ? '+' : '') + hd.bodyFatDelta + '% vs last week)' : ''}` : '',
       ].filter(Boolean);
-
       reviewText = [
         autoData.length ? `AUTO-TRACKED DATA:\n${autoData.join('\n')}` : '',
-        a.gymSessions  ? `Gym sessions completed: ${a.gymSessions}`   : '',
-        a.extraActivity? `Extra walks/runs: ${a.extraActivity}`        : '',
-        a.perfectDays  ? `Days on perfect diet: ${a.perfectDays}`     : '',
-        a.dietSlipUp   ? `Diet slip-up details: ${a.dietSlipUp}`      : '',
-        a.sleep        ? `Sleep this week: ${a.sleep}`                 : '',
-        a.niggles      ? `Soreness/niggles: ${a.niggles}`             : '',
-        a.dietPattern  ? `Diet pattern noticed: ${a.dietPattern}`     : '',
-        a.missedHabit  ? `Biggest missed habit: ${a.missedHabit}`     : '',
+        a.gymSessions  ? `Gym sessions completed: ${a.gymSessions}`    : '',
+        a.extraActivity? `Extra walks/runs: ${a.extraActivity}`         : '',
+        a.perfectDays  ? `Days on perfect diet: ${a.perfectDays}`      : '',
+        a.dietSlipUp   ? `Diet slip-up details: ${a.dietSlipUp}`       : '',
+        a.sleep        ? `Sleep this week: ${a.sleep}`                  : '',
+        a.niggles      ? `Soreness/niggles: ${a.niggles}`              : '',
+        a.dietPattern  ? `Diet pattern noticed: ${a.dietPattern}`      : '',
+        a.missedHabit  ? `Biggest missed habit: ${a.missedHabit}`      : '',
         a.improvements ? `Commitments for next week: ${a.improvements}`: '',
-        a.effort       ? `Effort rating: ${a.effort}/10`               : '',
+        a.effort       ? `Effort rating: ${a.effort}/10`                : '',
+      ].filter(Boolean).join('\n');
+    } else if (isWealthRoom) {
+      reviewText = [
+        a.income      ? `Income this week: ${a.income}`           : '',
+        a.spending    ? `Spending: ${a.spending}`                  : '',
+        a.savingsHit  ? `Savings target hit: ${a.savingsHit}`     : '',
+        a.leaks       ? `Money leaks: ${a.leaks}`                 : '',
+        a.position    ? `Current financial position: ${a.position}`: '',
+        a.opportunity ? `New opportunities: ${a.opportunity}`     : '',
+        a.priority    ? `Priority next week: ${a.priority}`       : '',
+        a.effort      ? `Effort rating: ${a.effort}/10`            : '',
+      ].filter(Boolean).join('\n');
+    } else if (isTJMRoom) {
+      reviewText = [
+        a.sales     ? `Sales/orders fulfilled: ${a.sales}`       : '',
+        a.revenue   ? `Revenue this week: ${a.revenue}`          : '',
+        a.listings  ? `New listings added: ${a.listings}`        : '',
+        a.marketing ? `Marketing/content output: ${a.marketing}` : '',
+        a.biz       ? `B2B/wholesale progress: ${a.biz}`         : '',
+        a.ops       ? `Operational issues: ${a.ops}`             : '',
+        a.nextWeek  ? `Priority next week: ${a.nextWeek}`        : '',
+        a.effort    ? `Effort rating: ${a.effort}/10`             : '',
+      ].filter(Boolean).join('\n');
+    } else if (isVintedRoom) {
+      reviewText = [
+        a.listed    ? `Items listed: ${a.listed}`             : '',
+        a.sales     ? `Sales & revenue: ${a.sales}`           : '',
+        a.sourced   ? `Stock sourced: ${a.sourced}`           : '',
+        a.momentum  ? `What's moving/stalling: ${a.momentum}` : '',
+        a.repriced  ? `Repriced listings: ${a.repriced}`      : '',
+        a.margin    ? `Estimated margin: ${a.margin}`         : '',
+        a.target    ? `Next week target: ${a.target}`         : '',
+        a.effort    ? `Effort rating: ${a.effort}/10`          : '',
       ].filter(Boolean).join('\n');
     } else {
       reviewText = [
@@ -1583,21 +1656,17 @@ async function _doRealityCheck() {
       ].filter(Boolean).join('\n');
     }
 
+    const systemBase = `You are Robert's brutally honest but deeply believing mentor. He has given you his vision and his honest weekly review. Your job: call out the gap with complete honesty — be specific to HIS numbers and HIS situation, never generic. Name where he is falling short, making excuses, or playing small. Then remind him what he is genuinely capable of — grounded belief, not hype. Write 3–5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`;
+
     const system = isHealthRoom
-      ? `You are Robert's brutally honest but deeply believing health mentor. He has given you his physical vision — the body and health he is building — and his honest weekly review including real tracked data on his steps, weight and body fat.
-
-Your job: call out the gap with complete honesty. Name exactly where he is falling short, where discipline slipped, where he is making excuses. Be specific to HIS numbers and HIS situation — never generic.
-
-But you also know what he is genuinely capable of. So after calling out the gap, remind him what is actually possible for him — grounded belief, not hype.
-
-Write 3–5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`
-      : `You are Robert's brutally honest but deeply believing mentor. He has given you his vision — who he is becoming — and his honest weekly review of where he actually is right now. 
-
-Your job: call out the gap with complete honesty. No sugarcoating. No softening. Name exactly where he is falling short, where he is making excuses, where he is playing small. Be specific to HIS situation — never generic. 
-
-But you also know what he is genuinely capable of. You have seen it in his vision. So after calling out the gap, remind him what is actually possible for him — not with empty hype, but with grounded belief. 
-
-Write 3-5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`;
+      ? `You are Robert's brutally honest but deeply believing health mentor. He has given you his physical vision and his honest weekly review including real tracked data on his steps, weight and body fat.\n\nYour job: call out the gap with complete honesty. Be specific to HIS numbers — never generic. Name where discipline slipped. Then remind him what is actually possible — grounded belief, not hype.\n\nWrite 3–5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`
+      : isWealthRoom
+        ? `You are Robert's brutally honest financial mentor. He has given you his wealth vision and his honest weekly review of income, spending, savings and opportunities.\n\nYour job: call out where his financial behaviour this week aligned or conflicted with his vision. Be specific to HIS numbers. Name any leaks, excuses or missed opportunities. Then push him on what he is genuinely capable of building.\n\nWrite 3–5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`
+        : isTJMRoom
+          ? `You are Robert's brutally honest business mentor for The Jewellery Merchant. He has given you his brand vision and his honest weekly review of sales, content, wholesale progress and operations.\n\nYour job: call out exactly where execution fell short this week — missed listings, weak marketing, avoided conversations. Be specific to HIS numbers. Then push him on what TJM is capable of becoming.\n\nWrite 3–5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`
+          : isVintedRoom
+            ? `You are Robert's brutally honest business mentor for his Vinted reselling operation. He has given you his vision for the business and his honest weekly review of listings, sales, sourcing and margins.\n\nYour job: call out exactly where the numbers fell short, where effort was lacking, and what habits are holding the business back. Be specific to HIS figures. Then remind him of the scale this can reach if he executes consistently.\n\nWrite 3–5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`
+            : systemBase;
 
     const user = `My vision for ${_room?.label}:\n${_statement}\n\nMy weekly review:\n${reviewText}\n\nGive me my Reality Check.`;
 
@@ -1658,6 +1727,7 @@ async function _do30DayFocus() {
     const weeksToGenerate = Math.max(1, Math.min(4, weeksRemaining));
 
     let reviewText;
+    const rid2 = _room?.id;
     if (isHealthRoom) {
       const hd = a._healthData || {};
       const autoData = [
@@ -1665,7 +1735,6 @@ async function _do30DayFocus() {
         hd.latestWeight  != null ? `Current weight (auto-tracked): ${hd.latestWeight.toFixed(1)} lbs${hd.weightDelta != null ? ' (' + (hd.weightDelta > 0 ? '+' : '') + hd.weightDelta + 'lbs vs last week)' : ''}` : '',
         hd.latestBodyFat != null ? `Body fat % (auto-tracked): ${hd.latestBodyFat.toFixed(1)}%${hd.bodyFatDelta != null ? ' (' + (hd.bodyFatDelta > 0 ? '+' : '') + hd.bodyFatDelta + '% vs last week)' : ''}` : '',
       ].filter(Boolean);
-
       reviewText = [
         autoData.length ? `AUTO-TRACKED DATA:\n${autoData.join('\n')}` : '',
         a.gymSessions  ? `Gym sessions this week: ${a.gymSessions}`    : '',
@@ -1679,6 +1748,39 @@ async function _do30DayFocus() {
         a.improvements ? `Commitments: ${a.improvements}`              : '',
         a.effort       ? `Effort rating: ${a.effort}/10`                : '',
       ].filter(Boolean).join('\n');
+    } else if (rid2 === 'biz_wealth') {
+      reviewText = [
+        a.income      ? `Income this week: ${a.income}`            : '',
+        a.spending    ? `Spending: ${a.spending}`                   : '',
+        a.savingsHit  ? `Savings target hit: ${a.savingsHit}`      : '',
+        a.leaks       ? `Money leaks: ${a.leaks}`                  : '',
+        a.position    ? `Current financial position: ${a.position}` : '',
+        a.opportunity ? `New opportunities: ${a.opportunity}`      : '',
+        a.priority    ? `Priority next week: ${a.priority}`        : '',
+        a.effort      ? `Effort rating: ${a.effort}/10`             : '',
+      ].filter(Boolean).join('\n');
+    } else if (rid2 === 'biz_tjm') {
+      reviewText = [
+        a.sales     ? `Sales/orders: ${a.sales}`               : '',
+        a.revenue   ? `Revenue: ${a.revenue}`                  : '',
+        a.listings  ? `New listings: ${a.listings}`            : '',
+        a.marketing ? `Marketing output: ${a.marketing}`       : '',
+        a.biz       ? `B2B/wholesale progress: ${a.biz}`       : '',
+        a.ops       ? `Operational issues: ${a.ops}`           : '',
+        a.nextWeek  ? `Priority next week: ${a.nextWeek}`      : '',
+        a.effort    ? `Effort rating: ${a.effort}/10`           : '',
+      ].filter(Boolean).join('\n');
+    } else if (rid2 === 'biz_vinted') {
+      reviewText = [
+        a.listed    ? `Items listed: ${a.listed}`              : '',
+        a.sales     ? `Sales & revenue: ${a.sales}`            : '',
+        a.sourced   ? `Stock sourced: ${a.sourced}`            : '',
+        a.momentum  ? `What's moving/stalling: ${a.momentum}`  : '',
+        a.repriced  ? `Repriced listings: ${a.repriced}`       : '',
+        a.margin    ? `Estimated margin: ${a.margin}`          : '',
+        a.target    ? `Next week target: ${a.target}`          : '',
+        a.effort    ? `Effort rating: ${a.effort}/10`           : '',
+      ].filter(Boolean).join('\n');
     } else {
       reviewText = [
         a.actions   ? `Actions taken this week: ${a.actions}`     : '',
@@ -1689,11 +1791,15 @@ async function _do30DayFocus() {
       ].filter(Boolean).join('\n');
     }
 
-    const healthPlanNote = isHealthRoom ? `
-- Actions must be physical and measurable: specific gym session counts, diet targets (e.g. "5/7 days perfect diet"), exact training focus
-- Reference the auto-tracked data (steps, weight, body fat deltas) when setting the month objective — make it specific to where Robert actually is right now
-- If he is losing body fat week on week, acknowledge the momentum and push the target further; if gaining, confront that directly
-- The challenge field must address real patterns he mentioned (diet slippage, missed sessions, weekends, etc)` : '';
+    const planNote = isHealthRoom
+      ? `\n- Actions must be physical and measurable: gym session counts, diet targets (e.g. "5/7 days perfect diet"), specific training focus\n- Reference auto-tracked data (steps, weight, body fat) when setting the month objective\n- The challenge field must address real patterns he mentioned (diet slippage, missed sessions, weekends)`
+      : rid2 === 'biz_wealth'
+        ? `\n- Actions must be financial and specific: savings amounts, income targets, investments to make, leaks to plug\n- Reference his actual income and position numbers in the month objective\n- The challenge field must address his stated spending patterns or avoidance behaviours`
+        : rid2 === 'biz_tjm'
+          ? `\n- Actions must be business-specific: listing targets, content output (e.g. "3 TikToks this week"), wholesale calls, revenue targets\n- Reference his actual revenue and sales figures in the month objective\n- The challenge field must address his stated operational or marketing blockers`
+          : rid2 === 'biz_vinted'
+            ? `\n- Actions must be reselling-specific: items to list, sourcing trips, repricing sessions, revenue targets\n- Reference his actual listing and sales numbers in the month objective\n- The challenge field must address his stated momentum issues or sourcing blockers`
+            : '';
 
     // Build week template string dynamically based on weeks remaining
     const weekTemplates = Array.from({ length: weeksToGenerate }, (_, i) => {
@@ -1717,7 +1823,7 @@ Rules:
 - We are currently in week ${currentWeekNum} of the month — only generate ${weeksToGenerate} week(s) (from week ${currentWeekNum} to the end of the month). Do NOT generate weeks that have already passed.
 - Each week should build on the previous — the final week locks in results before the month-end deadline
 - Actions must be concrete and measurable, not vague ("4 gym sessions this week" not "train more")
-- The challenge field must directly reference their stated patterns and give a concrete coping strategy${healthPlanNote}
+- The challenge field must directly reference their stated patterns and give a concrete coping strategy${planNote}
 - Return ONLY the JSON. Nothing else.`;
 
     const user = `Month: ${monthName} ${year}
