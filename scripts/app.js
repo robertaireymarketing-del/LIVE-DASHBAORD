@@ -19,7 +19,7 @@ import { renderVintedTab as renderVintedTabExternal, renderNottinghamTab as rend
 import { renderFireTab as renderFireTabExternal } from './renderFireTab.js';
 import { renderRoadmapTab as renderRoadmapTabExternal } from './renderRoadmapTab.js';
 import { renderVisionTab as renderVisionTabExternal } from './renderVisionTab.js';
-import { renderWeeklyTab as renderWeeklyTabExternal } from './renderWeeklyTab.js';
+import { renderWeeklyTab as renderWeeklyTabExternal, initWeeklyTab as initWeeklyTabExternal } from './renderWeeklyTab.js';
 import { renderDayPlannerModal as renderDayPlannerModalExternal, renderEmbeddedDayPlanner as renderEmbeddedDayPlannerExternal, renderTimePickerModal as renderTimePickerModalExternal, renderWeekPlanModal as renderWeekPlanModalExternal, renderDatePickerModal as renderDatePickerModalExternal, renderSoldModal as renderSoldModalExternal } from './renderModals.js';
 import { renderRetentionModal as renderRetentionModalExternal, renderPastDaysModal as renderPastDaysModalExternal, renderMonthTargetsModal as renderMonthTargetsModalExternal, renderChallengeModal as renderChallengeModalExternal } from './renderMoreModals.js';
 
@@ -239,7 +239,7 @@ function render() {
     <div class="day-badge" onclick="openChallengeSetup()" style="cursor:pointer;">DAY ${getDayNumber()}/${getSettings().challengeDays||90}</div>
     </div>
     </div>
-    <button class="panic-trigger" onclick="openPanic()" style="margin-bottom:12px;margin-top:4px;"><span>🆘</span> PANIC BUTTON</button>
+    <button class="panic-trigger" onclick="openPanic()" style="margin-bottom:12px;margin-top:4px;${state.activeTab === 'planner' ? 'display:none;' : ''}"><span>🆘</span> PANIC BUTTON</button>
     ${(state.activeTab === 'today' || state.activeTab === 'journal') ? `
     <div class="quote-card">
     <div class="quote-icon">✦</div>
@@ -306,6 +306,7 @@ function render() {
     `;
 
     if (state.activeTab === 'journal') setTimeout(() => { try { initJournalTab({ state, getToday, saveDataQuiet, getWeekKey }); } catch(e) { console.error('Journal init error:', e); } }, 0);
+    if (state.activeTab === 'planner') setTimeout(() => { try { initWeeklyTabExternal(); } catch(e) { console.error('Weekly init error:', e); } }, 0);
     if (state.activeTab === 'vision') setTimeout(() => { try { renderVisionTabExternal({ db, user: state.user }); } catch(e) { console.error('Vision init error:', e); } }, 0);
   } catch(e) {
     app.innerHTML = '<div style="color:#e74c3c;padding:20px;font-size:13px;"><strong>Render error:</strong><br>' + e.message + '<br><br><small>' + e.stack + '</small></div>';
