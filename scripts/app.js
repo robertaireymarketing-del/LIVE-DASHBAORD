@@ -188,8 +188,8 @@ function renderBottomNav() {
   <nav class="bottom-nav-app">
     <button class="bottom-nav-app-btn ${state.activeTab==='today'?'active':''}" onclick="setTab('today')">Today</button>
     <button class="bottom-nav-app-btn ${state.activeTab==='journal'?'active':''}" onclick="setTab('journal')">Journal</button>
-    <button class="bottom-nav-app-btn ${state.activeTab==='progress'?'active':''}" onclick="setTab('progress')">Health</button>
     <button class="bottom-nav-app-btn ${state.activeTab==='planner'?'active':''}" onclick="setTab('planner')">Planner</button>
+    <button class="bottom-nav-app-btn ${state.activeTab==='progress'?'active':''}" onclick="setTab('progress')">Health</button>
     <button class="bottom-nav-app-btn ${state.activeTab==='vision'?'active':''}" onclick="setTab('vision')">Vision</button>
     <button class="bottom-nav-app-btn ${moreActive?'active':''} ${crmAlert?'crm-nav-alert':''}" onclick="toggleMoreMenu()" style="position:relative;">More${crmAlert?'<span class="crm-nav-dot"></span>':''}</button>
   </nav>`;
@@ -270,7 +270,7 @@ function render() {
         <button class="mobile-more-sheet-btn ${state.activeTab==='march'?'active':''}" onclick="setTab('march');toggleMoreMenu()">${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date().getMonth()]}</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='vault'?'active':''}" onclick="setTab('vault');toggleMoreMenu()">Ideas</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='crm'?'active':''} ${getCRMNeedsAction()>0?'crm-sheet-alert':''}" onclick="setTab('crm');toggleMoreMenu()">CRM${getCRMNeedsAction()>0?` <span class="crm-sheet-badge">${getCRMNeedsAction()}</span>`:''}</button>
-        <button class="mobile-more-sheet-btn ${state.activeTab==='fire'?'active':''}" onclick="setTab('fire');toggleMoreMenu()">🔥 Fire</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab==='fire'?'active':''}" onclick="setTab('fire');toggleMoreMenu()">🖊️ Fire</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='vinted'?'active':''}" onclick="setTab('vinted');toggleMoreMenu()">Vinted</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='notts'?'active':''}" onclick="setTab('notts');toggleMoreMenu()">Notts</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='roadmap'?'active':''}" onclick="setTab('roadmap');toggleMoreMenu()">🗺 Map</button>

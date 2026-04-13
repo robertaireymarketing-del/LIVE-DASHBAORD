@@ -142,10 +142,7 @@ export function renderWeeklyTab() {
     ).join('');
 
     return `
-    <div class="wk-day-block${isToday?' today':''}" id="wkDay${i}"
-      ondragover="event.preventDefault();this.classList.add('drag-over')"
-      ondragleave="this.classList.remove('drag-over')"
-      ondrop="weeklyDrop(event,${i})">
+    <div class="wk-day-block${isToday?' today':''}" id="wkDay${i}">
       <div class="wk-day-header">
         <span class="wk-day-name">${DAYS[i]}</span>
         <span class="wk-day-date">${dateStr}</span>
@@ -163,15 +160,25 @@ export function renderWeeklyTab() {
       </div>
       <div class="wk-day-body" id="wkBody${i}">
 
-        <!-- AM section -->
-        <div class="wk-period-header">AM</div>
-        ${amTasks.length===0?'<div class="wk-day-empty">Nothing yet</div>':''}
-        ${amHtml}
+        <!-- AM drop zone -->
+        <div class="wk-period-zone" id="wkZoneAM${i}" data-day="${i}" data-period="am"
+          ondragover="event.preventDefault();weeklyZoneDragOver(event,${i},'am')"
+          ondragleave="weeklyZoneDragLeave(${i},'am')"
+          ondrop="weeklyZoneDrop(event,${i},'am')">
+          <div class="wk-period-header">AM</div>
+          ${amTasks.length===0?'<div class="wk-day-empty">Nothing yet</div>':''}
+          ${amHtml}
+        </div>
 
-        <!-- PM divider -->
+        <!-- PM drop zone -->
         <div class="wk-period-divider"><span class="wk-period-header pm">PM</span></div>
-        ${pmTasks.length===0?'<div class="wk-day-empty">Nothing yet</div>':''}
-        ${pmHtml}
+        <div class="wk-period-zone" id="wkZonePM${i}" data-day="${i}" data-period="pm"
+          ondragover="event.preventDefault();weeklyZoneDragOver(event,${i},'pm')"
+          ondragleave="weeklyZoneDragLeave(${i},'pm')"
+          ondrop="weeklyZoneDrop(event,${i},'pm')">
+          ${pmTasks.length===0?'<div class="wk-day-empty">Nothing yet</div>':''}
+          ${pmHtml}
+        </div>
 
         <!-- Add form -->
         <div class="wk-day-form" id="wkDayForm${i}">
@@ -285,7 +292,9 @@ export function renderWeeklyTab() {
   #wk-root .wk-day-body{padding:8px 14px 12px;display:flex;flex-direction:column;gap:4px;}
   #wk-root .wk-day-empty{font-family:'DM Mono',monospace;font-size:11px;color:#aaa89f;padding:4px 6px;text-transform:uppercase;letter-spacing:.08em;}
 
-  /* AM/PM headers & divider */
+  /* AM/PM zone drop targets */
+  #wk-root .wk-period-zone{border-radius:6px;padding:2px;transition:background .12s,box-shadow .12s;min-height:32px;}
+  #wk-root .wk-period-zone.drop-target{background:rgba(201,168,76,.08);box-shadow:inset 0 0 0 1.5px #C9A84C;}
   #wk-root .wk-period-header{font-family:'DM Mono',monospace;font-size:9px;font-weight:700;color:#aaa89f;text-transform:uppercase;letter-spacing:.14em;padding:2px 6px 4px;}
   #wk-root .wk-period-divider{display:flex;align-items:center;gap:8px;margin:6px 0 4px;}
   #wk-root .wk-period-divider::before{content:'';flex:1;height:1px;background:#e5e3dc;}
@@ -603,26 +612,40 @@ export function initWeeklyTab() {
     weeklyCloseFocus(dayIdx); rerender();
   };
 
-  // ── Mouse drag (desktop) ──────────────────────────────────────────────────
+  // ── Mouse drag — zone aware (AM/PM + cross-day) ───────────────────────────
   window.weeklyDragStart = (e,dayIdx,taskIdx) => {
     window._weeklyDrag={fromDay:dayIdx,taskIndex:taskIdx};
     setTimeout(()=>e.target.classList.add('dragging'),0);
     e.dataTransfer.effectAllowed='move';
   };
-  window.weeklyDragEnd = (e) => { e.target.classList.remove('dragging'); };
-  window.weeklyDrop = (e,toDay) => {
-    e.preventDefault();
-    e.currentTarget.classList.remove('drag-over');
-    const drag=window._weeklyDrag; if (!drag) return;
-    const {fromDay,taskIndex}=drag;
-    if (fromDay===toDay){window._weeklyDrag=null;return;}
-    const ws=wkGetWS(window._weeklyOffset);
-    const task=ws.days[fromDay].tasks.splice(taskIndex,1)[0];
-    if (!ws.days[toDay].tasks) ws.days[toDay].tasks=[];
-    ws.days[toDay].tasks.push(task);
-    wkSaveWS(ws,window._weeklyOffset);
-    window._weeklyDrag=null; rerender();
+  window.weeklyDragEnd = (e) => {
+    e.target.classList.remove('dragging');
+    document.querySelectorAll('.wk-period-zone.drop-target').forEach(z=>z.classList.remove('drop-target'));
   };
+  window.weeklyZoneDragOver = (e,dayIdx,period) => {
+    e.stopPropagation();
+    document.querySelectorAll('.wk-period-zone.drop-target').forEach(z=>z.classList.remove('drop-target'));
+    document.getElementById(`wkZone${period==='am'?'AM':'PM'}${dayIdx}`)?.classList.add('drop-target');
+  };
+  window.weeklyZoneDragLeave = (dayIdx,period) => {
+    document.getElementById(`wkZone${period==='am'?'AM':'PM'}${dayIdx}`)?.classList.remove('drop-target');
+  };
+  window.weeklyZoneDrop = (e,toDay,toPeriod) => {
+    e.preventDefault(); e.stopPropagation();
+    document.querySelectorAll('.wk-period-zone.drop-target').forEach(z=>z.classList.remove('drop-target'));
+    const drag=window._weeklyDrag; if (!drag) return;
+    const {fromDay,taskIndex}=drag; window._weeklyDrag=null;
+    const ws=wkGetWS(window._weeklyOffset);
+    const task=ws.days[fromDay].tasks[taskIndex];
+    if (!task) return;
+    if (fromDay===toDay && task.period===toPeriod) return; // no change
+    ws.days[fromDay].tasks.splice(taskIndex,1);
+    if (!ws.days[toDay].tasks) ws.days[toDay].tasks=[];
+    ws.days[toDay].tasks.push({...task,period:toPeriod});
+    wkSaveWS(ws,window._weeklyOffset); rerender();
+  };
+  // keep weeklyDrop as no-op (zones handle everything)
+  window.weeklyDrop = (e) => { e.preventDefault(); };
 
   // ── Touch drag (mobile) ───────────────────────────────────────────────────
   let touchDragData=null;
@@ -630,96 +653,76 @@ export function initWeeklyTab() {
   let lastHighlighted=null;
 
   function createGhost(name) {
-    const g=document.createElement('div');
-    g.id='wk-drag-ghost';
-    g.textContent=name;
-    document.body.appendChild(g);
-    return g;
+    const g=document.createElement('div'); g.id='wk-drag-ghost'; g.textContent=name;
+    document.body.appendChild(g); return g;
   }
-  function removeGhost() {
-    document.getElementById('wk-drag-ghost')?.remove();
-    touchGhost=null;
-  }
+  function removeGhost() { document.getElementById('wk-drag-ghost')?.remove(); touchGhost=null; }
   function clearHighlight() {
-    if (lastHighlighted){lastHighlighted.classList.remove('drag-over');lastHighlighted=null;}
+    if (lastHighlighted){lastHighlighted.classList.remove('drop-target','drag-over');lastHighlighted=null;}
   }
-  function getDayBlockAtPoint(x,y) {
+  function getZoneAtPoint(x,y) {
     const els=document.elementsFromPoint(x,y);
     for (const el of els) {
-      if (el.classList?.contains('wk-day-block')) return el;
-      const parent=el.closest?.('.wk-day-block');
-      if (parent) return parent;
+      if (el.classList?.contains('wk-period-zone')) return el;
+      const p=el.closest?.('.wk-period-zone'); if (p) return p;
     }
     return null;
   }
 
   window.wkTouchStart = (e,dayIdx,taskIdx) => {
-    // Only start drag from the handle area or after a long press
     const touch=e.touches[0];
-    touchDragData={fromDay:dayIdx,taskIndex:taskIdx,startX:touch.clientX,startY:touch.clientY,moved:false};
-
-    // Long press to initiate drag
+    touchDragData={fromDay:dayIdx,taskIndex:taskIdx,startX:touch.clientX,startY:touch.clientY,active:false};
     touchDragData.timer=setTimeout(()=>{
       if (!touchDragData) return;
       const ws=wkGetWS(window._weeklyOffset);
-      const task=ws.days[dayIdx]?.tasks?.[taskIdx];
-      if (!task) return;
+      const task=ws.days[dayIdx]?.tasks?.[taskIdx]; if (!task) return;
       touchDragData.active=true;
       touchGhost=createGhost(task.name);
       touchGhost.style.left=(touchDragData.startX-20)+'px';
-      touchGhost.style.top=(touchDragData.startY-20)+'px';
-      // Dim original
+      touchGhost.style.top=(touchDragData.startY-30)+'px';
       const orig=document.querySelector(`.wk-task-item[data-day="${dayIdx}"][data-task="${taskIdx}"]`);
       if (orig) orig.classList.add('dragging');
       if (navigator.vibrate) navigator.vibrate(40);
-    }, 350);
+    },350);
   };
 
-  document.addEventListener('touchmove', (e) => {
-    if (!touchDragData?.active) {
-      if (touchDragData) {
+  document.addEventListener('touchmove',(e)=>{
+    if (!touchDragData?.active){
+      if (touchDragData){
         const t=e.touches[0];
-        const dx=Math.abs(t.clientX-touchDragData.startX);
-        const dy=Math.abs(t.clientY-touchDragData.startY);
-        if (dx>8||dy>8) { clearTimeout(touchDragData.timer); touchDragData=null; }
+        if (Math.abs(t.clientX-touchDragData.startX)>8||Math.abs(t.clientY-touchDragData.startY)>8){
+          clearTimeout(touchDragData.timer); touchDragData=null;
+        }
       }
       return;
     }
     e.preventDefault();
     const touch=e.touches[0];
-    if (touchGhost) {
-      touchGhost.style.left=(touch.clientX-20)+'px';
-      touchGhost.style.top=(touch.clientY-30)+'px';
-    }
+    if (touchGhost){touchGhost.style.left=(touch.clientX-20)+'px';touchGhost.style.top=(touch.clientY-30)+'px';}
     clearHighlight();
-    const dayBlock=getDayBlockAtPoint(touch.clientX,touch.clientY);
-    if (dayBlock){dayBlock.classList.add('drag-over');lastHighlighted=dayBlock;}
+    const zone=getZoneAtPoint(touch.clientX,touch.clientY);
+    if (zone){zone.classList.add('drop-target');lastHighlighted=zone;}
   },{passive:false});
 
-  document.addEventListener('touchend', (e) => {
+  document.addEventListener('touchend',(e)=>{
     if (!touchDragData) return;
     clearTimeout(touchDragData.timer);
     if (!touchDragData.active){touchDragData=null;return;}
-
     const touch=e.changedTouches[0];
-    const dayBlock=getDayBlockAtPoint(touch.clientX,touch.clientY);
-    clearHighlight();
-    removeGhost();
-
-    const {fromDay,taskIndex}=touchDragData;
-    touchDragData=null;
-
-    // Un-dim original
+    const zone=getZoneAtPoint(touch.clientX,touch.clientY);
+    clearHighlight(); removeGhost();
     document.querySelectorAll('.wk-task-item.dragging').forEach(el=>el.classList.remove('dragging'));
-
-    if (!dayBlock) return;
-    const toDay=parseInt(dayBlock.id?.replace('wkDay',''));
-    if (isNaN(toDay)||toDay===fromDay) return;
-
+    const {fromDay,taskIndex}=touchDragData; touchDragData=null;
+    if (!zone) return;
+    const toDay=parseInt(zone.dataset.day);
+    const toPeriod=zone.dataset.period;
+    if (isNaN(toDay)||!toPeriod) return;
     const ws=wkGetWS(window._weeklyOffset);
-    const task=ws.days[fromDay].tasks.splice(taskIndex,1)[0];
+    const task=ws.days[fromDay].tasks[taskIndex]; if (!task) return;
+    if (fromDay===toDay&&task.period===toPeriod) return;
+    ws.days[fromDay].tasks.splice(taskIndex,1);
     if (!ws.days[toDay].tasks) ws.days[toDay].tasks=[];
-    ws.days[toDay].tasks.push(task);
+    ws.days[toDay].tasks.push({...task,period:toPeriod});
     wkSaveWS(ws,window._weeklyOffset);
     if (navigator.vibrate) navigator.vibrate(30);
     rerender();
