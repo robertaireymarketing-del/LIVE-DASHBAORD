@@ -165,7 +165,7 @@ export function renderWeeklyTab() {
           ondragover="event.preventDefault();weeklyZoneDragOver(event,${i},'am')"
           ondragleave="weeklyZoneDragLeave(${i},'am')"
           ondrop="weeklyZoneDrop(event,${i},'am')">
-          <div class="wk-period-header">AM</div>
+          <div class="wk-period-divider"><span class="wk-period-header">AM</span></div>
           ${amTasks.length===0?'<div class="wk-day-empty">Nothing yet</div>':''}
           ${amHtml}
         </div>
