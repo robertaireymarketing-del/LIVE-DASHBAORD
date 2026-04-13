@@ -111,7 +111,7 @@ export function renderWeeklyTab() {
     const focus   = dayData.focus||'';
     const doneCt  = tasks.filter(t=>t.done).length;
 
-    const tasksHtml = tasks.map((task,ti) => {
+    const renderTaskItem = (task, ti) => {
       const tc=WK_COLORS.find(c=>c.id===task.color)||WK_COLORS[7];
       return `
       <div class="wk-task-item${task.done?' done':''}"
@@ -127,7 +127,14 @@ export function renderWeeklyTab() {
         <span class="wk-task-edit" onclick="weeklyStartEditTask(${i},${ti})">✎</span>
         <span class="wk-task-del"  onclick="weeklyDeleteTask(${i},${ti})">✕</span>
       </div>`;
-    }).join('');
+    };
+
+    // Split into AM / PM (tasks without period default to 'am')
+    const amTasks = tasks.map((t,ti)=>({t,ti})).filter(({t})=>(t.period||'am')==='am');
+    const pmTasks = tasks.map((t,ti)=>({t,ti})).filter(({t})=>t.period==='pm');
+
+    const amHtml  = amTasks.map(({t,ti})=>renderTaskItem(t,ti)).join('');
+    const pmHtml  = pmTasks.map(({t,ti})=>renderTaskItem(t,ti)).join('');
 
     const swHtml=WK_COLORS.map(c=>
       `<div class="wk-swatch" style="background:${c.hex}" data-color="${c.id}"
@@ -155,17 +162,33 @@ export function renderWeeklyTab() {
         </div>
       </div>
       <div class="wk-day-body" id="wkBody${i}">
-        ${tasks.length===0?'<div class="wk-day-empty">No tasks</div>':''}
-        ${tasksHtml}
+
+        <!-- AM section -->
+        <div class="wk-period-header">AM</div>
+        ${amTasks.length===0?'<div class="wk-day-empty">Nothing yet</div>':''}
+        ${amHtml}
+
+        <!-- PM divider -->
+        <div class="wk-period-divider"><span class="wk-period-header pm">PM</span></div>
+        ${pmTasks.length===0?'<div class="wk-day-empty">Nothing yet</div>':''}
+        ${pmHtml}
+
+        <!-- Add form -->
         <div class="wk-day-form" id="wkDayForm${i}">
           <input class="wk-day-form-inp" type="text" id="wkDayInp${i}" placeholder="New task..."
             onkeydown="if(event.key==='Enter')weeklyAddTask(${i});if(event.key==='Escape')weeklyToggleDayForm(${i})" />
-          <div class="wk-day-form-row">
+          <div class="wk-day-form-row" style="margin-bottom:8px;">
+            <button class="wk-period-toggle active" id="wkPeriodAM${i}" onclick="weeklySetPeriod(${i},'am',this)">AM</button>
+            <button class="wk-period-toggle" id="wkPeriodPM${i}" onclick="weeklySetPeriod(${i},'pm',this)">PM</button>
+            <div style="flex:1;"></div>
             <div class="wk-swatches" id="wkDaySw${i}">${swHtml}</div>
+          </div>
+          <div class="wk-day-form-row">
             <button class="wk-btn-sm wk-btn-cancel" onclick="weeklyToggleDayForm(${i})">Cancel</button>
             <button class="wk-btn-sm wk-btn-save" onclick="weeklyAddTask(${i})">Add</button>
           </div>
         </div>
+
       </div>
     </div>`;
   }).join('');
@@ -261,6 +284,20 @@ export function renderWeeklyTab() {
   #wk-root .wk-focus-popup input:focus{border-color:#C9A84C;}
   #wk-root .wk-day-body{padding:8px 14px 12px;display:flex;flex-direction:column;gap:4px;}
   #wk-root .wk-day-empty{font-family:'DM Mono',monospace;font-size:11px;color:#aaa89f;padding:4px 6px;text-transform:uppercase;letter-spacing:.08em;}
+
+  /* AM/PM headers & divider */
+  #wk-root .wk-period-header{font-family:'DM Mono',monospace;font-size:9px;font-weight:700;color:#aaa89f;text-transform:uppercase;letter-spacing:.14em;padding:2px 6px 4px;}
+  #wk-root .wk-period-divider{display:flex;align-items:center;gap:8px;margin:6px 0 4px;}
+  #wk-root .wk-period-divider::before{content:'';flex:1;height:1px;background:#e5e3dc;}
+  #wk-root .wk-period-divider::after{content:'';flex:1;height:1px;background:#e5e3dc;}
+  #wk-root .wk-period-header.pm{color:#aaa89f;padding:0;}
+  #wk-root .wk-day-block.today .wk-period-divider::before,
+  #wk-root .wk-day-block.today .wk-period-divider::after{background:#b6e4c8;}
+
+  /* AM/PM toggle in add form */
+  #wk-root .wk-period-toggle{font-family:'DM Mono',monospace;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:5px 12px;border-radius:5px;border:1px solid #e5e3dc;background:#fff;color:#aaa89f;cursor:pointer;-webkit-tap-highlight-color:transparent;min-height:30px;}
+  #wk-root .wk-period-toggle.active{background:#C9A84C;border-color:#C9A84C;color:#fff;}
+  #wk-root .wk-period-toggle:active{opacity:.8;}
 
   /* Tasks */
   #wk-root .wk-task-item{display:flex;align-items:center;gap:9px;padding:9px 8px;border-radius:7px;border:1px solid transparent;user-select:none;}
@@ -438,7 +475,20 @@ export function initWeeklyTab() {
     const f=document.getElementById('wkDayForm'+dayIdx); if (!f) return;
     const opening=!f.classList.contains('open');
     f.classList.toggle('open');
-    if (opening) document.getElementById('wkDayInp'+dayIdx)?.focus();
+    if (opening) {
+      // Reset period toggle to AM on open
+      document.getElementById('wkPeriodAM'+dayIdx)?.classList.add('active');
+      document.getElementById('wkPeriodPM'+dayIdx)?.classList.remove('active');
+      window._weeklyDayPeriods = window._weeklyDayPeriods||{};
+      window._weeklyDayPeriods[dayIdx]='am';
+      document.getElementById('wkDayInp'+dayIdx)?.focus();
+    }
+  };
+  window.weeklySetPeriod = (dayIdx, period, el) => {
+    window._weeklyDayPeriods = window._weeklyDayPeriods||{};
+    window._weeklyDayPeriods[dayIdx]=period;
+    document.getElementById('wkPeriodAM'+dayIdx)?.classList.toggle('active', period==='am');
+    document.getElementById('wkPeriodPM'+dayIdx)?.classList.toggle('active', period==='pm');
   };
   window.weeklyPickDayColor = (dayIdx,colorId,el) => {
     window._weeklyDayColors[dayIdx]=colorId;
@@ -448,9 +498,10 @@ export function initWeeklyTab() {
   window.weeklyAddTask = (dayIdx) => {
     const name=(document.getElementById('wkDayInp'+dayIdx)?.value||'').trim();
     if (!name) return;
+    const period=(window._weeklyDayPeriods||{})[dayIdx]||'am';
     const ws=wkGetWS(window._weeklyOffset);
     if (!ws.days[dayIdx].tasks) ws.days[dayIdx].tasks=[];
-    ws.days[dayIdx].tasks.push({name,color:window._weeklyDayColors[dayIdx]||'gold',done:false});
+    ws.days[dayIdx].tasks.push({name,color:window._weeklyDayColors[dayIdx]||'gold',done:false,period});
     wkSaveWS(ws,window._weeklyOffset); rerender();
   };
 
@@ -460,7 +511,6 @@ export function initWeeklyTab() {
     const task=ws.days[dayIdx]?.tasks?.[taskIdx];
     if (!task) return;
 
-    // Find the task element by data attributes
     const el=document.querySelector(`.wk-task-item[data-day="${dayIdx}"][data-task="${taskIdx}"]`);
     if (!el) return;
 
@@ -469,6 +519,7 @@ export function initWeeklyTab() {
         data-color="${c.id}" onclick="wkEditTaskPickColor(${dayIdx},${taskIdx},'${c.id}',this)"></div>`
     ).join('');
 
+    const period=task.period||'am';
     el.draggable=false;
     el.innerHTML=`
       <div style="flex:1;">
@@ -476,20 +527,34 @@ export function initWeeklyTab() {
           value="${task.name.replace(/"/g,'&quot;')}" placeholder="Task..."
           style="padding:4px 0 8px;border-bottom:1px solid #e5e3dc;"
           onkeydown="if(event.key==='Enter')weeklySaveEditTask(${dayIdx},${taskIdx});if(event.key==='Escape')weeklyRerender()" />
-        <div class="wk-day-form-row" style="margin-top:6px;">
+        <div class="wk-day-form-row" style="margin-top:8px;margin-bottom:8px;">
+          <button class="wk-period-toggle${period==='am'?' active':''}" id="wkEditPeriodAM${dayIdx}_${taskIdx}"
+            onclick="wkEditTaskPeriod(${dayIdx},${taskIdx},'am',this)">AM</button>
+          <button class="wk-period-toggle${period==='pm'?' active':''}" id="wkEditPeriodPM${dayIdx}_${taskIdx}"
+            onclick="wkEditTaskPeriod(${dayIdx},${taskIdx},'pm',this)">PM</button>
+          <div style="flex:1;"></div>
           <div class="wk-swatches" id="wkEditTaskSw${dayIdx}_${taskIdx}">${swatches}</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="wk-btn-cancel wk-btn-sm" onclick="weeklyRerender()">Cancel</button>
           <button class="wk-btn-save wk-btn-sm" onclick="weeklySaveEditTask(${dayIdx},${taskIdx})">Save</button>
         </div>
       </div>`;
 
-    window._wkEditTaskColors = window._wkEditTaskColors||{};
-    window._wkEditTaskColors[`${dayIdx}_${taskIdx}`]=task.color;
+    window._wkEditTaskColors  = window._wkEditTaskColors||{};
+    window._wkEditTaskPeriods = window._wkEditTaskPeriods||{};
+    window._wkEditTaskColors[`${dayIdx}_${taskIdx}`]  = task.color;
+    window._wkEditTaskPeriods[`${dayIdx}_${taskIdx}`] = period;
 
     window.wkEditTaskPickColor=(d,t,colorId,swEl)=>{
       window._wkEditTaskColors[`${d}_${t}`]=colorId;
       document.querySelectorAll(`#wkEditTaskSw${d}_${t} .wk-swatch`).forEach(s=>s.classList.remove('selected'));
       swEl.classList.add('selected');
+    };
+    window.wkEditTaskPeriod=(d,t,p,btn)=>{
+      window._wkEditTaskPeriods[`${d}_${t}`]=p;
+      document.getElementById(`wkEditPeriodAM${d}_${t}`)?.classList.toggle('active',p==='am');
+      document.getElementById(`wkEditPeriodPM${d}_${t}`)?.classList.toggle('active',p==='pm');
     };
 
     document.getElementById(`wkEditTaskInp${dayIdx}_${taskIdx}`)?.focus();
@@ -499,11 +564,12 @@ export function initWeeklyTab() {
     const name=(document.getElementById(`wkEditTaskInp${dayIdx}_${taskIdx}`)?.value||'').trim();
     if (!name) return;
     const ws=wkGetWS(window._weeklyOffset);
-    const colorKey=`${dayIdx}_${taskIdx}`;
+    const key=`${dayIdx}_${taskIdx}`;
     ws.days[dayIdx].tasks[taskIdx]={
       ...ws.days[dayIdx].tasks[taskIdx],
       name,
-      color:(window._wkEditTaskColors||{})[colorKey]||ws.days[dayIdx].tasks[taskIdx].color
+      color:(window._wkEditTaskColors||{})[key]||ws.days[dayIdx].tasks[taskIdx].color,
+      period:(window._wkEditTaskPeriods||{})[key]||ws.days[dayIdx].tasks[taskIdx].period||'am',
     };
     wkSaveWS(ws,window._weeklyOffset); rerender();
   };
