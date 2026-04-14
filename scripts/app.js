@@ -186,12 +186,12 @@ function renderBottomNav() {
   const crmAlert = getCRMNeedsAction() > 0;
   return `
   <nav class="bottom-nav-app">
-    <button class="bottom-nav-app-btn ${state.activeTab==='today'?'active':''}" onclick="setTab('today')">Today</button>
-    <button class="bottom-nav-app-btn ${state.activeTab==='journal'?'active':''}" onclick="setTab('journal')">Journal</button>
-    <button class="bottom-nav-app-btn ${state.activeTab==='planner'?'active':''}" onclick="setTab('planner')">Planner</button>
-    <button class="bottom-nav-app-btn ${state.activeTab==='progress'?'active':''}" onclick="setTab('progress')">Health</button>
-    <button class="bottom-nav-app-btn ${state.activeTab==='vision'?'active':''}" onclick="setTab('vision')">Vision</button>
-    <button class="bottom-nav-app-btn ${moreActive?'active':''} ${crmAlert?'crm-nav-alert':''}" onclick="toggleMoreMenu()" style="position:relative;">More${crmAlert?'<span class="crm-nav-dot"></span>':''}</button>
+    <button data-tab="today"    class="bottom-nav-app-btn ${state.activeTab==='today'?'active':''}"    onclick="setTab('today')">Today</button>
+    <button data-tab="journal"  class="bottom-nav-app-btn ${state.activeTab==='journal'?'active':''}"  onclick="setTab('journal')">Journal</button>
+    <button data-tab="planner"  class="bottom-nav-app-btn ${state.activeTab==='planner'?'active':''}"  onclick="setTab('planner')">Planner</button>
+    <button data-tab="progress" class="bottom-nav-app-btn ${state.activeTab==='progress'?'active':''}" onclick="setTab('progress')">Health</button>
+    <button data-tab="vision"   class="bottom-nav-app-btn ${state.activeTab==='vision'?'active':''}"   onclick="setTab('vision')">Vision</button>
+    <button data-tab="more"     class="bottom-nav-app-btn ${moreActive?'active':''} ${crmAlert?'crm-nav-alert':''}" onclick="toggleMoreMenu()" style="position:relative;">More${crmAlert?'<span class="crm-nav-dot"></span>':''}</button>
   </nav>`;
 }
 
