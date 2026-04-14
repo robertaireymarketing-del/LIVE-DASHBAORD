@@ -209,6 +209,9 @@ function render() {
     <style>
       @keyframes crmPulse { 0%,100%{opacity:1;} 50%{opacity:0.35;} }
       @keyframes crmDotPop { 0%,100%{transform:scale(1);} 50%{transform:scale(1.4);} }
+      /* Kill cached ::before icon rules — icons are now inline spans */
+      .bottom-nav-app-btn::before { content: none !important; display: none !important; }
+      .nav-icon { font-size: 18px; line-height: 1; display: block; }
       .crm-nav-dot {
         position:absolute;top:4px;right:10px;
         width:8px;height:8px;border-radius:50%;
