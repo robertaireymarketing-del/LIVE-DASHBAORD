@@ -186,12 +186,12 @@ function renderBottomNav() {
   const crmAlert = getCRMNeedsAction() > 0;
   return `
   <nav class="bottom-nav-app">
-    <button data-tab="today"    class="bottom-nav-app-btn ${state.activeTab==='today'?'active':''}"    onclick="setTab('today')">Today</button>
-    <button data-tab="journal"  class="bottom-nav-app-btn ${state.activeTab==='journal'?'active':''}"  onclick="setTab('journal')">Journal</button>
-    <button data-tab="planner"  class="bottom-nav-app-btn ${state.activeTab==='planner'?'active':''}"  onclick="setTab('planner')">Planner</button>
-    <button data-tab="progress" class="bottom-nav-app-btn ${state.activeTab==='progress'?'active':''}" onclick="setTab('progress')">Health</button>
-    <button data-tab="vision"   class="bottom-nav-app-btn ${state.activeTab==='vision'?'active':''}"   onclick="setTab('vision')">Vision</button>
-    <button data-tab="more"     class="bottom-nav-app-btn ${moreActive?'active':''} ${crmAlert?'crm-nav-alert':''}" onclick="toggleMoreMenu()" style="position:relative;">More${crmAlert?'<span class="crm-nav-dot"></span>':''}</button>
+    <button data-tab="today"    class="bottom-nav-app-btn ${state.activeTab==='today'?'active':''}"    onclick="setTab('today')"><span class="nav-icon">🏠</span>Today</button>
+    <button data-tab="journal"  class="bottom-nav-app-btn ${state.activeTab==='journal'?'active':''}"  onclick="setTab('journal')"><span class="nav-icon">📓</span>Journal</button>
+    <button data-tab="planner"  class="bottom-nav-app-btn ${state.activeTab==='planner'?'active':''}"  onclick="setTab('planner')"><span class="nav-icon">✏️</span>Planner</button>
+    <button data-tab="progress" class="bottom-nav-app-btn ${state.activeTab==='progress'?'active':''}" onclick="setTab('progress')"><span class="nav-icon">❤️</span>Health</button>
+    <button data-tab="vision"   class="bottom-nav-app-btn ${state.activeTab==='vision'?'active':''}"   onclick="setTab('vision')"><span class="nav-icon">🗺️</span>Vision</button>
+    <button data-tab="more"     class="bottom-nav-app-btn ${moreActive?'active':''} ${crmAlert?'crm-nav-alert':''}" onclick="toggleMoreMenu()" style="position:relative;"><span class="nav-icon">⋯</span>More${crmAlert?'<span class="crm-nav-dot"></span>':''}</button>
   </nav>`;
 }
 

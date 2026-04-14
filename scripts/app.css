@@ -2163,19 +2163,9 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
   margin: 6px 2px 6px;
 }
 
-/* Icons via ::before — keyed to data-tab so order never matters */
-.bottom-nav-app-btn::before {
-  content: '';
-  font-size: 18px;
-  line-height: 1;
-  display: block;
-}
-.bottom-nav-app-btn[data-tab="today"]::before    { content: '🏠'; }
-.bottom-nav-app-btn[data-tab="journal"]::before  { content: '📓'; }
-.bottom-nav-app-btn[data-tab="planner"]::before  { content: '✏️'; }
-.bottom-nav-app-btn[data-tab="progress"]::before { content: '❤️'; }
-.bottom-nav-app-btn[data-tab="vision"]::before   { content: '🗺️'; }
-.bottom-nav-app-btn[data-tab="more"]::before     { content: '⋯'; font-size: 20px; }
+/* Icons are rendered inline via .nav-icon spans in the JS */
+.bottom-nav-app-btn::before { content: none; }
+.nav-icon { font-size: 18px; line-height: 1; display: block; }
 
 /* Active state */
 .bottom-nav-app-btn.active {
