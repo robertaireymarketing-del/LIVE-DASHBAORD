@@ -331,11 +331,12 @@ export function renderWeeklyTab() {
   #wk-root .wk-title{font-family:'Bebas Neue','Impact',sans-serif;font-size:34px;color:#1a1917;letter-spacing:.06em;line-height:1;margin-bottom:4px;}
 
   /* ── Nav row ── */
-  #wk-root .wk-nav-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
-  #wk-root .wk-week-nav{display:flex;gap:8px;}
+  #wk-root .wk-nav-row{display:flex;flex-direction:column;margin-bottom:18px;}
+  #wk-root .wk-week-nav{display:flex;gap:8px;margin-top:10px;}
 
   /* ── Prev / Next buttons — bigger & bolder ── */
   #wk-root .wk-nav-btn{
+    flex:1;
     font-family:'DM Mono',monospace;
     font-size:11px;
     font-weight:700;
@@ -349,7 +350,6 @@ export function renderWeeklyTab() {
     letter-spacing:.08em;
     -webkit-tap-highlight-color:transparent;
     min-height:40px;
-    min-width:80px;
   }
   #wk-root .wk-nav-btn:active{background:#1a1917;color:#fff;}
 
@@ -603,10 +603,8 @@ export function renderWeeklyTab() {
 
 <div id="wk-root">
   <div class="wk-nav-row">
-    <div>
-      <div class="wk-eyebrow">Week ${wkNum}</div>
-      <div class="wk-title">${monStr} – ${sunStr}</div>
-    </div>
+    <div class="wk-eyebrow">Week ${wkNum}</div>
+    <div class="wk-title">${monStr} – ${sunStr}</div>
     <div class="wk-week-nav">
       <button class="wk-nav-btn" onclick="weeklyShift(-1)">← Prev</button>
       <button class="wk-nav-btn" onclick="weeklyShift(1)">Next →</button>
