@@ -94,6 +94,11 @@ export function renderWeeklyTab() {
   // Wins (unplanned achievements)
   const wins = ws.wins||[];
 
+  // Archive
+  const archive     = ws.archive||{tasks:[],objectives:[]};
+  const archTasks   = archive.tasks||[];
+  const archObjs    = archive.objectives||[];
+
   // Sunday & current-week flags
   const isSunday      = today.getDay() === 0;
   const isCurrentWeek = offset === 0;
@@ -534,6 +539,19 @@ export function renderWeeklyTab() {
   #wk-root .wk-inc-btn{padding:5px 9px !important;min-height:30px !important;font-size:10px !important;border-radius:4px !important;}
   #wk-root .wk-inc-del{color:#d95b5b !important;border-color:#d95b5b !important;}
 
+  /* ── Archive section ── */
+  #wk-root .wk-archive-header{display:flex;align-items:center;gap:8px;padding:10px 0;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  #wk-root .wk-archive-count{font-family:'DM Mono',monospace;font-size:10px;font-weight:600;color:#fff;background:#aaa89f;border-radius:10px;padding:1px 7px;min-width:20px;text-align:center;}
+  #wk-root .wk-archive-body{margin-bottom:16px;}
+  #wk-root .wk-archive-sub{font-family:'DM Mono',monospace;font-size:10px;font-weight:600;color:#aaa89f;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;}
+  #wk-root .wk-archive-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;background:#f7f6f2;border:1px solid #e5e3dc;margin-bottom:4px;}
+  #wk-root .wk-archive-icon{font-size:13px;color:#aaa89f;flex-shrink:0;}
+  #wk-root .wk-archive-info{flex:1;min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  #wk-root .wk-archive-name{font-size:13px;font-weight:500;color:#6b6860;text-decoration:line-through;}
+  #wk-root .wk-archive-tag{font-family:'DM Mono',monospace;font-size:9px;color:#aaa89f;text-transform:uppercase;letter-spacing:.07em;}
+  #wk-root .wk-archive-del{font-size:13px;color:#d8d5cc;cursor:pointer;padding:4px 5px;min-width:26px;min-height:26px;display:flex;align-items:center;justify-content:center;border-radius:4px;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
+  #wk-root .wk-archive-del:active{color:#c0392b;background:#fdf0ef;}
+
   /* ── Review modal overlay ── */
   #wkReviewOverlay{
     display:none;position:fixed;inset:0;
@@ -664,6 +682,50 @@ export function renderWeeklyTab() {
   <div class="wk-day-grid">${topDaysHtml}</div>
   ${pastDaysSectionHtml}
   ${uncompletedHtml}
+
+  ${(archTasks.length > 0 || archObjs.length > 0) ? `
+  <div class="wk-divider"></div>
+  <div class="wk-archive-header" onclick="weeklyToggleArchive()">
+    <span class="wk-sec-label" style="color:#aaa89f;">🗄 Archive</span>
+    <span class="wk-archive-count">${archTasks.length + archObjs.length}</span>
+    <span class="wk-collapse-chevron" id="wkArchiveChevron" style="margin-left:auto;">›</span>
+  </div>
+  <div class="wk-archive-body" id="wkArchiveBody" style="display:none;">
+    ${archObjs.length > 0 ? `
+    <div class="wk-archive-sub">Objectives</div>
+    ${archObjs.map((o,i)=>`
+      <div class="wk-archive-row">
+        <span class="wk-archive-icon">◎</span>
+        <div class="wk-archive-info">
+          <span class="wk-archive-name">${wkEsc(o.name)}</span>
+          ${o.tag ? `<span class="wk-archive-tag">${wkEsc(o.tag)}</span>` : ''}
+        </div>
+        <span class="wk-archive-del" onclick="weeklyDeleteArchiveObj(${i})" title="Remove permanently">✕</span>
+      </div>`).join('')}` : ''}
+    ${archTasks.length > 0 ? `
+    <div class="wk-archive-sub" style="margin-top:${archObjs.length>0?'12px':'0'};">Tasks</div>
+    ${archTasks.map((t,i)=>`
+      <div class="wk-archive-row">
+        <span class="wk-archive-icon">·</span>
+        <div class="wk-archive-info">
+          <span class="wk-archive-name">${wkEsc(t.name)}</span>
+          <span class="wk-archive-tag">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][t.dayIdx]||''}</span>
+        </div>
+        <span class="wk-archive-del" onclick="weeklyDeleteArchiveTask(${i})" title="Remove permanently">✕</span>
+      </div>`).join('')}` : ''}
+  </div>` : ''}
+</div>
+
+<!-- Objective delete confirmation modal -->
+<div id="wkConfirmOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.52);z-index:2001;align-items:center;justify-content:center;" onclick="weeklyConfirmCancel(event)">
+  <div id="wkConfirmModal" onclick="event.stopPropagation()" style="background:#fff;border-radius:16px;width:calc(100% - 48px);max-width:340px;padding:24px 20px;">
+    <div style="font-size:17px;font-weight:700;color:#1a1917;margin-bottom:8px;">Archive this objective?</div>
+    <div id="wkConfirmObjName" style="font-size:14px;color:#6b6860;margin-bottom:22px;line-height:1.4;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="weeklyConfirmCancel()" style="flex:1;padding:13px;border:1.5px solid #e5e3dc;border-radius:10px;background:none;font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:#aaa89f;text-transform:uppercase;cursor:pointer;">Cancel</button>
+      <button onclick="weeklyConfirmArchiveObj()" style="flex:1;padding:13px;border:none;border-radius:10px;background:#1a1917;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#fff;text-transform:uppercase;cursor:pointer;">Archive</button>
+    </div>
+  </div>
 </div>
 
 <!-- Review modal — outside #wk-root so position:fixed works cleanly -->
@@ -811,10 +873,54 @@ export function initWeeklyTab() {
     rerender();
   };
   window.weeklyDeleteObj = (i) => {
-    const ws = wkGetWS(window._weeklyOffset);
+    const ws  = wkGetWS(window._weeklyOffset);
+    const obj = ws.objectives[i]; if (!obj) return;
+    // Show confirmation modal
+    window._wkPendingArchiveObjIdx = i;
+    const nameEl = document.getElementById('wkConfirmObjName');
+    if (nameEl) nameEl.textContent = obj.name;
+    const overlay = document.getElementById('wkConfirmOverlay');
+    if (overlay) overlay.style.display = 'flex';
+  };
+  window.weeklyConfirmCancel = (e) => {
+    if (e && e.target.id !== 'wkConfirmOverlay' && e.type === 'click') return;
+    document.getElementById('wkConfirmOverlay').style.display = 'none';
+    window._wkPendingArchiveObjIdx = null;
+  };
+  window.weeklyConfirmArchiveObj = () => {
+    const i = window._wkPendingArchiveObjIdx;
+    if (i === null || i === undefined) return;
+    const ws  = wkGetWS(window._weeklyOffset);
+    const obj = ws.objectives[i]; if (!obj) return;
+    if (!ws.archive)            ws.archive            = { tasks:[], objectives:[] };
+    if (!ws.archive.objectives) ws.archive.objectives = [];
+    ws.archive.objectives.push({ ...obj, archivedAt: Date.now() });
     ws.objectives.splice(i, 1);
     wkSaveWS(ws, window._weeklyOffset);
+    document.getElementById('wkConfirmOverlay').style.display = 'none';
+    window._wkPendingArchiveObjIdx = null;
     rerender();
+  };
+
+  window.weeklyDeleteArchiveObj = (i) => {
+    const ws = wkGetWS(window._weeklyOffset);
+    (ws.archive?.objectives||[]).splice(i, 1);
+    wkSaveWS(ws, window._weeklyOffset);
+    rerender();
+  };
+  window.weeklyDeleteArchiveTask = (i) => {
+    const ws = wkGetWS(window._weeklyOffset);
+    (ws.archive?.tasks||[]).splice(i, 1);
+    wkSaveWS(ws, window._weeklyOffset);
+    rerender();
+  };
+  window.weeklyToggleArchive = () => {
+    const body    = document.getElementById('wkArchiveBody');
+    const chevron = document.getElementById('wkArchiveChevron');
+    if (!body) return;
+    const open = body.style.display === 'none';
+    body.style.display    = open ? 'block' : 'none';
+    if (chevron) chevron.style.transform = open ? 'rotate(90deg)' : 'rotate(0deg)';
   };
 
   // ── Sunday review modal ───────────────────────────────────────────────────
@@ -968,7 +1074,11 @@ export function initWeeklyTab() {
   };
 
   window.weeklyDeleteIncompleteTask = (di, ti) => {
-    const ws = wkGetWS(window._weeklyOffset);
+    const ws   = wkGetWS(window._weeklyOffset);
+    const task = ws.days[di]?.tasks?.[ti]; if (!task) return;
+    if (!ws.archive)       ws.archive       = { tasks:[], objectives:[] };
+    if (!ws.archive.tasks) ws.archive.tasks = [];
+    ws.archive.tasks.push({ ...task, dayIdx: di, archivedAt: Date.now() });
     ws.days[di].tasks.splice(ti, 1);
     wkSaveWS(ws, window._weeklyOffset);
     rerender();
