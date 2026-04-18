@@ -146,7 +146,7 @@ export function renderWeeklyTab() {
       }).join('');
 
   // ── Day block builder ────────────────────────────────────────────────────────
-  const renderDayBlock = (i) => {
+  const renderDayBlock = (i, isPast=false) => {
     const dayData = ws.days[i];
     const date    = new Date(mon); date.setDate(date.getDate()+i);
     const isToday = date.getTime()===today.getTime();
@@ -184,21 +184,22 @@ export function renderWeeklyTab() {
     ).join('');
 
     return `
-    <div class="wk-day-block${isToday?' today':''}" id="wkDay${i}">
-      <div class="wk-day-header">
+    <div class="wk-day-block${isToday?' today':''}${isPast?' wk-collapsed':''}" id="wkDay${i}">
+      <div class="wk-day-header${isPast?' wk-past-header':''}"${isPast?` onclick="weeklyTogglePastDay(${i})"`:''}> 
         <span class="wk-day-name">${DAYS[i]}</span>
         <span class="wk-day-date">${dateStr}</span>
-        <span class="wk-focus-badge" onclick="weeklyToggleFocus(event,${i})">${wkEsc(focus)||'+ Focus'}</span>
+        ${!isPast ? `<span class="wk-focus-badge" onclick="weeklyToggleFocus(event,${i})">${wkEsc(focus)||'+ Focus'}</span>` : ''}
         <span class="wk-task-count">${tasks.length>0 ? doneCt+'/'+tasks.length : ''}</span>
-        <span class="wk-day-add-btn" onclick="weeklyToggleDayForm(${i})">+ Task</span>
-        <div class="wk-focus-popup" id="wkFocusPop${i}">
+        ${!isPast ? `<span class="wk-day-add-btn" onclick="weeklyToggleDayForm(${i})">+ Task</span>` : ''}
+        ${isPast ? `<span class="wk-collapse-chevron" id="wkChevron${i}">›</span>` : ''}
+        ${!isPast ? `<div class="wk-focus-popup" id="wkFocusPop${i}">
           <input type="text" id="wkFocusInp${i}" value="${wkEsc(focus)}" placeholder="Focus area..."
             onkeydown="if(event.key==='Enter')weeklySaveFocus(${i});if(event.key==='Escape')weeklyCloseFocus(${i})" />
           <div style="display:flex;gap:6px;margin-top:6px;">
             <button class="wk-btn-sm wk-btn-cancel" onclick="weeklyCloseFocus(${i})">Cancel</button>
             <button class="wk-btn-sm wk-btn-save"   onclick="weeklySaveFocus(${i})">Save</button>
           </div>
-        </div>
+        </div>` : ''}
       </div>
       <div class="wk-day-body" id="wkBody${i}">
 
@@ -251,7 +252,7 @@ export function renderWeeklyTab() {
     for (let i = todayDayIdx; i < 7; i++) topDaysHtml += renderDayBlock(i);
     // Past days section
     let pastInner = '';
-    for (let i = 0; i < todayDayIdx; i++) pastInner += renderDayBlock(i);
+    for (let i = 0; i < todayDayIdx; i++) pastInner += renderDayBlock(i, true);
     pastDaysSectionHtml = `
       <div class="wk-past-label">↑ Past Days</div>
       <div class="wk-day-grid wk-past-grid">${pastInner}</div>`;
@@ -427,6 +428,13 @@ export function renderWeeklyTab() {
   #wk-root .wk-past-label::before,
   #wk-root .wk-past-label::after{content:'';flex:1;height:1px;background:#e5e3dc;}
   #wk-root .wk-past-grid .wk-day-block{opacity:.72;}
+
+  /* ── Collapsed past day blocks ── */
+  #wk-root .wk-day-block.wk-collapsed .wk-day-body{display:none;}
+  #wk-root .wk-past-header{cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  #wk-root .wk-collapse-chevron{font-size:18px;color:#aaa89f;margin-left:auto;flex-shrink:0;line-height:1;transition:transform .2s;}
+  #wk-root .wk-day-block.wk-collapsed .wk-collapse-chevron{transform:rotate(0deg);}
+  #wk-root .wk-day-block:not(.wk-collapsed) .wk-collapse-chevron{transform:rotate(90deg);}
 
   /* ── Day blocks ── */
   #wk-root .wk-day-grid{display:flex;flex-direction:column;gap:6px;}
@@ -623,6 +631,11 @@ export function initWeeklyTab() {
   window.weeklyShift = (dir) => {
     window._weeklyOffset = (window._weeklyOffset||0) + dir;
     rerender();
+  };
+
+  // ── Past day collapse toggle ──────────────────────────────────────────────
+  window.weeklyTogglePastDay = (i) => {
+    document.getElementById('wkDay'+i)?.classList.toggle('wk-collapsed');
   };
 
   // ── Add objective ─────────────────────────────────────────────────────────
