@@ -129,14 +129,14 @@ export function renderWeeklyTab() {
             <div class="wk-obj-meta">
               ${obj.tag ? `<span class="wk-obj-tag" style="background:${c.hex}18;color:${c.hex}">${wkEsc(obj.tag)}</span>` : ''}
               ${obj._carriedOver ? `<span class="wk-carried">↩ carried over</span>` : ''}
-              ${obj._reviewed    ? `<span class="wk-badge wk-badge-reviewed">✓ reviewed</span>` : ''}
+              ${obj._reviewed    ? `<span class="wk-badge wk-badge-reviewed" onclick="weeklyOpenReview(${i})" style="cursor:pointer;">✓ reviewed</span>` : ''}
               ${outcome==='failed'     ? `<span class="wk-badge wk-badge-failed">✗ Failed</span>` : ''}
               ${outcome==='completed'  ? `<span class="wk-badge wk-badge-completed">✓ Completed</span>` : ''}
               ${outcome==='duplicated' ? `<span class="wk-badge wk-badge-duplicated">↗ Next week</span>` : ''}
             </div>
           </div>
           <div class="wk-obj-actions">
-            ${isCurrentWeek
+            ${isCurrentWeek && !obj._reviewed
               ? `<div class="wk-obj-review-btn" onclick="weeklyOpenReview(${i})">Review</div>`
               : ''}
             <div class="wk-obj-edit" onclick="weeklyStartEditObj(${i})">✎</div>
