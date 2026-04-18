@@ -551,6 +551,8 @@ export function renderWeeklyTab() {
   #wk-root .wk-archive-tag{font-family:'DM Mono',monospace;font-size:9px;color:#aaa89f;text-transform:uppercase;letter-spacing:.07em;}
   #wk-root .wk-archive-del{font-size:13px;color:#d8d5cc;cursor:pointer;padding:4px 5px;min-width:26px;min-height:26px;display:flex;align-items:center;justify-content:center;border-radius:4px;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
   #wk-root .wk-archive-del:active{color:#c0392b;background:#fdf0ef;}
+  #wk-root .wk-archive-unarchive{font-size:14px;color:#5b8dd9;cursor:pointer;padding:4px 5px;min-width:26px;min-height:26px;display:flex;align-items:center;justify-content:center;border-radius:4px;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
+  #wk-root .wk-archive-unarchive:active{background:#eef3fc;}
 
   /* ── Review modal overlay ── */
   #wkReviewOverlay{
@@ -700,7 +702,8 @@ export function renderWeeklyTab() {
           <span class="wk-archive-name">${wkEsc(o.name)}</span>
           ${o.tag ? `<span class="wk-archive-tag">${wkEsc(o.tag)}</span>` : ''}
         </div>
-        <span class="wk-archive-del" onclick="weeklyDeleteArchiveObj(${i})" title="Remove permanently">✕</span>
+        <span class="wk-archive-unarchive" onclick="weeklyUnarchiveObj(${i})" title="Restore objective">↩</span>
+        <span class="wk-archive-del" onclick="weeklyConfirmDeleteArchive('obj',${i},'${wkEsc(o.name)}')" title="Delete permanently">✕</span>
       </div>`).join('')}` : ''}
     ${archTasks.length > 0 ? `
     <div class="wk-archive-sub" style="margin-top:${archObjs.length>0?'12px':'0'};">Tasks</div>
@@ -711,19 +714,20 @@ export function renderWeeklyTab() {
           <span class="wk-archive-name">${wkEsc(t.name)}</span>
           <span class="wk-archive-tag">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][t.dayIdx]||''}</span>
         </div>
-        <span class="wk-archive-del" onclick="weeklyDeleteArchiveTask(${i})" title="Remove permanently">✕</span>
+        <span class="wk-archive-unarchive" onclick="weeklyUnarchiveTask(${i})" title="Restore task">↩</span>
+        <span class="wk-archive-del" onclick="weeklyConfirmDeleteArchive('task',${i},'${wkEsc(t.name)}')" title="Delete permanently">✕</span>
       </div>`).join('')}` : ''}
   </div>` : ''}
 </div>
 
-<!-- Objective delete confirmation modal -->
+<!-- Confirmation modal (archive objective / permanently delete from archive) -->
 <div id="wkConfirmOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.52);z-index:2001;align-items:center;justify-content:center;" onclick="weeklyConfirmCancel(event)">
-  <div id="wkConfirmModal" onclick="event.stopPropagation()" style="background:#fff;border-radius:16px;width:calc(100% - 48px);max-width:340px;padding:24px 20px;">
-    <div style="font-size:17px;font-weight:700;color:#1a1917;margin-bottom:8px;">Archive this objective?</div>
-    <div id="wkConfirmObjName" style="font-size:14px;color:#6b6860;margin-bottom:22px;line-height:1.4;"></div>
+  <div id="wkConfirmModal" onclick="event.stopPropagation()" style="background:#fff;border-radius:16px;width:calc(100% - 48px);max-width:340px;padding:24px 20px;box-shadow:0 8px 40px rgba(0,0,0,.22);">
+    <div id="wkConfirmTitle" style="font-size:17px;font-weight:700;color:#1a1917;margin-bottom:8px;"></div>
+    <div id="wkConfirmBody"  style="font-size:14px;color:#6b6860;margin-bottom:22px;line-height:1.4;"></div>
     <div style="display:flex;gap:8px;">
-      <button onclick="weeklyConfirmCancel()" style="flex:1;padding:13px;border:1.5px solid #e5e3dc;border-radius:10px;background:none;font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:#aaa89f;text-transform:uppercase;cursor:pointer;">Cancel</button>
-      <button onclick="weeklyConfirmArchiveObj()" style="flex:1;padding:13px;border:none;border-radius:10px;background:#1a1917;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#fff;text-transform:uppercase;cursor:pointer;">Archive</button>
+      <button onclick="weeklyConfirmCancel()" style="flex:1;padding:13px;border:2px solid #d8d5cc;border-radius:10px;background:#f7f6f2;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#1a1917;text-transform:uppercase;cursor:pointer;letter-spacing:.06em;">Cancel</button>
+      <button id="wkConfirmActionBtn" style="flex:1;padding:13px;border:none;border-radius:10px;background:#1a1917;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:#fff;text-transform:uppercase;cursor:pointer;letter-spacing:.06em;"></button>
     </div>
   </div>
 </div>
@@ -875,21 +879,34 @@ export function initWeeklyTab() {
   window.weeklyDeleteObj = (i) => {
     const ws  = wkGetWS(window._weeklyOffset);
     const obj = ws.objectives[i]; if (!obj) return;
-    // Show confirmation modal
-    window._wkPendingArchiveObjIdx = i;
-    const nameEl = document.getElementById('wkConfirmObjName');
-    if (nameEl) nameEl.textContent = obj.name;
-    const overlay = document.getElementById('wkConfirmOverlay');
-    if (overlay) overlay.style.display = 'flex';
+    wkShowConfirm(
+      'Archive this objective?',
+      obj.name,
+      'Archive',
+      '#1a1917',
+      () => weeklyConfirmArchiveObj(i)
+    );
   };
   window.weeklyConfirmCancel = (e) => {
-    if (e && e.target.id !== 'wkConfirmOverlay' && e.type === 'click') return;
+    if (e && e.target?.id !== 'wkConfirmOverlay' && e.type === 'click') return;
     document.getElementById('wkConfirmOverlay').style.display = 'none';
-    window._wkPendingArchiveObjIdx = null;
   };
-  window.weeklyConfirmArchiveObj = () => {
-    const i = window._wkPendingArchiveObjIdx;
-    if (i === null || i === undefined) return;
+
+  function wkShowConfirm(title, body, actionLabel, actionBg, onConfirm) {
+    document.getElementById('wkConfirmTitle').textContent       = title;
+    document.getElementById('wkConfirmBody').textContent        = body;
+    const btn = document.getElementById('wkConfirmActionBtn');
+    btn.textContent       = actionLabel;
+    btn.style.background  = actionBg;
+    btn.style.color       = '#fff';
+    btn.onclick           = () => {
+      document.getElementById('wkConfirmOverlay').style.display = 'none';
+      onConfirm();
+    };
+    document.getElementById('wkConfirmOverlay').style.display = 'flex';
+  }
+
+  window.weeklyConfirmArchiveObj = (i) => {
     const ws  = wkGetWS(window._weeklyOffset);
     const obj = ws.objectives[i]; if (!obj) return;
     if (!ws.archive)            ws.archive            = { tasks:[], objectives:[] };
@@ -897,23 +914,50 @@ export function initWeeklyTab() {
     ws.archive.objectives.push({ ...obj, archivedAt: Date.now() });
     ws.objectives.splice(i, 1);
     wkSaveWS(ws, window._weeklyOffset);
-    document.getElementById('wkConfirmOverlay').style.display = 'none';
-    window._wkPendingArchiveObjIdx = null;
     rerender();
   };
 
-  window.weeklyDeleteArchiveObj = (i) => {
-    const ws = wkGetWS(window._weeklyOffset);
-    (ws.archive?.objectives||[]).splice(i, 1);
+  window.weeklyConfirmDeleteArchive = (type, i, name) => {
+    wkShowConfirm(
+      'Delete permanently?',
+      `"${name}" will be removed forever.`,
+      'Delete',
+      '#d95b5b',
+      () => {
+        const ws = wkGetWS(window._weeklyOffset);
+        if (type === 'obj')  (ws.archive?.objectives||[]).splice(i, 1);
+        if (type === 'task') (ws.archive?.tasks||[]).splice(i, 1);
+        wkSaveWS(ws, window._weeklyOffset);
+        rerender();
+      }
+    );
+  };
+
+  // Keep legacy names as no-ops in case called elsewhere
+  window.weeklyDeleteArchiveObj  = (i) => weeklyConfirmDeleteArchive('obj',  i, '');
+  window.weeklyDeleteArchiveTask = (i) => weeklyConfirmDeleteArchive('task', i, '');
+
+  window.weeklyUnarchiveObj = (i) => {
+    const ws  = wkGetWS(window._weeklyOffset);
+    const obj = (ws.archive?.objectives||[])[i]; if (!obj) return;
+    const { archivedAt, ...restored } = obj;
+    ws.objectives.push({ ...restored, done: false });
+    ws.archive.objectives.splice(i, 1);
     wkSaveWS(ws, window._weeklyOffset);
     rerender();
   };
-  window.weeklyDeleteArchiveTask = (i) => {
-    const ws = wkGetWS(window._weeklyOffset);
-    (ws.archive?.tasks||[]).splice(i, 1);
+  window.weeklyUnarchiveTask = (i) => {
+    const ws   = wkGetWS(window._weeklyOffset);
+    const task = (ws.archive?.tasks||[])[i]; if (!task) return;
+    const { archivedAt, dayIdx, ...restored } = task;
+    const targetDay = dayIdx !== undefined ? dayIdx : 0;
+    if (!ws.days[targetDay].tasks) ws.days[targetDay].tasks = [];
+    ws.days[targetDay].tasks.push({ ...restored, done: false });
+    ws.archive.tasks.splice(i, 1);
     wkSaveWS(ws, window._weeklyOffset);
     rerender();
   };
+
   window.weeklyToggleArchive = () => {
     const body    = document.getElementById('wkArchiveBody');
     const chevron = document.getElementById('wkArchiveChevron');
