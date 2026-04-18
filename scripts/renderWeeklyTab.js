@@ -544,6 +544,7 @@ export function renderWeeklyTab() {
   .wkrm-btn.complete {background:#4caf7d;color:#fff;}
   .wkrm-btn.fail     {background:#d95b5b;color:#fff;}
   .wkrm-btn.duplicate{background:#5b8dd9;color:#fff;}
+  .wkrm-btn.clear    {background:none;border:1.5px solid #e5e3dc;color:#aaa89f;flex:0 0 auto;min-width:auto;padding:14px 16px;}
   .wkrm-btn:active{opacity:.8;}
   /* Read-only reviewed view */
   .wkrm-ro-block{background:#f7f6f2;border-radius:10px;padding:13px 15px;margin-bottom:10px;border:1px solid #e5e3dc;}
@@ -767,7 +768,10 @@ export function initWeeklyTab() {
           <span class="wkrm-ro-lbl">Outcome</span>
           <div class="wkrm-outcome-pill ${r.outcome||''}">${outcomeLabel}</div>
         </div>
-        <button class="wkrm-edit-btn" onclick="wkEditReviewForm(${i})">Edit Review</button>`;
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button class="wkrm-edit-btn" style="flex:1;margin-top:0;" onclick="wkEditReviewForm(${i})">Edit Review</button>
+          <button class="wkrm-edit-btn" style="flex:0 0 auto;margin-top:0;color:#d95b5b;border-color:#d95b5b;" onclick="weeklyClearReview(${i})">✕ Clear</button>
+        </div>`;
     } else {
       // ── Editable form ──
       const effort = r.effort !== undefined ? r.effort : 5;
@@ -797,6 +801,7 @@ export function initWeeklyTab() {
           <button class="wkrm-btn complete"  onclick="weeklySaveReview('completed')">✓ Completed</button>
           <button class="wkrm-btn fail"      onclick="weeklySaveReview('failed')">✗ Failed</button>
           <button class="wkrm-btn duplicate" onclick="weeklySaveReview('duplicated')">↗ Next Week</button>
+          <button class="wkrm-btn clear"     onclick="weeklyClearReview(window._wkReviewIdx)">✕</button>
         </div>`;
     }
   }
@@ -823,6 +828,18 @@ export function initWeeklyTab() {
   window.weeklyCloseReviewBtn = () => {
     document.getElementById('wkReviewOverlay')?.classList.remove('open');
     window._wkReviewIdx = null;
+  };
+
+  window.weeklyClearReview = (i) => {
+    if (i === null || i === undefined) return;
+    const ws  = wkGetWS(window._weeklyOffset);
+    const obj = ws.objectives[i]; if (!obj) return;
+    delete obj._reviewed;
+    delete obj._review;
+    obj.done = false;
+    wkSaveWS(ws, window._weeklyOffset);
+    weeklyCloseReviewBtn();
+    rerender();
   };
 
   window.weeklySaveReview = (outcome) => {
