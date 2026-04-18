@@ -85,6 +85,15 @@ export function renderWeeklyTab() {
   const done = objs.filter(o=>o.done).length;
   const pct  = objs.length ? Math.round(done/objs.length*100) : 0;
 
+  // Task completion across all 7 days
+  const allTasks   = ws.days.reduce((acc,d)=>acc.concat(d.tasks||[]),[]);
+  const tasksDone  = allTasks.filter(t=>t.done).length;
+  const tasksTotal = allTasks.length;
+  const taskPct    = tasksTotal ? Math.round(tasksDone/tasksTotal*100) : 0;
+
+  // Wins (unplanned achievements)
+  const wins = ws.wins||[];
+
   // Sunday & current-week flags
   const isSunday      = today.getDay() === 0;
   const isCurrentWeek = offset === 0;
@@ -340,11 +349,24 @@ export function renderWeeklyTab() {
   #wk-root .wk-nav-btn:active{background:#1a1917;color:#fff;}
 
   /* ── Progress bar ── */
-  #wk-root .wk-progress{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
-  #wk-root .wk-prog-label{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;color:#aaa89f;text-transform:uppercase;letter-spacing:.1em;white-space:nowrap;}
-  #wk-root .wk-prog-track{flex:1;height:4px;background:#e5e3dc;border-radius:2px;overflow:hidden;}
-  #wk-root .wk-prog-fill{height:100%;background:#C9A84C;border-radius:2px;}
-  #wk-root .wk-prog-count{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;color:#C9A84C;min-width:30px;text-align:right;}
+  /* ── Dual stat block ── */
+  #wk-root .wk-stats-row{display:flex;align-items:stretch;gap:0;margin-bottom:22px;background:#fff;border:1px solid #e5e3dc;border-radius:10px;overflow:hidden;}
+  #wk-root .wk-stat-block{flex:1;padding:12px 14px;}
+  #wk-root .wk-stat-divider{width:1px;background:#e5e3dc;flex-shrink:0;}
+  #wk-root .wk-stat-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  #wk-root .wk-stat-label{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;color:#aaa89f;text-transform:uppercase;letter-spacing:.1em;}
+  #wk-root .wk-stat-count{font-family:'DM Mono',monospace;font-size:11px;font-weight:600;color:#1a1917;}
+  #wk-root .wk-prog-track{width:100%;height:5px;background:#e5e3dc;border-radius:3px;overflow:hidden;margin-bottom:6px;}
+  #wk-root .wk-prog-fill{height:100%;border-radius:3px;}
+  #wk-root .wk-stat-pct{font-family:'Bebas Neue','Impact',sans-serif;font-size:22px;line-height:1;letter-spacing:.04em;}
+
+  /* ── Things I Got Done ── */
+  #wk-root .wk-win-list{display:flex;flex-direction:column;gap:4px;margin-bottom:4px;}
+  #wk-root .wk-win-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;background:#fff;border:1px solid #e5e3dc;}
+  #wk-root .wk-win-dot{font-size:13px;color:#C9A84C;flex-shrink:0;}
+  #wk-root .wk-win-text{flex:1;font-size:14px;font-weight:500;color:#1a1917;min-width:0;}
+  #wk-root .wk-win-del{font-size:14px;color:#d8d5cc;cursor:pointer;padding:4px 5px;min-width:28px;min-height:28px;display:flex;align-items:center;justify-content:center;border-radius:4px;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
+  #wk-root .wk-win-del:active{color:#c0392b;background:#fdf0ef;}
 
   /* ── Section header ── */
   #wk-root .wk-sec{display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid #e5e3dc;margin-bottom:10px;}
@@ -571,10 +593,24 @@ export function renderWeeklyTab() {
     </div>
   </div>
 
-  <div class="wk-progress">
-    <span class="wk-prog-label">Objectives</span>
-    <div class="wk-prog-track"><div class="wk-prog-fill" style="width:${pct}%"></div></div>
-    <span class="wk-prog-count">${done}/${objs.length}</span>
+  <div class="wk-stats-row">
+    <div class="wk-stat-block">
+      <div class="wk-stat-top">
+        <span class="wk-stat-label">Objectives</span>
+        <span class="wk-stat-count">${done}/${objs.length}</span>
+      </div>
+      <div class="wk-prog-track"><div class="wk-prog-fill" style="width:${pct}%;background:#C9A84C"></div></div>
+      <div class="wk-stat-pct" style="color:#C9A84C">${pct}%</div>
+    </div>
+    <div class="wk-stat-divider"></div>
+    <div class="wk-stat-block">
+      <div class="wk-stat-top">
+        <span class="wk-stat-label">Tasks</span>
+        <span class="wk-stat-count">${tasksDone}/${tasksTotal}</span>
+      </div>
+      <div class="wk-prog-track"><div class="wk-prog-fill" style="width:${taskPct}%;background:#5b8dd9"></div></div>
+      <div class="wk-stat-pct" style="color:#5b8dd9">${taskPct}%</div>
+    </div>
   </div>
 
   <div class="wk-sec">
@@ -594,6 +630,30 @@ export function renderWeeklyTab() {
   </div>
 
   <div class="wk-obj-list">${objsHtml}</div>
+
+  <!-- Things I Got Done -->
+  <div class="wk-sec" style="margin-top:18px;">
+    <span class="wk-sec-label">Things I Got Done</span>
+    <button class="wk-sec-btn" onclick="weeklyToggleWinForm()">+ Add</button>
+  </div>
+  <div class="wk-obj-form" id="wkWinForm">
+    <input type="text" class="wk-form-inp" id="wkWinInput" placeholder="Something you achieved this week..." />
+    <div class="wk-form-row" style="justify-content:flex-end;">
+      <button class="wk-btn-cancel" onclick="weeklyToggleWinForm()">Cancel</button>
+      <button class="wk-btn-save"   onclick="weeklySaveWin()">Add</button>
+    </div>
+  </div>
+  <div class="wk-win-list" id="wkWinList">
+    ${wins.length===0
+      ? `<div class="wk-empty">Nothing logged yet — add things you got done this week</div>`
+      : wins.map((w,i)=>`
+        <div class="wk-win-row" id="wkWin${i}">
+          <span class="wk-win-dot">★</span>
+          <span class="wk-win-text">${wkEsc(w.text)}</span>
+          <span class="wk-win-del" onclick="weeklyDeleteWin(${i})">✕</span>
+        </div>`).join('')
+    }
+  </div>
 
   <div class="wk-divider"></div>
 
@@ -631,6 +691,30 @@ export function initWeeklyTab() {
   // ── Week navigation ───────────────────────────────────────────────────────
   window.weeklyShift = (dir) => {
     window._weeklyOffset = (window._weeklyOffset||0) + dir;
+    rerender();
+  };
+
+  // ── Things I Got Done ────────────────────────────────────────────────────
+  window.weeklyToggleWinForm = () => {
+    const f = document.getElementById('wkWinForm'); if (!f) return;
+    const opening = !f.classList.contains('open');
+    f.classList.toggle('open');
+    if (opening) document.getElementById('wkWinInput')?.focus();
+    else document.getElementById('wkWinInput').value = '';
+  };
+  window.weeklySaveWin = () => {
+    const text = (document.getElementById('wkWinInput')?.value||'').trim();
+    if (!text) return;
+    const ws = wkGetWS(window._weeklyOffset);
+    if (!ws.wins) ws.wins = [];
+    ws.wins.push({ text, addedAt: Date.now() });
+    wkSaveWS(ws, window._weeklyOffset);
+    rerender();
+  };
+  window.weeklyDeleteWin = (i) => {
+    const ws = wkGetWS(window._weeklyOffset);
+    (ws.wins||[]).splice(i, 1);
+    wkSaveWS(ws, window._weeklyOffset);
     rerender();
   };
 
