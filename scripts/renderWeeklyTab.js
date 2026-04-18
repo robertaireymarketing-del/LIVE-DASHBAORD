@@ -136,7 +136,7 @@ export function renderWeeklyTab() {
             </div>
           </div>
           <div class="wk-obj-actions">
-            ${isSunday && isCurrentWeek
+            ${isCurrentWeek
               ? `<div class="wk-obj-review-btn" onclick="weeklyOpenReview(${i})">Review</div>`
               : ''}
             <div class="wk-obj-edit" onclick="weeklyStartEditObj(${i})">✎</div>
@@ -259,9 +259,9 @@ export function renderWeeklyTab() {
     for (let i = 0; i < 7; i++) topDaysHtml += renderDayBlock(i);
   }
 
-  // ── Uncompleted tasks section (Sunday, current week only) ────────────────────
+  // ── Uncompleted tasks section (current week — tasks flash red on Sundays) ──────
   let uncompletedHtml = '';
-  if (isSunday && isCurrentWeek) {
+  if (isCurrentWeek) {
     const incomplete = [];
     ws.days.forEach((dayData, di) => {
       (dayData.tasks||[]).forEach((task, ti) => {
