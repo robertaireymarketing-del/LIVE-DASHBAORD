@@ -225,8 +225,9 @@ export function renderProgressTab(deps) {
     const isToday        = ds === todayStr;
     const isFuture       = ds > todayStr;
     const hasSyncBmr     = !!sync?.bmr;
+    const protein        = sync?.protein || null;
     if (deficit !== null) { calWeeklyTotal += deficit; calWeeklyDays++; }
-    return { ds, bmr, activeEnergy, gymEntry, treadmillEntry, dietaryCal, totalBurn, deficit, isToday, isFuture, hasSyncBmr };
+    return { ds, bmr, activeEnergy, gymEntry, treadmillEntry, dietaryCal, totalBurn, deficit, isToday, isFuture, hasSyncBmr, protein };
   });
 
   // ── Build calorie day cards ─────────────────────────────────────────────
@@ -294,6 +295,13 @@ export function renderProgressTab(deps) {
         </div>
         <div style="font-size:9px;color:${syncLabelCol};">${day.dietaryCal > 0 ? 'sync' : 'awaiting'}</div>
       </div>
+      ${day.protein !== null ? `<div style="background:rgba(155,89,182,0.05);border:1px solid rgba(155,89,182,0.14);border-radius:8px;padding:9px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:9px;font-weight:800;color:rgba(155,89,182,0.8);letter-spacing:1px;margin-bottom:2px;">PROTEIN</div>
+          <div style="font-size:18px;font-weight:700;color:#9b59b6;">${Math.round(day.protein)}<span style="font-size:10px;font-weight:400;color:rgba(155,89,182,0.6);"> g</span></div>
+        </div>
+        <div style="font-size:9px;color:${syncLabelCol};">sync</div>
+      </div>` : ''}
       <div style="border-top:1px solid ${dividerCol};padding-top:10px;display:flex;justify-content:space-between;align-items:center;">
         <div>
           <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${resultLabel};">DAILY ${deficitStatus}</div>
