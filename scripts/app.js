@@ -393,6 +393,11 @@ window.updateSetting = (field, value) => {
   const stringFields = ['deadline','startDate','targetMode'];
   updateSettings(field, stringFields.includes(field) ? value : parseFloat(value));
 };
+window.setCalorieWeekOffset = (offset) => { state.calorieWeekOffset = offset; render(); };
+window.logManualCalories = (dateStr, field) => {
+  const input = document.getElementById(`cal-${field}-${dateStr}`);
+  if (input) { const val = parseFloat(input.value) || 0; updateDayField(dateStr, field, val); }
+};
 
 // ── Retention modal ────────────────────────────────────────────────────────
 window.openRetentionModal = () => {
