@@ -36,17 +36,7 @@ function wkGetWS(offset) {
 }
 function wkSaveWS(ws, offset) { const a=wkLoadAll(); a[wkGetKey(offset)]=ws; wkSaveAll(a); }
 
-function wkApplyCarryOver(offset) {
-  const a=wkLoadAll(), thisKey=wkGetKey(offset), prevKey=wkGetKey(offset-1);
-  const prevWS=a[prevKey]; if (!prevWS) return;
-  const unfinished=(prevWS.objectives||[]).filter(o=>!o.done);
-  if (!unfinished.length) return;
-  if (!a[thisKey]) a[thisKey]={objectives:[],days:[{},{},{},{},{},{},{}]};
-  if ((a[thisKey].objectives||[]).some(o=>o._carriedOver)) return;
-  const carried=unfinished.map(o=>({...o,done:false,_carriedOver:true}));
-  a[thisKey].objectives=[...carried,...(a[thisKey].objectives||[])];
-  wkSaveAll(a);
-}
+function wkApplyCarryOver(offset) { /* disabled — carry-over only via explicit review action */ }
 
 function wkSwatchesHtml(selected, onclick) {
   return WK_COLORS.map(c =>
@@ -274,11 +264,14 @@ export function renderWeeklyTab() {
     for (let i = 0; i < 7; i++) topDaysHtml += renderDayBlock(i);
   }
 
-  // ── Uncompleted tasks section (current week — tasks flash red on Sundays) ──────
+  // ── Uncompleted tasks section — past days only ──────────────────────────────
   let uncompletedHtml = '';
   if (isCurrentWeek) {
     const incomplete = [];
     ws.days.forEach((dayData, di) => {
+      // Only include days strictly before today
+      const dayDate = new Date(mon); dayDate.setDate(dayDate.getDate()+di);
+      if (dayDate >= today) return;
       (dayData.tasks||[]).forEach((task, ti) => {
         if (!task.done) incomplete.push({ di, ti, task });
       });
