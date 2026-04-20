@@ -132,8 +132,10 @@ export function createStorage({
           bodyFat: parseNum(raw.bodyFat),
           bmr: (rawBmr && rawBmr > 0) ? rawBmr : null,
           steps: parseNum(raw.steps),
-          calories: parseNum(raw.calories),
-          gymCalories: parseNum(raw.gymCalories),
+          // Dietary energy — accept any field name the iOS Shortcut might use
+          calories: parseNum(raw.calories) ?? parseNum(raw.dietaryEnergy) ?? parseNum(raw.dietaryCalories) ?? parseNum(raw.energy) ?? parseNum(raw.dietary_energy) ?? parseNum(raw.food),
+          // Active energy — accept any field name the iOS Shortcut might use
+          gymCalories: parseNum(raw.gymCalories) ?? parseNum(raw.activeEnergy) ?? parseNum(raw.activeCalories) ?? parseNum(raw.active_energy) ?? parseNum(raw.exerciseCalories),
           // d.updateTime is not available on modular SDK snapshot docs — use metadata instead
           syncedAt: d.metadata?.hasPendingWrites === false ? Date.now() : null,
         };
