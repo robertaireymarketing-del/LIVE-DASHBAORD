@@ -665,7 +665,7 @@ export function renderWeeklyTab() {
     <div class="wk-week-nav" style="display:flex;gap:8px;align-items:center;">
       <button class="wk-nav-btn" onclick="weeklyShift(-1)">← Prev</button>
       <button class="wk-nav-btn" onclick="weeklyShift(1)">Next →</button>
-      <button onclick="weeklyUndo()" id="wkUndoBtn" title="Undo last action" style="display:flex;align-items:center;justify-content:center;gap:5px;padding:10px 16px;border-radius:10px;border:2px solid #1a1917;background:#1a1917;color:#fff;font-family:'DM Mono',monospace;font-size:12px;font-weight:900;cursor:pointer;letter-spacing:0.03em;white-space:nowrap;min-height:44px;">↩ Undo</button>
+      <button onclick="weeklyUndo()" id="wkUndoBtn" title="Undo last action" style="display:flex;align-items:center;justify-content:center;gap:5px;padding:10px 16px;border-radius:10px;border:2px solid #C9A84C;background:#C9A84C;color:#000;font-family:'DM Mono',monospace;font-size:12px;font-weight:900;cursor:pointer;letter-spacing:0.03em;white-space:nowrap;min-height:44px;">↩ Undo</button>
     </div>
   </div>
 
