@@ -91,7 +91,10 @@ export function renderProgressTab(deps) {
   weekStartDate.setDate(weekStartDate.getDate() - daysBackToMon);
   const thisWeekStartStr   = weekStartDate.toISOString().slice(0, 10);
   const thisWeekData       = (state.healthData || []).filter(h => h.date >= thisWeekStartStr && h.date <= todayStr);
-  const weekSteps          = thisWeekData.reduce((s, h) => s + (h.steps || 0), 0);
+  const weekManualSteps    = Object.entries(state.data?.days || {})
+    .filter(([d]) => d >= thisWeekStartStr && d <= todayStr)
+    .reduce((s, [, d]) => s + (d.manualSteps || 0), 0);
+  const weekSteps          = thisWeekData.reduce((s, h) => s + (h.steps || 0), 0) + weekManualSteps;
 
   const lastWeekMonDate = new Date(weekStartDate); lastWeekMonDate.setDate(weekStartDate.getDate() - 7);
   const lastWeekMonStr  = lastWeekMonDate.toISOString().slice(0, 10);
@@ -103,7 +106,10 @@ export function renderProgressTab(deps) {
 
   const monthPrefix   = todayStr.slice(0, 7);
   const monthHealthData = (state.healthData || []).filter(h => h.date.startsWith(monthPrefix));
-  const monthSteps    = monthHealthData.reduce((s, h) => s + (h.steps || 0), 0);
+  const monthManualSteps = Object.entries(state.data?.days || {})
+    .filter(([d]) => d.startsWith(monthPrefix))
+    .reduce((s, [, d]) => s + (d.manualSteps || 0), 0);
+  const monthSteps    = monthHealthData.reduce((s, h) => s + (h.steps || 0), 0) + monthManualSteps;
   const stepsMonthDay = parseInt(todayStr.slice(8, 10));
   const lastMonthYear = todayStr.slice(0,7) === `${new Date().getFullYear()}-01`
     ? `${new Date().getFullYear()-1}-12`
@@ -673,6 +679,85 @@ export function renderProgressTab(deps) {
         })()}
       </div>
     </div>
+
+    <!-- ══ MANUAL STEPS LOG ══ -->
+    ${(() => {
+      const manualEntries = Object.entries(state.data?.days || {})
+        .filter(([, d]) => d.manualSteps > 0)
+        .sort(([a], [b]) => b.localeCompare(a));
+
+      const formatStepDate = (ds) => {
+        const d = new Date(ds + 'T12:00:00');
+        const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+      };
+
+      const entriesHtml = manualEntries.map(([ds, dayData]) => {
+        const expandId = `msteps-expand-${ds}`;
+        const arrowId  = `msteps-arrow-${ds}`;
+        return `
+        <div style="background:rgba(52,152,219,0.04);border:1px solid rgba(52,152,219,0.12);border-left:3px solid rgba(52,152,219,0.35);border-radius:10px;margin-bottom:6px;overflow:hidden;">
+          <div
+            onclick="(function(){
+              var el=document.getElementById('${expandId}');
+              var arrow=document.getElementById('${arrowId}');
+              var isOpen=el.style.display!=='none';
+              el.style.display=isOpen?'none':'block';
+              arrow.textContent=isOpen?'▼':'▲';
+              arrow.style.color=isOpen?'rgba(255,255,255,0.25)':'rgba(52,152,219,0.8)';
+            })()"
+            style="padding:11px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;"
+          >
+            <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.65);">${formatStepDate(ds)}</span>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:14px;font-weight:800;color:#3498db;">${Math.round(dayData.manualSteps).toLocaleString()} <span style="font-size:10px;font-weight:500;color:rgba(52,152,219,0.6);">steps</span></span>
+              <span id="${arrowId}" style="font-size:9px;color:rgba(255,255,255,0.25);transition:color 0.2s;flex-shrink:0;">▼</span>
+            </div>
+          </div>
+          <div id="${expandId}" style="display:none;padding:0 14px 14px;border-top:1px solid rgba(52,152,219,0.1);">
+            <div style="height:10px;"></div>
+            <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:rgba(52,152,219,0.7);margin-bottom:6px;">EDIT STEPS FOR ${formatStepDate(ds).toUpperCase()}</div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="number" id="cal-manualSteps-${ds}" placeholder="Steps" value="${dayData.manualSteps || ''}" style="flex:1;background:rgba(0,0,0,0.25);border:1px solid rgba(52,152,219,0.3);border-radius:6px;color:#3498db;padding:7px 10px;font-size:14px;font-weight:700;outline:none;">
+              <button onclick="logManualCalories('${ds}','manualSteps')" style="background:rgba(52,152,219,0.18);border:1px solid rgba(52,152,219,0.35);border-radius:6px;color:#3498db;padding:7px 12px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">SAVE</button>
+              <button onclick="(function(){var inp=document.getElementById('cal-manualSteps-${ds}');inp.value=0;logManualCalories('${ds}','manualSteps');})()" style="background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.25);border-radius:6px;color:#e74c3c;padding:7px 10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">DELETE</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+
+      return `
+      <div style="background:rgba(52,152,219,0.04);border:1px solid rgba(52,152,219,0.15);border-radius:12px;padding:14px;margin-bottom:16px;">
+        <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(52,152,219,0.85);margin-bottom:12px;">👟 MANUAL STEPS</div>
+
+        <!-- Add new entry -->
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:${manualEntries.length > 0 ? '14px' : '0'};">
+          <input type="date" id="manual-step-date" value="${todayStr}" max="${todayStr}" style="flex:1;background:rgba(0,0,0,0.25);border:1px solid rgba(52,152,219,0.25);border-radius:8px;color:rgba(255,255,255,0.85);padding:8px 10px;font-size:12px;font-weight:600;outline:none;min-width:0;">
+          <input type="number" id="manual-step-count" placeholder="Steps" style="width:100px;background:rgba(0,0,0,0.25);border:1px solid rgba(52,152,219,0.25);border-radius:8px;color:#3498db;padding:8px 10px;font-size:13px;font-weight:700;outline:none;">
+          <button onclick="(function(){
+            var date  = document.getElementById('manual-step-date').value;
+            var steps = parseInt(document.getElementById('manual-step-count').value);
+            if (!date || !steps || steps < 1) return;
+            var inp = document.getElementById('cal-manualSteps-' + date);
+            if (!inp) {
+              inp = document.createElement('input');
+              inp.type = 'number';
+              inp.id   = 'cal-manualSteps-' + date;
+              inp.style.display = 'none';
+              document.body.appendChild(inp);
+            }
+            inp.value = steps;
+            logManualCalories(date, 'manualSteps');
+            document.getElementById('manual-step-count').value = '';
+          })()" style="background:rgba(52,152,219,0.2);border:1px solid rgba(52,152,219,0.4);border-radius:8px;color:#3498db;padding:8px 14px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;flex-shrink:0;">ADD</button>
+        </div>
+
+        <!-- Existing entries -->
+        ${entriesHtml}
+        ${manualEntries.length === 0 ? '<div style="font-size:12px;color:rgba(255,255,255,0.25);text-align:center;padding:4px 0;">No manual entries yet</div>' : ''}
+      </div>`;
+    })()}
 
     <!-- ══ LATEST SYNC ══ -->
     ${(() => {
