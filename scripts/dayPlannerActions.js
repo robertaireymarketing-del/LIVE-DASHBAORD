@@ -510,28 +510,17 @@ export function initDayPlannerActions({
   window.removeDraftTask = (fk, ti) => {
     const task = state.dayPlannerDraft?.[fk]?.[ti];
     if (!task) return;
-    const taskText = ((typeof task === 'object' ? task.text : task) || 'this task')
-      .replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const taskText = (typeof task === 'object' ? task.text : task) || 'this task';
+    state.taskDeleteConfirm = { fk, ti, text: taskText };
+    render();
+  };
 
-    // Remove any lingering overlay
-    document.getElementById('task-delete-confirm')?.remove();
-
-    const overlay = document.createElement('div');
-    overlay.id = 'task-delete-confirm';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
-    overlay.innerHTML = `
-      <div style="background:#141e30;border:1px solid rgba(255,255,255,0.14);border-radius:18px;padding:26px 22px;max-width:340px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.6);">
-        <div style="font-size:19px;font-weight:900;color:#fff;margin-bottom:8px;">Remove task?</div>
-        <div style="font-size:14px;color:rgba(255,255,255,0.5);margin-bottom:22px;line-height:1.55;">"${taskText}" will be moved to your task archive — not deleted permanently.</div>
-        <div style="display:flex;gap:10px;">
-          <button id="task-del-confirm-btn" style="flex:1;background:#e74c3c;border:none;border-radius:11px;padding:14px;color:#fff;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;letter-spacing:0.3px;">Archive Task</button>
-          <button id="task-del-cancel-btn" style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.14);border-radius:11px;padding:14px;color:rgba(255,255,255,0.65);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
-        </div>
-      </div>`;
-    document.body.appendChild(overlay);
-
-    document.getElementById('task-del-confirm-btn').onclick = async () => {
-      overlay.remove();
+  window.confirmRemoveDraftTask = async () => {
+    const conf = state.taskDeleteConfirm;
+    if (!conf) return;
+    const { fk, ti } = conf;
+    const task = state.dayPlannerDraft?.[fk]?.[ti];
+    if (task !== undefined) {
       const taskObj = typeof task === 'object' ? { ...task } : { text: task, start: '', end: '' };
       if (!state.data.archivedTasks) state.data.archivedTasks = [];
       state.data.archivedTasks.push({
@@ -540,12 +529,34 @@ export function initDayPlannerActions({
         day: state.dayPlannerDay,
         archivedAt: new Date().toISOString(),
       });
-      if (state.dayPlannerDraft?.[fk]) state.dayPlannerDraft[fk].splice(ti, 1);
-      await saveDataQuiet();
-      render();
-    };
-    document.getElementById('task-del-cancel-btn').onclick = () => overlay.remove();
-    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      state.dayPlannerDraft[fk].splice(ti, 1);
+    }
+    state.taskDeleteConfirm = null;
+    await saveDataQuiet();
+    render();
+  };
+
+  window.cancelRemoveDraftTask = () => {
+    state.taskDeleteConfirm = null;
+    render();
+  };
+
+  window.toggleArchivedTasks = () => {
+    state.archivedTasksOpen = !state.archivedTasksOpen;
+    render();
+  };
+
+  window.restoreArchivedTask = async (i) => {
+    const archived = state.data.archivedTasks?.[i];
+    if (!archived) return;
+    const { frontKey, archivedAt, day, rolledOver, rolledOverFrom, ...taskData } = archived;
+    const fk = frontKey || 'tjm';
+    if (!state.dayPlannerDraft) state.dayPlannerDraft = {};
+    if (!state.dayPlannerDraft[fk]) state.dayPlannerDraft[fk] = [];
+    state.dayPlannerDraft[fk].push(taskData);
+    state.data.archivedTasks.splice(i, 1);
+    await saveDataQuiet();
+    render();
   };
   window.updateDraftTask = (fk, ti, val, field) => {
     if (!state.dayPlannerDraft?.[fk]) return;
