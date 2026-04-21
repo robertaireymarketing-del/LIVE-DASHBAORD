@@ -739,15 +739,29 @@ export function renderProgressTab(deps) {
 
       return `
       <div class="stat-card" style="padding:14px;margin-bottom:16px;">
-        <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:${eyebrowCol};margin-bottom:12px;">👟 MANUAL STEPS</div>
-        <style>#manual-step-count::placeholder{color:rgba(255,255,255,0.35)!important;}</style>
+        <style>
+          #manual-step-date, #manual-step-count {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            background: rgba(255,255,255,0.1) !important;
+          }
+          #manual-step-date::placeholder, #manual-step-count::placeholder { color: rgba(255,255,255,0.4) !important; }
+          #manual-step-date::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.6); cursor: pointer; }
+          #manual-step-date::-webkit-datetime-edit,
+          #manual-step-date::-webkit-datetime-edit-fields-wrapper,
+          #manual-step-date::-webkit-datetime-edit-text,
+          #manual-step-date::-webkit-datetime-edit-month-field,
+          #manual-step-date::-webkit-datetime-edit-day-field,
+          #manual-step-date::-webkit-datetime-edit-year-field { color: #ffffff !important; }
+        </style>
+        <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(52,152,219,0.9);margin-bottom:12px;">👟 MANUAL STEPS</div>
 
         <!-- Add new entry -->
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="date" id="manual-step-date" value="${todayStr}" max="${todayStr}"
-            style="flex:1;background:${inputBg};border:1px solid ${inputBorder};border-radius:8px;color:#fff;padding:8px 10px;font-size:12px;font-weight:600;outline:none;min-width:0;color-scheme:dark;">
+            style="flex:1;border:1px solid rgba(52,152,219,0.35);border-radius:8px;padding:8px 10px;font-size:12px;font-weight:600;outline:none;min-width:0;color-scheme:dark;">
           <input type="number" id="manual-step-count" placeholder="Steps"
-            style="width:90px;flex-shrink:0;background:${inputBg};border:1px solid ${inputBorder};border-radius:8px;color:#fff;padding:8px 10px;font-size:13px;font-weight:700;outline:none;" placeholder-color="rgba(255,255,255,0.4)">
+            style="width:90px;flex-shrink:0;border:1px solid rgba(52,152,219,0.35);border-radius:8px;padding:8px 10px;font-size:13px;font-weight:700;outline:none;">
           <button onclick="(function(){
             var date  = document.getElementById('manual-step-date').value;
             var steps = parseInt(document.getElementById('manual-step-count').value);
