@@ -227,7 +227,7 @@ export function renderDayPlannerModal({state, getProjectFronts, getTodayDayKey, 
                   return `<div style="margin-bottom:8px;">
                     <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
                       <input class="week-day-input" style="flex:1;padding:9px 12px;" value="${taskText.replace(/"/g,'&quot;')}" placeholder="Task..." oninput="updateDraftTask('${fk}',${ti},this.value,'text')">
-                      <button onclick="removeDraftTask('${fk}',${ti})" style="background:rgba(231,76,60,0.12);border:1.5px solid rgba(231,76,60,0.35);border-radius:8px;padding:0;color:#e74c3c;cursor:pointer;font-size:16px;font-weight:700;flex-shrink:0;width:40px;height:40px;min-width:40px;display:flex;align-items:center;justify-content:center;position:relative;z-index:3;touch-action:manipulation;-webkit-tap-highlight-color:transparent;">✕</button>
+                      <button onclick="if(confirm('Archive this task? It will be saved to your archive.'))removeDraftTask('${fk}',${ti})" style="background:rgba(231,76,60,0.12);border:1.5px solid rgba(231,76,60,0.35);border-radius:8px;padding:0;color:#e74c3c;cursor:pointer;font-size:16px;font-weight:700;flex-shrink:0;width:40px;height:40px;min-width:40px;display:flex;align-items:center;justify-content:center;position:relative;z-index:3;touch-action:manipulation;-webkit-tap-highlight-color:transparent;">✕</button>
                     </div>
                     <div style="display:flex;gap:6px;align-items:center;">
                       <button onclick="openTimePicker('${fk}',${ti},'start')" style="flex:1;background:${startTime?'rgba(201,168,76,0.1)':'rgba(255,255,255,0.04)'};border:1px solid ${startTime?'rgba(201,168,76,0.3)':'rgba(255,255,255,0.1)'};border-radius:8px;padding:9px 10px;color:${startTime?'#C9A84C':'rgba(255,255,255,0.25)'};font-size:13px;font-weight:${startTime?'700':'400'};cursor:pointer;font-family:inherit;text-align:center;">${startTime||'Start'}</button>
@@ -277,18 +277,7 @@ export function renderDayPlannerModal({state, getProjectFronts, getTodayDayKey, 
         </div>
         </div>
       </div>
-      ${state.timePickerOpen ? renderTimePickerModal() : ''}
-      ${state.taskDeleteConfirm ? `
-      <div style="position:fixed;inset:0;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;" onclick="if(event.target===this)cancelRemoveDraftTask()">
-        <div style="background:#141e30;border:1px solid rgba(255,255,255,0.14);border-radius:18px;padding:26px 22px;max-width:340px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
-          <div style="font-size:19px;font-weight:900;color:#fff;margin-bottom:8px;">Remove task?</div>
-          <div style="font-size:14px;color:rgba(255,255,255,0.5);margin-bottom:22px;line-height:1.55;">"${state.taskDeleteConfirm.text.replace(/"/g,'&quot;')}" will be moved to your task archive — not deleted permanently.</div>
-          <div style="display:flex;gap:10px;">
-            <button onclick="confirmRemoveDraftTask()" style="flex:1;background:#e74c3c;border:none;border-radius:11px;padding:14px;color:#fff;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;">Archive Task</button>
-            <button onclick="cancelRemoveDraftTask()" style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.14);border-radius:11px;padding:14px;color:rgba(255,255,255,0.65);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
-          </div>
-        </div>
-      </div>` : ''}`;
+      ${state.timePickerOpen ? renderTimePickerModal() : ''}`;
     
 }
 
@@ -482,7 +471,7 @@ export function renderEmbeddedDayPlanner({state, getProjectFronts, getTodayDayKe
                 return `<div style="margin-bottom:8px;">
                   <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
                     <input class="week-day-input" style="flex:1;padding:9px 12px;" value="${taskText.replace(/"/g,'&quot;')}" placeholder="Task..." oninput="updateDraftTask('${fk}',${ti},this.value,'text')">
-                    <button onclick="removeDraftTask('${fk}',${ti})" style="background:rgba(231,76,60,0.12);border:1.5px solid rgba(231,76,60,0.35);border-radius:8px;padding:0;color:#e74c3c;cursor:pointer;font-size:16px;font-weight:700;flex-shrink:0;width:40px;height:40px;min-width:40px;display:flex;align-items:center;justify-content:center;position:relative;z-index:3;touch-action:manipulation;-webkit-tap-highlight-color:transparent;">✕</button>
+                    <button onclick="if(confirm('Archive this task? It will be saved to your archive.'))removeDraftTask('${fk}',${ti})" style="background:rgba(231,76,60,0.12);border:1.5px solid rgba(231,76,60,0.35);border-radius:8px;padding:0;color:#e74c3c;cursor:pointer;font-size:16px;font-weight:700;flex-shrink:0;width:40px;height:40px;min-width:40px;display:flex;align-items:center;justify-content:center;position:relative;z-index:3;touch-action:manipulation;-webkit-tap-highlight-color:transparent;">✕</button>
                   </div>
                   <div style="display:flex;gap:6px;align-items:center;">
                     <button onclick="openTimePicker('${fk}',${ti},'start')" style="flex:1;background:${startTime?'rgba(201,168,76,0.1)':'rgba(255,255,255,0.04)'};border:1px solid ${startTime?'rgba(201,168,76,0.3)':'rgba(255,255,255,0.1)'};border-radius:8px;padding:9px 10px;color:${startTime?'#C9A84C':'rgba(255,255,255,0.25)'};font-size:13px;font-weight:${startTime?'700':'400'};cursor:pointer;font-family:inherit;text-align:center;">${startTime||'Start'}</button>
@@ -532,24 +521,23 @@ export function renderEmbeddedDayPlanner({state, getProjectFronts, getTodayDayKe
         ${(() => {
           const archived = state.data.archivedTasks || [];
           if (!archived.length) return '';
-          const FRONT_NAMES = { tjm: 'TJM', vinted: 'Vinted', notts: 'Notts', _other: 'Other' };
-          const isOpen = state.archivedTasksOpen;
+          const FRONT_NAMES = { tjm:'TJM', vinted:'Vinted', notts:'Notts', _other:'Other' };
+          const isOpen = !!state.archivedTasksOpen;
           return `
-          <div style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.07);padding-top:12px;">
-            <button onclick="toggleArchivedTasks()" style="width:100%;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.09);border-radius:12px;padding:12px 16px;color:rgba(255,255,255,0.4);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:space-between;">
+          <div style="margin-top:4px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.07);">
+            <button onclick="toggleArchivedTasks()" style="width:100%;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.09);border-radius:12px;padding:12px 16px;color:rgba(255,255,255,0.4);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:space-between;gap:8px;">
               <span>📦 Archived Tasks (${archived.length})</span>
-              <span style="font-size:11px;">${isOpen ? '▲ Hide' : '▼ Show'}</span>
+              <span style="font-size:11px;opacity:0.6;">${isOpen ? '▲ Hide' : '▼ Show'}</span>
             </button>
-            ${isOpen ? `
-            <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+            ${isOpen ? `<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
               ${archived.map((t, i) => {
-                const txt = t.text || '';
+                const txt = t.text || '(no text)';
                 const front = FRONT_NAMES[t.frontKey] || t.frontKey || '';
-                const date = t.archivedAt ? new Date(t.archivedAt).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : '';
+                const date = t.archivedAt ? new Date(t.archivedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';
                 return `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
-                  <div style="min-width:0;">
-                    <div style="font-size:14px;font-weight:700;color:rgba(255,255,255,0.5);text-decoration:line-through;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${txt}</div>
-                    <div style="font-size:10px;color:rgba(255,255,255,0.25);margin-top:2px;">${front}${date ? ' · ' + date : ''}</div>
+                  <div style="min-width:0;flex:1;">
+                    <div style="font-size:14px;font-weight:700;color:rgba(255,255,255,0.4);text-decoration:line-through;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${txt}</div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.22);margin-top:2px;">${[front,date].filter(Boolean).join(' · ')}</div>
                   </div>
                   <button onclick="restoreArchivedTask(${i})" style="flex-shrink:0;background:rgba(46,204,113,0.1);border:1px solid rgba(46,204,113,0.25);border-radius:8px;padding:6px 12px;color:#2ecc71;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;">↩ Restore</button>
                 </div>`;
@@ -558,18 +546,7 @@ export function renderEmbeddedDayPlanner({state, getProjectFronts, getTodayDayKe
           </div>`;
         })()}
 
-      </div>
-      ${state.taskDeleteConfirm ? `
-      <div style="position:fixed;inset:0;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;" onclick="if(event.target===this)cancelRemoveDraftTask()">
-        <div style="background:#141e30;border:1px solid rgba(255,255,255,0.14);border-radius:18px;padding:26px 22px;max-width:340px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
-          <div style="font-size:19px;font-weight:900;color:#fff;margin-bottom:8px;">Remove task?</div>
-          <div style="font-size:14px;color:rgba(255,255,255,0.5);margin-bottom:22px;line-height:1.55;">"${state.taskDeleteConfirm.text.replace(/"/g,'&quot;')}" will be moved to your task archive — not deleted permanently.</div>
-          <div style="display:flex;gap:10px;">
-            <button onclick="confirmRemoveDraftTask()" style="flex:1;background:#e74c3c;border:none;border-radius:11px;padding:14px;color:#fff;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;">Archive Task</button>
-            <button onclick="cancelRemoveDraftTask()" style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.14);border-radius:11px;padding:14px;color:rgba(255,255,255,0.65);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
-          </div>
-        </div>
-      </div>` : ''}`;
+      </div>`;
 }
 
 export function renderTimePickerModal({state}) {

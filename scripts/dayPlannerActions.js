@@ -507,19 +507,11 @@ export function initDayPlannerActions({
 
   window.addDraftTask = (fk) => { if (!state.dayPlannerDraft) state.dayPlannerDraft = {}; if (!state.dayPlannerDraft[fk]) state.dayPlannerDraft[fk] = []; state.dayPlannerDraft[fk].push({ text:'', start:'', end:'' }); render(); };
 
-  window.removeDraftTask = (fk, ti) => {
-    const task = state.dayPlannerDraft?.[fk]?.[ti];
-    if (!task) return;
-    const taskText = (typeof task === 'object' ? task.text : task) || 'this task';
-    state.taskDeleteConfirm = { fk, ti, text: taskText };
-    render();
-  };
-
-  window.confirmRemoveDraftTask = async () => {
-    const conf = state.taskDeleteConfirm;
-    if (!conf) return;
-    const { fk, ti } = conf;
-    const task = state.dayPlannerDraft?.[fk]?.[ti];
+  // Confirmation is handled by the button's onclick confirm() in renderModals.js
+  // This function only runs if the user clicks OK on that dialog
+  window.removeDraftTask = async (fk, ti) => {
+    if (!state.dayPlannerDraft?.[fk]) return;
+    const task = state.dayPlannerDraft[fk][ti];
     if (task !== undefined) {
       const taskObj = typeof task === 'object' ? { ...task } : { text: task, start: '', end: '' };
       if (!state.data.archivedTasks) state.data.archivedTasks = [];
@@ -531,26 +523,17 @@ export function initDayPlannerActions({
       });
       state.dayPlannerDraft[fk].splice(ti, 1);
     }
-    state.taskDeleteConfirm = null;
     await saveDataQuiet();
     render();
   };
 
-  window.cancelRemoveDraftTask = () => {
-    state.taskDeleteConfirm = null;
-    render();
-  };
-
-  window.toggleArchivedTasks = () => {
-    state.archivedTasksOpen = !state.archivedTasksOpen;
-    render();
-  };
+  window.toggleArchivedTasks = () => { state.archivedTasksOpen = !state.archivedTasksOpen; render(); };
 
   window.restoreArchivedTask = async (i) => {
     const archived = state.data.archivedTasks?.[i];
     if (!archived) return;
     const { frontKey, archivedAt, day, rolledOver, rolledOverFrom, ...taskData } = archived;
-    const fk = frontKey || 'tjm';
+    const fk = frontKey || '_other';
     if (!state.dayPlannerDraft) state.dayPlannerDraft = {};
     if (!state.dayPlannerDraft[fk]) state.dayPlannerDraft[fk] = [];
     state.dayPlannerDraft[fk].push(taskData);
