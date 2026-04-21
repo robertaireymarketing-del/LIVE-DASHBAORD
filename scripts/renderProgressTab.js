@@ -328,16 +328,15 @@ export function renderProgressTab(deps) {
   }
 
   function renderCalDayCardCompact(day) {
-    const deficitColor = day.deficit === null ? tx('rgba(255,255,255,0.3)','rgba(0,0,0,0.25)') : day.deficit > 0 ? '#2ecc71' : '#e74c3c';
+    // Solid dark colours — hardcoded so text is always legible in both light and dark page modes
+    const deficitColor = day.deficit === null ? '#5a7a8a' : day.deficit > 0 ? '#2ecc71' : '#e74c3c';
     const deficitAmt   = day.deficit === null ? 'No data' : (day.deficit > 0 ? '−' : '+') + Math.abs(Math.round(day.deficit)).toLocaleString() + ' kcal';
-    const cardBg       = tx('rgba(255,255,255,0.02)', 'rgba(0,0,0,0.02)');
-    const borderCol    = tx('rgba(255,255,255,0.07)', 'rgba(0,0,0,0.09)');
-    const labelCol     = tx('rgba(255,255,255,0.65)', 'rgba(0,0,0,0.5)');
+    const proteinDisp  = day.protein != null ? Math.round(day.protein) + 'g' : null;
     const expandId     = `cal-expand-${day.ds}`;
     const arrowId      = `cal-arrow-${day.ds}`;
 
     return `
-    <div style="background:${cardBg};border:1px solid ${borderCol};border-left:3px solid ${borderCol};border-radius:10px;margin-bottom:6px;overflow:hidden;transition:border-color 0.2s;">
+    <div style="background:#12202e;border:1px solid #1e3a52;border-left:3px solid #1e3a52;border-radius:10px;margin-bottom:6px;overflow:hidden;">
       <div
         onclick="(function(){
           var el=document.getElementById('${expandId}');
@@ -345,17 +344,18 @@ export function renderProgressTab(deps) {
           var isOpen=el.style.display!=='none';
           el.style.display=isOpen?'none':'block';
           arrow.textContent=isOpen?'▼':'▲';
-          arrow.style.color=isOpen?'rgba(255,255,255,0.25)':'rgba(212,175,55,0.8)';
+          arrow.style.color=isOpen?'#4a6480':'#C9A84C';
         })()"
         style="padding:11px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;"
       >
-        <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.8);">${formatCalDay(day.ds)}</span>
-        <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:13px;font-weight:700;color:#a8bfd4;">${formatCalDay(day.ds)}</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          ${proteinDisp ? `<span style="font-size:11px;font-weight:700;color:#9b59b6;">${proteinDisp} <span style="font-size:9px;color:#6a3a8a;">protein</span></span>` : ''}
           <span style="font-size:13px;font-weight:800;color:${deficitColor};">${deficitAmt}</span>
-          <span id="${arrowId}" style="font-size:9px;color:rgba(255,255,255,0.25);transition:color 0.2s;flex-shrink:0;">▼</span>
+          <span id="${arrowId}" style="font-size:9px;color:#4a6480;transition:color 0.2s;flex-shrink:0;">▼</span>
         </div>
       </div>
-      <div id="${expandId}" style="display:none;padding:0 14px 14px 14px;border-top:1px solid ${borderCol};">
+      <div id="${expandId}" style="display:none;padding:0 14px 14px 14px;border-top:1px solid #1a3348;background:#0f1c2a;">
         <div style="height:10px;"></div>
         ${renderCalDayInnerContent(day)}
       </div>
@@ -376,7 +376,7 @@ export function renderProgressTab(deps) {
   // Today first (full card), past days compact below, future days dimmed at bottom
   const todayCard   = calDayData.filter(d => d.isToday).map(renderCalDayCardFull).join('');
   const pastCards   = calDayData.filter(d => !d.isToday && !d.isFuture).reverse().map(renderCalDayCardCompact).join('');
-  const futureCards = calDayData.filter(d => d.isFuture).map(renderCalDayCardFuture).join('');
+  const futureCards = calDayData.filter(d => d.isFuture && (d.gymEntry > 0 || d.treadmillEntry > 0)).map(renderCalDayCardFuture).join('');
   const calDayCardsHtml = todayCard + pastCards + futureCards;
 
   const weekTotalColor  = calWeeklyDays === 0 ? 'rgba(255,255,255,0.3)' : calWeeklyTotal > 0 ? '#2ecc71' : '#e74c3c';
@@ -746,22 +746,22 @@ export function renderProgressTab(deps) {
         style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:${isCurrentWeek ? 'rgba(255,255,255,0.25)' : '#fff'};padding:7px 14px;font-size:13px;font-weight:700;${isCurrentWeek ? 'cursor:not-allowed;opacity:0.4;' : 'cursor:pointer;'}flex-shrink:0;">Next →</button>
     </div>
 
-    <!-- Day cards -->
-    ${calDayCardsHtml}
-
-    <!-- Weekly total -->
-    <div style="background:${weekTotalBg};border:1px solid ${weekTotalBorder};border-radius:14px;padding:16px;margin-bottom:24px;">
+    <!-- Weekly total — at top -->
+    <div style="background:#0f1c2a;border:1px solid ${weekTotalBorder};border-left:4px solid ${weekTotalColor};border-radius:12px;padding:14px 16px;margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div>
-          <div style="font-size:10px;font-weight:900;color:rgba(255,255,255,0.6);letter-spacing:1.5px;">WEEK TOTAL</div>
-          <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:3px;">${calWeeklyDays} of 7 days with dietary data</div>
+          <div style="font-size:9px;font-weight:900;color:rgba(255,255,255,0.5);letter-spacing:1.5px;margin-bottom:3px;">WEEK TOTAL</div>
+          <div style="font-size:10px;color:rgba(255,255,255,0.35);">${calWeeklyDays} of 7 days with dietary data</div>
         </div>
         <div style="text-align:right;">
-          <div style="font-size:30px;font-weight:900;color:${weekTotalColor};">${weekTotalAmt}</div>
-          ${weekTotalLabel ? `<div style="font-size:11px;font-weight:700;color:${weekTotalColor};margin-top:1px;">${weekTotalLabel}</div>` : ''}
+          <div style="font-size:28px;font-weight:900;color:${weekTotalColor};letter-spacing:-0.5px;">${weekTotalAmt}</div>
+          ${weekTotalLabel ? `<div style="font-size:10px;font-weight:700;color:${weekTotalColor};margin-top:1px;">${weekTotalLabel}</div>` : ''}
         </div>
       </div>
     </div>
+
+    <!-- Day cards -->
+    ${calDayCardsHtml}
 
 
 
