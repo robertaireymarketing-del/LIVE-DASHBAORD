@@ -28,13 +28,21 @@ function wkGetKey(offset) {
 }
 function wkLoadAll() { try { return JSON.parse(localStorage.getItem('weekly_state')||'{}'); } catch { return {}; } }
 function wkSaveAll(all) { localStorage.setItem('weekly_state', JSON.stringify(all)); }
+
+// ── Undo stack ──────────────────────────────────────────────────────────────
+if (!window._wkUndoStack) window._wkUndoStack = [];
+function wkPushUndo() {
+  const snapshot = localStorage.getItem('weekly_state') || '{}';
+  window._wkUndoStack.push(snapshot);
+  if (window._wkUndoStack.length > 20) window._wkUndoStack.shift();
+}
 function wkGetWS(offset) {
   const a=wkLoadAll(), k=wkGetKey(offset);
   if (!a[k]) a[k]={objectives:[],days:[{},{},{},{},{},{},{}]};
   while (a[k].days.length<7) a[k].days.push({});
   return a[k];
 }
-function wkSaveWS(ws, offset) { const a=wkLoadAll(); a[wkGetKey(offset)]=ws; wkSaveAll(a); }
+function wkSaveWS(ws, offset) { wkPushUndo(); const a=wkLoadAll(); a[wkGetKey(offset)]=ws; wkSaveAll(a); }
 
 function wkApplyCarryOver(offset) {
   if (offset !== 0) return;
@@ -654,9 +662,10 @@ export function renderWeeklyTab() {
   <div class="wk-nav-row">
     <div class="wk-eyebrow">Week ${wkNum}</div>
     <div class="wk-title">${monStr} – ${sunStr}</div>
-    <div class="wk-week-nav">
+    <div class="wk-week-nav" style="display:flex;gap:8px;align-items:center;">
       <button class="wk-nav-btn" onclick="weeklyShift(-1)">← Prev</button>
       <button class="wk-nav-btn" onclick="weeklyShift(1)">Next →</button>
+      <button onclick="weeklyUndo()" id="wkUndoBtn" title="Undo last action" style="display:flex;align-items:center;justify-content:center;gap:5px;padding:10px 16px;border-radius:10px;border:2px solid #1a1917;background:#1a1917;color:#fff;font-family:'DM Mono',monospace;font-size:12px;font-weight:900;cursor:pointer;letter-spacing:0.03em;white-space:nowrap;min-height:44px;">↩ Undo</button>
     </div>
   </div>
 
@@ -993,6 +1002,19 @@ export function initWeeklyTab() {
   };
 
   window.weeklyRerender = () => rerender();
+
+  window.weeklyUndo = () => {
+    if (!window._wkUndoStack || window._wkUndoStack.length === 0) {
+      const btn = document.getElementById('wkUndoBtn');
+      if (btn) { btn.textContent = '✕ Nothing to undo'; setTimeout(() => { btn.textContent = '↩ Undo'; }, 1500); }
+      return;
+    }
+    const prev = window._wkUndoStack.pop();
+    localStorage.setItem('weekly_state', prev);
+    rerender();
+    const btn = document.getElementById('wkUndoBtn');
+    if (btn) { btn.textContent = '✓ Undone!'; setTimeout(() => { btn.textContent = '↩ Undo'; }, 1200); }
+  };
 
   // ── Objective toggle / delete ─────────────────────────────────────────────
   window.weeklyToggleObj = (i) => {
