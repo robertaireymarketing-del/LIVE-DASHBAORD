@@ -734,7 +734,7 @@ export function renderProgressTab(deps) {
             <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${eyebrowCol};margin-bottom:8px;">EDIT · ${formatStepDate(ds).toUpperCase()}</div>
             <div style="display:flex;gap:6px;align-items:center;">
               <input type="number" id="cal-manualSteps-${ds}" placeholder="Steps" value="${dayData.manualSteps || ''}"
-                style="flex:1;background:${inputBg};border:1px solid ${inputBorder};border-radius:6px;color:${inputColor};padding:7px 10px;font-size:14px;font-weight:700;outline:none;">
+                style="flex:1;background:${inputBg};border:1px solid ${inputBorder};border-radius:6px;color:${tx('#ffffff','#111111')};padding:7px 10px;font-size:14px;font-weight:700;outline:none;">
               <button onclick="logManualCalories('${ds}','manualSteps')"
                 style="background:rgba(52,152,219,0.18);border:1px solid rgba(52,152,219,0.35);border-radius:6px;color:#3498db;padding:7px 12px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">SAVE</button>
               <button onclick="(function(){var inp=document.getElementById('cal-manualSteps-${ds}');inp.value=0;logManualCalories('${ds}','manualSteps');})()"
@@ -747,13 +747,14 @@ export function renderProgressTab(deps) {
       return `
       <div class="stat-card" style="padding:14px;margin-bottom:16px;">
         <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:${eyebrowCol};margin-bottom:12px;">👟 MANUAL STEPS</div>
+        <style>#manual-step-count::placeholder{color:${tx('rgba(255,255,255,0.35)','rgba(0,0,0,0.3)')}!important;}</style>
 
         <!-- Add new entry -->
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="date" id="manual-step-date" value="${todayStr}" max="${todayStr}"
-            style="flex:1;background:${inputBg};border:1px solid ${inputBorder};border-radius:8px;color:${dateColor};padding:8px 10px;font-size:12px;font-weight:600;outline:none;min-width:0;color-scheme:${isLight ? 'light' : 'dark'};">
+            style="flex:1;background:${inputBg};border:1px solid ${inputBorder};border-radius:8px;color:${tx('#ffffff','#111111')};padding:8px 10px;font-size:12px;font-weight:600;outline:none;min-width:0;color-scheme:${isLight ? 'light' : 'dark'};">
           <input type="number" id="manual-step-count" placeholder="Steps"
-            style="width:90px;flex-shrink:0;background:${inputBg};border:1px solid ${inputBorder};border-radius:8px;color:${inputColor};padding:8px 10px;font-size:13px;font-weight:700;outline:none;">
+            style="width:90px;flex-shrink:0;background:${inputBg};border:1px solid ${inputBorder};border-radius:8px;color:${tx('#ffffff','#111111')};padding:8px 10px;font-size:13px;font-weight:700;outline:none;" placeholder-color="rgba(255,255,255,0.4)">
           <button onclick="(function(){
             var date  = document.getElementById('manual-step-date').value;
             var steps = parseInt(document.getElementById('manual-step-count').value);
