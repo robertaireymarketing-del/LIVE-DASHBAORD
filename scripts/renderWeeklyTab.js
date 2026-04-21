@@ -102,10 +102,12 @@ export function renderWeeklyTab() {
   const objsHtml = objs.length===0
     ? `<div class="wk-empty">No objectives yet — tap "+ Add" to get started</div>`
     : objs.map((obj,i) => {
-        const c       = WK_COLORS.find(c=>c.id===obj.color)||WK_COLORS[0];
-        const outcome = obj._review?.outcome;
-        // Flash if it's Sunday on current week and not yet reviewed
-        const flash   = isSunday && isCurrentWeek && !obj._reviewed;
+        const c          = WK_COLORS.find(c=>c.id===obj.color)||WK_COLORS[0];
+        const outcome    = obj._review?.outcome;
+        const flash      = isSunday && isCurrentWeek && !obj._reviewed;
+        const subtasks   = obj.subtasks || [];
+        const subDone    = subtasks.filter(s=>s.done).length;
+        const isExpanded = window._wkExpandedObj === i;
 
         let rowCls  = 'wk-obj-row';
         if (flash)                                    rowCls += ' wk-sunday-flash';
@@ -124,29 +126,50 @@ export function renderWeeklyTab() {
 
         const isChecked = obj.done || outcome==='completed';
 
+        const subtaskPanel = `
+        <div style="margin:0 0 10px 34px;background:#f9f8f5;border-radius:8px;border:1px solid #e5e3dc;overflow:hidden;">
+          ${subtasks.length > 0 ? `
+          <div style="padding:8px 12px 0;">
+            ${subtasks.map((st,si)=>`
+            <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f0ede5;">
+              <div class="wk-task-chk${st.done?' checked':''}" onclick="weeklyToggleSubtask(${i},${si})" style="flex-shrink:0;"></div>
+              <span style="flex:1;font-size:13px;font-weight:600;color:${st.done?'#aaa89f':'#1a1917'};${st.done?'text-decoration:line-through;':''};word-break:break-word;">${wkEsc(st.text)}</span>
+              ${st.duration ? `<span style="font-size:10px;font-weight:700;color:#aaa89f;background:#ede9e0;border-radius:4px;padding:2px 6px;white-space:nowrap;flex-shrink:0;">⏱ ${wkEsc(st.duration)}</span>` : ''}
+              <span onclick="weeklyDeleteSubtask(${i},${si})" style="cursor:pointer;color:#d95b5b;font-size:13px;flex-shrink:0;padding:0 2px;">✕</span>
+            </div>`).join('')}
+          </div>` : ''}
+          <div style="display:flex;gap:6px;padding:10px 12px;align-items:center;">
+            <input id="wkSubInp${i}" class="wk-day-form-inp" placeholder="New subtask..." style="flex:1;padding:7px 10px;font-size:13px;" onkeydown="if(event.key==='Enter')weeklyAddSubtask(${i})" />
+            <input id="wkSubDur${i}" class="wk-day-form-inp" placeholder="e.g. 30m" style="width:72px;padding:7px 8px;font-size:13px;" onkeydown="if(event.key==='Enter')weeklyAddSubtask(${i})" />
+            <button onclick="weeklyAddSubtask(${i})" style="background:#1a1917;border:none;border-radius:8px;padding:7px 14px;color:#fff;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">+ Add</button>
+          </div>
+        </div>`;
+
         return `
         <div class="${rowCls}" id="wkObjRow${i}">
           <div class="wk-obj-bar" style="background:${barColor}"></div>
           <div class="wk-obj-chk${isChecked?' checked':''}" style="${chkStyle}" onclick="weeklyToggleObj(${i})"></div>
-          <div class="wk-obj-body">
+          <div class="wk-obj-body" onclick="weeklyToggleSubtasks(${i})" style="cursor:pointer;flex:1;">
             <div class="wk-obj-name" style="${nameColor}">${wkEsc(obj.name)}</div>
             <div class="wk-obj-meta">
               ${obj.tag ? `<span class="wk-obj-tag" style="background:${c.hex}18;color:${c.hex}">${wkEsc(obj.tag)}</span>` : ''}
+              ${subtasks.length > 0 ? `<span style="font-size:10px;font-weight:800;color:${subDone===subtasks.length?'#4caf7d':c.hex};background:${c.hex}12;border-radius:4px;padding:1px 6px;">${subDone}/${subtasks.length} subtasks ${isExpanded?'▲':'▼'}</span>` : `<span style="font-size:10px;color:#aaa89f;">${isExpanded?'▲ hide':'▼ subtasks'}</span>`}
               ${obj._carriedOver ? `<span class="wk-carried">↩ carried over</span>` : ''}
-              ${obj._reviewed    ? `<span class="wk-badge wk-badge-reviewed" onclick="weeklyOpenReview(${i})" style="cursor:pointer;">✓ reviewed</span>` : ''}
+              ${obj._reviewed    ? `<span class="wk-badge wk-badge-reviewed" onclick="event.stopPropagation();weeklyOpenReview(${i})" style="cursor:pointer;">✓ reviewed</span>` : ''}
               ${outcome==='failed'     ? `<span class="wk-badge wk-badge-failed">✗ Failed</span>` : ''}
               ${outcome==='completed'  ? `<span class="wk-badge wk-badge-completed">✓ Completed</span>` : ''}
               ${outcome==='duplicated' ? `<span class="wk-badge wk-badge-duplicated">↗ Next week</span>` : ''}
             </div>
           </div>
-          <div class="wk-obj-actions">
+          <div class="wk-obj-actions" onclick="event.stopPropagation()">
             ${isCurrentWeek && !obj._reviewed
               ? `<div class="wk-obj-review-btn" onclick="weeklyOpenReview(${i})">Review</div>`
               : ''}
             <div class="wk-obj-edit" onclick="weeklyStartEditObj(${i})">✎</div>
             <div class="wk-obj-del"  onclick="weeklyDeleteObj(${i})">✕</div>
           </div>
-        </div>`;
+        </div>
+        ${isExpanded ? subtaskPanel : ''}`;
       }).join('');
 
   // ── Day block builder ────────────────────────────────────────────────────────
@@ -648,10 +671,7 @@ export function renderWeeklyTab() {
     <button class="wk-sec-btn" onclick="weeklyToggleWinForm()">+ Add</button>
   </div>
   <div class="wk-obj-form" id="wkWinForm">
-    <input type="text" class="wk-form-inp" id="wkWinInput" placeholder="Something you achieved this week..." onkeydown="if(event.key==='Enter')weeklySaveWin()" />
-    <div style="display:flex;gap:4px;flex-wrap:nowrap;margin:8px 0 4px;">
-      ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d,i)=>`<button id="wkWinDay${i}" onclick="wkWinPickDay(${i},this)" style="flex:1;padding:5px 2px;border-radius:7px;border:1px solid #d8d5cc;background:#f7f6f2;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:#6b6860;cursor:pointer;">${d}</button>`).join('')}
-    </div>
+    <input type="text" class="wk-form-inp" id="wkWinInput" placeholder="Something you achieved this week..." />
     <div class="wk-form-row" style="justify-content:flex-end;">
       <button class="wk-btn-cancel" onclick="weeklyToggleWinForm()">Cancel</button>
       <button class="wk-btn-save"   onclick="weeklySaveWin()">Add</button>
@@ -663,9 +683,7 @@ export function renderWeeklyTab() {
       : wins.map((w,i)=>`
         <div class="wk-win-row" id="wkWin${i}">
           <span class="wk-win-dot">★</span>
-          ${w.day!==undefined ? `<span style="font-size:9px;font-weight:900;color:#C9A84C;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);border-radius:6px;padding:1px 6px;white-space:nowrap;flex-shrink:0;">${['MON','TUE','WED','THU','FRI','SAT','SUN'][w.day]||''}</span>` : ''}
-          <span class="wk-win-text" style="flex:1;">${wkEsc(w.text)}</span>
-          <span class="wk-win-edit" onclick="weeklyStartEditWin(${i})" style="cursor:pointer;color:#aaa89f;font-size:14px;padding:0 4px;flex-shrink:0;">✎</span>
+          <span class="wk-win-text">${wkEsc(w.text)}</span>
           <span class="wk-win-del" onclick="weeklyDeleteWin(${i})">✕</span>
         </div>`).join('')
     }
@@ -757,110 +775,25 @@ export function initWeeklyTab() {
   };
 
   // ── Things I Got Done ────────────────────────────────────────────────────
-  const DAYS_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-
   window.weeklyToggleWinForm = () => {
     const f = document.getElementById('wkWinForm'); if (!f) return;
     const opening = !f.classList.contains('open');
     f.classList.toggle('open');
-    if (opening) {
-      document.getElementById('wkWinInput')?.focus();
-      // Default to today's day
-      const todayIdx = (new Date().getDay() + 6) % 7;
-      window._wkWinDay = todayIdx;
-      document.querySelectorAll('[id^="wkWinDay"]').forEach(b => {
-        const idx = parseInt(b.id.replace('wkWinDay',''));
-        b.style.background   = idx === todayIdx ? '#1a1917' : '#f7f6f2';
-        b.style.color        = idx === todayIdx ? '#fff'    : '#6b6860';
-        b.style.borderColor  = idx === todayIdx ? '#1a1917' : '#d8d5cc';
-      });
-    } else {
-      document.getElementById('wkWinInput').value = '';
-      window._wkWinDay = undefined;
-    }
+    if (opening) document.getElementById('wkWinInput')?.focus();
+    else document.getElementById('wkWinInput').value = '';
   };
-
-  window.wkWinPickDay = (idx, el) => {
-    window._wkWinDay = idx;
-    document.querySelectorAll('[id^="wkWinDay"]').forEach(b => {
-      b.style.background  = '#f7f6f2';
-      b.style.color       = '#6b6860';
-      b.style.borderColor = '#d8d5cc';
-    });
-    el.style.background  = '#1a1917';
-    el.style.color       = '#fff';
-    el.style.borderColor = '#1a1917';
-  };
-
   window.weeklySaveWin = () => {
     const text = (document.getElementById('wkWinInput')?.value||'').trim();
     if (!text) return;
     const ws = wkGetWS(window._weeklyOffset);
     if (!ws.wins) ws.wins = [];
-    const entry = { text, addedAt: Date.now() };
-    if (window._wkWinDay !== undefined) entry.day = window._wkWinDay;
-    ws.wins.push(entry);
+    ws.wins.push({ text, addedAt: Date.now() });
     wkSaveWS(ws, window._weeklyOffset);
     rerender();
   };
-
   window.weeklyDeleteWin = (i) => {
     const ws = wkGetWS(window._weeklyOffset);
     (ws.wins||[]).splice(i, 1);
-    wkSaveWS(ws, window._weeklyOffset);
-    rerender();
-  };
-
-  window.weeklyStartEditWin = (i) => {
-    const ws  = wkGetWS(window._weeklyOffset);
-    const win = ws.wins?.[i]; if (!win) return;
-    const el  = document.getElementById(`wkWin${i}`); if (!el) return;
-
-    window._wkEditWinDay = win.day;
-
-    const dayBtns = DAYS_SHORT.map((d, di) => {
-      const active = win.day === di;
-      return `<button id="wkEditWinDay${i}_${di}" onclick="wkEditWinPickDay(${i},${di},this)"
-        style="flex:1;padding:5px 2px;border-radius:7px;border:1px solid ${active?'#1a1917':'#d8d5cc'};
-        background:${active?'#1a1917':'#f7f6f2'};font-family:'DM Mono',monospace;font-size:10px;
-        font-weight:700;color:${active?'#fff':'#6b6860'};cursor:pointer;">${d}</button>`;
-    }).join('');
-
-    el.innerHTML = `
-      <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
-        <input id="wkEditWinInp${i}" class="wk-day-form-inp"
-          value="${wkEsc(win.text)}"
-          style="padding:4px 0 8px;border-bottom:1px solid #e5e3dc;width:100%;"
-          onkeydown="if(event.key==='Enter')weeklySaveEditWin(${i});if(event.key==='Escape')rerender()" />
-        <div style="display:flex;gap:4px;flex-wrap:nowrap;">${dayBtns}</div>
-        <div style="display:flex;gap:8px;">
-          <button class="wk-btn-cancel wk-btn-sm" onclick="rerender()">Cancel</button>
-          <button class="wk-btn-save wk-btn-sm"   onclick="weeklySaveEditWin(${i})">Save</button>
-        </div>
-      </div>`;
-    document.getElementById(`wkEditWinInp${i}`)?.focus();
-  };
-
-  window.wkEditWinPickDay = (winIdx, dayIdx, el) => {
-    window._wkEditWinDay = dayIdx;
-    document.querySelectorAll(`[id^="wkEditWinDay${winIdx}_"]`).forEach(b => {
-      b.style.background  = '#f7f6f2';
-      b.style.color       = '#6b6860';
-      b.style.borderColor = '#d8d5cc';
-    });
-    el.style.background  = '#1a1917';
-    el.style.color       = '#fff';
-    el.style.borderColor = '#1a1917';
-  };
-
-  window.weeklySaveEditWin = (i) => {
-    const text = (document.getElementById(`wkEditWinInp${i}`)?.value||'').trim();
-    if (!text) return;
-    const ws = wkGetWS(window._weeklyOffset);
-    if (!ws.wins?.[i]) return;
-    ws.wins[i] = { ...ws.wins[i], text };
-    if (window._wkEditWinDay !== undefined) ws.wins[i].day = window._wkEditWinDay;
-    else delete ws.wins[i].day;
     wkSaveWS(ws, window._weeklyOffset);
     rerender();
   };
@@ -968,6 +901,62 @@ export function initWeeklyTab() {
       () => weeklyConfirmArchiveObj(i)
     );
   };
+  // ── Subtasks ──────────────────────────────────────────────────────────────
+  window.weeklyToggleSubtasks = (i) => {
+    window._wkExpandedObj = window._wkExpandedObj === i ? null : i;
+    rerender();
+    // Focus the input after expand
+    if (window._wkExpandedObj === i) {
+      setTimeout(() => document.getElementById('wkSubInp'+i)?.focus(), 50);
+    }
+  };
+
+  window.weeklyAddSubtask = (objIdx) => {
+    const text = (document.getElementById('wkSubInp'+objIdx)?.value||'').trim();
+    if (!text) return;
+    const dur  = (document.getElementById('wkSubDur'+objIdx)?.value||'').trim();
+    const ws   = wkGetWS(window._weeklyOffset);
+    const obj  = ws.objectives[objIdx]; if (!obj) return;
+    if (!obj.subtasks) obj.subtasks = [];
+    obj.subtasks.push({ text, duration: dur, done: false, addedAt: Date.now() });
+
+    // Also add to today's tasks
+    const todayIdx = (new Date().getDay() + 6) % 7;
+    if (!ws.days[todayIdx])       ws.days[todayIdx]       = {};
+    if (!ws.days[todayIdx].tasks) ws.days[todayIdx].tasks = [];
+    ws.days[todayIdx].tasks.push({
+      name:   dur ? text + ' (' + dur + ')' : text,
+      color:  obj.color || 'gold',
+      period: 'am',
+      done:   false,
+      fromObjective: obj.name,
+    });
+
+    wkSaveWS(ws, window._weeklyOffset);
+    rerender();
+    setTimeout(() => {
+      const inp = document.getElementById('wkSubInp'+objIdx);
+      if (inp) { inp.value = ''; inp.focus(); }
+      const dur = document.getElementById('wkSubDur'+objIdx);
+      if (dur) dur.value = '';
+    }, 30);
+  };
+
+  window.weeklyToggleSubtask = (objIdx, subIdx) => {
+    const ws = wkGetWS(window._weeklyOffset);
+    const st = ws.objectives[objIdx]?.subtasks?.[subIdx]; if (!st) return;
+    st.done = !st.done;
+    wkSaveWS(ws, window._weeklyOffset);
+    rerender();
+  };
+
+  window.weeklyDeleteSubtask = (objIdx, subIdx) => {
+    const ws = wkGetWS(window._weeklyOffset);
+    ws.objectives[objIdx]?.subtasks?.splice(subIdx, 1);
+    wkSaveWS(ws, window._weeklyOffset);
+    rerender();
+  };
+
   window.weeklyConfirmCancel = (e) => {
     if (e && e.target?.id !== 'wkConfirmOverlay' && e.type === 'click') return;
     document.getElementById('wkConfirmOverlay').style.display = 'none';
