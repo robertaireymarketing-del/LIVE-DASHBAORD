@@ -36,7 +36,39 @@ function wkGetWS(offset) {
 }
 function wkSaveWS(ws, offset) { const a=wkLoadAll(); a[wkGetKey(offset)]=ws; wkSaveAll(a); }
 
-function wkApplyCarryOver(offset) { /* disabled — carry-over only via explicit review action */ }
+function wkApplyCarryOver(offset) {
+  if (offset !== 0) return;
+  const todayISO = new Date().toISOString().slice(0, 10);
+  if (localStorage.getItem('wk_rollover_date') === todayISO) return;
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayDayIdx = (today.getDay() + 6) % 7;
+
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  const yesterdayDayIdx = (yesterday.getDay() + 6) % 7;
+  const yesterdayOffset = todayDayIdx === 0 ? -1 : 0;
+
+  const todayWS     = wkGetWS(0);
+  const yesterdayWS = wkGetWS(yesterdayOffset);
+  const incomplete  = (yesterdayWS.days[yesterdayDayIdx]?.tasks || []).filter(t => !t.done);
+
+  if (incomplete.length > 0) {
+    if (!todayWS.days[todayDayIdx])       todayWS.days[todayDayIdx]       = {};
+    if (!todayWS.days[todayDayIdx].tasks) todayWS.days[todayDayIdx].tasks = [];
+    const existing = new Set(todayWS.days[todayDayIdx].tasks.map(t => t.name));
+    let added = 0;
+    incomplete.forEach(task => {
+      if (!existing.has(task.name)) {
+        todayWS.days[todayDayIdx].tasks.push({ ...task, done: false, rolledOver: true });
+        existing.add(task.name);
+        added++;
+      }
+    });
+    if (added > 0) wkSaveWS(todayWS, 0);
+  }
+
+  localStorage.setItem('wk_rollover_date', todayISO);
+}
 
 function wkSwatchesHtml(selected, onclick) {
   return WK_COLORS.map(c =>
@@ -172,6 +204,7 @@ export function renderWeeklyTab() {
         <div class="wk-task-dot" style="background:${tc.hex}"></div>
         <div class="wk-task-chk${task.done?' checked':''}" onclick="weeklyToggleTask(${i},${ti})"></div>
         <span class="wk-task-name">${wkEsc(task.name)}</span>
+        ${task.rolledOver ? '<span style="font-size:9px;font-weight:900;color:#e67e22;background:rgba(230,126,34,0.12);border:1px solid rgba(230,126,34,0.3);border-radius:8px;padding:1px 5px;white-space:nowrap;">↩ rolled</span>' : ''}
         <span class="wk-task-edit" onclick="weeklyStartEditTask(${i},${ti})">✎</span>
         <span class="wk-task-del"  onclick="if(confirm('Archive this task?'))weeklyDeleteTask(${i},${ti})">✕</span>
       </div>`;
@@ -1256,10 +1289,6 @@ export function initWeeklyTab() {
   };
   window.weeklyDeleteTask = (dayIdx, taskIdx) => {
     const ws = wkGetWS(window._weeklyOffset);
-    const task = ws.days[dayIdx]?.tasks?.[taskIdx]; if (!task) return;
-    if (!ws.archive)       ws.archive       = { tasks:[], objectives:[] };
-    if (!ws.archive.tasks) ws.archive.tasks = [];
-    ws.archive.tasks.push({ ...task, dayIdx, archivedAt: Date.now() });
     ws.days[dayIdx].tasks.splice(taskIdx, 1);
     wkSaveWS(ws, window._weeklyOffset);
     rerender();
