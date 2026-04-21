@@ -36,39 +36,7 @@ function wkGetWS(offset) {
 }
 function wkSaveWS(ws, offset) { const a=wkLoadAll(); a[wkGetKey(offset)]=ws; wkSaveAll(a); }
 
-function wkApplyCarryOver(offset) {
-  if (offset !== 0) return;
-  const todayISO = new Date().toISOString().slice(0, 10);
-  if (localStorage.getItem('wk_rollover_date') === todayISO) return;
-
-  const today = new Date(); today.setHours(0,0,0,0);
-  const todayDayIdx = (today.getDay() + 6) % 7;
-
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-  const yesterdayDayIdx = (yesterday.getDay() + 6) % 7;
-  const yesterdayOffset = todayDayIdx === 0 ? -1 : 0;
-
-  const todayWS     = wkGetWS(0);
-  const yesterdayWS = wkGetWS(yesterdayOffset);
-  const incomplete  = (yesterdayWS.days[yesterdayDayIdx]?.tasks || []).filter(t => !t.done);
-
-  if (incomplete.length > 0) {
-    if (!todayWS.days[todayDayIdx])       todayWS.days[todayDayIdx]       = {};
-    if (!todayWS.days[todayDayIdx].tasks) todayWS.days[todayDayIdx].tasks = [];
-    const existing = new Set(todayWS.days[todayDayIdx].tasks.map(t => t.name));
-    let added = 0;
-    incomplete.forEach(task => {
-      if (!existing.has(task.name)) {
-        todayWS.days[todayDayIdx].tasks.push({ ...task, done: false, rolledOver: true });
-        existing.add(task.name);
-        added++;
-      }
-    });
-    if (added > 0) wkSaveWS(todayWS, 0);
-  }
-
-  localStorage.setItem('wk_rollover_date', todayISO);
-}
+function wkApplyCarryOver(offset) { /* disabled — carry-over only via explicit review action */ }
 
 function wkSwatchesHtml(selected, onclick) {
   return WK_COLORS.map(c =>
@@ -204,9 +172,8 @@ export function renderWeeklyTab() {
         <div class="wk-task-dot" style="background:${tc.hex}"></div>
         <div class="wk-task-chk${task.done?' checked':''}" onclick="weeklyToggleTask(${i},${ti})"></div>
         <span class="wk-task-name">${wkEsc(task.name)}</span>
-        ${task.rolledOver ? '<span style="font-size:9px;font-weight:900;color:#e67e22;background:rgba(230,126,34,0.12);border:1px solid rgba(230,126,34,0.3);border-radius:8px;padding:1px 5px;white-space:nowrap;">↩ rolled</span>' : ''}
         <span class="wk-task-edit" onclick="weeklyStartEditTask(${i},${ti})">✎</span>
-        <span class="wk-task-del"  onclick="if(confirm('Archive this task?'))weeklyDeleteTask(${i},${ti})">✕</span>
+        <span class="wk-task-del"  onclick="weeklyDeleteTask(${i},${ti})">✕</span>
       </div>`;
     };
 
@@ -681,7 +648,10 @@ export function renderWeeklyTab() {
     <button class="wk-sec-btn" onclick="weeklyToggleWinForm()">+ Add</button>
   </div>
   <div class="wk-obj-form" id="wkWinForm">
-    <input type="text" class="wk-form-inp" id="wkWinInput" placeholder="Something you achieved this week..." />
+    <input type="text" class="wk-form-inp" id="wkWinInput" placeholder="Something you achieved this week..." onkeydown="if(event.key==='Enter')weeklySaveWin()" />
+    <div style="display:flex;gap:4px;flex-wrap:nowrap;margin:8px 0 4px;">
+      ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d,i)=>`<button id="wkWinDay${i}" onclick="wkWinPickDay(${i},this)" style="flex:1;padding:5px 2px;border-radius:7px;border:1px solid #d8d5cc;background:#f7f6f2;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:#6b6860;cursor:pointer;">${d}</button>`).join('')}
+    </div>
     <div class="wk-form-row" style="justify-content:flex-end;">
       <button class="wk-btn-cancel" onclick="weeklyToggleWinForm()">Cancel</button>
       <button class="wk-btn-save"   onclick="weeklySaveWin()">Add</button>
@@ -693,7 +663,9 @@ export function renderWeeklyTab() {
       : wins.map((w,i)=>`
         <div class="wk-win-row" id="wkWin${i}">
           <span class="wk-win-dot">★</span>
-          <span class="wk-win-text">${wkEsc(w.text)}</span>
+          ${w.day!==undefined ? `<span style="font-size:9px;font-weight:900;color:#C9A84C;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);border-radius:6px;padding:1px 6px;white-space:nowrap;flex-shrink:0;">${['MON','TUE','WED','THU','FRI','SAT','SUN'][w.day]||''}</span>` : ''}
+          <span class="wk-win-text" style="flex:1;">${wkEsc(w.text)}</span>
+          <span class="wk-win-edit" onclick="weeklyStartEditWin(${i})" style="cursor:pointer;color:#aaa89f;font-size:14px;padding:0 4px;flex-shrink:0;">✎</span>
           <span class="wk-win-del" onclick="weeklyDeleteWin(${i})">✕</span>
         </div>`).join('')
     }
@@ -785,25 +757,110 @@ export function initWeeklyTab() {
   };
 
   // ── Things I Got Done ────────────────────────────────────────────────────
+  const DAYS_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
   window.weeklyToggleWinForm = () => {
     const f = document.getElementById('wkWinForm'); if (!f) return;
     const opening = !f.classList.contains('open');
     f.classList.toggle('open');
-    if (opening) document.getElementById('wkWinInput')?.focus();
-    else document.getElementById('wkWinInput').value = '';
+    if (opening) {
+      document.getElementById('wkWinInput')?.focus();
+      // Default to today's day
+      const todayIdx = (new Date().getDay() + 6) % 7;
+      window._wkWinDay = todayIdx;
+      document.querySelectorAll('[id^="wkWinDay"]').forEach(b => {
+        const idx = parseInt(b.id.replace('wkWinDay',''));
+        b.style.background   = idx === todayIdx ? '#1a1917' : '#f7f6f2';
+        b.style.color        = idx === todayIdx ? '#fff'    : '#6b6860';
+        b.style.borderColor  = idx === todayIdx ? '#1a1917' : '#d8d5cc';
+      });
+    } else {
+      document.getElementById('wkWinInput').value = '';
+      window._wkWinDay = undefined;
+    }
   };
+
+  window.wkWinPickDay = (idx, el) => {
+    window._wkWinDay = idx;
+    document.querySelectorAll('[id^="wkWinDay"]').forEach(b => {
+      b.style.background  = '#f7f6f2';
+      b.style.color       = '#6b6860';
+      b.style.borderColor = '#d8d5cc';
+    });
+    el.style.background  = '#1a1917';
+    el.style.color       = '#fff';
+    el.style.borderColor = '#1a1917';
+  };
+
   window.weeklySaveWin = () => {
     const text = (document.getElementById('wkWinInput')?.value||'').trim();
     if (!text) return;
     const ws = wkGetWS(window._weeklyOffset);
     if (!ws.wins) ws.wins = [];
-    ws.wins.push({ text, addedAt: Date.now() });
+    const entry = { text, addedAt: Date.now() };
+    if (window._wkWinDay !== undefined) entry.day = window._wkWinDay;
+    ws.wins.push(entry);
     wkSaveWS(ws, window._weeklyOffset);
     rerender();
   };
+
   window.weeklyDeleteWin = (i) => {
     const ws = wkGetWS(window._weeklyOffset);
     (ws.wins||[]).splice(i, 1);
+    wkSaveWS(ws, window._weeklyOffset);
+    rerender();
+  };
+
+  window.weeklyStartEditWin = (i) => {
+    const ws  = wkGetWS(window._weeklyOffset);
+    const win = ws.wins?.[i]; if (!win) return;
+    const el  = document.getElementById(`wkWin${i}`); if (!el) return;
+
+    window._wkEditWinDay = win.day;
+
+    const dayBtns = DAYS_SHORT.map((d, di) => {
+      const active = win.day === di;
+      return `<button id="wkEditWinDay${i}_${di}" onclick="wkEditWinPickDay(${i},${di},this)"
+        style="flex:1;padding:5px 2px;border-radius:7px;border:1px solid ${active?'#1a1917':'#d8d5cc'};
+        background:${active?'#1a1917':'#f7f6f2'};font-family:'DM Mono',monospace;font-size:10px;
+        font-weight:700;color:${active?'#fff':'#6b6860'};cursor:pointer;">${d}</button>`;
+    }).join('');
+
+    el.innerHTML = `
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+        <input id="wkEditWinInp${i}" class="wk-day-form-inp"
+          value="${wkEsc(win.text)}"
+          style="padding:4px 0 8px;border-bottom:1px solid #e5e3dc;width:100%;"
+          onkeydown="if(event.key==='Enter')weeklySaveEditWin(${i});if(event.key==='Escape')rerender()" />
+        <div style="display:flex;gap:4px;flex-wrap:nowrap;">${dayBtns}</div>
+        <div style="display:flex;gap:8px;">
+          <button class="wk-btn-cancel wk-btn-sm" onclick="rerender()">Cancel</button>
+          <button class="wk-btn-save wk-btn-sm"   onclick="weeklySaveEditWin(${i})">Save</button>
+        </div>
+      </div>`;
+    document.getElementById(`wkEditWinInp${i}`)?.focus();
+  };
+
+  window.wkEditWinPickDay = (winIdx, dayIdx, el) => {
+    window._wkEditWinDay = dayIdx;
+    document.querySelectorAll(`[id^="wkEditWinDay${winIdx}_"]`).forEach(b => {
+      b.style.background  = '#f7f6f2';
+      b.style.color       = '#6b6860';
+      b.style.borderColor = '#d8d5cc';
+    });
+    el.style.background  = '#1a1917';
+    el.style.color       = '#fff';
+    el.style.borderColor = '#1a1917';
+  };
+
+  window.weeklySaveEditWin = (i) => {
+    const text = (document.getElementById(`wkEditWinInp${i}`)?.value||'').trim();
+    if (!text) return;
+    const ws = wkGetWS(window._weeklyOffset);
+    if (!ws.wins?.[i]) return;
+    ws.wins[i] = { ...ws.wins[i], text };
+    if (window._wkEditWinDay !== undefined) ws.wins[i].day = window._wkEditWinDay;
+    else delete ws.wins[i].day;
     wkSaveWS(ws, window._weeklyOffset);
     rerender();
   };
