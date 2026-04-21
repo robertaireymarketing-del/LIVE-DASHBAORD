@@ -64,5 +64,6 @@ export const state = {
   monthTargetsOpen: false,
   pastDaysOpen: false,
   pastDayEditing: null,
-  objModalDate: null
+  objModalDate: null,
+  taskDeleteConfirm: null,  // { fk, ti, text } — set when user taps remove on a draft task
 };

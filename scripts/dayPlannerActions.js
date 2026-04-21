@@ -177,6 +177,68 @@ export function initDayPlannerActions({
   }
 
 
+  // ── Manual task rollover helper ────────────────────────────────────────
+  // Runs once per calendar day. Checks yesterday's manual front tasks and
+  // carries any that weren't marked done into today's plan automatically.
+  async function rolloverIncompleteTasks() {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const todayISO = today.toISOString().split('T')[0];
+
+    // Only run once per calendar day
+    if (state.data.lastTaskRolloverDate === todayISO) return 0;
+
+    const DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
+    const todayDayKey = DAY_KEYS[today.getDay()];
+    const todayWeekKey = getWeekKey(today);
+
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const yesterdayISO = yesterday.toISOString().split('T')[0];
+    const yesterdayDayKey = DAY_KEYS[yesterday.getDay()];
+    const yesterdayWeekKey = getWeekKey(yesterday);
+
+    if (!state.data.projectFronts) state.data.projectFronts = getProjectFronts();
+
+    const yesterdayDone = state.data.frontsDone?.[yesterdayISO] || {};
+    let rolledOver = 0;
+
+    ['tjm','vinted','notts','_other'].forEach(fk => {
+      const yesterdayRaw = state.data.projectFronts?.[fk]?.weekPlans?.[yesterdayWeekKey]?.[yesterdayDayKey] || [];
+      const yesterdayTasks = Array.isArray(yesterdayRaw) ? yesterdayRaw : (yesterdayRaw ? [yesterdayRaw] : []);
+      if (!yesterdayTasks.length) return;
+
+      // Ensure today's structure exists
+      if (!state.data.projectFronts[fk]) state.data.projectFronts[fk] = { name: fk === '_other' ? 'Other' : fk, status: 'pipeline', weekPlans: {} };
+      if (!state.data.projectFronts[fk].weekPlans) state.data.projectFronts[fk].weekPlans = {};
+      if (!state.data.projectFronts[fk].weekPlans[todayWeekKey]) state.data.projectFronts[fk].weekPlans[todayWeekKey] = {};
+
+      const todayRaw = state.data.projectFronts[fk].weekPlans[todayWeekKey][todayDayKey] || [];
+      const todayTasks = Array.isArray(todayRaw) ? [...todayRaw] : (todayRaw ? [todayRaw] : []);
+      const todayTexts = new Set(todayTasks.map(t => typeof t === 'object' ? t.text : t));
+
+      yesterdayTasks.forEach(task => {
+        const text = typeof task === 'object' ? task.text : task;
+        if (!text || !text.trim()) return;
+        const doneKey = fk + ':' + text;
+        // Skip if already marked done yesterday, or already in today's list
+        if (yesterdayDone[doneKey] || todayTexts.has(text)) return;
+        todayTasks.push({ ...(typeof task === 'object' ? task : { text }), start: '', end: '', rolledOver: true, rolledOverFrom: yesterdayISO });
+        todayTexts.add(text);
+        rolledOver++;
+      });
+
+      state.data.projectFronts[fk].weekPlans[todayWeekKey][todayDayKey] = todayTasks;
+    });
+
+    state.data.lastTaskRolloverDate = todayISO;
+    if (rolledOver > 0) {
+      await saveData();
+    } else {
+      saveDataQuiet();
+    }
+
+    return rolledOver;
+  }
+
   function getObjectiveBaseDate() {
     return state.objModalDate ? new Date(state.objModalDate) : new Date();
   }
@@ -202,6 +264,7 @@ export function initDayPlannerActions({
 
   function initEmbeddedDayPlanner() {
     rolloverIncompleteBatchSteps(); // fire-and-forget — updates Firebase in background
+    rolloverIncompleteTasks();      // fire-and-forget — carries forward unfinished tasks
     if (state.dayPlannerDraft && state.dayPlannerDay) return; // already initialised
     const weekKey = getWeekKey();
     const fronts = getProjectFronts();
@@ -328,6 +391,7 @@ export function initDayPlannerActions({
   // ── Day Planner ────────────────────────────────────────────────────────
   window.openDayPlanner = async () => {
     await rolloverIncompleteBatchSteps();
+    await rolloverIncompleteTasks();
     const weekKey = getWeekKey();
     const fronts = getProjectFronts();
     const activeDay = getTodayDayKey();
@@ -442,7 +506,47 @@ export function initDayPlannerActions({
   };
 
   window.addDraftTask = (fk) => { if (!state.dayPlannerDraft) state.dayPlannerDraft = {}; if (!state.dayPlannerDraft[fk]) state.dayPlannerDraft[fk] = []; state.dayPlannerDraft[fk].push({ text:'', start:'', end:'' }); render(); };
-  window.removeDraftTask = (fk, ti) => { if (state.dayPlannerDraft?.[fk]) { state.dayPlannerDraft[fk].splice(ti, 1); render(); } };
+
+  window.removeDraftTask = (fk, ti) => {
+    const task = state.dayPlannerDraft?.[fk]?.[ti];
+    if (!task) return;
+    const taskText = ((typeof task === 'object' ? task.text : task) || 'this task')
+      .replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    // Remove any lingering overlay
+    document.getElementById('task-delete-confirm')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'task-delete-confirm';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
+    overlay.innerHTML = `
+      <div style="background:#141e30;border:1px solid rgba(255,255,255,0.14);border-radius:18px;padding:26px 22px;max-width:340px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.6);">
+        <div style="font-size:19px;font-weight:900;color:#fff;margin-bottom:8px;">Remove task?</div>
+        <div style="font-size:14px;color:rgba(255,255,255,0.5);margin-bottom:22px;line-height:1.55;">"${taskText}" will be moved to your task archive — not deleted permanently.</div>
+        <div style="display:flex;gap:10px;">
+          <button id="task-del-confirm-btn" style="flex:1;background:#e74c3c;border:none;border-radius:11px;padding:14px;color:#fff;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit;letter-spacing:0.3px;">Archive Task</button>
+          <button id="task-del-cancel-btn" style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.14);border-radius:11px;padding:14px;color:rgba(255,255,255,0.65);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    document.getElementById('task-del-confirm-btn').onclick = async () => {
+      overlay.remove();
+      const taskObj = typeof task === 'object' ? { ...task } : { text: task, start: '', end: '' };
+      if (!state.data.archivedTasks) state.data.archivedTasks = [];
+      state.data.archivedTasks.push({
+        ...taskObj,
+        frontKey: fk,
+        day: state.dayPlannerDay,
+        archivedAt: new Date().toISOString(),
+      });
+      if (state.dayPlannerDraft?.[fk]) state.dayPlannerDraft[fk].splice(ti, 1);
+      await saveDataQuiet();
+      render();
+    };
+    document.getElementById('task-del-cancel-btn').onclick = () => overlay.remove();
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  };
   window.updateDraftTask = (fk, ti, val, field) => {
     if (!state.dayPlannerDraft?.[fk]) return;
     const existing = state.dayPlannerDraft[fk][ti];
