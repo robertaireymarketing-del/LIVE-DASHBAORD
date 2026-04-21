@@ -453,6 +453,24 @@ export function renderProgressTab(deps) {
           '</div>' +
         '</div>';
 
+      // For each week, find the sync entry for exactly 7 days before wk.endStr.
+      // This gives a true 7-day comparison regardless of calendar week boundaries.
+      const allSync = [...(state.healthData || [])].filter(h => h.bodyFat != null);
+
+      const getBFExact7DaysBefore = (endStr) => {
+        const d = new Date(endStr + 'T12:00:00');
+        d.setDate(d.getDate() - 7);
+        const target = d.toISOString().slice(0, 10);
+        // Find the closest entry on exactly that date
+        const exact = allSync.find(h => h.date === target);
+        if (exact) return exact.bodyFat;
+        // If no exact match, find the nearest entry within ±1 day
+        const near = allSync
+          .filter(h => Math.abs((new Date(h.date + 'T12:00:00') - new Date(target + 'T12:00:00')) / 86400000) <= 1)
+          .sort((a, b) => Math.abs(new Date(a.date) - new Date(target + 'T12:00:00')) - Math.abs(new Date(b.date) - new Date(target + 'T12:00:00')));
+        return near[0]?.bodyFat ?? null;
+      };
+
       const weekRows = weekData.map((wk) => {
         const insertMarker = wk.isCurrent;  // marker goes just before THIS WEEK
         const wkLabel = MN[mo] + ' ' + wk.start + (wk.start !== wk.end ? '–' + wk.end : '');
@@ -482,12 +500,23 @@ export function renderProgressTab(deps) {
 
         let statusEl = '';
         if (wk.locked && wk.actual?.bodyFat != null) {
-          const wksFromNow    = (new Date(wk.actual.date + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / (7 * 86400000);
-          const targetAtPoint = +(currentBF - bfLossRate * wksFromNow).toFixed(1);
-          const onTk = wk.actual.bodyFat <= targetAtPoint + 0.1;
-          statusEl = onTk
-            ? '<span style="font-size:9px;font-weight:800;color:#2ecc71;background:#0a1f14;border:1px solid #1a5a2a;border-radius:4px;padding:2px 7px;">✓ ON TRACK</span>'
-            : '<span style="font-size:9px;font-weight:800;color:#e74c3c;background:#1f0a0a;border:1px solid #5a1a1a;border-radius:4px;padding:2px 7px;">⚠ BEHIND</span>';
+          // Compare this week's BF to the previous week's BF for a real week-on-week change
+          const prevBF      = getBFExact7DaysBefore(wk.endStr);
+          const bfChange    = prevBF != null ? prevBF - wk.actual.bodyFat : null; // positive = lost BF
+
+          if (bfChange === null) {
+            // No previous week to compare — skip status
+            statusEl = '';
+          } else if (bfChange < 0) {
+            // BF went UP — gained
+            statusEl = '<span style="font-size:9px;font-weight:800;color:#e74c3c;background:#1f0a0a;border:1px solid #5a1a1a;border-radius:4px;padding:2px 7px;white-space:nowrap;">▲ GAINED</span>';
+          } else if (bfChange < 0.4) {
+            // Lost less than 0.4% — slow progress
+            statusEl = '<span style="font-size:9px;font-weight:800;color:#f39c12;background:#1f1500;border:1px solid #7a4a00;border-radius:4px;padding:2px 7px;white-space:nowrap;">~ SLOW</span>';
+          } else {
+            // Lost 0.4%+ — on track
+            statusEl = '<span style="font-size:9px;font-weight:800;color:#2ecc71;background:#0a1f14;border:1px solid #1a5a2a;border-radius:4px;padding:2px 7px;white-space:nowrap;">✓ ON TRACK</span>';
+          }
         }
 
         const card = `
