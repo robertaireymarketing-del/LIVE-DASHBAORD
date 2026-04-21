@@ -715,7 +715,7 @@ export function renderProgressTab(deps) {
         '</div>';
       }).join('');
 
-      return \`
+      return `
       <div style="background:#111e2d !important;border-radius:12px;padding:14px;margin-bottom:16px;border:1px solid #1a2e42;">
         <style>
           #manual-step-date, #manual-step-count {
@@ -759,9 +759,9 @@ export function renderProgressTab(deps) {
             style="background:#1a4a6e;border:1px solid #2980b9;border-radius:8px;color:#5dade2;padding:9px 14px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;flex-shrink:0;">ADD</button>
         </div>
 
-        \${entriesHtml}
-        \${manualEntries.length === 0 ? '<div style="font-size:12px;color:#4a6480;text-align:center;padding:14px 0 2px;">No manual entries yet</div>' : ''}
-      </div>\`;
+        ${entriesHtml}
+        ${manualEntries.length === 0 ? '<div style="font-size:12px;color:#4a6480;text-align:center;padding:14px 0 2px;">No manual entries yet</div>' : ''}
+      </div>`;
     })()}
 
         <!-- ══ LATEST SYNC ══ -->
