@@ -420,13 +420,14 @@ export function renderProgressTab(deps) {
         const isPast    = wk.endStr < todayStr;
         const isCurrent = wk.startStr <= todayStr && wk.endStr >= todayStr;
         const isFuture  = wk.startStr > todayStr;
-        const refStr    = isFuture ? wk.startStr : wk.endStr;
-        const daysAhead = Math.max(0, (new Date(refStr + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / 86400000);
-        const wksAhead  = daysAhead / 7;
+        // Always project to END of each week so partial weeks are handled correctly.
+        // e.g. a 2-day final week: daysAhead/7 = 2/7 fraction → proportionally smaller drop.
+        const daysAhead  = Math.max(0, (new Date(wk.endStr + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / 86400000);
+        const wksAhead   = daysAhead / 7;
         // Future projections use the user's TARGET pace (bfLossRate), not actual pace
         const projWtPace = currentWeight * bfLossRate / 100;
-        const projBF    = +(currentBF     - bfLossRate  * wksAhead).toFixed(1);
-        const projWt    = +(currentWeight - projWtPace  * wksAhead).toFixed(1);
+        const projBF     = +(currentBF     - bfLossRate * wksAhead).toFixed(1);
+        const projWt     = +(currentWeight - projWtPace * wksAhead).toFixed(1);
         const dispBF    = actual?.bodyFat != null ? +actual.bodyFat.toFixed(1) : (isPast ? null : projBF);
         const dispWt    = actual?.weight  != null ? +actual.weight.toFixed(1)  : (isPast ? null : projWt);
         const locked    = actual != null;
