@@ -255,6 +255,142 @@ export function renderProgressTab(deps) {
     const syncLabelCol  = tx('rgba(255,255,255,0.3)', 'rgba(0,0,0,0.3)');
 
     return `
+
+    <!-- ══ MONTHLY CALENDAR PROJECTION ══ -->
+    ${(() => {
+      const MN  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const now = new Date(todayStr + 'T12:00:00');
+      const yr  = now.getFullYear();
+      const mo  = now.getMonth();
+      const moStr       = todayStr.slice(0, 7);
+      const daysInMonth = new Date(yr, mo + 1, 0).getDate();
+      const monthLabel  = MN[mo].toUpperCase() + ' ' + yr;
+
+      const pad = n => String(n).padStart(2,'0');
+      const calWeeks = [];
+      let day = 1;
+      while (day <= daysInMonth) {
+        const start    = day;
+        const end      = Math.min(day + 6, daysInMonth);
+        const startStr = yr + '-' + pad(mo+1) + '-' + pad(start);
+        const endStr   = yr + '-' + pad(mo+1) + '-' + pad(end);
+        calWeeks.push({ start, end, startStr, endStr });
+        day += 7;
+      }
+
+      const syncAll = [...(state.healthData || [])]
+        .filter(h => h.date.startsWith(moStr))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const weekData = calWeeks.map((wk) => {
+        const entries   = syncAll.filter(h => h.date >= wk.startStr && h.date <= wk.endStr);
+        const actual    = entries.length > 0 ? entries[entries.length - 1] : null;
+        const isPast    = wk.endStr < todayStr;
+        const isCurrent = wk.startStr <= todayStr && wk.endStr >= todayStr;
+        const isFuture  = wk.startStr > todayStr;
+        const refStr    = isFuture ? wk.startStr : wk.endStr;
+        const daysAhead = Math.max(0, (new Date(refStr + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / 86400000);
+        const wksAhead  = daysAhead / 7;
+        const projBF    = +(currentBF     - effectivePace   * wksAhead).toFixed(1);
+        const projWt    = +(currentWeight - effectiveWtPace * wksAhead).toFixed(1);
+        const dispBF    = actual?.bodyFat != null ? +actual.bodyFat.toFixed(1) : (isPast ? null : projBF);
+        const dispWt    = actual?.weight  != null ? +actual.weight.toFixed(1)  : (isPast ? null : projWt);
+        const locked    = actual != null;
+        return { ...wk, actual, isPast, isCurrent, isFuture, dispBF, dispWt, locked };
+      });
+
+      // YOU ARE HERE block — inserted before the current week
+      const youAreHereHtml =
+        '<div style="background:#0d2a1a;border:2px solid #27ae60;border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">' +
+          '<div>' +
+            '<div style="font-size:8px;font-weight:900;letter-spacing:2px;color:#27ae60;margin-bottom:6px;">📍 YOU ARE HERE</div>' +
+            '<div style="font-size:10px;font-weight:700;color:#4a9a6a;">Today · ' + todayStr.split('-').reverse().map((v,i) => i===2 ? v : v).join('/') + '</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:12px;">' +
+            '<div style="text-align:center;">' +
+              '<div style="font-size:9px;font-weight:900;color:rgba(39,174,96,0.7);letter-spacing:1px;margin-bottom:2px;">WEIGHT</div>' +
+              '<div style="font-size:20px;font-weight:900;color:#2ecc71;letter-spacing:-0.5px;">' + currentWeight + '<span style="font-size:10px;font-weight:600;color:#4a9a6a;"> lb</span></div>' +
+            '</div>' +
+            '<div style="text-align:center;">' +
+              '<div style="font-size:9px;font-weight:900;color:rgba(39,174,96,0.7);letter-spacing:1px;margin-bottom:2px;">BODY FAT</div>' +
+              '<div style="font-size:20px;font-weight:900;color:#2ecc71;letter-spacing:-0.5px;">' + currentBF + '<span style="font-size:10px;font-weight:600;color:#4a9a6a;">%</span></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+      const weekRows = weekData.map((wk) => {
+        const insertMarker = wk.isCurrent;  // marker goes just before THIS WEEK
+        const wkLabel = MN[mo] + ' ' + wk.start + (wk.start !== wk.end ? '–' + wk.end : '');
+
+        const cardBg      = wk.isCurrent ? '#1a2e42'  : wk.isFuture ? '#101822' : '#12202e';
+        const cardBorder  = wk.isCurrent ? '#C9A84C'  : wk.locked    ? '#1e3a52' : '#172030';
+        const borderWidth = wk.isCurrent ? '2px' : '1px';
+        const cardOpacity = wk.isFuture ? 'opacity:0.7;' : '';
+        const dateLabelColor = wk.isCurrent ? '#D4AF37' : wk.locked ? '#a8bfd4' : '#5a7a94';
+        const innerBg     = wk.isCurrent ? '#0f1c2a' : '#0b1520';
+        const innerBorder = wk.isCurrent ? '#2a4a6a' : '#162030';
+        const goldVal     = '#D4AF37';
+        const projVal     = '#5a7a94';
+        const noDataV     = '#2a3a4a';
+        const wtColor     = wk.locked ? goldVal : wk.isFuture ? projVal : noDataV;
+        const bfColor     = wk.locked ? goldVal : wk.isFuture ? projVal : noDataV;
+        const wtDisp      = wk.dispWt != null ? wk.dispWt + ' lb' : '—';
+        const bfDisp      = wk.dispBF != null ? wk.dispBF + '%'   : '—';
+
+        const badge = wk.isCurrent
+          ? '<span style="font-size:8px;font-weight:900;color:#D4AF37;background:#1a2e10;border:1px solid #C9A84C;border-radius:4px;padding:2px 7px;letter-spacing:1px;margin-right:6px;">THIS WEEK</span>'
+          : wk.locked
+            ? '<span style="font-size:8px;font-weight:700;color:#4a9a6a;background:#0a1f14;border:1px solid #1e5a34;border-radius:4px;padding:2px 7px;letter-spacing:1px;margin-right:6px;">🔒 LOCKED</span>'
+            : wk.isFuture
+              ? '<span style="font-size:8px;font-weight:700;color:#3a6a8a;background:#0a1824;border:1px solid #1a4060;border-radius:4px;padding:2px 7px;letter-spacing:1px;margin-right:6px;">~ PROJECTED</span>'
+              : '<span style="font-size:8px;font-weight:700;color:#3a4a5a;background:#0a1520;border:1px solid #1a2a3a;border-radius:4px;padding:2px 7px;letter-spacing:1px;margin-right:6px;">NO DATA</span>';
+
+        let statusEl = '';
+        if (wk.locked && wk.actual?.bodyFat != null) {
+          const wksFromNow    = (new Date(wk.actual.date + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / (7 * 86400000);
+          const targetAtPoint = +(currentBF - bfLossRate * wksFromNow).toFixed(1);
+          const onTk = wk.actual.bodyFat <= targetAtPoint + 0.1;
+          statusEl = onTk
+            ? '<span style="font-size:9px;font-weight:800;color:#2ecc71;background:#0a1f14;border:1px solid #1a5a2a;border-radius:4px;padding:2px 7px;">✓ ON TRACK</span>'
+            : '<span style="font-size:9px;font-weight:800;color:#e74c3c;background:#1f0a0a;border:1px solid #5a1a1a;border-radius:4px;padding:2px 7px;">⚠ BEHIND</span>';
+        }
+
+        const card = `
+        <div style="background:${cardBg};border:${borderWidth} solid ${cardBorder};border-radius:12px;padding:14px;margin-bottom:8px;${cardOpacity}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
+              ${badge}
+              <span style="font-size:13px;font-weight:800;color:${dateLabelColor};">${wkLabel}</span>
+            </div>
+            ${statusEl}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div style="background:${innerBg};border:1px solid ${innerBorder};border-radius:8px;padding:10px 12px;">
+              <div style="font-size:9px;font-weight:900;color:rgba(201,168,76,0.6);letter-spacing:1.5px;margin-bottom:4px;">WEIGHT</div>
+              <div style="font-size:22px;font-weight:900;color:${wtColor};letter-spacing:-0.5px;">${wtDisp}</div>
+            </div>
+            <div style="background:${innerBg};border:1px solid ${innerBorder};border-radius:8px;padding:10px 12px;">
+              <div style="font-size:9px;font-weight:900;color:rgba(201,168,76,0.6);letter-spacing:1.5px;margin-bottom:4px;">BODY FAT</div>
+              <div style="font-size:22px;font-weight:900;color:${bfColor};letter-spacing:-0.5px;">${bfDisp}</div>
+            </div>
+          </div>
+        </div>`;
+
+        return (insertMarker ? youAreHereHtml : '') + card;
+      }).join('');
+
+      const paceNote = !hasEnoughData
+        ? 'Using target pace for projections — actual pace builds after a few days of sync data'
+        : 'Pace: ' + effectivePace.toFixed(2) + '% BF/wk (' + (paceSource === 'blended' ? '60% 7d · 40% overall' : paceSource === 'overall' ? 'overall avg' : '7d avg') + ')';
+
+      return `
+      <div class="section-title" style="margin-top:4px;">${monthLabel}</div>
+      <div style="margin-bottom:16px;">
+        ${weekRows}
+        <div style="font-size:10px;color:rgba(255,255,255,0.3);padding:4px 2px 0;font-weight:600;">${paceNote}</div>
+      </div>`;
+    })()}
+
       <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:rgba(46,204,113,0.8);margin-bottom:7px;">BURN</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:7px;">
         <div style="background:rgba(46,204,113,0.05);border:1px solid rgba(46,204,113,0.14);border-radius:8px;padding:9px;">
@@ -570,129 +706,7 @@ export function renderProgressTab(deps) {
       </div>
     </div>
 
-    <!-- ══ MONTHLY CALENDAR PROJECTION ══ -->
-    ${(() => {
-      const MN  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      const now = new Date(todayStr + 'T12:00:00');
-      const yr  = now.getFullYear();
-      const mo  = now.getMonth();
-      const moStr      = todayStr.slice(0, 7);
-      const daysInMonth = new Date(yr, mo + 1, 0).getDate();
-      const monthLabel  = MN[mo].toUpperCase() + ' ' + yr;
 
-      // Calendar weeks from the 1st in chunks of 7
-      const calWeeks = [];
-      let day = 1;
-      while (day <= daysInMonth) {
-        const start    = day;
-        const end      = Math.min(day + 6, daysInMonth);
-        const pad      = n => String(n).padStart(2,'0');
-        const startStr = yr + '-' + pad(mo+1) + '-' + pad(start);
-        const endStr   = yr + '-' + pad(mo+1) + '-' + pad(end);
-        calWeeks.push({ start, end, startStr, endStr });
-        day += 7;
-      }
-
-      const syncAll = [...(state.healthData || [])]
-        .filter(h => h.date.startsWith(moStr))
-        .sort((a, b) => a.date.localeCompare(b.date));
-
-      const weekData = calWeeks.map((wk) => {
-        const entries   = syncAll.filter(h => h.date >= wk.startStr && h.date <= wk.endStr);
-        const actual    = entries.length > 0 ? entries[entries.length - 1] : null;
-        const isPast    = wk.endStr < todayStr;
-        const isCurrent = wk.startStr <= todayStr && wk.endStr >= todayStr;
-        const isFuture  = wk.startStr > todayStr;
-        const refStr    = isFuture ? wk.startStr : wk.endStr;
-        const daysAhead = Math.max(0, (new Date(refStr + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / 86400000);
-        const wksAhead  = daysAhead / 7;
-        const projBF    = +(currentBF     - effectivePace   * wksAhead).toFixed(1);
-        const projWt    = +(currentWeight - effectiveWtPace * wksAhead).toFixed(1);
-        const dispBF    = actual?.bodyFat != null ? +actual.bodyFat.toFixed(1) : (isPast ? null : projBF);
-        const dispWt    = actual?.weight  != null ? +actual.weight.toFixed(1)  : (isPast ? null : projWt);
-        const locked    = actual != null;
-        return { ...wk, actual, isPast, isCurrent, isFuture, dispBF, dispWt, locked };
-      });
-
-      const weekRows = weekData.map((wk) => {
-        const wkLabel = MN[mo] + ' ' + wk.start + (wk.start !== wk.end ? '–' + wk.end : '');
-
-        // ── card style ────────────────────────────────────────────────────
-        // All cards use solid dark navy (stat-card style) — hardcoded so
-        // they render correctly in both light and dark page modes.
-        const cardBg      = wk.isCurrent ? '#1a2e42'  : wk.isFuture ? '#101822' : '#12202e';
-        const cardBorder  = wk.isCurrent ? '#C9A84C'  : wk.locked    ? '#1e3a52' : '#172030';
-        const borderWidth = wk.isCurrent ? '2px' : '1px';
-        const cardOpacity = wk.isFuture ? 'opacity:0.7;' : '';
-
-        const dateLabelColor = wk.isCurrent ? '#D4AF37' : wk.locked ? '#a8bfd4' : '#5a7a94';
-        const innerBg        = wk.isCurrent ? '#0f1c2a' : '#0b1520';
-        const innerBorder    = wk.isCurrent ? '#2a4a6a' : '#162030';
-
-        // value colours
-        const goldVal  = '#D4AF37';
-        const projVal  = '#5a7a94';
-        const noDataV  = '#2a3a4a';
-
-        const wtColor = wk.locked ? goldVal : wk.isFuture ? projVal : noDataV;
-        const bfColor = wk.locked ? goldVal : wk.isFuture ? projVal : noDataV;
-
-        const wtDisp = wk.dispWt != null ? wk.dispWt + ' lb' : '—';
-        const bfDisp = wk.dispBF != null ? wk.dispBF + '%'   : '—';
-
-        // badge
-        const badge = wk.isCurrent
-          ? '<span style="font-size:8px;font-weight:900;color:#D4AF37;background:#1a2e10;border:1px solid #C9A84C;border-radius:4px;padding:2px 7px;letter-spacing:1px;margin-right:6px;">THIS WEEK</span>'
-          : wk.locked
-            ? '<span style="font-size:8px;font-weight:700;color:#4a9a6a;background:#0a1f14;border:1px solid #1e5a34;border-radius:4px;padding:2px 7px;letter-spacing:1px;margin-right:6px;">🔒 LOCKED</span>'
-            : wk.isFuture
-              ? '<span style="font-size:8px;font-weight:700;color:#3a6a8a;background:#0a1824;border:1px solid #1a4060;border-radius:4px;padding:2px 7px;letter-spacing:1px;margin-right:6px;">~ PROJECTED</span>'
-              : '<span style="font-size:8px;font-weight:700;color:#3a4a5a;background:#0a1520;border:1px solid #1a2a3a;border-radius:4px;padding:2px 7px;letter-spacing:1px;margin-right:6px;">NO DATA</span>';
-
-        // on-track status
-        let statusEl = '';
-        if (wk.locked && wk.actual?.bodyFat != null) {
-          const wksFromNow   = (new Date(wk.actual.date + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / (7 * 86400000);
-          const targetAtPoint = +(currentBF - bfLossRate * wksFromNow).toFixed(1);
-          const onTk = wk.actual.bodyFat <= targetAtPoint + 0.1;
-          statusEl = onTk
-            ? '<span style="font-size:9px;font-weight:800;color:#2ecc71;background:#0a1f14;border:1px solid #1a5a2a;border-radius:4px;padding:2px 7px;">✓ ON TRACK</span>'
-            : '<span style="font-size:9px;font-weight:800;color:#e74c3c;background:#1f0a0a;border:1px solid #5a1a1a;border-radius:4px;padding:2px 7px;">⚠ BEHIND</span>';
-        }
-
-        return `
-        <div style="background:${cardBg};border:${borderWidth} solid ${cardBorder};border-radius:12px;padding:14px;margin-bottom:8px;${cardOpacity}">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
-              ${badge}
-              <span style="font-size:13px;font-weight:800;color:${dateLabelColor};">${wkLabel}</span>
-            </div>
-            ${statusEl}
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <div style="background:${innerBg};border:1px solid ${innerBorder};border-radius:8px;padding:10px 12px;">
-              <div style="font-size:9px;font-weight:900;color:rgba(201,168,76,0.6);letter-spacing:1.5px;margin-bottom:4px;">WEIGHT</div>
-              <div style="font-size:22px;font-weight:900;color:${wtColor};letter-spacing:-0.5px;">${wtDisp}</div>
-            </div>
-            <div style="background:${innerBg};border:1px solid ${innerBorder};border-radius:8px;padding:10px 12px;">
-              <div style="font-size:9px;font-weight:900;color:rgba(201,168,76,0.6);letter-spacing:1.5px;margin-bottom:4px;">BODY FAT</div>
-              <div style="font-size:22px;font-weight:900;color:${bfColor};letter-spacing:-0.5px;">${bfDisp}</div>
-            </div>
-          </div>
-        </div>`;
-      }).join('');
-
-      const paceNote = !hasEnoughData
-        ? 'Using target pace for projections — actual pace builds after a few days of sync data'
-        : 'Pace: ' + effectivePace.toFixed(2) + '% BF/wk (' + (paceSource === 'blended' ? '60% 7d · 40% overall' : paceSource === 'overall' ? 'overall avg' : '7d avg') + ')';
-
-      return `
-      <div class="section-title" style="margin-top:4px;">${monthLabel}</div>
-      <div style="margin-bottom:16px;">
-        ${weekRows}
-        <div style="font-size:10px;color:rgba(255,255,255,0.3);padding:4px 2px 0;font-weight:600;">${paceNote}</div>
-      </div>`;
-    })()}
 
     <!-- ══ WEEKLY & MONTHLY CHANGES ══ -->
     <div class="section-title">Changes</div>
