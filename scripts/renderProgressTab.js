@@ -256,6 +256,138 @@ export function renderProgressTab(deps) {
 
     return `
 
+
+      <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:rgba(46,204,113,0.8);margin-bottom:7px;">BURN</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:7px;">
+        <div style="background:rgba(46,204,113,0.05);border:1px solid rgba(46,204,113,0.14);border-radius:8px;padding:9px;">
+          <div style="font-size:9px;font-weight:800;color:rgba(46,204,113,0.7);letter-spacing:1px;margin-bottom:3px;">BMR</div>
+          <div style="font-size:17px;font-weight:700;color:#2ecc71;">${Math.round(day.bmr).toLocaleString()}<span style="font-size:9px;font-weight:400;color:rgba(46,204,113,0.55);"> kcal</span></div>
+          <div style="font-size:9px;color:${subText};margin-top:2px;">${day.hasSyncBmr ? 'sync' : 'default'}</div>
+        </div>
+        <div style="background:rgba(46,204,113,0.05);border:1px solid rgba(46,204,113,0.14);border-radius:8px;padding:9px;">
+          <div style="font-size:9px;font-weight:800;color:rgba(46,204,113,0.7);letter-spacing:1px;margin-bottom:3px;">ACTIVE ENERGY</div>
+          <div style="font-size:17px;font-weight:700;color:#2ecc71;">${Math.round(day.activeEnergy).toLocaleString()}<span style="font-size:9px;font-weight:400;color:rgba(46,204,113,0.55);"> kcal</span></div>
+          <div style="font-size:9px;color:${subText};margin-top:2px;">${day.activeEnergy > 0 ? 'sync' : 'no sync'}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;">
+        <div style="background:rgba(52,152,219,0.05);border:1px solid rgba(52,152,219,0.15);border-radius:8px;padding:9px;">
+          <div style="font-size:9px;font-weight:800;color:rgba(52,152,219,0.8);letter-spacing:1px;margin-bottom:6px;">GYM CALORIES</div>
+          <div style="display:flex;gap:5px;align-items:center;">
+            <input type="number" id="cal-gymCalEntry-${day.ds}" placeholder="0" value="${day.gymEntry || ''}" style="width:100%;min-width:0;background:${inputBg};border:1px solid ${inputBorder};border-radius:6px;color:#3498db;padding:5px 7px;font-size:13px;font-weight:700;outline:none;">
+            <button onclick="logManualCalories('${day.ds}','gymCalEntry')" style="background:rgba(52,152,219,0.18);border:1px solid rgba(52,152,219,0.35);border-radius:6px;color:#3498db;padding:5px 9px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0;">LOG</button>
+          </div>
+        </div>
+        <div style="background:rgba(52,152,219,0.05);border:1px solid rgba(52,152,219,0.15);border-radius:8px;padding:9px;">
+          <div style="font-size:9px;font-weight:800;color:rgba(52,152,219,0.8);letter-spacing:1px;margin-bottom:6px;">TREADMILL</div>
+          <div style="display:flex;gap:5px;align-items:center;">
+            <input type="number" id="cal-treadmillCal-${day.ds}" placeholder="0" value="${day.treadmillEntry || ''}" style="width:100%;min-width:0;background:${inputBg};border:1px solid ${inputBorder};border-radius:6px;color:#3498db;padding:5px 7px;font-size:13px;font-weight:700;outline:none;">
+            <button onclick="logManualCalories('${day.ds}','treadmillCal')" style="background:rgba(52,152,219,0.18);border:1px solid rgba(52,152,219,0.35);border-radius:6px;color:#3498db;padding:5px 9px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0;">LOG</button>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:rgba(231,76,60,0.8);margin-bottom:7px;">EAT</div>
+      <div style="background:rgba(231,76,60,0.05);border:1px solid rgba(231,76,60,0.14);border-radius:8px;padding:10px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:9px;font-weight:800;color:rgba(231,76,60,0.7);letter-spacing:1px;margin-bottom:3px;">DIETARY CALORIES</div>
+          <div style="font-size:18px;font-weight:700;color:${day.dietaryCal > 0 ? '#e74c3c' : notSyncedCol};">
+            ${day.dietaryCal > 0 ? Math.round(day.dietaryCal).toLocaleString() + '<span style="font-size:10px;font-weight:400;color:rgba(231,76,60,0.55);"> kcal</span>' : 'Not synced yet'}
+          </div>
+        </div>
+        <div style="font-size:9px;color:${syncLabelCol};">${day.dietaryCal > 0 ? 'sync' : 'awaiting'}</div>
+      </div>
+      ${day.protein !== null ? `<div style="background:rgba(155,89,182,0.05);border:1px solid rgba(155,89,182,0.14);border-radius:8px;padding:9px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:9px;font-weight:800;color:rgba(155,89,182,0.8);letter-spacing:1px;margin-bottom:2px;">PROTEIN</div>
+          <div style="font-size:18px;font-weight:700;color:#9b59b6;">${Math.round(day.protein)}<span style="font-size:10px;font-weight:400;color:rgba(155,89,182,0.6);"> g</span></div>
+        </div>
+        <div style="font-size:9px;color:${syncLabelCol};">sync</div>
+      </div>` : ''}
+      <div style="border-top:1px solid ${dividerCol};padding-top:10px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${resultLabel};">DAILY ${deficitStatus}</div>
+          <div style="font-size:10px;color:${resultSub};margin-top:3px;">${Math.round(day.totalBurn).toLocaleString()} burn − ${day.dietaryCal > 0 ? Math.round(day.dietaryCal).toLocaleString() : '?'} eaten</div>
+        </div>
+        <div style="font-size:24px;font-weight:900;color:${deficitColor};">${deficitAmt}</div>
+      </div>`;
+  }
+
+  function renderCalDayCardFull(day) {
+    const borderCol  = day.isToday ? 'rgba(212,175,55,0.55)' : 'rgba(255,255,255,0.09)';
+    const cardBg     = tx('rgba(255,255,255,0.03)', 'rgba(0,0,0,0.02)');
+    const dayNameCol = day.isToday ? '#D4AF37' : tx('#fff', '#111');
+
+    return `
+    <div style="background:${cardBg};border:1px solid ${borderCol};border-left:3px solid ${borderCol};border-radius:12px;padding:14px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="font-size:13px;font-weight:900;color:${dayNameCol};letter-spacing:0.3px;">${formatCalDay(day.ds)}</span>
+        ${day.isToday ? '<span style="font-size:9px;font-weight:900;color:#D4AF37;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.3);border-radius:6px;padding:2px 8px;letter-spacing:1px;">TODAY</span>' : ''}
+      </div>
+      ${renderCalDayInnerContent(day)}
+    </div>`;
+  }
+
+  function renderCalDayCardCompact(day) {
+    const deficitColor = day.deficit === null ? tx('rgba(255,255,255,0.3)','rgba(0,0,0,0.25)') : day.deficit > 0 ? '#2ecc71' : '#e74c3c';
+    const deficitAmt   = day.deficit === null ? 'No data' : (day.deficit > 0 ? '−' : '+') + Math.abs(Math.round(day.deficit)).toLocaleString() + ' kcal';
+    const cardBg       = tx('rgba(255,255,255,0.02)', 'rgba(0,0,0,0.02)');
+    const borderCol    = tx('rgba(255,255,255,0.07)', 'rgba(0,0,0,0.09)');
+    const labelCol     = tx('rgba(255,255,255,0.65)', 'rgba(0,0,0,0.5)');
+    const expandId     = `cal-expand-${day.ds}`;
+    const arrowId      = `cal-arrow-${day.ds}`;
+
+    return `
+    <div style="background:${cardBg};border:1px solid ${borderCol};border-left:3px solid ${borderCol};border-radius:10px;margin-bottom:6px;overflow:hidden;transition:border-color 0.2s;">
+      <div
+        onclick="(function(){
+          var el=document.getElementById('${expandId}');
+          var arrow=document.getElementById('${arrowId}');
+          var isOpen=el.style.display!=='none';
+          el.style.display=isOpen?'none':'block';
+          arrow.textContent=isOpen?'▼':'▲';
+          arrow.style.color=isOpen?'rgba(255,255,255,0.25)':'rgba(212,175,55,0.8)';
+        })()"
+        style="padding:11px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;"
+      >
+        <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.8);">${formatCalDay(day.ds)}</span>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:13px;font-weight:800;color:${deficitColor};">${deficitAmt}</span>
+          <span id="${arrowId}" style="font-size:9px;color:rgba(255,255,255,0.25);transition:color 0.2s;flex-shrink:0;">▼</span>
+        </div>
+      </div>
+      <div id="${expandId}" style="display:none;padding:0 14px 14px 14px;border-top:1px solid ${borderCol};">
+        <div style="height:10px;"></div>
+        ${renderCalDayInnerContent(day)}
+      </div>
+    </div>`;
+  }
+
+  function renderCalDayCardFuture(day) {
+    const cardBg    = tx('rgba(255,255,255,0.01)', 'rgba(0,0,0,0.01)');
+    const borderCol = tx('rgba(255,255,255,0.04)', 'rgba(0,0,0,0.05)');
+    const labelCol  = tx('rgba(255,255,255,0.2)', 'rgba(0,0,0,0.18)');
+    return `
+    <div style="background:${cardBg};border:1px solid ${borderCol};border-radius:10px;padding:11px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;opacity:0.5;">
+      <span style="font-size:13px;font-weight:700;color:${labelCol};">${formatCalDay(day.ds)}</span>
+      <span style="font-size:11px;color:${labelCol};">—</span>
+    </div>`;
+  }
+
+  // Today first (full card), past days compact below, future days dimmed at bottom
+  const todayCard   = calDayData.filter(d => d.isToday).map(renderCalDayCardFull).join('');
+  const pastCards   = calDayData.filter(d => !d.isToday && !d.isFuture).reverse().map(renderCalDayCardCompact).join('');
+  const futureCards = calDayData.filter(d => d.isFuture).map(renderCalDayCardFuture).join('');
+  const calDayCardsHtml = todayCard + pastCards + futureCards;
+
+  const weekTotalColor  = calWeeklyDays === 0 ? 'rgba(255,255,255,0.3)' : calWeeklyTotal > 0 ? '#2ecc71' : '#e74c3c';
+  const weekTotalBg     = calWeeklyDays === 0 ? 'rgba(255,255,255,0.03)' : calWeeklyTotal > 0 ? 'rgba(46,204,113,0.07)' : 'rgba(231,76,60,0.07)';
+  const weekTotalBorder = calWeeklyDays === 0 ? 'rgba(255,255,255,0.09)' : calWeeklyTotal > 0 ? 'rgba(46,204,113,0.22)' : 'rgba(231,76,60,0.22)';
+  const weekTotalAmt    = calWeeklyDays === 0 ? '—' : (calWeeklyTotal > 0 ? '−' : '+') + Math.abs(Math.round(calWeeklyTotal)).toLocaleString() + ' kcal';
+  const weekTotalLabel  = calWeeklyDays === 0 ? '' : calWeeklyTotal > 0 ? 'DEFICIT' : 'SURPLUS';
+
+  // ── Main return ─────────────────────────────────────────────────────────
+  return `
+
     <!-- ══ MONTHLY CALENDAR PROJECTION ══ -->
     ${(() => {
       const MN  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -391,136 +523,9 @@ export function renderProgressTab(deps) {
       </div>`;
     })()}
 
-      <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:rgba(46,204,113,0.8);margin-bottom:7px;">BURN</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:7px;">
-        <div style="background:rgba(46,204,113,0.05);border:1px solid rgba(46,204,113,0.14);border-radius:8px;padding:9px;">
-          <div style="font-size:9px;font-weight:800;color:rgba(46,204,113,0.7);letter-spacing:1px;margin-bottom:3px;">BMR</div>
-          <div style="font-size:17px;font-weight:700;color:#2ecc71;">${Math.round(day.bmr).toLocaleString()}<span style="font-size:9px;font-weight:400;color:rgba(46,204,113,0.55);"> kcal</span></div>
-          <div style="font-size:9px;color:${subText};margin-top:2px;">${day.hasSyncBmr ? 'sync' : 'default'}</div>
-        </div>
-        <div style="background:rgba(46,204,113,0.05);border:1px solid rgba(46,204,113,0.14);border-radius:8px;padding:9px;">
-          <div style="font-size:9px;font-weight:800;color:rgba(46,204,113,0.7);letter-spacing:1px;margin-bottom:3px;">ACTIVE ENERGY</div>
-          <div style="font-size:17px;font-weight:700;color:#2ecc71;">${Math.round(day.activeEnergy).toLocaleString()}<span style="font-size:9px;font-weight:400;color:rgba(46,204,113,0.55);"> kcal</span></div>
-          <div style="font-size:9px;color:${subText};margin-top:2px;">${day.activeEnergy > 0 ? 'sync' : 'no sync'}</div>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;">
-        <div style="background:rgba(52,152,219,0.05);border:1px solid rgba(52,152,219,0.15);border-radius:8px;padding:9px;">
-          <div style="font-size:9px;font-weight:800;color:rgba(52,152,219,0.8);letter-spacing:1px;margin-bottom:6px;">GYM CALORIES</div>
-          <div style="display:flex;gap:5px;align-items:center;">
-            <input type="number" id="cal-gymCalEntry-${day.ds}" placeholder="0" value="${day.gymEntry || ''}" style="width:100%;min-width:0;background:${inputBg};border:1px solid ${inputBorder};border-radius:6px;color:#3498db;padding:5px 7px;font-size:13px;font-weight:700;outline:none;">
-            <button onclick="logManualCalories('${day.ds}','gymCalEntry')" style="background:rgba(52,152,219,0.18);border:1px solid rgba(52,152,219,0.35);border-radius:6px;color:#3498db;padding:5px 9px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0;">LOG</button>
-          </div>
-        </div>
-        <div style="background:rgba(52,152,219,0.05);border:1px solid rgba(52,152,219,0.15);border-radius:8px;padding:9px;">
-          <div style="font-size:9px;font-weight:800;color:rgba(52,152,219,0.8);letter-spacing:1px;margin-bottom:6px;">TREADMILL</div>
-          <div style="display:flex;gap:5px;align-items:center;">
-            <input type="number" id="cal-treadmillCal-${day.ds}" placeholder="0" value="${day.treadmillEntry || ''}" style="width:100%;min-width:0;background:${inputBg};border:1px solid ${inputBorder};border-radius:6px;color:#3498db;padding:5px 7px;font-size:13px;font-weight:700;outline:none;">
-            <button onclick="logManualCalories('${day.ds}','treadmillCal')" style="background:rgba(52,152,219,0.18);border:1px solid rgba(52,152,219,0.35);border-radius:6px;color:#3498db;padding:5px 9px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0;">LOG</button>
-          </div>
-        </div>
-      </div>
-      <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:rgba(231,76,60,0.8);margin-bottom:7px;">EAT</div>
-      <div style="background:rgba(231,76,60,0.05);border:1px solid rgba(231,76,60,0.14);border-radius:8px;padding:10px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-size:9px;font-weight:800;color:rgba(231,76,60,0.7);letter-spacing:1px;margin-bottom:3px;">DIETARY CALORIES</div>
-          <div style="font-size:18px;font-weight:700;color:${day.dietaryCal > 0 ? '#e74c3c' : notSyncedCol};">
-            ${day.dietaryCal > 0 ? Math.round(day.dietaryCal).toLocaleString() + '<span style="font-size:10px;font-weight:400;color:rgba(231,76,60,0.55);"> kcal</span>' : 'Not synced yet'}
-          </div>
-        </div>
-        <div style="font-size:9px;color:${syncLabelCol};">${day.dietaryCal > 0 ? 'sync' : 'awaiting'}</div>
-      </div>
-      ${day.protein !== null ? `<div style="background:rgba(155,89,182,0.05);border:1px solid rgba(155,89,182,0.14);border-radius:8px;padding:9px 12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-size:9px;font-weight:800;color:rgba(155,89,182,0.8);letter-spacing:1px;margin-bottom:2px;">PROTEIN</div>
-          <div style="font-size:18px;font-weight:700;color:#9b59b6;">${Math.round(day.protein)}<span style="font-size:10px;font-weight:400;color:rgba(155,89,182,0.6);"> g</span></div>
-        </div>
-        <div style="font-size:9px;color:${syncLabelCol};">sync</div>
-      </div>` : ''}
-      <div style="border-top:1px solid ${dividerCol};padding-top:10px;display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${resultLabel};">DAILY ${deficitStatus}</div>
-          <div style="font-size:10px;color:${resultSub};margin-top:3px;">${Math.round(day.totalBurn).toLocaleString()} burn − ${day.dietaryCal > 0 ? Math.round(day.dietaryCal).toLocaleString() : '?'} eaten</div>
-        </div>
-        <div style="font-size:24px;font-weight:900;color:${deficitColor};">${deficitAmt}</div>
-      </div>`;
-  }
 
-  function renderCalDayCardFull(day) {
-    const borderCol  = day.isToday ? 'rgba(212,175,55,0.55)' : 'rgba(255,255,255,0.09)';
-    const cardBg     = tx('rgba(255,255,255,0.03)', 'rgba(0,0,0,0.02)');
-    const dayNameCol = day.isToday ? '#D4AF37' : tx('#fff', '#111');
 
-    return `
-    <div style="background:${cardBg};border:1px solid ${borderCol};border-left:3px solid ${borderCol};border-radius:12px;padding:14px;margin-bottom:8px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <span style="font-size:13px;font-weight:900;color:${dayNameCol};letter-spacing:0.3px;">${formatCalDay(day.ds)}</span>
-        ${day.isToday ? '<span style="font-size:9px;font-weight:900;color:#D4AF37;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.3);border-radius:6px;padding:2px 8px;letter-spacing:1px;">TODAY</span>' : ''}
-      </div>
-      ${renderCalDayInnerContent(day)}
-    </div>`;
-  }
 
-  function renderCalDayCardCompact(day) {
-    const deficitColor = day.deficit === null ? tx('rgba(255,255,255,0.3)','rgba(0,0,0,0.25)') : day.deficit > 0 ? '#2ecc71' : '#e74c3c';
-    const deficitAmt   = day.deficit === null ? 'No data' : (day.deficit > 0 ? '−' : '+') + Math.abs(Math.round(day.deficit)).toLocaleString() + ' kcal';
-    const cardBg       = tx('rgba(255,255,255,0.02)', 'rgba(0,0,0,0.02)');
-    const borderCol    = tx('rgba(255,255,255,0.07)', 'rgba(0,0,0,0.09)');
-    const labelCol     = tx('rgba(255,255,255,0.65)', 'rgba(0,0,0,0.5)');
-    const expandId     = `cal-expand-${day.ds}`;
-    const arrowId      = `cal-arrow-${day.ds}`;
-
-    return `
-    <div style="background:${cardBg};border:1px solid ${borderCol};border-left:3px solid ${borderCol};border-radius:10px;margin-bottom:6px;overflow:hidden;transition:border-color 0.2s;">
-      <div
-        onclick="(function(){
-          var el=document.getElementById('${expandId}');
-          var arrow=document.getElementById('${arrowId}');
-          var isOpen=el.style.display!=='none';
-          el.style.display=isOpen?'none':'block';
-          arrow.textContent=isOpen?'▼':'▲';
-          arrow.style.color=isOpen?'rgba(255,255,255,0.25)':'rgba(212,175,55,0.8)';
-        })()"
-        style="padding:11px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;"
-      >
-        <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.8);">${formatCalDay(day.ds)}</span>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:13px;font-weight:800;color:${deficitColor};">${deficitAmt}</span>
-          <span id="${arrowId}" style="font-size:9px;color:rgba(255,255,255,0.25);transition:color 0.2s;flex-shrink:0;">▼</span>
-        </div>
-      </div>
-      <div id="${expandId}" style="display:none;padding:0 14px 14px 14px;border-top:1px solid ${borderCol};">
-        <div style="height:10px;"></div>
-        ${renderCalDayInnerContent(day)}
-      </div>
-    </div>`;
-  }
-
-  function renderCalDayCardFuture(day) {
-    const cardBg    = tx('rgba(255,255,255,0.01)', 'rgba(0,0,0,0.01)');
-    const borderCol = tx('rgba(255,255,255,0.04)', 'rgba(0,0,0,0.05)');
-    const labelCol  = tx('rgba(255,255,255,0.2)', 'rgba(0,0,0,0.18)');
-    return `
-    <div style="background:${cardBg};border:1px solid ${borderCol};border-radius:10px;padding:11px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;opacity:0.5;">
-      <span style="font-size:13px;font-weight:700;color:${labelCol};">${formatCalDay(day.ds)}</span>
-      <span style="font-size:11px;color:${labelCol};">—</span>
-    </div>`;
-  }
-
-  // Today first (full card), past days compact below, future days dimmed at bottom
-  const todayCard   = calDayData.filter(d => d.isToday).map(renderCalDayCardFull).join('');
-  const pastCards   = calDayData.filter(d => !d.isToday && !d.isFuture).reverse().map(renderCalDayCardCompact).join('');
-  const futureCards = calDayData.filter(d => d.isFuture).map(renderCalDayCardFuture).join('');
-  const calDayCardsHtml = todayCard + pastCards + futureCards;
-
-  const weekTotalColor  = calWeeklyDays === 0 ? 'rgba(255,255,255,0.3)' : calWeeklyTotal > 0 ? '#2ecc71' : '#e74c3c';
-  const weekTotalBg     = calWeeklyDays === 0 ? 'rgba(255,255,255,0.03)' : calWeeklyTotal > 0 ? 'rgba(46,204,113,0.07)' : 'rgba(231,76,60,0.07)';
-  const weekTotalBorder = calWeeklyDays === 0 ? 'rgba(255,255,255,0.09)' : calWeeklyTotal > 0 ? 'rgba(46,204,113,0.22)' : 'rgba(231,76,60,0.22)';
-  const weekTotalAmt    = calWeeklyDays === 0 ? '—' : (calWeeklyTotal > 0 ? '−' : '+') + Math.abs(Math.round(calWeeklyTotal)).toLocaleString() + ' kcal';
-  const weekTotalLabel  = calWeeklyDays === 0 ? '' : calWeeklyTotal > 0 ? 'DEFICIT' : 'SURPLUS';
-
-  // ── Main return ─────────────────────────────────────────────────────────
-  return `
 
     <!-- ══ HERO STRIP — top of page ══ -->
     <div class="body-hero-strip">
