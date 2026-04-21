@@ -686,6 +686,20 @@ export function renderProgressTab(deps) {
         .filter(([, d]) => d.manualSteps > 0)
         .sort(([a], [b]) => b.localeCompare(a));
 
+      // Theme tokens — mirrors stat-card / calorie tracker conventions
+      const cardBg       = tx('rgba(255,255,255,0.04)', 'rgba(0,0,0,0.03)');
+      const cardBorder   = tx('rgba(255,255,255,0.09)', 'rgba(0,0,0,0.1)');
+      const inputBg      = tx('rgba(0,0,0,0.3)',        'rgba(52,152,219,0.06)');
+      const inputBorder  = tx('rgba(52,152,219,0.3)',   'rgba(52,152,219,0.4)');
+      const inputColor   = tx('#3498db',                '#2980b9');
+      const dateColor    = tx('rgba(255,255,255,0.85)', 'rgba(0,0,0,0.75)');
+      const labelCol     = tx('rgba(255,255,255,0.65)', 'rgba(0,0,0,0.55)');
+      const arrowColOff  = tx('rgba(255,255,255,0.2)',  'rgba(0,0,0,0.2)');
+      const arrowColOn   = 'rgba(52,152,219,0.8)';
+      const dividerCol   = tx('rgba(255,255,255,0.07)', 'rgba(0,0,0,0.08)');
+      const emptyCol     = tx('rgba(255,255,255,0.2)',  'rgba(0,0,0,0.25)');
+      const eyebrowCol   = 'rgba(52,152,219,0.85)';
+
       const formatStepDate = (ds) => {
         const d = new Date(ds + 'T12:00:00');
         const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -697,7 +711,7 @@ export function renderProgressTab(deps) {
         const expandId = `msteps-expand-${ds}`;
         const arrowId  = `msteps-arrow-${ds}`;
         return `
-        <div style="background:rgba(52,152,219,0.04);border:1px solid rgba(52,152,219,0.12);border-left:3px solid rgba(52,152,219,0.35);border-radius:10px;margin-bottom:6px;overflow:hidden;">
+        <div style="background:${tx('rgba(52,152,219,0.06)','rgba(52,152,219,0.05)')};border:1px solid ${tx('rgba(52,152,219,0.14)','rgba(52,152,219,0.2)')};border-left:3px solid rgba(52,152,219,0.45);border-radius:10px;margin-top:8px;overflow:hidden;">
           <div
             onclick="(function(){
               var el=document.getElementById('${expandId}');
@@ -705,36 +719,41 @@ export function renderProgressTab(deps) {
               var isOpen=el.style.display!=='none';
               el.style.display=isOpen?'none':'block';
               arrow.textContent=isOpen?'▼':'▲';
-              arrow.style.color=isOpen?'rgba(255,255,255,0.25)':'rgba(52,152,219,0.8)';
+              arrow.style.color=isOpen?'${arrowColOff}':'${arrowColOn}';
             })()"
             style="padding:11px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;"
           >
-            <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.65);">${formatStepDate(ds)}</span>
+            <span style="font-size:13px;font-weight:700;color:${labelCol};">${formatStepDate(ds)}</span>
             <div style="display:flex;align-items:center;gap:10px;">
-              <span style="font-size:14px;font-weight:800;color:#3498db;">${Math.round(dayData.manualSteps).toLocaleString()} <span style="font-size:10px;font-weight:500;color:rgba(52,152,219,0.6);">steps</span></span>
-              <span id="${arrowId}" style="font-size:9px;color:rgba(255,255,255,0.25);transition:color 0.2s;flex-shrink:0;">▼</span>
+              <span style="font-size:14px;font-weight:800;color:#3498db;">${Math.round(dayData.manualSteps).toLocaleString()}<span style="font-size:10px;font-weight:500;color:rgba(52,152,219,0.6);"> steps</span></span>
+              <span id="${arrowId}" style="font-size:9px;color:${arrowColOff};transition:color 0.2s;flex-shrink:0;">▼</span>
             </div>
           </div>
-          <div id="${expandId}" style="display:none;padding:0 14px 14px;border-top:1px solid rgba(52,152,219,0.1);">
+          <div id="${expandId}" style="display:none;padding:0 14px 14px;border-top:1px solid ${dividerCol};">
             <div style="height:10px;"></div>
-            <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:rgba(52,152,219,0.7);margin-bottom:6px;">EDIT STEPS FOR ${formatStepDate(ds).toUpperCase()}</div>
+            <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${eyebrowCol};margin-bottom:8px;">EDIT · ${formatStepDate(ds).toUpperCase()}</div>
             <div style="display:flex;gap:6px;align-items:center;">
-              <input type="number" id="cal-manualSteps-${ds}" placeholder="Steps" value="${dayData.manualSteps || ''}" style="flex:1;background:rgba(0,0,0,0.25);border:1px solid rgba(52,152,219,0.3);border-radius:6px;color:#3498db;padding:7px 10px;font-size:14px;font-weight:700;outline:none;">
-              <button onclick="logManualCalories('${ds}','manualSteps')" style="background:rgba(52,152,219,0.18);border:1px solid rgba(52,152,219,0.35);border-radius:6px;color:#3498db;padding:7px 12px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">SAVE</button>
-              <button onclick="(function(){var inp=document.getElementById('cal-manualSteps-${ds}');inp.value=0;logManualCalories('${ds}','manualSteps');})()" style="background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.25);border-radius:6px;color:#e74c3c;padding:7px 10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">DELETE</button>
+              <input type="number" id="cal-manualSteps-${ds}" placeholder="Steps" value="${dayData.manualSteps || ''}"
+                style="flex:1;background:${inputBg};border:1px solid ${inputBorder};border-radius:6px;color:${inputColor};padding:7px 10px;font-size:14px;font-weight:700;outline:none;">
+              <button onclick="logManualCalories('${ds}','manualSteps')"
+                style="background:rgba(52,152,219,0.18);border:1px solid rgba(52,152,219,0.35);border-radius:6px;color:#3498db;padding:7px 12px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">SAVE</button>
+              <button onclick="(function(){var inp=document.getElementById('cal-manualSteps-${ds}');inp.value=0;logManualCalories('${ds}','manualSteps');})()"
+                style="background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.25);border-radius:6px;color:#e74c3c;padding:7px 10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">DELETE</button>
             </div>
           </div>
         </div>`;
       }).join('');
 
       return `
-      <div style="background:rgba(52,152,219,0.04);border:1px solid rgba(52,152,219,0.15);border-radius:12px;padding:14px;margin-bottom:16px;">
-        <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(52,152,219,0.85);margin-bottom:12px;">👟 MANUAL STEPS</div>
+      <div class="stat-card" style="padding:14px;margin-bottom:16px;">
+        <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:${eyebrowCol};margin-bottom:12px;">👟 MANUAL STEPS</div>
 
         <!-- Add new entry -->
-        <div style="display:flex;gap:6px;align-items:center;margin-bottom:${manualEntries.length > 0 ? '14px' : '0'};">
-          <input type="date" id="manual-step-date" value="${todayStr}" max="${todayStr}" style="flex:1;background:rgba(0,0,0,0.25);border:1px solid rgba(52,152,219,0.25);border-radius:8px;color:rgba(255,255,255,0.85);padding:8px 10px;font-size:12px;font-weight:600;outline:none;min-width:0;">
-          <input type="number" id="manual-step-count" placeholder="Steps" style="width:100px;background:rgba(0,0,0,0.25);border:1px solid rgba(52,152,219,0.25);border-radius:8px;color:#3498db;padding:8px 10px;font-size:13px;font-weight:700;outline:none;">
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="date" id="manual-step-date" value="${todayStr}" max="${todayStr}"
+            style="flex:1;background:${inputBg};border:1px solid ${inputBorder};border-radius:8px;color:${dateColor};padding:8px 10px;font-size:12px;font-weight:600;outline:none;min-width:0;color-scheme:${isLight ? 'light' : 'dark'};">
+          <input type="number" id="manual-step-count" placeholder="Steps"
+            style="width:90px;flex-shrink:0;background:${inputBg};border:1px solid ${inputBorder};border-radius:8px;color:${inputColor};padding:8px 10px;font-size:13px;font-weight:700;outline:none;">
           <button onclick="(function(){
             var date  = document.getElementById('manual-step-date').value;
             var steps = parseInt(document.getElementById('manual-step-count').value);
@@ -750,12 +769,13 @@ export function renderProgressTab(deps) {
             inp.value = steps;
             logManualCalories(date, 'manualSteps');
             document.getElementById('manual-step-count').value = '';
-          })()" style="background:rgba(52,152,219,0.2);border:1px solid rgba(52,152,219,0.4);border-radius:8px;color:#3498db;padding:8px 14px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;flex-shrink:0;">ADD</button>
+          })()"
+            style="background:rgba(52,152,219,0.2);border:1px solid rgba(52,152,219,0.45);border-radius:8px;color:#3498db;padding:8px 14px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;flex-shrink:0;">ADD</button>
         </div>
 
         <!-- Existing entries -->
         ${entriesHtml}
-        ${manualEntries.length === 0 ? '<div style="font-size:12px;color:rgba(255,255,255,0.25);text-align:center;padding:4px 0;">No manual entries yet</div>' : ''}
+        ${manualEntries.length === 0 ? `<div style="font-size:12px;color:${emptyCol};text-align:center;padding:12px 0 4px;">No manual entries yet</div>` : ''}
       </div>`;
     })()}
 
