@@ -173,7 +173,7 @@ export function renderWeeklyTab() {
         <div class="wk-task-chk${task.done?' checked':''}" onclick="weeklyToggleTask(${i},${ti})"></div>
         <span class="wk-task-name">${wkEsc(task.name)}</span>
         <span class="wk-task-edit" onclick="weeklyStartEditTask(${i},${ti})">✎</span>
-        <span class="wk-task-del"  onclick="weeklyDeleteTask(${i},${ti})">✕</span>
+        <span class="wk-task-del"  onclick="if(confirm('Archive this task?'))weeklyDeleteTask(${i},${ti})">✕</span>
       </div>`;
     };
 
@@ -1256,6 +1256,10 @@ export function initWeeklyTab() {
   };
   window.weeklyDeleteTask = (dayIdx, taskIdx) => {
     const ws = wkGetWS(window._weeklyOffset);
+    const task = ws.days[dayIdx]?.tasks?.[taskIdx]; if (!task) return;
+    if (!ws.archive)       ws.archive       = { tasks:[], objectives:[] };
+    if (!ws.archive.tasks) ws.archive.tasks = [];
+    ws.archive.tasks.push({ ...task, dayIdx, archivedAt: Date.now() });
     ws.days[dayIdx].tasks.splice(taskIdx, 1);
     wkSaveWS(ws, window._weeklyOffset);
     rerender();
