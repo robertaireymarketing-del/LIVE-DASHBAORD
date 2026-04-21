@@ -234,28 +234,21 @@ export function renderProgressTab(deps) {
   const isLight = state.theme === 'light';
   const tx = (dark, light) => isLight ? light : dark;
 
-  function renderCalDayCardFull(day) {
-    const borderCol    = day.isToday ? 'rgba(212,175,55,0.55)' : 'rgba(255,255,255,0.09)';
-    const deficitColor = day.deficit === null ? tx('rgba(255,255,255,0.3)','rgba(0,0,0,0.25)') : day.deficit > 0 ? '#2ecc71' : '#e74c3c';
-    const deficitAmt   = day.deficit === null ? '—' : (day.deficit > 0 ? '−' : '+') + Math.abs(Math.round(day.deficit)).toLocaleString() + ' kcal';
+  // ── Shared inner content renderer (used by both full and expandable compact cards) ──
+  function renderCalDayInnerContent(day) {
+    const deficitColor  = day.deficit === null ? tx('rgba(255,255,255,0.3)','rgba(0,0,0,0.25)') : day.deficit > 0 ? '#2ecc71' : '#e74c3c';
+    const deficitAmt    = day.deficit === null ? '—' : (day.deficit > 0 ? '−' : '+') + Math.abs(Math.round(day.deficit)).toLocaleString() + ' kcal';
     const deficitStatus = day.deficit === null ? 'RESULT' : day.deficit > 0 ? 'DEFICIT' : 'SURPLUS';
-    const cardBg       = tx('rgba(255,255,255,0.03)', 'rgba(0,0,0,0.02)');
-    const subText      = tx('rgba(255,255,255,0.3)', 'rgba(0,0,0,0.35)');
-    const dividerCol   = tx('rgba(255,255,255,0.07)', 'rgba(0,0,0,0.08)');
-    const resultLabel  = tx('rgba(255,255,255,0.5)', 'rgba(0,0,0,0.45)');
-    const resultSub    = tx('rgba(255,255,255,0.35)', 'rgba(0,0,0,0.35)');
-    const inputBg      = tx('rgba(0,0,0,0.25)', 'rgba(52,152,219,0.06)');
-    const inputBorder  = tx('rgba(52,152,219,0.3)', 'rgba(52,152,219,0.45)');
-    const notSyncedCol = tx('rgba(255,255,255,0.25)', 'rgba(0,0,0,0.25)');
-    const syncLabelCol = tx('rgba(255,255,255,0.3)', 'rgba(0,0,0,0.3)');
-    const dayNameCol   = day.isToday ? '#D4AF37' : tx('#fff', '#111');
+    const subText       = tx('rgba(255,255,255,0.3)', 'rgba(0,0,0,0.35)');
+    const dividerCol    = tx('rgba(255,255,255,0.07)', 'rgba(0,0,0,0.08)');
+    const resultLabel   = tx('rgba(255,255,255,0.5)', 'rgba(0,0,0,0.45)');
+    const resultSub     = tx('rgba(255,255,255,0.35)', 'rgba(0,0,0,0.35)');
+    const inputBg       = tx('rgba(0,0,0,0.25)', 'rgba(52,152,219,0.06)');
+    const inputBorder   = tx('rgba(52,152,219,0.3)', 'rgba(52,152,219,0.45)');
+    const notSyncedCol  = tx('rgba(255,255,255,0.25)', 'rgba(0,0,0,0.25)');
+    const syncLabelCol  = tx('rgba(255,255,255,0.3)', 'rgba(0,0,0,0.3)');
 
     return `
-    <div style="background:${cardBg};border:1px solid ${borderCol};border-left:3px solid ${borderCol};border-radius:12px;padding:14px;margin-bottom:8px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <span style="font-size:13px;font-weight:900;color:${dayNameCol};letter-spacing:0.3px;">${formatCalDay(day.ds)}</span>
-        ${day.isToday ? '<span style="font-size:9px;font-weight:900;color:#D4AF37;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.3);border-radius:6px;padding:2px 8px;letter-spacing:1px;">TODAY</span>' : ''}
-      </div>
       <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:rgba(46,204,113,0.8);margin-bottom:7px;">BURN</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:7px;">
         <div style="background:rgba(46,204,113,0.05);border:1px solid rgba(46,204,113,0.14);border-radius:8px;padding:9px;">
@@ -308,7 +301,21 @@ export function renderProgressTab(deps) {
           <div style="font-size:10px;color:${resultSub};margin-top:3px;">${Math.round(day.totalBurn).toLocaleString()} burn − ${day.dietaryCal > 0 ? Math.round(day.dietaryCal).toLocaleString() : '?'} eaten</div>
         </div>
         <div style="font-size:24px;font-weight:900;color:${deficitColor};">${deficitAmt}</div>
+      </div>`;
+  }
+
+  function renderCalDayCardFull(day) {
+    const borderCol  = day.isToday ? 'rgba(212,175,55,0.55)' : 'rgba(255,255,255,0.09)';
+    const cardBg     = tx('rgba(255,255,255,0.03)', 'rgba(0,0,0,0.02)');
+    const dayNameCol = day.isToday ? '#D4AF37' : tx('#fff', '#111');
+
+    return `
+    <div style="background:${cardBg};border:1px solid ${borderCol};border-left:3px solid ${borderCol};border-radius:12px;padding:14px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="font-size:13px;font-weight:900;color:${dayNameCol};letter-spacing:0.3px;">${formatCalDay(day.ds)}</span>
+        ${day.isToday ? '<span style="font-size:9px;font-weight:900;color:#D4AF37;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.3);border-radius:6px;padding:2px 8px;letter-spacing:1px;">TODAY</span>' : ''}
       </div>
+      ${renderCalDayInnerContent(day)}
     </div>`;
   }
 
@@ -317,11 +324,33 @@ export function renderProgressTab(deps) {
     const deficitAmt   = day.deficit === null ? 'No data' : (day.deficit > 0 ? '−' : '+') + Math.abs(Math.round(day.deficit)).toLocaleString() + ' kcal';
     const cardBg       = tx('rgba(255,255,255,0.02)', 'rgba(0,0,0,0.02)');
     const borderCol    = tx('rgba(255,255,255,0.07)', 'rgba(0,0,0,0.09)');
-    const labelCol     = tx('rgba(255,255,255,0.55)', 'rgba(0,0,0,0.5)');
+    const labelCol     = tx('rgba(255,255,255,0.65)', 'rgba(0,0,0,0.5)');
+    const expandId     = `cal-expand-${day.ds}`;
+    const arrowId      = `cal-arrow-${day.ds}`;
+
     return `
-    <div style="background:${cardBg};border:1px solid ${borderCol};border-radius:10px;padding:11px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:13px;font-weight:700;color:${labelCol};">${formatCalDay(day.ds)}</span>
-      <span style="font-size:13px;font-weight:800;color:${deficitColor};">${deficitAmt}</span>
+    <div style="background:${cardBg};border:1px solid ${borderCol};border-left:3px solid ${borderCol};border-radius:10px;margin-bottom:6px;overflow:hidden;transition:border-color 0.2s;">
+      <div
+        onclick="(function(){
+          var el=document.getElementById('${expandId}');
+          var arrow=document.getElementById('${arrowId}');
+          var isOpen=el.style.display!=='none';
+          el.style.display=isOpen?'none':'block';
+          arrow.textContent=isOpen?'▼':'▲';
+          arrow.style.color=isOpen?'rgba(255,255,255,0.25)':'rgba(212,175,55,0.8)';
+        })()"
+        style="padding:11px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;"
+      >
+        <span style="font-size:13px;font-weight:700;color:${labelCol};">${formatCalDay(day.ds)}</span>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:13px;font-weight:800;color:${deficitColor};">${deficitAmt}</span>
+          <span id="${arrowId}" style="font-size:9px;color:rgba(255,255,255,0.25);transition:color 0.2s;flex-shrink:0;">▼</span>
+        </div>
+      </div>
+      <div id="${expandId}" style="display:none;padding:0 14px 14px 14px;border-top:1px solid ${borderCol};">
+        <div style="height:10px;"></div>
+        ${renderCalDayInnerContent(day)}
+      </div>
     </div>`;
   }
 
