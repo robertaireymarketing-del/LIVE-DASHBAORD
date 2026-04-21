@@ -570,50 +570,122 @@ export function renderProgressTab(deps) {
       </div>
     </div>
 
-    <!-- ══ 4-WEEK PROJECTION ══ -->
+    <!-- ══ MONTHLY CALENDAR PROJECTION ══ -->
     ${(() => {
-      const rows = [1,2,3,4].map(w => {
-        const actualBf    = +(currentBF     - effectivePace * w).toFixed(1);
-        const actualWt    = +(currentWeight - effectiveWtPace * w).toFixed(1);
-        const targetBf    = +(currentBF     - bfLossRate * w).toFixed(1);
-        const targetWt    = +(currentWeight - targetWtPace * w).toFixed(1);
-        const onTrack     = hasEnoughData ? (effectivePace >= bfLossRate * 0.8) : null;
-        const statusColor = isGaining ? '#e74c3c' : onTrack === null ? 'rgba(255,255,255,0.3)' : onTrack ? '#2ecc71' : '#e74c3c';
-        const statusIcon  = isGaining ? '⚠️' : onTrack === null ? '—' : onTrack ? '✅' : '⚠️';
-        const statusText  = isGaining ? 'Gaining' : onTrack === null ? 'Est.' : onTrack ? 'On track' : 'Behind';
-        return { w, actualBf, actualWt, targetBf, targetWt, statusColor, statusIcon, statusText };
+      const MN     = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const now    = new Date(todayStr + 'T12:00:00');
+      const yr     = now.getFullYear();
+      const mo     = now.getMonth();   // 0-indexed
+      const moStr  = todayStr.slice(0, 7);
+
+      // Days in this month
+      const daysInMonth = new Date(yr, mo + 1, 0).getDate();
+      const monthLabel  = MN[mo] + ' ' + yr;
+
+      // Build calendar weeks: chunks of 7 days starting from the 1st
+      const calWeeks = [];
+      let day = 1;
+      while (day <= daysInMonth) {
+        const start = day;
+        const end   = Math.min(day + 6, daysInMonth);
+        const startStr = yr + '-' + String(mo+1).padStart(2,'0') + '-' + String(start).padStart(2,'0');
+        const endStr   = yr + '-' + String(mo+1).padStart(2,'0') + '-' + String(end).padStart(2,'0');
+        calWeeks.push({ start, end, startStr, endStr });
+        day += 7;
+      }
+
+      // All sync entries this month, sorted ascending
+      const syncAll = [...(state.healthData || [])]
+        .filter(h => h.date.startsWith(moStr))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      // For each week: find the best (latest) sync entry within that range
+      const weekData = calWeeks.map((wk, i) => {
+        const entries   = syncAll.filter(h => h.date >= wk.startStr && h.date <= wk.endStr);
+        const actual    = entries.length > 0 ? entries[entries.length - 1] : null;
+        const isPast    = wk.endStr < todayStr;
+        const isCurrent = wk.startStr <= todayStr && wk.endStr >= todayStr;
+        const isFuture  = wk.startStr > todayStr;
+
+        // How many weeks from today to the mid-point of this future week for projection
+        const weekMidStr  = isFuture ? wk.startStr : wk.endStr;
+        const daysAhead   = Math.max(0, (new Date(weekMidStr + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / 86400000);
+        const weeksAhead  = daysAhead / 7;
+
+        const projBF  = +(currentBF     - effectivePace   * weeksAhead).toFixed(1);
+        const projWt  = +(currentWeight - effectiveWtPace * weeksAhead).toFixed(1);
+
+        const dispBF  = actual?.bodyFat  != null ? +actual.bodyFat.toFixed(1)  : (isPast ? null : projBF);
+        const dispWt  = actual?.weight   != null ? +actual.weight.toFixed(1)   : (isPast ? null : projWt);
+        const locked  = actual != null;
+
+        return { ...wk, i, actual, isPast, isCurrent, isFuture, dispBF, dispWt, locked, projBF, projWt };
       });
+
+      const weekRows = weekData.map((wk) => {
+        const isToday  = wk.isCurrent;
+        const border   = isToday ? '2px solid #C9A84C' : '1px solid rgba(255,255,255,0.07)';
+        const bg       = isToday ? 'rgba(201,168,76,0.05)' : wk.isFuture ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.03)';
+        const dimFuture= wk.isFuture ? 'opacity:0.65;' : '';
+
+        const wkLabel  = MN[mo] + ' ' + wk.start + (wk.start !== wk.end ? '–' + wk.end : '');
+
+        const bfColor  = wk.locked ? '#D4AF37' : wk.isFuture ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.25)';
+        const wtColor  = wk.locked ? '#D4AF37' : wk.isFuture ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.25)';
+
+        const bfDisp   = wk.dispBF  != null ? wk.dispBF  + '%' : '—';
+        const wtDisp   = wk.dispWt  != null ? wk.dispWt  + ' lb' : '—';
+
+        const lockIcon = wk.locked  ? '<span style="font-size:8px;margin-left:3px;opacity:0.5;">🔒</span>' : '';
+        const projIcon = wk.isFuture ? '<span style="font-size:8px;margin-left:3px;opacity:0.4;">~</span>' : '';
+
+        // On-track for this week vs target
+        let statusEl = '';
+        if (wk.locked && wk.actual?.bodyFat != null) {
+          const wksSinceStart = (new Date(wk.actual.date + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / (7 * 86400000);
+          const targetAtPoint = +(currentBF - bfLossRate * wksSinceStart).toFixed(1);
+          const diff = wk.actual.bodyFat - targetAtPoint;
+          const onTk = diff <= 0.1;
+          statusEl = '<span style="font-size:9px;font-weight:700;color:' + (onTk ? '#2ecc71' : '#e74c3c') + ';">' + (onTk ? '✓ on track' : '⚠ behind') + '</span>';
+        } else if (wk.isFuture) {
+          statusEl = '<span style="font-size:9px;color:rgba(255,255,255,0.2);">projected</span>';
+        } else if (wk.isPast && !wk.locked) {
+          statusEl = '<span style="font-size:9px;color:rgba(255,255,255,0.2);">no data</span>';
+        }
+
+        return `
+        <div style="background:${bg};border:${border};border-radius:10px;padding:12px 14px;margin-bottom:6px;${dimFuture}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+                ${isToday ? '<span style="font-size:8px;font-weight:900;color:#D4AF37;background:rgba(212,175,55,0.15);border:1px solid rgba(212,175,55,0.3);border-radius:4px;padding:1px 5px;letter-spacing:1px;">THIS WEEK</span>' : ''}
+              </div>
+              <div style="font-size:12px;font-weight:800;color:${isToday ? '#D4AF37' : 'rgba(255,255,255,0.6)'};">${wkLabel}</div>
+            </div>
+            <div style="text-align:right;">${statusEl}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+            <div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:8px 10px;">
+              <div style="font-size:9px;font-weight:900;color:rgba(201,168,76,0.7);letter-spacing:1px;margin-bottom:3px;">WEIGHT ${lockIcon}${projIcon}</div>
+              <div style="font-size:20px;font-weight:900;color:${wtColor};">${wtDisp}</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:8px 10px;">
+              <div style="font-size:9px;font-weight:900;color:rgba(201,168,76,0.7);letter-spacing:1px;margin-bottom:3px;">BODY FAT ${lockIcon}${projIcon}</div>
+              <div style="font-size:20px;font-weight:900;color:${bfColor};">${bfDisp}</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+
+      const paceNote = !hasEnoughData
+        ? 'Projections use target pace — actual pace builds after a few days of data'
+        : `Pace: ${effectivePace.toFixed(2)}% BF/wk · 🔒 = locked actual sync data · ~ = projected`;
+
       return `
-      <div class="section-title" style="margin-top:4px;">4-Week Projection</div>
-      <div style="background:linear-gradient(145deg,#1a1a1a,#141414);border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden;margin-bottom:16px;box-shadow:0 4px 16px rgba(0,0,0,0.4);">
-        <div style="display:grid;grid-template-columns:60px 1fr 1fr 64px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.3);">
-          <div></div>
-          <div style="font-size:10px;font-weight:900;color:#C9A84C;letter-spacing:1.5px;text-align:center;">YOUR PACE</div>
-          <div style="font-size:10px;font-weight:800;color:rgba(255,255,255,0.6);letter-spacing:1.5px;text-align:center;">TARGET</div>
-          <div style="font-size:10px;font-weight:800;color:rgba(255,255,255,0.6);letter-spacing:1.5px;text-align:center;">STATUS</div>
-        </div>
-        ${rows.map((r, i) => `
-        <div style="display:grid;grid-template-columns:60px 1fr 1fr 64px;padding:12px 14px;${i < 3 ? 'border-bottom:1px solid rgba(255,255,255,0.05);' : ''}align-items:center;">
-          <div>
-            <div style="font-size:10px;font-weight:900;color:rgba(201,168,76,0.8);letter-spacing:1px;">WK ${r.w}</div>
-            <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.55);margin-top:2px;">${(() => { const d = new Date(); d.setDate(d.getDate() + r.w*7); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'}); })()}</div>
-          </div>
-          <div style="text-align:center;">
-            <div style="font-size:17px;font-weight:700;color:#D4AF37;">${r.actualWt}<span style="font-size:10px;font-weight:400;color:rgba(255,255,255,0.4);"> lb</span></div>
-            <div style="font-size:12px;color:rgba(212,175,55,0.7);">${r.actualBf}<span style="font-size:10px;">%</span></div>
-          </div>
-          <div style="text-align:center;">
-            <div style="font-size:17px;font-weight:700;color:rgba(255,255,255,0.75);">${r.targetWt}<span style="font-size:10px;font-weight:400;color:rgba(255,255,255,0.45);"> lb</span></div>
-            <div style="font-size:12px;color:rgba(255,255,255,0.6);">${r.targetBf}<span style="font-size:10px;">%</span></div>
-          </div>
-          <div style="text-align:center;">
-            <div style="font-size:16px;">${r.statusIcon}</div>
-            <div style="font-size:9px;color:${r.statusColor};margin-top:2px;">${r.statusText}</div>
-          </div>
-        </div>`).join('')}
-        <div style="padding:10px 14px 12px;font-size:11px;color:rgba(255,255,255,0.45);border-top:1px solid rgba(255,255,255,0.07);">
-          ${!hasEnoughData ? '* Using target pace — builds after a few days of data' : `Pace: ${effectivePace.toFixed(2)}% BF/wk (${paceSource === 'blended' ? '60% 7d · 40% overall' : paceSource === 'overall' ? 'overall avg' : '7d avg'}) vs ${bfLossRate}% target`}
-        </div>
+      <div class="section-title" style="margin-top:4px;">${monthLabel}</div>
+      <div style="margin-bottom:16px;">
+        ${weekRows}
+        <div style="font-size:10px;color:rgba(255,255,255,0.3);padding:6px 2px 0;">${paceNote}</div>
       </div>`;
     })()}
 
