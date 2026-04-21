@@ -716,7 +716,7 @@ export function renderProgressTab(deps) {
             })()"
             style="padding:11px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;"
           >
-            <span style="font-size:13px;font-weight:700;color:${labelCol};">${formatStepDate(ds)}</span>
+            <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.8);">${formatStepDate(ds)}</span>
             <div style="display:flex;align-items:center;gap:10px;">
               <span style="font-size:14px;font-weight:800;color:#3498db;">${Math.round(dayData.manualSteps).toLocaleString()}<span style="font-size:10px;font-weight:500;color:rgba(52,152,219,0.6);"> steps</span></span>
               <span id="${arrowId}" style="font-size:9px;color:rgba(255,255,255,0.25);transition:color 0.2s;flex-shrink:0;">▼</span>
