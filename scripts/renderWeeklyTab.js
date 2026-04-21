@@ -141,7 +141,7 @@ export function renderWeeklyTab() {
           <div style="display:flex;gap:6px;padding:10px 12px;align-items:center;">
             <input id="wkSubInp${i}" class="wk-day-form-inp" placeholder="New subtask..." style="flex:1;padding:7px 10px;font-size:13px;" onkeydown="if(event.key==='Enter')weeklyAddSubtask(${i})" />
             <input id="wkSubDur${i}" class="wk-day-form-inp" placeholder="e.g. 30m" style="width:72px;padding:7px 8px;font-size:13px;" onkeydown="if(event.key==='Enter')weeklyAddSubtask(${i})" />
-            <button onclick="weeklyAddSubtask(${i})" style="background:#1a1917;border:none;border-radius:8px;padding:7px 14px;color:#fff;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">+ Add</button>
+            <button onclick="weeklyAddSubtask(${i})" style="background:#C9A84C;border:none;border-radius:8px;padding:7px 14px;color:#000;font-family:'DM Mono',monospace;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;flex-shrink:0;">+ Add</button>
           </div>
         </div>`;
 
