@@ -722,16 +722,15 @@ export function renderProgressTab(deps) {
               <span id="${arrowId}" style="font-size:9px;color:rgba(255,255,255,0.25);transition:color 0.2s;flex-shrink:0;">▼</span>
             </div>
           </div>
-          <div id="${expandId}" style="display:none;padding:0 14px 14px;border-top:1px solid ${dividerCol};">
-            <div style="height:10px;"></div>
-            <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${eyebrowCol};margin-bottom:8px;">EDIT · ${formatStepDate(ds).toUpperCase()}</div>
+          <div id="${expandId}" style="display:none;padding:12px 14px 14px;border-top:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.25);">
+            <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:rgba(52,152,219,0.9);margin-bottom:10px;">EDIT · ${formatStepDate(ds).toUpperCase()}</div>
             <div style="display:flex;gap:6px;align-items:center;">
               <input type="number" id="cal-manualSteps-${ds}" placeholder="Steps" value="${dayData.manualSteps || ''}"
-                style="flex:1;background:${inputBg};border:1px solid ${inputBorder};border-radius:6px;color:#fff;padding:7px 10px;font-size:14px;font-weight:700;outline:none;">
+                style="flex:1;background:rgba(255,255,255,0.1) !important;border:1px solid rgba(52,152,219,0.4);border-radius:8px;color:#fff !important;-webkit-text-fill-color:#fff !important;padding:9px 12px;font-size:15px;font-weight:700;outline:none;">
               <button onclick="logManualCalories('${ds}','manualSteps')"
-                style="background:rgba(52,152,219,0.18);border:1px solid rgba(52,152,219,0.35);border-radius:6px;color:#3498db;padding:7px 12px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">SAVE</button>
+                style="background:rgba(52,152,219,0.25);border:1px solid rgba(52,152,219,0.5);border-radius:8px;color:#3498db;padding:9px 14px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;">SAVE</button>
               <button onclick="(function(){var inp=document.getElementById('cal-manualSteps-${ds}');inp.value=0;logManualCalories('${ds}','manualSteps');})()"
-                style="background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.25);border-radius:6px;color:#e74c3c;padding:7px 10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;">DELETE</button>
+                style="background:rgba(231,76,60,0.15);border:1px solid rgba(231,76,60,0.4);border-radius:8px;color:#e74c3c;padding:9px 12px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;">DEL</button>
             </div>
           </div>
         </div>`;
@@ -753,6 +752,11 @@ export function renderProgressTab(deps) {
           #manual-step-date::-webkit-datetime-edit-month-field,
           #manual-step-date::-webkit-datetime-edit-day-field,
           #manual-step-date::-webkit-datetime-edit-year-field { color: #ffffff !important; }
+          [id^="cal-manualSteps-"] {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            background: rgba(255,255,255,0.1) !important;
+          }
         </style>
         <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(52,152,219,0.9);margin-bottom:12px;">👟 MANUAL STEPS</div>
 
