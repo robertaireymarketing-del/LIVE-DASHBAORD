@@ -686,81 +686,223 @@ export function renderProgressTab(deps) {
         .filter(([, d]) => d.manualSteps > 0)
         .sort(([a], [b]) => b.localeCompare(a));
 
-      const formatStepDate = (ds) => {
+      // ── helpers ──────────────────────────────────────────────────────────
+      const DN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+      const fmtDate = (ds) => {
         const d = new Date(ds + 'T12:00:00');
-        const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        return days[d.getDay()] + ' ' + d.getDate() + ' ' + months[d.getMonth()];
+        return DN[d.getDay()] + ' ' + d.getDate() + ' ' + MN[d.getMonth()];
       };
 
-      const entriesHtml = manualEntries.map(([ds, dayData]) => {
+      // Monday ISO string for a given date string
+      const getMonday = (ds) => {
+        const d = new Date(ds + 'T12:00:00');
+        const dow = d.getDay();
+        d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+        return d.toISOString().slice(0, 10);
+      };
+
+      // "14 Apr – 20 Apr" label for a Monday string
+      const fmtWeek = (monStr) => {
+        const mon = new Date(monStr + 'T12:00:00');
+        const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+        return mon.getDate() + ' ' + MN[mon.getMonth()] + ' – ' + sun.getDate() + ' ' + MN[sun.getMonth()];
+      };
+
+      // "April 2026" label for a YYYY-MM string
+      const fmtMonth = (ym) => {
+        const [y, m] = ym.split('-');
+        return ['January','February','March','April','May','June','July','August','September','October','November','December'][parseInt(m)-1] + ' ' + y;
+      };
+
+      const todayMonth = todayStr.slice(0, 7);
+      const todayMonday = getMonday(todayStr);
+
+      // ── build month → week → day hierarchy ───────────────────────────────
+      const months = {};
+      manualEntries.forEach(([ds, dayData]) => {
+        const ym  = ds.slice(0, 7);
+        const wk  = getMonday(ds);
+        if (!months[ym])       months[ym]     = {};
+        if (!months[ym][wk])   months[ym][wk] = [];
+        months[ym][wk].push([ds, dayData]);
+      });
+      const sortedMonths = Object.keys(months).sort((a, b) => b.localeCompare(a));
+
+      // ── render individual day row ─────────────────────────────────────────
+      const renderDay = ([ds, dayData]) => {
         const expandId = 'msteps-expand-' + ds;
         const arrowId  = 'msteps-arrow-'  + ds;
-        return '<div style="background:#162032;border:1px solid #1e3a52;border-left:3px solid #2980b9;border-radius:10px;margin-top:8px;overflow:hidden;">' +
-          '<div onclick="(function(){var el=document.getElementById(\'' + expandId + '\');var arrow=document.getElementById(\'' + arrowId + '\');var open=el.style.display!==\'none\';el.style.display=open?\'none\':\'block\';arrow.textContent=open?\'▼\':\'▲\';arrow.style.color=open?\'#4a6480\':\'#3498db\';})()" style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;background:#162032;">' +
-            '<span style="font-size:13px;font-weight:700;color:#cdd8e3;">' + formatStepDate(ds) + '</span>' +
-            '<div style="display:flex;align-items:center;gap:10px;">' +
-              '<span style="font-size:14px;font-weight:800;color:#3498db;">' + Math.round(dayData.manualSteps).toLocaleString() + '<span style="font-size:10px;font-weight:500;color:#5b9ec9;"> steps</span></span>' +
-              '<span id="' + arrowId + '" style="font-size:9px;color:#4a6480;transition:color 0.2s;flex-shrink:0;">▼</span>' +
+        return (
+          '<div style="background:#1a2b3c;border:1px solid #1e3a52;border-left:2px solid #2980b9;border-radius:8px;margin-top:5px;overflow:hidden;">' +
+            '<div onclick="(function(){' +
+              'var el=document.getElementById(\'' + expandId + '\');' +
+              'var ar=document.getElementById(\'' + arrowId + '\');' +
+              'var op=el.style.display!==\'none\';' +
+              'el.style.display=op?\'none\':\'block\';' +
+              'ar.textContent=op?\'▼\':\'▲\';' +
+              'ar.style.color=op?\'#4a6480\':\'#3498db\';' +
+            '})()" style="padding:9px 12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">' +
+              '<span style="font-size:12px;font-weight:700;color:#cdd8e3;">' + fmtDate(ds) + '</span>' +
+              '<div style="display:flex;align-items:center;gap:8px;">' +
+                '<span style="font-size:13px;font-weight:800;color:#3498db;">' + Math.round(dayData.manualSteps).toLocaleString() + '<span style="font-size:9px;color:#5b9ec9;"> steps</span></span>' +
+                '<span id="' + arrowId + '" style="font-size:9px;color:#4a6480;transition:color 0.2s;">▼</span>' +
+              '</div>' +
             '</div>' +
-          '</div>' +
-          '<div id="' + expandId + '" style="display:none;padding:12px 14px 14px;border-top:1px solid #1a3348;background:#0f1c2a;">' +
-            '<div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:#3498db;margin-bottom:10px;">EDIT · ' + formatStepDate(ds).toUpperCase() + '</div>' +
-            '<div style="display:flex;gap:6px;align-items:center;">' +
-              '<input type="number" id="cal-manualSteps-' + ds + '" placeholder="Steps" value="' + (dayData.manualSteps || '') + '" style="flex:1;background:#1a2e42 !important;border:1px solid #2980b9 !important;border-radius:8px;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;padding:9px 12px;font-size:15px;font-weight:700;outline:none;">' +
-              '<button onclick="logManualCalories(\'' + ds + '\',\'manualSteps\')" style="background:#1a4a6e;border:1px solid #2980b9;border-radius:8px;color:#5dade2;padding:9px 14px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;">SAVE</button>' +
-              '<button onclick="(function(){var inp=document.getElementById(\'cal-manualSteps-' + ds + '\');inp.value=0;logManualCalories(\'' + ds + '\',\'manualSteps\');})()" style="background:#3d1a1a;border:1px solid #c0392b;border-radius:8px;color:#e74c3c;padding:9px 12px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;">DEL</button>' +
+            '<div id="' + expandId + '" style="display:none;padding:10px 12px 12px;border-top:1px solid #1a3348;background:#0f1c2a;">' +
+              '<div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:#3498db;margin-bottom:8px;">EDIT · ' + fmtDate(ds).toUpperCase() + '</div>' +
+              '<div style="display:flex;gap:6px;align-items:center;">' +
+                '<input type="number" id="cal-manualSteps-' + ds + '" placeholder="Steps" value="' + (dayData.manualSteps || '') + '" style="flex:1;background:#1a2e42 !important;border:1px solid #2980b9 !important;border-radius:8px;color:#fff !important;-webkit-text-fill-color:#fff !important;padding:8px 10px;font-size:14px;font-weight:700;outline:none;">' +
+                '<button onclick="logManualCalories(\'' + ds + '\',\'manualSteps\')" style="background:#1a4a6e;border:1px solid #2980b9;border-radius:8px;color:#5dade2;padding:8px 12px;font-size:11px;font-weight:900;cursor:pointer;white-space:nowrap;">SAVE</button>' +
+                '<button onclick="(function(){var inp=document.getElementById(\'cal-manualSteps-' + ds + '\');inp.value=0;logManualCalories(\'' + ds + '\',\'manualSteps\');})()" style="background:#3d1a1a;border:1px solid #c0392b;border-radius:8px;color:#e74c3c;padding:8px 10px;font-size:11px;font-weight:900;cursor:pointer;white-space:nowrap;">DEL</button>' +
+              '</div>' +
             '</div>' +
-          '</div>' +
-        '</div>';
+          '</div>'
+        );
+      };
+
+      // ── render week group ─────────────────────────────────────────────────
+      const renderWeek = (wk, entries) => {
+        const wkTotal  = entries.reduce((s, [, d]) => s + (d.manualSteps || 0), 0);
+        const wkId     = 'msteps-wk-' + wk;
+        const wkArrId  = 'msteps-wkarr-' + wk;
+        const isThisWk = wk === todayMonday;
+        return (
+          '<div style="background:#0f1c2a;border:1px solid #1a3348;border-radius:8px;margin-top:6px;overflow:hidden;">' +
+            '<div onclick="(function(){' +
+              'var el=document.getElementById(\'' + wkId + '\');' +
+              'var ar=document.getElementById(\'' + wkArrId + '\');' +
+              'var op=el.style.display!==\'none\';' +
+              'el.style.display=op?\'none\':\'block\';' +
+              'ar.textContent=op?\'▼\':\'▲\';' +
+              'ar.style.color=op?\'#4a6480\':\'#3498db\';' +
+            '})()" style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">' +
+              '<div style="display:flex;align-items:center;gap:6px;">' +
+                (isThisWk ? '<span style="font-size:7px;font-weight:900;color:#3498db;background:#0d2035;border:1px solid #2980b9;border-radius:3px;padding:1px 5px;letter-spacing:1px;">THIS WEEK</span>' : '') +
+                '<span style="font-size:11px;font-weight:700;color:#a8bfd4;">' + fmtWeek(wk) + '</span>' +
+              '</div>' +
+              '<div style="display:flex;align-items:center;gap:8px;">' +
+                '<span style="font-size:12px;font-weight:800;color:#3498db;">' + wkTotal.toLocaleString() + '<span style="font-size:9px;color:#5b9ec9;"> steps</span></span>' +
+                '<span id="' + wkArrId + '" style="font-size:9px;color:#4a6480;">▼</span>' +
+              '</div>' +
+            '</div>' +
+            '<div id="' + wkId + '" style="display:none;padding:0 8px 8px;">' +
+              entries.map(renderDay).join('') +
+            '</div>' +
+          '</div>'
+        );
+      };
+
+      // ── render month group ────────────────────────────────────────────────
+      const monthsHtml = sortedMonths.map((ym) => {
+        const weekMap    = months[ym];
+        const sortedWks  = Object.keys(weekMap).sort((a, b) => b.localeCompare(a));
+        const moTotal    = sortedWks.reduce((s, wk) => s + weekMap[wk].reduce((ss, [, d]) => ss + (d.manualSteps || 0), 0), 0);
+        const moId       = 'msteps-mo-' + ym;
+        const moArrId    = 'msteps-moarr-' + ym;
+        const isThisMo   = ym === todayMonth;
+        const weeksCount = sortedWks.length;
+        return (
+          '<div style="background:#111e2d;border:1px solid #1e3a52;border-radius:10px;margin-top:8px;overflow:hidden;">' +
+            '<div onclick="(function(){' +
+              'var el=document.getElementById(\'' + moId + '\');' +
+              'var ar=document.getElementById(\'' + moArrId + '\');' +
+              'var op=el.style.display!==\'none\';' +
+              'el.style.display=op?\'none\':\'block\';' +
+              'ar.textContent=op?\'▼\':\'▲\';' +
+              'ar.style.color=op?\'#4a6480\':\'#3498db\';' +
+            '})()" style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">' +
+              '<div style="display:flex;align-items:center;gap:8px;">' +
+                (isThisMo ? '<span style="font-size:7px;font-weight:900;color:#3498db;background:#0d2035;border:1px solid #2980b9;border-radius:3px;padding:2px 6px;letter-spacing:1px;">THIS MONTH</span>' : '') +
+                '<div>' +
+                  '<div style="font-size:13px;font-weight:800;color:#cdd8e3;">' + fmtMonth(ym) + '</div>' +
+                  '<div style="font-size:9px;color:#4a6480;margin-top:1px;">' + weeksCount + ' week' + (weeksCount !== 1 ? 's' : '') + '</div>' +
+                '</div>' +
+              '</div>' +
+              '<div style="display:flex;align-items:center;gap:8px;">' +
+                '<div style="text-align:right;">' +
+                  '<div style="font-size:15px;font-weight:900;color:#3498db;">' + moTotal.toLocaleString() + '</div>' +
+                  '<div style="font-size:9px;color:#5b9ec9;">steps</div>' +
+                '</div>' +
+                '<span id="' + moArrId + '" style="font-size:9px;color:#4a6480;margin-left:2px;">▼</span>' +
+              '</div>' +
+            '</div>' +
+            '<div id="' + moId + '" style="display:none;padding:0 10px 10px;">' +
+              sortedWks.map(wk => renderWeek(wk, weekMap[wk])).join('') +
+            '</div>' +
+          '</div>'
+        );
       }).join('');
 
+      // ── section minimise ──────────────────────────────────────────────────
+      const sectionOpen = localStorage.getItem('mstepsOpen') !== 'false';
+      const bodyDisplay = sectionOpen ? 'block' : 'none';
+      const hdrArrow    = sectionOpen ? '▲' : '▼';
+
       return `
-      <div style="background:#111e2d !important;border-radius:12px;padding:14px;margin-bottom:16px;border:1px solid #1a2e42;">
+      <div style="background:#111e2d;border-radius:12px;margin-bottom:16px;border:1px solid #1a2e42;overflow:hidden;">
         <style>
           #manual-step-date, #manual-step-count {
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-            background: #1a2e42 !important;
-            border-color: #2980b9 !important;
+            color: #ffffff !important; -webkit-text-fill-color: #ffffff !important;
+            background: #1a2e42 !important; border-color: #2980b9 !important;
           }
           #manual-step-date::placeholder, #manual-step-count::placeholder { color: #4a6480 !important; }
-          #manual-step-date::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.5); cursor: pointer; }
+          #manual-step-date::-webkit-calendar-picker-indicator { filter:invert(1) opacity(0.5); cursor:pointer; }
           #manual-step-date::-webkit-datetime-edit,
           #manual-step-date::-webkit-datetime-edit-fields-wrapper,
           #manual-step-date::-webkit-datetime-edit-text,
           #manual-step-date::-webkit-datetime-edit-month-field,
           #manual-step-date::-webkit-datetime-edit-day-field,
-          #manual-step-date::-webkit-datetime-edit-year-field { color: #ffffff !important; }
+          #manual-step-date::-webkit-datetime-edit-year-field { color:#ffffff !important; }
           [id^="cal-manualSteps-"] {
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-            background: #1a2e42 !important;
+            color:#ffffff !important; -webkit-text-fill-color:#ffffff !important;
+            background:#1a2e42 !important;
           }
         </style>
 
-        <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:#3498db;margin-bottom:12px;">👟 MANUAL STEPS</div>
-
-        <div style="display:flex;gap:6px;align-items:center;">
-          <input type="date" id="manual-step-date" value="${todayStr}" max="${todayStr}"
-            style="flex:1;min-width:0;border-radius:8px;padding:9px 10px;font-size:12px;font-weight:600;outline:none;color-scheme:dark;">
-          <input type="number" id="manual-step-count" placeholder="Steps"
-            style="width:88px;flex-shrink:0;border-radius:8px;padding:9px 10px;font-size:13px;font-weight:700;outline:none;">
-          <button onclick="(function(){
-            var date=document.getElementById('manual-step-date').value;
-            var steps=parseInt(document.getElementById('manual-step-count').value);
-            if(!date||!steps||steps<1)return;
-            var inp=document.getElementById('cal-manualSteps-'+date);
-            if(!inp){inp=document.createElement('input');inp.type='number';inp.id='cal-manualSteps-'+date;inp.style.display='none';document.body.appendChild(inp);}
-            inp.value=steps;
-            logManualCalories(date,'manualSteps');
-            document.getElementById('manual-step-count').value='';
-          })()"
-            style="background:#1a4a6e;border:1px solid #2980b9;border-radius:8px;color:#5dade2;padding:9px 14px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;flex-shrink:0;">ADD</button>
+        <!-- Section header / minimise -->
+        <div onclick="(function(){
+          var body=document.getElementById('msteps-body');
+          var arr=document.getElementById('msteps-hdr-arrow');
+          var open=body.style.display!=='none';
+          body.style.display=open?'none':'block';
+          arr.textContent=open?'▼':'▲';
+          localStorage.setItem('mstepsOpen', String(!open));
+        })()" style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:11px;">👟</span>
+            <span style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:#3498db;">MANUAL STEPS</span>
+            ${manualEntries.length > 0 ? `<span style="font-size:9px;color:#4a6480;">${manualEntries.length} entr${manualEntries.length === 1 ? 'y' : 'ies'}</span>` : ''}
+          </div>
+          <span id="msteps-hdr-arrow" style="font-size:10px;color:#4a6480;">${hdrArrow}</span>
         </div>
 
-        ${entriesHtml}
-        ${manualEntries.length === 0 ? '<div style="font-size:12px;color:#4a6480;text-align:center;padding:14px 0 2px;">No manual entries yet</div>' : ''}
+        <!-- Body -->
+        <div id="msteps-body" style="display:${bodyDisplay};padding:0 14px 14px;border-top:1px solid #1a2e42;">
+
+          <!-- Add entry -->
+          <div style="display:flex;gap:6px;align-items:center;padding-top:12px;margin-bottom:4px;">
+            <input type="date" id="manual-step-date" value="${todayStr}" max="${todayStr}"
+              style="flex:1;min-width:0;border-radius:8px;padding:9px 10px;font-size:12px;font-weight:600;outline:none;color-scheme:dark;">
+            <input type="number" id="manual-step-count" placeholder="Steps"
+              style="width:88px;flex-shrink:0;border-radius:8px;padding:9px 10px;font-size:13px;font-weight:700;outline:none;">
+            <button onclick="(function(){
+              var date=document.getElementById('manual-step-date').value;
+              var steps=parseInt(document.getElementById('manual-step-count').value);
+              if(!date||!steps||steps<1)return;
+              var inp=document.getElementById('cal-manualSteps-'+date);
+              if(!inp){inp=document.createElement('input');inp.type='number';inp.id='cal-manualSteps-'+date;inp.style.display='none';document.body.appendChild(inp);}
+              inp.value=steps;
+              logManualCalories(date,'manualSteps');
+              document.getElementById('manual-step-count').value='';
+            })()" style="background:#1a4a6e;border:1px solid #2980b9;border-radius:8px;color:#5dade2;padding:9px 14px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;flex-shrink:0;">ADD</button>
+          </div>
+
+          <!-- Month → Week → Day groups -->
+          ${monthsHtml}
+          ${manualEntries.length === 0 ? '<div style="font-size:12px;color:#4a6480;text-align:center;padding:14px 0 4px;">No manual entries yet</div>' : ''}
+        </div>
       </div>`;
     })()}
 
