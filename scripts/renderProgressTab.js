@@ -423,8 +423,10 @@ export function renderProgressTab(deps) {
         const refStr    = isFuture ? wk.startStr : wk.endStr;
         const daysAhead = Math.max(0, (new Date(refStr + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / 86400000);
         const wksAhead  = daysAhead / 7;
-        const projBF    = +(currentBF     - effectivePace   * wksAhead).toFixed(1);
-        const projWt    = +(currentWeight - effectiveWtPace * wksAhead).toFixed(1);
+        // Future projections use the user's TARGET pace (bfLossRate), not actual pace
+        const projWtPace = currentWeight * bfLossRate / 100;
+        const projBF    = +(currentBF     - bfLossRate  * wksAhead).toFixed(1);
+        const projWt    = +(currentWeight - projWtPace  * wksAhead).toFixed(1);
         const dispBF    = actual?.bodyFat != null ? +actual.bodyFat.toFixed(1) : (isPast ? null : projBF);
         const dispWt    = actual?.weight  != null ? +actual.weight.toFixed(1)  : (isPast ? null : projWt);
         const locked    = actual != null;
@@ -515,11 +517,31 @@ export function renderProgressTab(deps) {
         ? 'Using target pace for projections — actual pace builds after a few days of sync data'
         : 'Pace: ' + effectivePace.toFixed(2) + '% BF/wk (' + (paceSource === 'blended' ? '60% 7d · 40% overall' : paceSource === 'overall' ? 'overall avg' : '7d avg') + ')';
 
+      const actualPaceNote = !hasEnoughData
+        ? 'Actual pace building...'
+        : 'Actual: ' + effectivePace.toFixed(2) + '%/wk (' + (paceSource === 'blended' ? '7d+overall' : paceSource) + ')';
+
       return `
-      <div class="section-title" style="margin-top:4px;">${monthLabel}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;margin-bottom:8px;">
+        <div class="section-title" style="margin-bottom:0;">${monthLabel}</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="text-align:right;">
+            <div style="font-size:8px;font-weight:900;letter-spacing:1.5px;color:rgba(201,168,76,0.7);margin-bottom:3px;">TARGET PACE</div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <input
+                type="number" step="0.05" min="0.1" max="3"
+                value="${bfLossRate}"
+                onchange="updateSetting('bfLossRate', parseFloat(this.value))"
+                style="width:56px;background:#1a2e42 !important;border:1px solid #C9A84C;border-radius:6px;color:#D4AF37 !important;-webkit-text-fill-color:#D4AF37 !important;padding:5px 8px;font-size:13px;font-weight:900;outline:none;text-align:center;"
+              >
+              <span style="font-size:11px;font-weight:700;color:#C9A84C;">%/wk</span>
+            </div>
+          </div>
+        </div>
+      </div>
       <div style="margin-bottom:16px;">
         ${weekRows}
-        <div style="font-size:10px;color:rgba(255,255,255,0.3);padding:4px 2px 0;font-weight:600;">${paceNote}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.35);padding:4px 2px 0;font-weight:600;">${actualPaceNote} · projections use target pace above</div>
       </div>`;
     })()}
 
