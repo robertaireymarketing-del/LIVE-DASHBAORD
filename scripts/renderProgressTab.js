@@ -377,13 +377,15 @@ export function renderProgressTab(deps) {
   const todayCard   = calDayData.filter(d => d.isToday).map(renderCalDayCardFull).join('');
   const pastCards   = calDayData.filter(d => !d.isToday && !d.isFuture).reverse().map(renderCalDayCardCompact).join('');
   const futureCards = calDayData.filter(d => d.isFuture && (d.gymEntry > 0 || d.treadmillEntry > 0)).map(renderCalDayCardFuture).join('');
-  const calDayCardsHtml = todayCard + pastCards + futureCards;
-
   const weekTotalColor  = calWeeklyDays === 0 ? 'rgba(255,255,255,0.3)' : calWeeklyTotal > 0 ? '#2ecc71' : '#e74c3c';
   const weekTotalBg     = calWeeklyDays === 0 ? 'rgba(255,255,255,0.03)' : calWeeklyTotal > 0 ? 'rgba(46,204,113,0.07)' : 'rgba(231,76,60,0.07)';
   const weekTotalBorder = calWeeklyDays === 0 ? 'rgba(255,255,255,0.09)' : calWeeklyTotal > 0 ? 'rgba(46,204,113,0.22)' : 'rgba(231,76,60,0.22)';
   const weekTotalAmt    = calWeeklyDays === 0 ? '—' : (calWeeklyTotal > 0 ? '−' : '+') + Math.abs(Math.round(calWeeklyTotal)).toLocaleString() + ' kcal';
   const weekTotalLabel  = calWeeklyDays === 0 ? '' : calWeeklyTotal > 0 ? 'DEFICIT' : 'SURPLUS';
+
+  const weekTotalHtml = `<div style="background:#0f1c2a;border:1px solid ${weekTotalBorder};border-left:4px solid ${weekTotalColor};border-radius:12px;padding:14px 16px;margin-bottom:8px;margin-top:4px;"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:9px;font-weight:900;color:rgba(255,255,255,0.5);letter-spacing:1.5px;margin-bottom:3px;">WEEK TOTAL</div><div style="font-size:10px;color:rgba(255,255,255,0.35);">${calWeeklyDays} of 7 days with dietary data</div></div><div style="text-align:right;"><div style="font-size:28px;font-weight:900;color:${weekTotalColor};letter-spacing:-0.5px;">${weekTotalAmt}</div>${weekTotalLabel ? `<div style="font-size:10px;font-weight:700;color:${weekTotalColor};margin-top:1px;">${weekTotalLabel}</div>` : ''}</div></div></div>`;
+
+  const calDayCardsHtml = todayCard + weekTotalHtml + pastCards + futureCards;
 
   // ── Main return ─────────────────────────────────────────────────────────
   return `
@@ -744,20 +746,6 @@ export function renderProgressTab(deps) {
         onclick="${isCurrentWeek ? '' : `setCalorieWeekOffset(${calWeekOffset + 1})`}"
         ${isCurrentWeek ? 'disabled' : ''}
         style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:${isCurrentWeek ? 'rgba(255,255,255,0.25)' : '#fff'};padding:7px 14px;font-size:13px;font-weight:700;${isCurrentWeek ? 'cursor:not-allowed;opacity:0.4;' : 'cursor:pointer;'}flex-shrink:0;">Next →</button>
-    </div>
-
-    <!-- Weekly total — at top -->
-    <div style="background:#0f1c2a;border:1px solid ${weekTotalBorder};border-left:4px solid ${weekTotalColor};border-radius:12px;padding:14px 16px;margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-size:9px;font-weight:900;color:rgba(255,255,255,0.5);letter-spacing:1.5px;margin-bottom:3px;">WEEK TOTAL</div>
-          <div style="font-size:10px;color:rgba(255,255,255,0.35);">${calWeeklyDays} of 7 days with dietary data</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:28px;font-weight:900;color:${weekTotalColor};letter-spacing:-0.5px;">${weekTotalAmt}</div>
-          ${weekTotalLabel ? `<div style="font-size:10px;font-weight:700;color:${weekTotalColor};margin-top:1px;">${weekTotalLabel}</div>` : ''}
-        </div>
-      </div>
     </div>
 
     <!-- Day cards -->
