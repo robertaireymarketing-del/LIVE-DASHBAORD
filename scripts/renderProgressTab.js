@@ -686,66 +686,46 @@ export function renderProgressTab(deps) {
         .filter(([, d]) => d.manualSteps > 0)
         .sort(([a], [b]) => b.localeCompare(a));
 
-      // stat-card is always dark navy in both light and dark modes,
-      // so colours are hardcoded for a dark background.
-      const inputBg    = 'rgba(0,0,0,0.3)';
-      const inputBorder= 'rgba(52,152,219,0.35)';
-      const dividerCol = 'rgba(255,255,255,0.08)';
-      const eyebrowCol = 'rgba(52,152,219,0.9)';
-
       const formatStepDate = (ds) => {
         const d = new Date(ds + 'T12:00:00');
         const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
         const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+        return days[d.getDay()] + ' ' + d.getDate() + ' ' + months[d.getMonth()];
       };
 
       const entriesHtml = manualEntries.map(([ds, dayData]) => {
-        const expandId = `msteps-expand-${ds}`;
-        const arrowId  = `msteps-arrow-${ds}`;
-        return `
-        <div style="background:rgba(52,152,219,0.07);border:1px solid rgba(52,152,219,0.2);border-left:3px solid rgba(52,152,219,0.45);border-radius:10px;margin-top:8px;overflow:hidden;">
-          <div
-            onclick="(function(){
-              var el=document.getElementById('${expandId}');
-              var arrow=document.getElementById('${arrowId}');
-              var isOpen=el.style.display!=='none';
-              el.style.display=isOpen?'none':'block';
-              arrow.textContent=isOpen?'▼':'▲';
-              arrow.style.color=isOpen?'rgba(255,255,255,0.25)':'rgba(52,152,219,0.9)';
-            })()"
-            style="padding:11px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;"
-          >
-            <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.8);">${formatStepDate(ds)}</span>
-            <div style="display:flex;align-items:center;gap:10px;">
-              <span style="font-size:14px;font-weight:800;color:#3498db;">${Math.round(dayData.manualSteps).toLocaleString()}<span style="font-size:10px;font-weight:500;color:rgba(52,152,219,0.6);"> steps</span></span>
-              <span id="${arrowId}" style="font-size:9px;color:rgba(255,255,255,0.25);transition:color 0.2s;flex-shrink:0;">▼</span>
-            </div>
-          </div>
-          <div id="${expandId}" style="display:none;padding:12px 14px 14px;border-top:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.25);">
-            <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:rgba(52,152,219,0.9);margin-bottom:10px;">EDIT · ${formatStepDate(ds).toUpperCase()}</div>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <input type="number" id="cal-manualSteps-${ds}" placeholder="Steps" value="${dayData.manualSteps || ''}"
-                style="flex:1;background:rgba(255,255,255,0.1) !important;border:1px solid rgba(52,152,219,0.4);border-radius:8px;color:#fff !important;-webkit-text-fill-color:#fff !important;padding:9px 12px;font-size:15px;font-weight:700;outline:none;">
-              <button onclick="logManualCalories('${ds}','manualSteps')"
-                style="background:rgba(52,152,219,0.25);border:1px solid rgba(52,152,219,0.5);border-radius:8px;color:#3498db;padding:9px 14px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;">SAVE</button>
-              <button onclick="(function(){var inp=document.getElementById('cal-manualSteps-${ds}');inp.value=0;logManualCalories('${ds}','manualSteps');})()"
-                style="background:rgba(231,76,60,0.15);border:1px solid rgba(231,76,60,0.4);border-radius:8px;color:#e74c3c;padding:9px 12px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;">DEL</button>
-            </div>
-          </div>
-        </div>`;
+        const expandId = 'msteps-expand-' + ds;
+        const arrowId  = 'msteps-arrow-'  + ds;
+        return '<div style="background:#162032;border:1px solid #1e3a52;border-left:3px solid #2980b9;border-radius:10px;margin-top:8px;overflow:hidden;">' +
+          '<div onclick="(function(){var el=document.getElementById(\'' + expandId + '\');var arrow=document.getElementById(\'' + arrowId + '\');var open=el.style.display!==\'none\';el.style.display=open?\'none\':\'block\';arrow.textContent=open?\'▼\':\'▲\';arrow.style.color=open?\'#4a6480\':\'#3498db\';})()" style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;background:#162032;">' +
+            '<span style="font-size:13px;font-weight:700;color:#cdd8e3;">' + formatStepDate(ds) + '</span>' +
+            '<div style="display:flex;align-items:center;gap:10px;">' +
+              '<span style="font-size:14px;font-weight:800;color:#3498db;">' + Math.round(dayData.manualSteps).toLocaleString() + '<span style="font-size:10px;font-weight:500;color:#5b9ec9;"> steps</span></span>' +
+              '<span id="' + arrowId + '" style="font-size:9px;color:#4a6480;transition:color 0.2s;flex-shrink:0;">▼</span>' +
+            '</div>' +
+          '</div>' +
+          '<div id="' + expandId + '" style="display:none;padding:12px 14px 14px;border-top:1px solid #1a3348;background:#0f1c2a;">' +
+            '<div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:#3498db;margin-bottom:10px;">EDIT · ' + formatStepDate(ds).toUpperCase() + '</div>' +
+            '<div style="display:flex;gap:6px;align-items:center;">' +
+              '<input type="number" id="cal-manualSteps-' + ds + '" placeholder="Steps" value="' + (dayData.manualSteps || '') + '" style="flex:1;background:#1a2e42 !important;border:1px solid #2980b9 !important;border-radius:8px;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;padding:9px 12px;font-size:15px;font-weight:700;outline:none;">' +
+              '<button onclick="logManualCalories(\'' + ds + '\',\'manualSteps\')" style="background:#1a4a6e;border:1px solid #2980b9;border-radius:8px;color:#5dade2;padding:9px 14px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;">SAVE</button>' +
+              '<button onclick="(function(){var inp=document.getElementById(\'cal-manualSteps-' + ds + '\');inp.value=0;logManualCalories(\'' + ds + '\',\'manualSteps\');})()" style="background:#3d1a1a;border:1px solid #c0392b;border-radius:8px;color:#e74c3c;padding:9px 12px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;">DEL</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
       }).join('');
 
-      return `
-      <div class="stat-card" style="padding:14px;margin-bottom:16px;">
+      return \`
+      <div style="background:#111e2d !important;border-radius:12px;padding:14px;margin-bottom:16px;border:1px solid #1a2e42;">
         <style>
           #manual-step-date, #manual-step-count {
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
-            background: rgba(255,255,255,0.1) !important;
+            background: #1a2e42 !important;
+            border-color: #2980b9 !important;
           }
-          #manual-step-date::placeholder, #manual-step-count::placeholder { color: rgba(255,255,255,0.4) !important; }
-          #manual-step-date::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.6); cursor: pointer; }
+          #manual-step-date::placeholder, #manual-step-count::placeholder { color: #4a6480 !important; }
+          #manual-step-date::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.5); cursor: pointer; }
           #manual-step-date::-webkit-datetime-edit,
           #manual-step-date::-webkit-datetime-edit-fields-wrapper,
           #manual-step-date::-webkit-datetime-edit-text,
@@ -755,43 +735,36 @@ export function renderProgressTab(deps) {
           [id^="cal-manualSteps-"] {
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
-            background: rgba(255,255,255,0.1) !important;
+            background: #1a2e42 !important;
           }
         </style>
-        <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(52,152,219,0.9);margin-bottom:12px;">👟 MANUAL STEPS</div>
 
-        <!-- Add new entry -->
+        <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:#3498db;margin-bottom:12px;">👟 MANUAL STEPS</div>
+
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="date" id="manual-step-date" value="${todayStr}" max="${todayStr}"
-            style="flex:1;border:1px solid rgba(52,152,219,0.35);border-radius:8px;padding:8px 10px;font-size:12px;font-weight:600;outline:none;min-width:0;color-scheme:dark;">
+            style="flex:1;min-width:0;border-radius:8px;padding:9px 10px;font-size:12px;font-weight:600;outline:none;color-scheme:dark;">
           <input type="number" id="manual-step-count" placeholder="Steps"
-            style="width:90px;flex-shrink:0;border:1px solid rgba(52,152,219,0.35);border-radius:8px;padding:8px 10px;font-size:13px;font-weight:700;outline:none;">
+            style="width:88px;flex-shrink:0;border-radius:8px;padding:9px 10px;font-size:13px;font-weight:700;outline:none;">
           <button onclick="(function(){
-            var date  = document.getElementById('manual-step-date').value;
-            var steps = parseInt(document.getElementById('manual-step-count').value);
-            if (!date || !steps || steps < 1) return;
-            var inp = document.getElementById('cal-manualSteps-' + date);
-            if (!inp) {
-              inp = document.createElement('input');
-              inp.type = 'number';
-              inp.id   = 'cal-manualSteps-' + date;
-              inp.style.display = 'none';
-              document.body.appendChild(inp);
-            }
-            inp.value = steps;
-            logManualCalories(date, 'manualSteps');
-            document.getElementById('manual-step-count').value = '';
+            var date=document.getElementById('manual-step-date').value;
+            var steps=parseInt(document.getElementById('manual-step-count').value);
+            if(!date||!steps||steps<1)return;
+            var inp=document.getElementById('cal-manualSteps-'+date);
+            if(!inp){inp=document.createElement('input');inp.type='number';inp.id='cal-manualSteps-'+date;inp.style.display='none';document.body.appendChild(inp);}
+            inp.value=steps;
+            logManualCalories(date,'manualSteps');
+            document.getElementById('manual-step-count').value='';
           })()"
-            style="background:rgba(52,152,219,0.2);border:1px solid rgba(52,152,219,0.45);border-radius:8px;color:#3498db;padding:8px 14px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;flex-shrink:0;">ADD</button>
+            style="background:#1a4a6e;border:1px solid #2980b9;border-radius:8px;color:#5dade2;padding:9px 14px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;flex-shrink:0;">ADD</button>
         </div>
 
-        <!-- Existing entries -->
-        ${entriesHtml}
-        ${manualEntries.length === 0 ? `<div style="font-size:12px;color:rgba(255,255,255,0.35);text-align:center;padding:12px 0 4px;">No manual entries yet</div>` : ''}
-      </div>`;
+        \${entriesHtml}
+        \${manualEntries.length === 0 ? '<div style="font-size:12px;color:#4a6480;text-align:center;padding:14px 0 2px;">No manual entries yet</div>' : ''}
+      </div>\`;
     })()}
 
-    <!-- ══ LATEST SYNC ══ -->
+        <!-- ══ LATEST SYNC ══ -->
     ${(() => {
       const sorted      = [...(state.healthData||[])].sort((a,b)=>b.date.localeCompare(a.date));
       const todayHealth = sorted[0];
