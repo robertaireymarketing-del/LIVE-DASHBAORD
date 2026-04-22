@@ -289,19 +289,23 @@ function _renderRefined(refined, draftCount, c) {
   const parts  = refined.split(/\n\n+/);
   const para   = parts[0] || '';
   const anchor = parts[1] || '';
-  return \`
-    <div style="background:\${c.statementBg};border:1.5px solid \${c.statementBdr};border-radius:12px;padding:16px 16px 14px;margin-bottom:14px;">
-      <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:\${c.gold};text-transform:uppercase;margin-bottom:10px;">✦ Your Vision</div>
-      <div style="font-size:13px;font-weight:700;color:\${c.statementTxt};line-height:1.8;">\${_escHtml(para)}</div>
-      \${anchor ? \`
-        <div style="margin-top:14px;padding-top:12px;border-top:1px solid \${c.statementBdr};">
-          <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:\${c.gold};text-transform:uppercase;margin-bottom:6px;">⚡ Anchor</div>
-          <div style="font-size:14px;font-weight:900;color:\${c.gold};line-height:1.5;letter-spacing:0.5px;font-style:italic;">\${_escHtml(anchor)}</div>
-        </div>
-      \` : ''}
-      \${draftCount > 0 ? \`<div style="font-size:10px;color:\${c.muted};margin-top:10px;font-weight:600;letter-spacing:0.5px;">\${draftCount} draft\${draftCount > 1 ? 's' : ''} — getting sharper each time</div>\` : ''}
+  const anchorHtml = anchor
+    ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid ${c.statementBdr};">
+        <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:6px;">⚡ Anchor</div>
+        <div style="font-size:14px;font-weight:900;color:${c.gold};line-height:1.5;letter-spacing:0.5px;font-style:italic;">${_escHtml(anchor)}</div>
+      </div>`
+    : '';
+  const draftHtml = draftCount > 0
+    ? `<div style="font-size:10px;color:${c.muted};margin-top:10px;font-weight:600;letter-spacing:0.5px;">${draftCount} draft${draftCount > 1 ? 's' : ''} — getting sharper each time</div>`
+    : '';
+  return `
+    <div style="background:${c.statementBg};border:1.5px solid ${c.statementBdr};border-radius:12px;padding:16px 16px 14px;margin-bottom:14px;">
+      <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:10px;">✦ Your Vision</div>
+      <div style="font-size:13px;font-weight:700;color:${c.statementTxt};line-height:1.8;">${_escHtml(para)}</div>
+      ${anchorHtml}
+      ${draftHtml}
     </div>
-  \`;
+  `;
 }
 
 /* ─────────────────────────────────────────────────────────────────────
