@@ -1,2693 +1,813 @@
 // scripts/renderVisionTab.js
-// Vision Board Tab — daily visualisation with AI-distilled statements
-// Integrates with Firebase Firestore + Anthropic API
+// Vision Tab — Personal & Business goal architecture with AI refinement
+// Clean rebuild — working backwards for personal, working forwards for business
 
-// API key stored in localStorage — never in code
 const LS_KEY = 'tjm_anthropic_key';
-function getApiKey() { return localStorage.getItem(LS_KEY) || ''; }
-function saveApiKey(k) { localStorage.setItem(LS_KEY, k.trim()); }
+function getApiKey()    { return localStorage.getItem(LS_KEY) || ''; }
+function saveApiKey(k)  { localStorage.setItem(LS_KEY, k.trim()); }
 
-// Firebase modular imports (v9)
-import { collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, getDocs, query, orderBy, writeBatch } from './firebase.js';
+import { doc, getDoc, setDoc } from './firebase.js';
 
 /* ─────────────────────────────────────────────────────────────────────
-   ROOM CONFIGURATION
+   CONSTANTS
 ───────────────────────────────────────────────────────────────────── */
-export const DEFAULT_ROOMS = [
-  { id: 'health',        label: 'Health & Body',        emoji: '🏋️', desc: 'Body, fitness, energy and vitality' },
+
+const PERSONAL_SECTIONS = [
   {
-    id: 'business', label: 'Business & Wealth', emoji: '💼', isFolder: true,
-    defaultSubRooms: [
-      { id: 'biz_wealth', label: 'Wealth & Finances',      emoji: '💰', desc: 'Net worth, income and financial freedom' },
-      { id: 'biz_tjm',    label: 'The Jewellery Merchant', emoji: '💍', desc: 'Brand, scale and global impact' },
-      { id: 'biz_vinted', label: 'Vinted',                 emoji: '👗', desc: 'Reselling income and pipeline' },
-      { id: 'biz_total',  label: 'Total Picture',          emoji: '🗺️', desc: 'AI-synthesised command centre — all rooms blended', isTotalPicture: true },
-    ]
+    id: 'oneYear',
+    label: '1 Year From Now',
+    emoji: '🌟',
+    prompt: 'In one year from now, how will your life look? Your health, mind, relationships, energy — paint the full picture.',
   },
-  { id: 'lifestyle',     label: 'Lifestyle & Home',     emoji: '🏠', desc: 'Where you live and how you spend your days' },
-  { id: 'relationships', label: 'Relationships',        emoji: '🤝', desc: 'The people who matter most' },
-  { id: 'legacy',        label: 'Legacy & Impact',      emoji: '🌍', desc: 'The mark you leave on the world' },
-  { id: 'identity',      label: 'Identity & Character', emoji: '🧠', desc: 'Who you are becoming' },
+  {
+    id: 'sixMonths',
+    label: '6 Months From Now',
+    emoji: '🎯',
+    prompt: 'To achieve your 1-year vision, in 6 months from now you need to...',
+  },
+  {
+    id: 'threeMonths',
+    label: '3 Months From Now',
+    emoji: '📅',
+    prompt: 'In 3 months from now, to be on track you need to...',
+  },
+  {
+    id: 'oneMonth',
+    label: '1 Month From Now',
+    emoji: '🗓️',
+    prompt: 'In 1 month from now, you need to...',
+  },
+  {
+    id: 'thisWeek',
+    label: 'This Week',
+    emoji: '⚡',
+    prompt: 'This week, the most important things you need to do are...',
+  },
+  {
+    id: 'today',
+    label: 'Today',
+    emoji: '🔥',
+    prompt: 'Today, you need to...',
+  },
 ];
 
 /* ─────────────────────────────────────────────────────────────────────
    MODULE STATE
 ───────────────────────────────────────────────────────────────────── */
-let _deps = null;
-let _view = 'overview';   // 'overview' | 'folder' | 'room'
-let _folderId = null;
-let _room = null;         // { id, label, emoji }
-let _statement = '';
-let _entries = [];
-let _showEntries = false;
-let _distilling = false;
-let _saving = false;
-let _editId = null;
-let _customSubRooms = []; // user-added ventures under business folder
 
-// Total Picture state
-let _tp_data       = null;   // { vision, currentReality, objectives, weeklyRoadmap, amendments, generatedAt }
-let _tp_generating = false;
-let _tp_amending   = false;
-let _tp_amendDraft = '';
-
-// Weekly review + accountability state
-let _weeklyReview = null;       // { answers, ts }
-let _realityCheck = '';         // AI-generated gap analysis
-let _focusPlan = '';            // AI-generated 30-day focus
-let _baseline = '';             // user-written current reality baseline (grounds AI targets)
-let _editingBaseline = false;   // whether baseline edit mode is open
-let _loadingRealityCheck = false;
-let _loading30Day = false;
-let _showReviewBanner = false;
-let _overdueRooms = new Set();  // room ids where weekly review is overdue
+let _deps         = null;
+let _activeTab    = 'personal'; // 'personal' | 'business'
+let _personalData = null;
+let _businessData = null;
+let _undoStack    = [];          // max 20 snapshots
+let _refining     = {};          // { sectionId: bool }
 
 /* ─────────────────────────────────────────────────────────────────────
-   COLOUR TOKENS (light / dark aware)
+   DEFAULT DATA SHAPES
 ───────────────────────────────────────────────────────────────────── */
-function colors() {
-  const light = document.body.classList.contains('light');
+
+function _defaultPersonal() {
+  const d = {};
+  PERSONAL_SECTIONS.forEach(s => { d[s.id] = { refined: '', history: [] }; });
+  return d;
+}
+
+function _defaultBusiness() {
   return {
-    heading:      light ? '#0A1628' : '#FFFFFF',
-    subheading:   light ? '#1B3A6B' : 'rgba(255,255,255,0.7)',
-    muted:        light ? '#8899B0' : 'rgba(255,255,255,0.4)',
-    cardBg:       light ? '#FFFFFF' : 'rgba(255,255,255,0.04)',
-    cardBorder:   light ? '#CDD4E0' : 'rgba(255,255,255,0.08)',
-    cardHover:    light ? '#F0F4FA' : 'rgba(255,255,255,0.07)',
-    inputBg:      light ? '#F0F4FA' : 'rgba(255,255,255,0.06)',
-    inputBorder:  light ? '#CDD4E0' : 'rgba(255,255,255,0.12)',
-    inputText:    light ? '#0A1628' : '#FFFFFF',
-    statementBg:  light ? '#FFFBF0' : 'rgba(201,168,76,0.07)',
-    statementBdr: light ? '#C9A84C' : 'rgba(201,168,76,0.4)',
-    statementTxt: light ? '#5C4A00' : 'rgba(255,245,210,0.95)',
-    emptyTxt:     light ? '#8899B0' : 'rgba(255,255,255,0.25)',
-    gold:         light ? '#B8962E' : '#C9A84C',
-    goldBtn:      light ? '#1B3A6B' : '#C9A84C',
-    goldBtnTxt:   light ? '#FFFFFF' : '#0A1628',
-    dangerTxt:    light ? '#C0392B' : '#FF6B6B',
-    divider:      light ? '#E4E9F2' : 'rgba(255,255,255,0.06)',
-    pageBg:       light ? '#F0F4FA' : 'transparent',
-    backBtn:      light ? '#1B3A6B' : 'rgba(255,255,255,0.15)',
-    backBtnTxt:   light ? '#FFFFFF' : 'rgba(255,255,255,0.8)',
-    streakPip:    light ? '#C9A84C' : '#C9A84C',
-    folderBadge:  light ? '#E8EFF8' : 'rgba(255,255,255,0.08)',
-    folderBadgeTxt: light ? '#1B3A6B' : 'rgba(255,255,255,0.5)',
+    oneYear: { refined: '', history: [] },
+    steps: [
+      { id: 'step_1', title: 'The first step is to...', locked: false, refined: '', history: [], deadline: '' },
+      { id: 'step_2', title: 'The next step is to...', locked: false, refined: '', history: [], deadline: '' },
+      { id: 'step_3', title: 'The next step is to...', locked: false, refined: '', history: [], deadline: '' },
+    ],
   };
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   MAIN ENTRY — called by app.js tab switch
+   COLOUR TOKENS
 ───────────────────────────────────────────────────────────────────── */
+
+function colors() {
+  const light = document.body.classList.contains('light');
+  return {
+    heading:         light ? '#0A1628'              : '#FFFFFF',
+    subheading:      light ? '#1B3A6B'              : 'rgba(255,255,255,0.7)',
+    muted:           light ? '#8899B0'              : 'rgba(255,255,255,0.4)',
+    cardBg:          light ? '#FFFFFF'              : 'rgba(255,255,255,0.04)',
+    cardBorder:      light ? '#CDD4E0'              : 'rgba(255,255,255,0.08)',
+    inputBg:         light ? '#F0F4FA'              : 'rgba(255,255,255,0.06)',
+    inputBorder:     light ? '#CDD4E0'              : 'rgba(255,255,255,0.12)',
+    inputText:       light ? '#0A1628'              : '#FFFFFF',
+    statementBg:     light ? '#FFFBF0'              : 'rgba(201,168,76,0.07)',
+    statementBdr:    light ? '#C9A84C'              : 'rgba(201,168,76,0.4)',
+    statementTxt:    light ? '#5C4A00'              : 'rgba(255,245,210,0.95)',
+    emptyTxt:        light ? '#8899B0'              : 'rgba(255,255,255,0.25)',
+    gold:            light ? '#B8962E'              : '#C9A84C',
+    goldBtn:         light ? '#1B3A6B'              : '#C9A84C',
+    goldBtnTxt:      light ? '#FFFFFF'              : '#0A1628',
+    addStepBtn:      light ? '#1B3A6B'              : '#C9A84C',  // always vivid
+    addStepBtnTxt:   light ? '#FFFFFF'              : '#0A1628',
+    dangerTxt:       light ? '#C0392B'              : '#FF6B6B',
+    pageBg:          light ? '#F0F4FA'              : 'transparent',
+    toggleBg:        light ? '#E4E9F2'              : 'rgba(255,255,255,0.08)',
+    toggleActive:    light ? '#1B3A6B'              : '#C9A84C',
+    toggleActiveTxt: light ? '#FFFFFF'              : '#0A1628',
+    toggleInactive:  light ? 'transparent'          : 'transparent',
+    toggleInactiveTxt: light ? '#8899B0'            : 'rgba(255,255,255,0.5)',
+    undoBg:          light ? '#FFFFFF'              : 'rgba(30,30,40,0.95)',
+    undoBorder:      light ? '#CDD4E0'              : 'rgba(255,255,255,0.15)',
+  };
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   MAIN ENTRY
+───────────────────────────────────────────────────────────────────── */
+
 export async function renderVisionTab(deps) {
   _deps = deps;
-  _view = 'overview';
-  _folderId = null;
-  _room = null;
-  await _loadCustomSubRooms();
-  await _loadAllRoomReviewStatus();
-  _paintOverview();
+  await _loadData();
+  _paint();
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   OVERVIEW — all room cards
+   FIREBASE — LOAD & SAVE
 ───────────────────────────────────────────────────────────────────── */
-function _paintOverview() {
-  const c = colors();
-  const panel = _panel();
-  if (!panel) return;
 
-  // Inject keyframes once
-  if (!document.getElementById('vision-overdue-styles')) {
-    const style = document.createElement('style');
-    style.id = 'vision-overdue-styles';
-    style.textContent = `
-      @keyframes visionOverduePulse {
-        0%,100% { border-color: rgba(231,76,60,0.5); box-shadow: none; }
-        50%      { border-color: rgba(231,76,60,1);   box-shadow: 0 0 12px rgba(231,76,60,0.4); }
-      }
-      @keyframes visionDotPulse {
-        0%,100% { opacity:1; transform:scale(1); }
-        50%      { opacity:0.4; transform:scale(1.4); }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  const roomsWithMeta = DEFAULT_ROOMS.map(r => {
-    if (r.isFolder) {
-      const subs = [...r.defaultSubRooms, ..._customSubRooms];
-      return { ...r, count: subs.length };
+async function _loadData() {
+  try {
+    const { db, user } = _deps;
+    if (!db || !user?.uid) {
+      _personalData = _defaultPersonal();
+      _businessData = _defaultBusiness();
+      return;
     }
-    return r;
-  });
+    const uid = user.uid;
 
-  panel.innerHTML = `
-    <div class="vision-page" style="background:${c.pageBg};min-height:100%;padding:24px 20px 80px;">
-      <div class="vision-header" style="margin-bottom:28px;">
-        <div style="font-size:22px;font-weight:900;letter-spacing:2px;color:${c.heading};text-transform:uppercase;">
-          🔮 Vision Board
-        </div>
-        <div style="font-size:12px;color:${c.muted};letter-spacing:1px;margin-top:4px;font-weight:600;">
-          Write your future. Distil it to clarity.
-        </div>
-      </div>
+    const [pSnap, bSnap] = await Promise.all([
+      getDoc(doc(db, 'users', uid, 'vision', 'personal')),
+      getDoc(doc(db, 'users', uid, 'vision', 'business')),
+    ]);
 
-      <div class="vision-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        ${roomsWithMeta.map(r => _roomCard(r, c)).join('')}
-      </div>
-    </div>
-  `;
+    _personalData = pSnap.exists() ? pSnap.data() : _defaultPersonal();
+    _businessData = bSnap.exists() ? bSnap.data() : _defaultBusiness();
 
-  // Attach card listeners
-  panel.querySelectorAll('[data-vision-room]').forEach(el => {
-    el.addEventListener('click', () => {
-      const id = el.dataset.visionRoom;
-      const room = DEFAULT_ROOMS.find(r => r.id === id);
-      if (room && room.isFolder) {
-        _openFolder(room);
-      } else {
-        const flatRoom = _findRoom(id);
-        if (flatRoom) _openRoom(flatRoom);
-      }
+    // Ensure all personal sections exist (forward-compatible)
+    PERSONAL_SECTIONS.forEach(s => {
+      if (!_personalData[s.id]) _personalData[s.id] = { refined: '', history: [] };
     });
-  });
-}
 
-function _roomCard(r, c) {
-  const isFolder = !!r.isFolder;
-  const isOverdue = !isFolder && _overdueRooms.has(r.id);
+    // Ensure business shape
+    if (!_businessData.oneYear) _businessData.oneYear = { refined: '', history: [] };
+    if (!_businessData.steps)   _businessData.steps   = _defaultBusiness().steps;
 
-  // For folders, check if any sub-room is overdue
-  const folderOverdue = isFolder && (
-    [...(r.defaultSubRooms || []), ..._customSubRooms].some(s => _overdueRooms.has(s.id))
-  );
-  const needsAttention = isOverdue || folderOverdue;
-
-  return `
-    <div
-      data-vision-room="${r.id}"
-      class="vision-card${needsAttention ? ' vision-overdue' : ''}"
-      style="
-        background:${c.cardBg};
-        border:1px solid ${needsAttention ? 'rgba(231,76,60,0.7)' : c.cardBorder};
-        border-radius:14px;
-        padding:18px 14px 16px;
-        cursor:pointer;
-        transition:all .18s ease;
-        position:relative;
-        overflow:hidden;
-        ${needsAttention ? 'animation:visionOverduePulse 1.6s ease-in-out infinite;' : ''}
-      "
-      onmouseover="this.style.background='${c.cardHover}';this.style.borderColor='${needsAttention ? 'rgba(231,76,60,1)' : c.gold}'"
-      onmouseout="this.style.background='${c.cardBg}';this.style.borderColor='${needsAttention ? 'rgba(231,76,60,0.7)' : c.cardBorder}'"
-    >
-      ${needsAttention ? `<div style="position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:#e74c3c;animation:visionDotPulse 1.6s ease-in-out infinite;"></div>` : ''}
-      <div style="font-size:28px;margin-bottom:10px;">${r.emoji}</div>
-      <div style="font-size:12px;font-weight:900;letter-spacing:1.5px;color:${needsAttention ? '#e74c3c' : c.heading};text-transform:uppercase;line-height:1.3;margin-bottom:6px;">${r.label}</div>
-      <div style="font-size:11px;color:${c.muted};font-weight:600;line-height:1.4;">${r.desc || ''}</div>
-      ${isFolder
-        ? `<div style="margin-top:10px;font-size:10px;font-weight:800;letter-spacing:1px;color:${folderOverdue ? '#e74c3c' : c.folderBadgeTxt};background:${folderOverdue ? 'rgba(231,76,60,0.1)' : c.folderBadge};border-radius:6px;padding:3px 8px;display:inline-block;">${folderOverdue ? '⚠ REVIEW DUE' : r.count + ' ROOMS →'}</div>`
-        : isOverdue
-          ? `<div style="margin-top:10px;font-size:10px;color:#e74c3c;font-weight:900;letter-spacing:1px;">⚠ REVIEW DUE</div>`
-          : `<div style="margin-top:10px;font-size:10px;color:${c.gold};font-weight:800;letter-spacing:1px;">ENTER →</div>`
-      }
-    </div>
-  `;
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   FOLDER VIEW — Business & Wealth sub-rooms
-───────────────────────────────────────────────────────────────────── */
-function _openFolder(folder) {
-  _view = 'folder';
-  _folderId = folder.id;
-  const c = colors();
-  const panel = _panel();
-  if (!panel) return;
-
-  const subs = [...folder.defaultSubRooms, ..._customSubRooms];
-
-  panel.innerHTML = `
-    <div class="vision-page" style="background:${c.pageBg};min-height:100%;padding:24px 20px 80px;">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
-        <button id="vision-back" style="${_backBtnStyle(c)}">← Back</button>
-        <div>
-          <div style="font-size:18px;font-weight:900;letter-spacing:2px;color:${c.heading};text-transform:uppercase;">${folder.emoji} ${folder.label}</div>
-          <div style="font-size:11px;color:${c.muted};letter-spacing:1px;font-weight:600;">Select a room to enter</div>
-        </div>
-      </div>
-
-      <div class="vision-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-        ${subs.map(r => _roomCard({ ...r, desc: r.desc || '' }, c)).join('')}
-      </div>
-
-      <button id="vision-add-venture" style="
-        width:100%;padding:14px;
-        background:${c.cardBg};border:1.5px dashed ${c.cardBorder};
-        border-radius:14px;color:${c.muted};
-        font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase;
-        cursor:pointer;margin-top:4px;transition:all .18s;
-      "
-      onmouseover="this.style.borderColor='${c.gold}';this.style.color='${c.gold}'"
-      onmouseout="this.style.borderColor='${c.cardBorder}';this.style.color='${c.muted}'"
-      >+ Add New Venture</button>
-    </div>
-  `;
-
-  panel.querySelector('#vision-back').addEventListener('click', () => {
-    _view = 'overview';
-    _paintOverview();
-  });
-
-  panel.querySelectorAll('[data-vision-room]').forEach(el => {
-    el.addEventListener('click', () => {
-      const id = el.dataset.visionRoom;
-      const room = _findRoom(id);
-      if (room) _openRoom(room);
-    });
-  });
-
-  panel.querySelector('#vision-add-venture').addEventListener('click', _showAddVentureModal);
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   ROOM VIEW — vision statement + entry form
-───────────────────────────────────────────────────────────────────── */
-async function _openRoom(room) {
-  // Total Picture is a special read-only AI room — route separately
-  if (room.id === 'biz_total') { await _openTotalPicture(); return; }
-
-  _view = 'room';
-  _room = room;
-  _showEntries = false;
-  _editId = null;
-
-  const c = colors();
-  const panel = _panel();
-  if (!panel) return;
-
-  // Loading state
-  panel.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:center;height:200px;">
-      <div style="color:${c.muted};font-size:13px;font-weight:700;letter-spacing:2px;">LOADING…</div>
-    </div>
-  `;
-
-  // Load from Firebase
-  await _loadRoomData(room.id);
-
-  // Check if Sunday review is due
-  const today = new Date();
-  const isSunday = today.getDay() === 0;
-  const lastReviewTs = _weeklyReview?.ts || 0;
-  const daysSinceReview = (Date.now() - lastReviewTs) / (1000 * 60 * 60 * 24);
-  _showReviewBanner = isSunday || daysSinceReview >= 7;
-
-  _paintRoom(c);
-}
-
-function _paintRoom(c) {
-  c = c || colors();
-  const panel = _panel();
-  if (!panel || !_room) return;
-
-  try {
-
-  const fromFolder = _folderId !== null;
-  const hasStatement = _statement && _statement.trim().length > 0;
-  const todayStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-  const entryCount = _entries.length;
-
-  panel.innerHTML = `
-    <div class="vision-page" style="background:${c.pageBg};min-height:100%;padding:24px 20px 80px;">
-
-      <!-- Header -->
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
-        <button id="vision-back" style="${_backBtnStyle(c)}">← Back</button>
-        <div>
-          <div style="font-size:18px;font-weight:900;letter-spacing:2px;color:${c.heading};text-transform:uppercase;">${_room.emoji} ${_room.label}</div>
-          <div style="font-size:11px;color:${c.muted};letter-spacing:1px;font-weight:600;">${todayStr}</div>
-        </div>
-      </div>
-
-      <!-- Vision Statement -->
-      <div style="
-        background:${c.statementBg};
-        border:1.5px solid ${c.statementBdr};
-        border-radius:14px;
-        padding:18px 16px;
-        margin-bottom:20px;
-      ">
-        <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.gold};text-transform:uppercase;margin-bottom:10px;">✦ Your Vision</div>
-        ${hasStatement
-          ? `<div id="vision-statement-text" style="font-size:14px;line-height:1.75;color:${c.statementTxt};font-weight:600;">${_nl2br(_statement)}</div>`
-          : `<div style="font-size:13px;color:${c.emptyTxt};font-weight:600;font-style:italic;line-height:1.6;">Your vision will crystallise here as you write. Add your first entry below to begin.</div>`
-        }
-        ${hasStatement ? `
-          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
-            <button id="vision-redisil" style="${_smallBtnStyle(c, false)}"
-              ${_distilling ? 'disabled' : ''}>
-              ${_distilling ? '⟳ Distilling…' : '⟳ Re-distil'}
-            </button>
-          </div>
-        ` : ''}
-      </div>
-
-      <!-- Current Reality Baseline -->
-      <div style="
-        background:${c.cardBg};
-        border:1px solid ${_baseline ? 'rgba(201,168,76,0.35)' : c.cardBorder};
-        border-radius:14px;
-        padding:16px;
-        margin-bottom:16px;
-      ">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${_baseline && !_editingBaseline ? '10px' : '0'};">
-          <div style="font-size:10px;font-weight:900;letter-spacing:2px;color:${_baseline ? c.gold : c.muted};text-transform:uppercase;">📍 Current Reality Baseline</div>
-          <button id="vision-baseline-edit" style="
-            background:transparent;border:1px solid ${c.cardBorder};border-radius:6px;
-            color:${c.muted};font-size:10px;font-weight:800;letter-spacing:1px;
-            padding:4px 10px;cursor:pointer;
-          ">${_editingBaseline ? 'Cancel' : (_baseline ? 'Edit' : '+ Add')}</button>
-        </div>
-        ${_editingBaseline ? `
-          <div style="margin-top:10px;">
-            <div style="font-size:11px;color:${c.muted};font-weight:600;line-height:1.55;margin-bottom:10px;">
-              Write where things <em>actually</em> stand right now — real numbers, real stage. The AI uses this to calibrate every target it sets for you.
-            </div>
-            <textarea id="vision-baseline-input" style="
-              width:100%;min-height:100px;
-              background:${c.inputBg};border:1px solid ${c.inputBorder};
-              border-radius:10px;color:${c.inputText};
-              font-size:13px;line-height:1.65;padding:10px 12px;
-              font-family:inherit;font-weight:600;resize:vertical;
-              box-sizing:border-box;outline:none;
-            " placeholder="e.g. Starting from zero — no active listings, no revenue yet, brand new Etsy account. Goal is to get first 10 sales before anything else...">${_escHtml(_baseline)}</textarea>
-            <button id="vision-baseline-save" style="
-              margin-top:10px;width:100%;
-              background:${c.goldBtn};color:${c.goldBtnTxt};
-              border:none;border-radius:10px;
-              padding:11px;font-size:11px;font-weight:900;
-              letter-spacing:2px;text-transform:uppercase;cursor:pointer;
-            ">Save Baseline</button>
-          </div>
-        ` : _baseline ? `
-          <div style="font-size:13px;line-height:1.65;color:${c.subheading};font-weight:600;">${_nl2br(_escHtml(_baseline))}</div>
-        ` : `
-          <div style="font-size:12px;color:${c.emptyTxt};font-weight:600;font-style:italic;line-height:1.5;margin-top:8px;">
-            Tell the AI where you actually are right now — stage, numbers, context. Without this it will set targets based on your vision alone, not your reality.
-          </div>
-        `}
-      </div>
-
-      <!-- Health Tracker (Health & Body room only) -->
-      ${_room.id === 'health' ? _buildHealthTrackerHtml(c) : ''}
-
-      <!-- Weekly Review Banner -->
-      ${_showReviewBanner ? `
-        <div style="
-          background:linear-gradient(135deg, rgba(201,168,76,0.15), rgba(201,168,76,0.05));
-          border:1.5px solid ${c.gold};
-          border-radius:14px;
-          padding:16px;
-          margin-bottom:16px;
-          display:flex;align-items:center;gap:14px;
-        ">
-          <div style="font-size:28px;flex-shrink:0;">📋</div>
-          <div style="flex:1;">
-            <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:3px;">Weekly Review Due</div>
-            <div style="font-size:12px;color:${c.subheading};font-weight:600;line-height:1.5;">
-              ${_weeklyReview ? 'Time for your weekly check-in — update your reality to keep this sharp.' : 'Complete your first weekly review to unlock your Reality Check & 30-Day Focus.'}
-            </div>
-          </div>
-          <button id="vision-start-review" style="
-            background:${c.goldBtn};color:${c.goldBtnTxt};
-            border:none;border-radius:10px;
-            padding:10px 14px;font-size:11px;font-weight:900;
-            letter-spacing:1px;text-transform:uppercase;
-            cursor:pointer;white-space:nowrap;flex-shrink:0;
-          ">Start →</button>
-        </div>
-      ` : `
-        <button id="vision-start-review" style="
-          width:100%;padding:10px;
-          background:transparent;border:1px dashed ${c.cardBorder};
-          border-radius:10px;color:${c.muted};
-          font-size:10px;font-weight:800;letter-spacing:1.5px;
-          text-transform:uppercase;cursor:pointer;margin-bottom:16px;
-          transition:all .18s;
-        "
-        onmouseover="this.style.borderColor='${c.gold}';this.style.color='${c.gold}'"
-        onmouseout="this.style.borderColor='${c.cardBorder}';this.style.color='${c.muted}'"
-        >📋 ${_weeklyReview ? 'Update Weekly Review' : 'Do Weekly Review'}</button>
-      `}
-
-      <!-- Reality Check -->
-      ${hasStatement ? `
-        <div style="
-          background:${c.cardBg};
-          border:1px solid ${c.cardBorder};
-          border-radius:14px;
-          padding:18px 16px;
-          margin-bottom:14px;
-        ">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.muted};text-transform:uppercase;">🔍 Reality Check</div>
-            ${_weeklyReview ? `<button id="vision-refresh-reality" style="${_smallBtnStyle(c, false)}" ${_loadingRealityCheck ? 'disabled' : ''}>${_loadingRealityCheck ? '⟳ Analysing…' : '⟳ Refresh'}</button>` : ''}
-          </div>
-          ${_loadingRealityCheck
-            ? `<div style="font-size:12px;color:${c.muted};font-weight:600;font-style:italic;">Analysing the gap…</div>`
-            : _realityCheck
-              ? `<div style="font-size:13px;line-height:1.75;color:${c.subheading};font-weight:600;">${_nl2br(_realityCheck)}</div>
-                 ${_weeklyReview ? `<div style="font-size:10px;color:${c.muted};margin-top:10px;font-weight:700;">Last review: ${_fmtDate(_weeklyReview.ts)}</div>` : ''}`
-              : `<div style="font-size:12px;color:${c.emptyTxt};font-weight:600;font-style:italic;line-height:1.6;">
-                  Complete a weekly review and your reality check will appear here — an honest comparison of where you are vs who your vision says you are.
-                </div>`
-          }
-        </div>
-
-        <!-- 30-Day Focus -->
-        <div style="
-          background:${c.cardBg};
-          border:1px solid ${c.cardBorder};
-          border-radius:14px;
-          padding:18px 16px;
-          margin-bottom:20px;
-        ">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-            <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.muted};text-transform:uppercase;">🎯 Monthly Focus</div>
-            ${_weeklyReview ? `<button id="vision-refresh-focus" style="${_smallBtnStyle(c, false)}" ${_loading30Day ? 'disabled' : ''}>${_loading30Day ? '⟳ Building…' : '⟳ Refresh'}</button>` : ''}
-          </div>
-          ${_loading30Day
-            ? `<div style="font-size:12px;color:${c.muted};font-weight:600;font-style:italic;">Building your monthly plan…</div>`
-            : (() => {
-                if (!_focusPlan) return `<div style="font-size:12px;color:${c.emptyTxt};font-weight:600;font-style:italic;line-height:1.6;">Complete a weekly review to unlock your monthly plan — a calendar-month objective broken into 4 focused weeks with guidance to overcome what's holding you back.</div>`;
-                let plan;
-                try { plan = JSON.parse(_focusPlan); } catch(e) { plan = null; }
-                if (!plan || !plan.weeks) return `<div style="font-size:13px;line-height:1.75;color:${c.subheading};font-weight:600;">${_nl2br(_focusPlan)}</div>`;
-
-                const weekColors = ['#4A90D9','#C9A84C','#2ECC71','#9B59B6'];
-                const weekPhases = ['FOUNDATIONS','MOMENTUM','PUSH','LOCK IN'];
-                const todayISO   = new Date().toISOString().slice(0,10);
-                const isHealthRoomPlan = _room?.id === 'health';
-
-                // Format date nicely: "Sun 12 Apr"
-                const fmtWeekDate = (iso) => {
-                  if (!iso) return '';
-                  const d = new Date(iso + 'T12:00:00');
-                  return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' });
-                };
-
-                // Month progress header (health room only)
-                const monthActuals = (isHealthRoomPlan && plan.monthStart)
-                  ? _getMonthHealthActuals(plan.monthStart) : null;
-
-                const monthProgressHtml = (monthActuals && isHealthRoomPlan) ? (() => {
-                  const now2 = new Date();
-                  const monthEnd2 = new Date(plan.monthEnd + 'T23:59:59');
-                  const monthStart2 = new Date(plan.monthStart + 'T00:00:00');
-                  const totalDays = Math.ceil((monthEnd2 - monthStart2) / 86400000);
-                  const daysElapsed = Math.min(totalDays, Math.ceil((now2 - monthStart2) / 86400000));
-                  const pctThrough = Math.round((daysElapsed / totalDays) * 100);
-
-                  const rows = [
-                    monthActuals.totalSteps != null ? `
-                      <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <span style="font-size:11px;font-weight:700;color:${c.muted};">👟 Steps so far</span>
-                        <span style="font-size:12px;font-weight:900;color:${c.heading};">${monthActuals.totalSteps.toLocaleString()}</span>
-                      </div>` : '',
-                    monthActuals.weightChange != null ? (() => {
-                      const col = monthActuals.weightChange < 0 ? '#2ecc71' : monthActuals.weightChange > 0 ? '#e74c3c' : c.muted;
-                      const arrow = monthActuals.weightChange < 0 ? '▼' : monthActuals.weightChange > 0 ? '▲' : '—';
-                      return `<div style="display:flex;justify-content:space-between;align-items:center;">
-                        <span style="font-size:11px;font-weight:700;color:${c.muted};">⚖️ Weight change</span>
-                        <span style="font-size:12px;font-weight:900;color:${col};">${arrow} ${Math.abs(monthActuals.weightChange)} lbs (${monthActuals.currentWeight?.toFixed(1)} lbs now)</span>
-                      </div>`;
-                    })() : '',
-                    monthActuals.bodyFatChange != null ? (() => {
-                      const col = monthActuals.bodyFatChange < 0 ? '#2ecc71' : monthActuals.bodyFatChange > 0 ? '#e74c3c' : c.muted;
-                      const arrow = monthActuals.bodyFatChange < 0 ? '▼' : monthActuals.bodyFatChange > 0 ? '▲' : '—';
-                      return `<div style="display:flex;justify-content:space-between;align-items:center;">
-                        <span style="font-size:11px;font-weight:700;color:${c.muted};">📊 Body fat change</span>
-                        <span style="font-size:12px;font-weight:900;color:${col};">${arrow} ${Math.abs(monthActuals.bodyFatChange)}% (${monthActuals.currentBodyFat?.toFixed(1)}% now)</span>
-                      </div>`;
-                    })() : '',
-                  ].filter(Boolean);
-
-                  if (rows.length === 0) return '';
-                  return `
-                    <div style="
-                      background:rgba(201,168,76,0.06);
-                      border:1px solid rgba(201,168,76,0.25);
-                      border-radius:12px;padding:14px 16px;margin-bottom:14px;
-                    ">
-                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                        <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;">📈 Month So Far</div>
-                        <div style="font-size:10px;font-weight:700;color:${c.muted};">${daysElapsed}/${totalDays} days · ${pctThrough}% through</div>
-                      </div>
-                      <div style="height:4px;background:${c.cardBorder};border-radius:2px;margin-bottom:12px;overflow:hidden;">
-                        <div style="height:100%;width:${pctThrough}%;background:${c.gold};border-radius:2px;transition:width 0.4s;"></div>
-                      </div>
-                      <div style="display:flex;flex-direction:column;gap:6px;">
-                        ${rows.join('')}
-                      </div>
-                    </div>
-                  `;
-                })() : '';
-
-                return `
-                  <!-- Month Objective -->
-                  <div style="
-                    background:${c.statementBg};
-                    border:1.5px solid ${c.statementBdr};
-                    border-radius:12px;
-                    padding:14px 16px;
-                    margin-bottom:12px;
-                  ">
-                    <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:6px;">THIS MONTH'S OBJECTIVE</div>
-                    <div style="font-size:13px;font-weight:800;color:${c.statementTxt};line-height:1.5;">${_escHtml(plan.monthObjective)}</div>
-                    ${plan.monthEnd ? `<div style="font-size:10px;font-weight:700;color:${c.gold};margin-top:8px;letter-spacing:1px;">🏁 DEADLINE: ${fmtWeekDate(plan.monthEnd).toUpperCase()}</div>` : ''}
-                  </div>
-
-                  <!-- Month so far progress (health room) -->
-                  ${monthProgressHtml}
-
-                  <!-- Week cards -->
-                  <div style="display:flex;flex-direction:column;gap:10px;">
-                    ${plan.weeks.map(function(w, i) {
-                      const weekEnd   = w.weekEnd   || '';
-                      const weekStart = w.weekStart || '';
-                      const isPast    = weekEnd   && weekEnd   < todayISO;
-                      const isCurrent = weekStart && weekEnd   && weekStart <= todayISO && weekEnd >= todayISO;
-                      const colIdx    = i % weekColors.length;
-                      const wkColor   = weekColors[colIdx];
-                      const phase     = weekPhases[i] || ('WK ' + w.week);
-
-                      // Status pill
-                      const statusHtml = isPast
-                        ? `<span style="background:rgba(46,204,113,0.15);color:#2ecc71;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:900;letter-spacing:1px;">✓ DONE</span>`
-                        : isCurrent
-                          ? `<span style="background:rgba(201,168,76,0.2);color:${c.gold};border-radius:5px;padding:2px 7px;font-size:9px;font-weight:900;letter-spacing:1px;animation:visionDotPulse 2s ease-in-out infinite;">● NOW</span>`
-                          : `<span style="background:${c.cardBorder};color:${c.muted};border-radius:5px;padding:2px 7px;font-size:9px;font-weight:900;letter-spacing:1px;">UPCOMING</span>`;
-
-                      // End date label
-                      const endDateStr = weekEnd
-                        ? (w.isMonthEnd
-                            ? `Ends ${fmtWeekDate(weekEnd)} · month deadline`
-                            : `Ends ${fmtWeekDate(weekEnd)}`)
-                        : '';
-
-                      // Actuals for past/current weeks (health room)
-                      let actualsHtml = '';
-                      if (isHealthRoomPlan && (isPast || isCurrent) && weekStart && weekEnd) {
-                        const act = _getWeekHealthActuals(weekStart, weekEnd);
-                        if (act) {
-                          const stepsHtml = act.totalSteps != null
-                            ? `<div style="display:flex;justify-content:space-between;">
-                                <span style="font-size:11px;color:${c.muted};font-weight:700;">👟 Steps</span>
-                                <span style="font-size:11px;font-weight:900;color:#3498db;">${act.totalSteps.toLocaleString()}</span>
-                               </div>` : '';
-                          const wtHtml = act.endWeight != null ? (() => {
-                            const col = act.weightChange != null && act.weightChange < 0 ? '#2ecc71' : act.weightChange != null && act.weightChange > 0 ? '#e74c3c' : c.muted;
-                            const delta = act.weightChange != null ? ` (${act.weightChange > 0 ? '+' : ''}${act.weightChange} lbs)` : '';
-                            return `<div style="display:flex;justify-content:space-between;">
-                              <span style="font-size:11px;color:${c.muted};font-weight:700;">⚖️ Weight</span>
-                              <span style="font-size:11px;font-weight:900;color:${col};">${act.endWeight.toFixed(1)} lbs${delta}</span>
-                             </div>`;
-                          })() : '';
-                          const bfHtml = act.endBodyFat != null ? (() => {
-                            const col = act.bfChange != null && act.bfChange < 0 ? '#2ecc71' : act.bfChange != null && act.bfChange > 0 ? '#e74c3c' : c.muted;
-                            const delta = act.bfChange != null ? ` (${act.bfChange > 0 ? '+' : ''}${act.bfChange}%)` : '';
-                            return `<div style="display:flex;justify-content:space-between;">
-                              <span style="font-size:11px;color:${c.muted};font-weight:700;">📊 Body fat</span>
-                              <span style="font-size:11px;font-weight:900;color:${col};">${act.endBodyFat.toFixed(1)}%${delta}</span>
-                             </div>`;
-                          })() : '';
-
-                          const label = isPast ? 'ACTUAL RESULTS' : 'THIS WEEK SO FAR';
-                          if (stepsHtml || wtHtml || bfHtml) {
-                            actualsHtml = `
-                              <div style="
-                                border-top:1px solid ${c.divider};
-                                margin-top:10px;padding-top:10px;
-                              ">
-                                <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${isPast ? '#2ecc71' : c.gold};text-transform:uppercase;margin-bottom:7px;">${label}</div>
-                                <div style="display:flex;flex-direction:column;gap:5px;">
-                                  ${stepsHtml}${wtHtml}${bfHtml}
-                                </div>
-                              </div>`;
-                          }
-                        }
-                      }
-
-                      return `
-                        <div style="
-                          border-left:3px solid ${wkColor};
-                          border-radius:0 10px 10px 0;
-                          background:${c.cardBg};
-                          border-top:1px solid ${isPast ? 'rgba(46,204,113,0.2)' : c.cardBorder};
-                          border-right:1px solid ${isPast ? 'rgba(46,204,113,0.2)' : c.cardBorder};
-                          border-bottom:1px solid ${isPast ? 'rgba(46,204,113,0.2)' : c.cardBorder};
-                          padding:12px 14px;
-                          opacity:${isPast ? '0.85' : '1'};
-                        ">
-                          <!-- Week header -->
-                          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
-                            <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${wkColor};text-transform:uppercase;">WK ${w.week} — ${phase}</div>
-                            ${statusHtml}
-                          </div>
-                          ${endDateStr ? `<div style="font-size:10px;font-weight:700;color:${w.isMonthEnd ? c.gold : c.muted};margin-bottom:8px;">${endDateStr}</div>` : ''}
-                          <div style="font-size:13px;font-weight:800;color:${c.heading};margin-bottom:8px;line-height:1.4;">${_escHtml(w.focus)}</div>
-                          <ul style="margin:0 0 10px 0;padding-left:16px;">
-                            ${(w.actions || []).map(function(act) { return `<li style="font-size:12px;color:${c.subheading};font-weight:600;line-height:1.55;margin-bottom:3px;">${_escHtml(act)}</li>`; }).join('')}
-                          </ul>
-                          ${w.challenge ? `
-                            <div style="
-                              background:rgba(255,100,100,0.07);
-                              border:1px solid rgba(255,100,100,0.2);
-                              border-radius:8px;
-                              padding:9px 11px;
-                              font-size:11px;color:${c.subheading};font-weight:600;line-height:1.55;
-                            ">
-                              <span style="font-size:10px;font-weight:900;letter-spacing:1px;color:${c.dangerTxt};text-transform:uppercase;">⚠ Watch for: </span>${_escHtml(w.challenge)}
-                            </div>
-                          ` : ''}
-                          ${actualsHtml}
-                        </div>
-                      `;
-                    }).join('')}
-                  </div>
-                `;
-              })()
-          }
-        </div>
-      ` : ''}
-
-      <!-- Entry Composer -->
-      <div style="
-        background:${c.cardBg};
-        border:1px solid ${c.cardBorder};
-        border-radius:14px;
-        padding:18px 16px;
-        margin-bottom:16px;
-      ">
-        <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.muted};text-transform:uppercase;margin-bottom:12px;">Write Today's Vision</div>
-        <div style="font-size:11px;color:${c.muted};margin-bottom:10px;font-weight:600;font-style:italic;">Write in present tense, as if it's already real. "I wake up in…", "I have…", "I am…"</div>
-        <textarea
-          id="vision-entry-input"
-          placeholder="I wake up every morning with total clarity about my purpose…"
-          style="
-            width:100%;min-height:120px;
-            background:${c.inputBg};
-            border:1px solid ${c.inputBorder};
-            border-radius:10px;
-            color:${c.inputText};
-            font-size:14px;line-height:1.7;
-            padding:12px 14px;
-            font-family:inherit;font-weight:600;
-            resize:vertical;box-sizing:border-box;
-            outline:none;
-          "
-        ></textarea>
-        <button
-          id="vision-submit"
-          style="
-            margin-top:12px;width:100%;
-            background:${c.goldBtn};color:${c.goldBtnTxt};
-            border:none;border-radius:10px;
-            padding:13px;font-size:12px;font-weight:900;
-            letter-spacing:2px;text-transform:uppercase;
-            cursor:pointer;transition:opacity .15s;
-          "
-          ${_saving ? 'disabled' : ''}
-        >${_saving ? 'SAVING…' : 'SAVE & DISTIL VISION'}</button>
-      </div>
-
-      <!-- Entries toggle -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${_showEntries ? '12px' : '0'};">
-        <div style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:${c.muted};text-transform:uppercase;">
-          ${entryCount} ${entryCount === 1 ? 'Entry' : 'Entries'} Saved
-        </div>
-        <div style="display:flex;gap:8px;">
-          ${entryCount > 0 ? `<button id="vision-toggle-entries" style="${_smallBtnStyle(c, false)}">${_showEntries ? 'Hide Entries' : 'View & Edit'}</button>` : ''}
-          <button id="vision-reset" style="${_smallBtnStyle(c, true)}">Reset Room</button>
-        </div>
-      </div>
-
-      <!-- Entries list -->
-      ${_showEntries ? _renderEntriesList(c) : ''}
-    </div>
-
-    <!-- Add Venture Modal Slot -->
-    <div id="vision-modal-slot"></div>
-  `;
-
-  _attachRoomListeners(fromFolder);
-  } catch (err) {
-    console.error('[Vision] _paintRoom error:', err);
-    panel.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:12px;padding:24px;">
-        <div style="font-size:24px;">⚠️</div>
-        <div style="font-size:13px;font-weight:700;color:${c.muted};text-align:center;line-height:1.6;">
-          Something went wrong rendering this room.<br>
-          <span style="font-size:11px;opacity:0.6;">${err.message || 'Unknown error'}</span>
-        </div>
-        <button onclick="history.back()" style="
-          background:${c.goldBtn};color:${c.goldBtnTxt};border:none;border-radius:8px;
-          padding:10px 20px;font-size:12px;font-weight:800;cursor:pointer;letter-spacing:1px;
-        ">← Go Back</button>
-      </div>
-    `;
+  } catch (e) {
+    console.warn('[Vision] Load error:', e);
+    _personalData = _defaultPersonal();
+    _businessData = _defaultBusiness();
   }
 }
 
-function _renderEntriesList(c) {
-  if (_entries.length === 0) return '';
-  const sorted = [..._entries].sort((a, b) => b.ts - a.ts);
-  return `
-    <div style="margin-top:4px;display:flex;flex-direction:column;gap:10px;">
-      ${sorted.map(e => `
-        <div style="
-          background:${c.cardBg};border:1px solid ${c.cardBorder};
-          border-radius:12px;padding:14px 14px 12px;
-        ">
-          ${_editId === e.id ? `
-            <textarea id="vision-edit-input-${e.id}" style="
-              width:100%;min-height:80px;
-              background:${c.inputBg};border:1px solid ${c.inputBorder};
-              border-radius:8px;color:${c.inputText};
-              font-size:13px;line-height:1.65;padding:10px 12px;
-              font-family:inherit;font-weight:600;resize:vertical;
-              box-sizing:border-box;outline:none;
-            ">${_escHtml(e.text)}</textarea>
-            <div style="display:flex;gap:8px;margin-top:10px;">
-              <button data-save-edit="${e.id}" style="${_smallBtnStyle(c, false)}">Save Edit</button>
-              <button data-cancel-edit style="${_smallBtnStyle(c, true)}">Cancel</button>
-            </div>
-          ` : `
-            <div style="font-size:13px;line-height:1.65;color:${c.subheading};font-weight:600;margin-bottom:10px;">${_nl2br(_escHtml(e.text))}</div>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <div style="font-size:10px;color:${c.muted};font-weight:700;letter-spacing:1px;">${_fmtDate(e.ts)}</div>
-              <div style="display:flex;gap:8px;">
-                <button data-edit-entry="${e.id}" style="${_smallBtnStyle(c, false)}">Edit</button>
-                <button data-delete-entry="${e.id}" style="${_smallBtnStyle(c, true)}">Delete</button>
-              </div>
-            </div>
-          `}
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   EVENT LISTENERS
-───────────────────────────────────────────────────────────────────── */
-function _attachRoomListeners(fromFolder) {
-  const panel = _panel();
-  if (!panel) return;
-  const c = colors();
-
-  // Baseline edit toggle
-  panel.querySelector('#vision-baseline-edit')?.addEventListener('click', () => {
-    _editingBaseline = !_editingBaseline;
-    _paintRoom();
-  });
-
-  // Baseline save
-  panel.querySelector('#vision-baseline-save')?.addEventListener('click', async () => {
-    const ta = panel.querySelector('#vision-baseline-input');
-    const text = (ta?.value || '').trim();
-    await _saveBaseline(text);
-    _editingBaseline = false;
-    _paintRoom();
-    _toast('Baseline saved — AI will use this to calibrate targets.', colors());
-  });
-
-  // Back
-  panel.querySelector('#vision-back')?.addEventListener('click', () => {
-    if (fromFolder) {
-      const folder = DEFAULT_ROOMS.find(r => r.id === _folderId);
-      if (folder) { _openFolder(folder); return; }
-    }
-    _view = 'overview';
-    _paintOverview();
-  });
-
-  // Submit entry
-  panel.querySelector('#vision-submit')?.addEventListener('click', async () => {
-    const ta = panel.querySelector('#vision-entry-input');
-    const text = (ta?.value || '').trim();
-    if (!text) { _toast('Write something first.', c); return; }
-    _saving = true;
-    _paintRoom();
-    await _saveEntry(text);
-    _saving = false;
-    _distilling = true;
-    _paintRoom();
-    await _doDistil();
-    _distilling = false;
-    _paintRoom();
-  });
-
-  // Re-distil
-  panel.querySelector('#vision-redisil')?.addEventListener('click', async () => {
-    if (_distilling) return;
-    _distilling = true;
-    _paintRoom();
-    await _doDistil();
-    _distilling = false;
-    _paintRoom();
-  });
-
-  // Weekly Review
-  panel.querySelector('#vision-start-review')?.addEventListener('click', async () => {
-    await _showWeeklyReviewModal();
-  });
-
-  // Refresh Reality Check
-  panel.querySelector('#vision-refresh-reality')?.addEventListener('click', async () => {
-    if (_loadingRealityCheck) return;
-    _loadingRealityCheck = true;
-    _paintRoom();
-    await _doRealityCheck();
-    _loadingRealityCheck = false;
-    _paintRoom();
-  });
-
-  // Refresh 30-Day Focus
-  panel.querySelector('#vision-refresh-focus')?.addEventListener('click', async () => {
-    if (_loading30Day) return;
-    _loading30Day = true;
-    _paintRoom();
-    await _do30DayFocus();
-    _loading30Day = false;
-    _paintRoom();
-  });
-
-  // Toggle entries
-  panel.querySelector('#vision-toggle-entries')?.addEventListener('click', () => {
-    _showEntries = !_showEntries;
-    _paintRoom();
-  });
-
-  // Reset room
-  panel.querySelector('#vision-reset')?.addEventListener('click', () => {
-    _showResetConfirm(c);
-  });
-
-  // Entry actions (delegated)
-  panel.addEventListener('click', (e) => {
-    const editBtn = e.target.closest('[data-edit-entry]');
-    const delBtn  = e.target.closest('[data-delete-entry]');
-    const saveBtn = e.target.closest('[data-save-edit]');
-    const cancelBtn = e.target.closest('[data-cancel-edit]');
-
-    if (editBtn) {
-      _editId = editBtn.dataset.editEntry;
-      _showEntries = true;
-      _paintRoom();
-    }
-    if (delBtn) {
-      _deleteEntry(delBtn.dataset.deleteEntry);
-    }
-    if (saveBtn) {
-      const id = saveBtn.dataset.saveEdit;
-      const ta = panel.querySelector(`#vision-edit-input-${id}`);
-      const newText = (ta?.value || '').trim();
-      if (newText) _updateEntry(id, newText);
-      _editId = null;
-    }
-    if (cancelBtn) {
-      _editId = null;
-      _paintRoom();
-    }
-  });
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   ADD VENTURE MODAL
-───────────────────────────────────────────────────────────────────── */
-function _showAddVentureModal() {
-  const c = colors();
-  const slot = document.querySelector('#vision-modal-slot') || _panel();
-
-  const overlay = document.createElement('div');
-  overlay.id = 'vision-add-overlay';
-  overlay.style.cssText = `
-    position:fixed;inset:0;background:rgba(0,0,0,0.7);
-    display:flex;align-items:flex-end;justify-content:center;
-    z-index:9999;padding:0;
-  `;
-  overlay.innerHTML = `
-    <div style="
-      background:${document.body.classList.contains('light') ? '#FFFFFF' : '#0E1C34'};
-      border-radius:20px 20px 0 0;padding:28px 24px 48px;
-      width:100%;max-width:480px;
-    ">
-      <div style="font-size:14px;font-weight:900;letter-spacing:2px;color:${c.heading};text-transform:uppercase;margin-bottom:4px;">+ New Venture</div>
-      <div style="font-size:11px;color:${c.muted};margin-bottom:20px;font-weight:600;">Add a new business or project room</div>
-      <input id="venture-emoji" placeholder="Emoji (e.g. 🏠)" maxlength="4" style="
-        width:60px;background:${c.inputBg};border:1px solid ${c.inputBorder};
-        border-radius:8px;color:${c.inputText};font-size:20px;
-        padding:10px;box-sizing:border-box;margin-bottom:12px;text-align:center;outline:none;
-      ">
-      <input id="venture-name" placeholder="Venture name (e.g. Nottingham Insurance)" style="
-        width:100%;background:${c.inputBg};border:1px solid ${c.inputBorder};
-        border-radius:8px;color:${c.inputText};font-size:14px;font-weight:600;
-        padding:12px 14px;box-sizing:border-box;margin-bottom:16px;outline:none;
-        font-family:inherit;
-      ">
-      <div style="display:flex;gap:10px;">
-        <button id="venture-cancel" style="flex:1;padding:13px;background:${c.cardBg};border:1px solid ${c.cardBorder};border-radius:10px;color:${c.subheading};font-size:12px;font-weight:800;letter-spacing:1px;cursor:pointer;">CANCEL</button>
-        <button id="venture-save" style="flex:2;padding:13px;background:${c.goldBtn};color:${c.goldBtnTxt};border:none;border-radius:10px;font-size:12px;font-weight:900;letter-spacing:2px;cursor:pointer;text-transform:uppercase;">ADD ROOM</button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(overlay);
-
-  overlay.querySelector('#venture-cancel').addEventListener('click', () => overlay.remove());
-  overlay.querySelector('#venture-save').addEventListener('click', async () => {
-    const emoji = (overlay.querySelector('#venture-emoji').value.trim() || '🏢');
-    const name  = overlay.querySelector('#venture-name').value.trim();
-    if (!name) return;
-    const newRoom = {
-      id:    'custom_' + Date.now(),
-      label: name,
-      emoji: emoji,
-      desc:  '',
-    };
-    _customSubRooms.push(newRoom);
-    await _saveCustomSubRooms();
-    overlay.remove();
-    // Re-open folder
-    const folder = DEFAULT_ROOMS.find(r => r.isFolder);
-    if (folder) _openFolder(folder);
-  });
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   RESET CONFIRM
-───────────────────────────────────────────────────────────────────── */
-function _showResetConfirm(c) {
-  const overlay = document.createElement('div');
-  overlay.style.cssText = `
-    position:fixed;inset:0;background:rgba(0,0,0,0.75);
-    display:flex;align-items:center;justify-content:center;
-    z-index:9999;padding:24px;
-  `;
-  overlay.innerHTML = `
-    <div style="
-      background:${document.body.classList.contains('light') ? '#FFFFFF' : '#0E1C34'};
-      border-radius:16px;padding:28px 24px;max-width:340px;width:100%;
-    ">
-      <div style="font-size:28px;text-align:center;margin-bottom:12px;">⚠️</div>
-      <div style="font-size:14px;font-weight:900;color:${c.heading};text-align:center;margin-bottom:8px;">Reset This Room?</div>
-      <div style="font-size:12px;color:${c.muted};text-align:center;line-height:1.6;margin-bottom:22px;font-weight:600;">
-        This will permanently delete all entries and the vision statement for <strong>${_room?.label}</strong>. This cannot be undone.
-      </div>
-      <div style="display:flex;gap:10px;">
-        <button id="reset-cancel" style="flex:1;padding:13px;background:${c.cardBg};border:1px solid ${c.cardBorder};border-radius:10px;color:${c.subheading};font-size:12px;font-weight:800;letter-spacing:1px;cursor:pointer;">CANCEL</button>
-        <button id="reset-confirm" style="flex:1;padding:13px;background:#C0392B;border:none;border-radius:10px;color:#fff;font-size:12px;font-weight:900;letter-spacing:1px;cursor:pointer;text-transform:uppercase;">RESET</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-
-  overlay.querySelector('#reset-cancel').addEventListener('click', () => overlay.remove());
-  overlay.querySelector('#reset-confirm').addEventListener('click', async () => {
-    overlay.remove();
-    await _resetRoom();
-  });
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   FIREBASE OPERATIONS
-───────────────────────────────────────────────────────────────────── */
-function _db() { return _deps?.db || window.db; }
-function _uid() { return (_deps?.user || window.currentUser)?.uid; }
-
-async function _loadRoomData(roomId) {
-  _statement = '';
-  _entries = [];
-  _weeklyReview = null;
-  _realityCheck = '';
-  _focusPlan = '';
-  _baseline = '';
-  _editingBaseline = false;
+async function _savePersonal() {
   try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid) return;
-
-    // Load statement doc (also holds realityCheck, focusPlan, weeklyReview, baseline)
-    const stmtRef = doc(db, 'users', uid, 'visionRooms', roomId);
-    const stmtSnap = await getDoc(stmtRef);
-    if (stmtSnap.exists()) {
-      const data = stmtSnap.data();
-      _statement    = data.statement    || '';
-      _realityCheck = data.realityCheck || '';
-      _focusPlan    = data.focusPlan    || '';
-      _weeklyReview = data.weeklyReview || null;
-      _baseline     = data.baseline     || '';
-    }
-
-    // Load entries
-    const entriesRef = collection(db, 'users', uid, 'visionRooms', roomId, 'entries');
-    const entriesQ = query(entriesRef, orderBy('ts', 'desc'));
-    const entriesSnap = await getDocs(entriesQ);
-    _entries = entriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch (err) {
-    console.error('[Vision] loadRoomData error:', err);
+    const { db, user } = _deps;
+    if (!db || !user?.uid) return;
+    await setDoc(doc(db, 'users', user.uid, 'vision', 'personal'), _personalData);
+  } catch (e) {
+    console.warn('[Vision] Save personal error:', e);
   }
 }
 
-async function _saveEntry(text) {
+async function _saveBusiness() {
   try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid || !_room) return;
-    const entriesRef = collection(db, 'users', uid, 'visionRooms', _room.id, 'entries');
-    const ref = await addDoc(entriesRef, { text, ts: Date.now() });
-    _entries.unshift({ id: ref.id, text, ts: Date.now() });
-  } catch (err) {
-    console.error('[Vision] saveEntry error:', err);
-  }
-}
-
-async function _updateEntry(id, newText) {
-  try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid || !_room) return;
-    const entryRef = doc(db, 'users', uid, 'visionRooms', _room.id, 'entries', id);
-    await updateDoc(entryRef, { text: newText });
-    const idx = _entries.findIndex(e => e.id === id);
-    if (idx >= 0) _entries[idx].text = newText;
-    _showEntries = true;
-    _paintRoom();
-  } catch (err) {
-    console.error('[Vision] updateEntry error:', err);
-  }
-}
-
-async function _deleteEntry(id) {
-  try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid || !_room) return;
-    const entryRef = doc(db, 'users', uid, 'visionRooms', _room.id, 'entries', id);
-    await deleteDoc(entryRef);
-    _entries = _entries.filter(e => e.id !== id);
-    _showEntries = true;
-    _paintRoom();
-  } catch (err) {
-    console.error('[Vision] deleteEntry error:', err);
-  }
-}
-
-async function _saveStatement(statement) {
-  try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid || !_room) return;
-    const roomRef = doc(db, 'users', uid, 'visionRooms', _room.id);
-    await setDoc(roomRef, { statement }, { merge: true });
-    _statement = statement;
-  } catch (err) {
-    console.error('[Vision] saveStatement error:', err);
-  }
-}
-
-async function _saveRealityCheck(text) {
-  try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid || !_room) return;
-    await setDoc(doc(db, 'users', uid, 'visionRooms', _room.id), { realityCheck: text }, { merge: true });
-    _realityCheck = text;
-  } catch (err) { console.error('[Vision] saveRealityCheck error:', err); }
-}
-
-async function _saveFocusPlan(text) {
-  try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid || !_room) return;
-    await setDoc(doc(db, 'users', uid, 'visionRooms', _room.id), { focusPlan: text }, { merge: true });
-    _focusPlan = text;
-  } catch (err) { console.error('[Vision] saveFocusPlan error:', err); }
-}
-
-async function _saveWeeklyReview(review) {
-  try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid || !_room) return;
-    await setDoc(doc(db, 'users', uid, 'visionRooms', _room.id), { weeklyReview: review }, { merge: true });
-    _weeklyReview = review;
-  } catch (err) { console.error('[Vision] saveWeeklyReview error:', err); }
-}
-
-async function _saveBaseline(text) {
-  try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid || !_room) return;
-    await setDoc(doc(db, 'users', uid, 'visionRooms', _room.id), { baseline: text }, { merge: true });
-    _baseline = text;
-  } catch (err) { console.error('[Vision] saveBaseline error:', err); }
-}
-
-async function _resetRoom() {
-  try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid || !_room) return;
-
-    const entriesRef = collection(db, 'users', uid, 'visionRooms', _room.id, 'entries');
-    const snap = await getDocs(entriesRef);
-    const batch = writeBatch(db);
-    snap.docs.forEach(d => batch.delete(d.ref));
-    batch.delete(doc(db, 'users', uid, 'visionRooms', _room.id));
-    await batch.commit();
-
-    _entries = [];
-    _statement = '';
-    _realityCheck = '';
-    _focusPlan = '';
-    _baseline = '';
-    _weeklyReview = null;
-    _showReviewBanner = false;
-    _showEntries = false;
-    _paintRoom();
-  } catch (err) {
-    console.error('[Vision] resetRoom error:', err);
-  }
-}
-
-async function _loadCustomSubRooms() {
-  try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid) return;
-    const snap = await getDoc(doc(db, 'users', uid, 'visionConfig', 'customRooms'));
-    if (snap.exists()) {
-      _customSubRooms = snap.data().rooms || [];
-    } else {
-      _customSubRooms = [];
-    }
-  } catch (err) {
-    console.error('[Vision] loadCustomSubRooms error:', err);
-    _customSubRooms = [];
-  }
-}
-
-async function _saveCustomSubRooms() {
-  try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid) return;
-    await setDoc(doc(db, 'users', uid, 'visionConfig', 'customRooms'), { rooms: _customSubRooms });
-  } catch (err) {
-    console.error('[Vision] saveCustomSubRooms error:', err);
-  }
-}
-
-async function _loadAllRoomReviewStatus() {
-  _overdueRooms = new Set();
-  try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid) return;
-
-    const today = new Date();
-    const isSunday = today.getDay() === 0;
-
-    // Collect all flat room IDs (non-folders)
-    const allRoomIds = [];
-    for (const r of DEFAULT_ROOMS) {
-      if (r.isFolder) {
-        [...(r.defaultSubRooms || []), ..._customSubRooms].forEach(s => allRoomIds.push(s.id));
-      } else {
-        allRoomIds.push(r.id);
-      }
-    }
-
-    // Check each room's last review timestamp
-    await Promise.all(allRoomIds.map(async (roomId) => {
-      try {
-        const snap = await getDoc(doc(db, 'users', uid, 'visionRooms', roomId));
-        if (!snap.exists()) {
-          // Never had a review — always overdue
-          _overdueRooms.add(roomId);
-          return;
-        }
-        const review = snap.data().weeklyReview;
-        if (!review) { _overdueRooms.add(roomId); return; }
-        const daysSince = (Date.now() - (review.ts || 0)) / (1000 * 60 * 60 * 24);
-        if (isSunday || daysSince >= 7) _overdueRooms.add(roomId);
-      } catch (e) { /* skip room on error */ }
-    }));
-  } catch (err) {
-    console.error('[Vision] loadAllRoomReviewStatus error:', err);
+    const { db, user } = _deps;
+    if (!db || !user?.uid) return;
+    await setDoc(doc(db, 'users', user.uid, 'vision', 'business'), _businessData);
+  } catch (e) {
+    console.warn('[Vision] Save business error:', e);
   }
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   API KEY PROMPT (one-time setup, stored in localStorage)
+   UNDO
 ───────────────────────────────────────────────────────────────────── */
-function _promptForApiKey() {
-  return new Promise((resolve) => {
-    const c = colors();
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
-      position:fixed;inset:0;background:rgba(0,0,0,0.8);
-      display:flex;align-items:center;justify-content:center;
-      z-index:99999;padding:24px;
-    `;
-    overlay.innerHTML = `
-      <div style="
-        background:${document.body.classList.contains('light') ? '#FFFFFF' : '#0E1C34'};
-        border-radius:16px;padding:28px 24px;max-width:360px;width:100%;
-      ">
-        <div style="font-size:22px;text-align:center;margin-bottom:12px;">🔑</div>
-        <div style="font-size:14px;font-weight:900;color:${c.heading};text-align:center;margin-bottom:8px;letter-spacing:1px;">Anthropic API Key</div>
-        <div style="font-size:12px;color:${c.muted};text-align:center;line-height:1.6;margin-bottom:20px;font-weight:600;">
-          Required for AI distillation. One-time setup — stored only on this device, never in your code.
-        </div>
-        <input
-          id="api-key-input"
-          type="password"
-          placeholder="sk-ant-api03-..."
-          style="
-            width:100%;background:${c.inputBg};border:1px solid ${c.inputBorder};
-            border-radius:10px;color:${c.inputText};font-size:13px;font-weight:600;
-            padding:12px 14px;box-sizing:border-box;margin-bottom:16px;
-            outline:none;font-family:monospace;
-          "
-        >
-        <div style="display:flex;gap:10px;">
-          <button id="api-key-cancel" style="flex:1;padding:13px;background:transparent;border:1px solid ${c.cardBorder};border-radius:10px;color:${c.muted};font-size:12px;font-weight:800;cursor:pointer;">Cancel</button>
-          <button id="api-key-save" style="flex:2;padding:13px;background:${c.goldBtn};color:${c.goldBtnTxt};border:none;border-radius:10px;font-size:12px;font-weight:900;letter-spacing:1px;cursor:pointer;text-transform:uppercase;">Save Key</button>
-        </div>
-        <div style="font-size:10px;color:${c.muted};text-align:center;margin-top:12px;font-weight:600;">
-          Get your key at console.anthropic.com → API Keys
-        </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
 
-    overlay.querySelector('#api-key-cancel').addEventListener('click', () => {
-      overlay.remove(); resolve('');
-    });
-    overlay.querySelector('#api-key-save').addEventListener('click', () => {
-      const val = overlay.querySelector('#api-key-input').value.trim();
-      overlay.remove(); resolve(val);
-    });
+function _pushUndo(description) {
+  _undoStack.push({
+    description,
+    personal: JSON.parse(JSON.stringify(_personalData)),
+    business: JSON.parse(JSON.stringify(_businessData)),
   });
+  if (_undoStack.length > 20) _undoStack.shift();
+}
+
+async function _undo() {
+  if (!_undoStack.length) return;
+  const snap = _undoStack.pop();
+  _personalData = snap.personal;
+  _businessData = snap.business;
+  await Promise.all([_savePersonal(), _saveBusiness()]);
+  _toast(`↩ Undone: ${snap.description}`, colors());
+  _paint();
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   AI DISTILLATION
+   AI REFINE
 ───────────────────────────────────────────────────────────────────── */
-async function _doDistil() {
-  if (_entries.length === 0) return;
 
-  // Check for API key — prompt if missing
-  let apiKey = getApiKey();
-  if (!apiKey) {
-    apiKey = await _promptForApiKey();
-    if (!apiKey) { _distilling = false; _paintRoom(); return; }
-    saveApiKey(apiKey);
+async function _refineWithAI(newDraft, existingRefined, history) {
+  const key = getApiKey();
+  if (!key) {
+    _toast('Add your Anthropic API key in Settings to enable AI refining', colors());
+    return null;
   }
 
+  const historyBlock = (history && history.length > 0)
+    ? `\n\nPrevious drafts (oldest → newest):\n${history.map((h, i) => `Draft ${i + 1}: "${h.text}"`).join('\n')}`
+    : '';
+
+  const existingBlock = existingRefined
+    ? `\n\nPreviously refined statement: "${existingRefined}"`
+    : '';
+
+  const prompt = `You are a vision coach specialising in building total clarity. Your job: take a raw draft and distil it into a powerful, present-tense vision statement — vivid, specific, emotionally compelling. No filler. Every word earns its place.
+
+With each new draft the user submits, build on what came before. Expand what's gaining clarity, simplify what's already been said well, and sharpen the overall statement. It should feel stronger and more certain with every iteration.${existingBlock}${historyBlock}
+
+New draft: "${newDraft}"
+
+Respond with ONLY the refined vision statement. No preamble, no explanation, no quotation marks around it.`;
+
   try {
-    const allText = [..._entries]
-      .sort((a, b) => a.ts - b.ts)
-      .map((e, i) => `Entry ${i + 1}: ${e.text}`)
-      .join('\n\n');
-
-    const systemPrompt = `You are a vision distillation assistant. Your role is to synthesise a person's raw visualisation journal entries into a single, powerful, present-tense Vision Statement. 
-
-Rules:
-- Write entirely in present tense ("I am", "I have", "I wake up in")
-- Be specific and vivid — use details from the entries
-- Write as one flowing piece of prose, 3–6 sentences
-- Make it emotionally compelling, not generic
-- Do not mention the number of entries or reference the process
-- Return only the Vision Statement text, nothing else`;
-
-    const userPrompt = `These are my visualisation journal entries for: ${_room?.label || 'this area of my life'}.
-
-${allText}
-
-Distil these into a single, powerful Vision Statement.`;
-
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 400,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }],
       }),
     });
-
     const data = await res.json();
-    const newStatement = data?.content?.[0]?.text?.trim() || '';
-    if (newStatement) {
-      await _saveStatement(newStatement);
-    }
-  } catch (err) {
-    console.error('[Vision] distil error:', err);
-  }
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   HEALTH DATA AUTO-PULL
-   Reads directly from state.healthData (already loaded in memory by
-   the app — same array used by renderProgressTab). Computes:
-     latestWeight    — most recent synced weight (lbs)
-     latestBodyFat   — most recent synced body fat %
-     weeklySteps     — total steps over the last 7 days
-     weightDelta     — weight change vs 7 days ago (negative = lost)
-     bodyFatDelta    — body fat % change vs 7 days ago (negative = lost)
-───────────────────────────────────────────────────────────────────── */
-async function _fetchHealthData() {
-  try {
-    const healthData = _deps && _deps.state && _deps.state.healthData;
-    if (!healthData || healthData.length === 0) return null;
-
-    // Sort entries newest first
-    const sorted = [...healthData].sort((a, b) => b.date.localeCompare(a.date));
-
-    // Latest weight & body fat (most recent entry that has the value)
-    const latestWeightEntry  = sorted.find(h => h.weight  != null) || null;
-    const latestBodyFatEntry = sorted.find(h => h.bodyFat != null) || null;
-    const latestWeight  = latestWeightEntry  ? latestWeightEntry.weight  : null;
-    const latestBodyFat = latestBodyFatEntry ? latestBodyFatEntry.bodyFat : null;
-
-    // 7-day comparison — find the oldest entry that's within 5–10 days ago
-    // to give a meaningful "vs last week" delta
-    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
-    const tenDaysAgo   = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
-
-    const weekOldEntries = sorted.filter(h => h.date >= tenDaysAgo && h.date <= sevenDaysAgo);
-    const weekOldWeightEntry  = weekOldEntries.find(h => h.weight  != null) || null;
-    const weekOldBodyFatEntry = weekOldEntries.find(h => h.bodyFat != null) || null;
-
-    const weightDelta  = (latestWeight  != null && weekOldWeightEntry)
-      ? +(latestWeight  - weekOldWeightEntry.weight).toFixed(1)  : null;
-    const bodyFatDelta = (latestBodyFat != null && weekOldBodyFatEntry)
-      ? +(latestBodyFat - weekOldBodyFatEntry.bodyFat).toFixed(2) : null;
-
-    // Steps: sum entries from the last 7 calendar days
-    const recentEntries = sorted.filter(h => h.date >= sevenDaysAgo && h.steps != null);
-    const weeklySteps   = recentEntries.length > 0
-      ? Math.round(recentEntries.reduce(function(sum, h) { return sum + h.steps; }, 0))
-      : null;
-
-    return { latestWeight, latestBodyFat, weeklySteps, weightDelta, bodyFatDelta };
-  } catch (err) {
-    console.warn('[Vision] _fetchHealthData error:', err);
+    return data.content?.[0]?.text?.trim() || null;
+  } catch (e) {
+    console.warn('[Vision] AI refine error:', e);
+    _toast('AI refine failed — check your connection', colors());
     return null;
   }
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   WEEKLY REVIEW MODAL
+   MAIN PAINT
 ───────────────────────────────────────────────────────────────────── */
-async function _showWeeklyReviewModal() {
+
+function _paint() {
+  const panel = _panel();
+  if (!panel) return;
   const c = colors();
-  const isLight = document.body.classList.contains('light');
-  const isHealthRoom = _room?.id === 'health';
 
-  // Auto-pull health data for the health room
-  let healthData = null;
-  if (isHealthRoom) {
-    healthData = await _fetchHealthData();
-  }
+  panel.innerHTML = `
+    <div style="min-height:100%;padding:20px 16px 100px;background:${c.pageBg};">
 
-  const overlay = document.createElement('div');
-  overlay.style.cssText = `
-    position:fixed;inset:0;background:rgba(0,0,0,0.82);
-    display:flex;align-items:flex-end;justify-content:center;
-    z-index:99999;padding:0;
+      <!-- Header -->
+      <div style="margin-bottom:20px;">
+        <div style="font-size:20px;font-weight:900;letter-spacing:2px;color:${c.heading};text-transform:uppercase;">🗺️ Vision</div>
+        <div style="font-size:11px;color:${c.muted};letter-spacing:1px;font-weight:600;margin-top:3px;">Build clarity. Work backwards. Execute forwards.</div>
+      </div>
+
+      <!-- Toggle -->
+      <div style="display:flex;background:${c.toggleBg};border-radius:10px;padding:3px;gap:3px;margin-bottom:24px;">
+        <button id="vision-toggle-personal" style="
+          flex:1;padding:10px;border:none;border-radius:8px;
+          font-size:12px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;
+          transition:all .18s ease;
+          background:${_activeTab === 'personal' ? c.toggleActive : c.toggleInactive};
+          color:${_activeTab === 'personal' ? c.toggleActiveTxt : c.toggleInactiveTxt};
+        ">👤 Personal</button>
+        <button id="vision-toggle-business" style="
+          flex:1;padding:10px;border:none;border-radius:8px;
+          font-size:12px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;
+          transition:all .18s ease;
+          background:${_activeTab === 'business' ? c.toggleActive : c.toggleInactive};
+          color:${_activeTab === 'business' ? c.toggleActiveTxt : c.toggleInactiveTxt};
+        ">💼 Business</button>
+      </div>
+
+      <!-- Content -->
+      <div id="vision-content">
+        ${_activeTab === 'personal' ? _renderPersonal(c) : _renderBusiness(c)}
+      </div>
+
+    </div>
+
+    <!-- Undo bar (floating) -->
+    ${_undoStack.length ? `
+      <div style="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9999;pointer-events:auto;">
+        <button id="vision-undo-btn" style="
+          background:${c.undoBg};border:1.5px solid ${c.undoBorder};border-radius:10px;
+          color:${c.subheading};font-size:11px;font-weight:800;letter-spacing:1px;
+          padding:10px 18px;cursor:pointer;
+          box-shadow:0 4px 24px rgba(0,0,0,0.35);
+          white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis;
+        ">↩ Undo: ${_escHtml(_undoStack[_undoStack.length - 1].description)}</button>
+      </div>
+    ` : ''}
   `;
 
-  const prevAnswers = _weeklyReview?.answers || {};
+  // Toggle listeners
+  panel.querySelector('#vision-toggle-personal')?.addEventListener('click', () => {
+    _activeTab = 'personal';
+    _paint();
+  });
+  panel.querySelector('#vision-toggle-business')?.addEventListener('click', () => {
+    _activeTab = 'business';
+    _paint();
+  });
 
-  // ── Health-specific questions ──────────────────────────────────────
-  const healthQuestions = [
-    { key: 'gymSessions',    label: '1. How many gym sessions did you complete this week?',                        hint: 'Be specific — how many and what did you do?' },
-    { key: 'extraActivity',  label: '2. Did you do any extra walks or runs on top of that?',                      hint: 'Distance, frequency, anything that counts.' },
-    { key: 'perfectDays',    label: '3. How many days did you maintain a perfect diet?',                          hint: 'Out of 7. Be honest.' },
-    { key: 'dietSlipUp',     label: '4. Where did your diet slip up — what was the situation?',                   hint: 'Be specific — what, when, why?' },
-    { key: 'sleep',          label: '5. How has your sleep been this week — are you getting enough and waking up rested?', hint: 'Average hours, quality, energy on waking.' },
-    { key: 'niggles',        label: '6. Did you notice any soreness, fatigue or physical niggles this week?',    hint: 'Anything your body is telling you.' },
-    { key: 'dietPattern',    label: '7. Were your diet slip-ups linked to a pattern — e.g. weekends, stress, being out?', hint: 'Patterns are what to fix, not one-offs.' },
-    { key: 'missedHabit',    label: '8. What\'s the one thing you didn\'t do this week that would have made the biggest difference?', hint: 'Be specific and honest.' },
-    { key: 'improvements',   label: '9. What specific improvements are you committing to for the week ahead?',   hint: 'Concrete commitments, not wishes.' },
-  ];
+  // Undo
+  panel.querySelector('#vision-undo-btn')?.addEventListener('click', _undo);
 
-  // ── Wealth & Finances questions ───────────────────────────────────
-  const wealthQuestions = [
-    { key: 'income',      label: '1. What was your total income this week across all streams?',         hint: 'Break it down — TJM, Vinted, salary, other. Numbers.' },
-    { key: 'spending',    label: '2. What did you spend money on this week — was it intentional?',      hint: 'Identify any leaks or impulse spends.' },
-    { key: 'savingsHit',  label: '3. Did you hit your savings or investment targets this week?',         hint: 'Yes/no and by how much.' },
-    { key: 'leaks',       label: '4. Where did money leak or get wasted?',                              hint: 'Subscriptions, food, anything not aligned with your goals.' },
-    { key: 'position',    label: '5. What\'s your current financial position — savings, cash, debts?',  hint: 'Give real numbers if you can.' },
-    { key: 'opportunity', label: '6. Any new income opportunities identified or actively progressed?',  hint: 'Specific conversations, ideas, moves made.' },
-    { key: 'priority',    label: '7. What\'s your single biggest financial priority for next week?',    hint: 'One thing. Be specific.' },
-  ];
+  // Section listeners
+  if (_activeTab === 'personal') _attachPersonalListeners(panel, c);
+  else                           _attachBusinessListeners(panel, c);
+}
 
-  // ── The Jewellery Merchant questions ─────────────────────────────
-  const tjmQuestions = [
-    { key: 'sales',       label: '1. How many sales or orders did you fulfil this week?',               hint: 'Units, channels (Etsy, website, wholesale etc.).' },
-    { key: 'revenue',     label: '2. What was your total TJM revenue this week?',                       hint: 'Gross figure. Include any pending orders.' },
-    { key: 'listings',    label: '3. How many new listings or products did you add?',                   hint: 'Etsy, website, wholesale catalogue — be specific.' },
-    { key: 'marketing',   label: '4. What content or marketing did you put out — and what was the response?', hint: 'TikTok, Instagram, emails. Views, clicks, saves.' },
-    { key: 'biz',         label: '5. Any wholesale, stockist or B2B conversations progressed?',         hint: 'Leads, follow-ups, meetings, quotes sent.' },
-    { key: 'ops',         label: '6. What operational or fulfilment issues came up?',                   hint: 'Stock, packaging, delivery, customer issues.' },
-    { key: 'nextWeek',    label: '7. What\'s the single most important thing you need to do for TJM next week?', hint: 'One focus. Be ruthless.' },
-  ];
+/* ─────────────────────────────────────────────────────────────────────
+   PERSONAL — RENDER
+───────────────────────────────────────────────────────────────────── */
 
-  // ── Vinted questions ──────────────────────────────────────────────
-  const vintedQuestions = [
-    { key: 'listed',      label: '1. How many items did you list this week?',                           hint: 'Total new listings across all platforms.' },
-    { key: 'sales',       label: '2. How many sales did you make, and what was the total revenue?',     hint: 'Units sold and gross revenue — numbers only.' },
-    { key: 'sourced',     label: '3. What did you source or acquire for stock this week?',              hint: 'What, where from, and rough cost.' },
-    { key: 'momentum',    label: '4. What\'s moving quickly and what\'s sitting still?',               hint: 'Categories, price points, styles that work vs don\'t.' },
-    { key: 'repriced',    label: '5. Did you reprice or refresh any slow-moving listings?',             hint: 'How many, and has it made a difference?' },
-    { key: 'margin',      label: '6. What was your estimated profit margin or net take-home this week?', hint: 'Revenue minus cost of goods and fees.' },
-    { key: 'target',      label: '7. What\'s your listing and sourcing target for next week?',          hint: 'Specific numbers — listings to add, items to source.' },
-  ];
+function _renderPersonal(c) {
+  return PERSONAL_SECTIONS.map((s, i) => {
+    const data    = _personalData?.[s.id] || { refined: '', history: [] };
+    const isFirst = i === 0;
+    const draftCount = data.history?.length || 0;
 
-  // ── Generic questions (all other rooms) ───────────────────────────
-  const genericQuestions = [
-    { key: 'actions',   label: '1. What did you actually do this week towards this vision?', hint: 'Specific actions, not intentions.' },
-    { key: 'results',   label: '2. What results or outputs did you produce?',                hint: 'Numbers, evidence, proof.' },
-    { key: 'avoided',   label: '3. What did you avoid, delay or make excuses about?',       hint: 'Be honest — no one else is reading this.' },
-    { key: 'obstacle',  label: '4. What\'s your single biggest obstacle right now?',        hint: 'The real one, not the easy answer.' },
-  ];
-
-  const roomId = _room?.id;
-  const questions = roomId === 'health'      ? healthQuestions
-                  : roomId === 'biz_wealth'  ? wealthQuestions
-                  : roomId === 'biz_tjm'     ? tjmQuestions
-                  : roomId === 'biz_vinted'  ? vintedQuestions
-                  : genericQuestions;
-
-  // ── Auto-pulled health metrics banner ─────────────────────────────
-  const healthBanner = (isHealthRoom && healthData) ? (() => {
-    const fmt = (delta, unit, lowerIsBetter) => {
-      if (delta == null) return '';
-      const improved = lowerIsBetter ? delta < 0 : delta > 0;
-      const colour   = improved ? '#2ecc71' : (delta === 0 ? 'rgba(255,255,255,0.5)' : '#e74c3c');
-      const arrow    = delta < 0 ? '▼' : (delta > 0 ? '▲' : '—');
-      return `<span style="font-size:11px;font-weight:800;color:${colour};margin-left:6px;">${arrow} ${Math.abs(delta)}${unit} vs last wk</span>`;
-    };
-
-    const rows = [
-      healthData.weeklySteps   != null
-        ? `<div style="font-size:13px;font-weight:800;color:${c.heading};">👟 ${Number(healthData.weeklySteps).toLocaleString()} steps <span style="font-size:10px;font-weight:600;color:${c.muted};">7-day total</span></div>`
-        : null,
-      healthData.latestWeight  != null
-        ? `<div style="font-size:13px;font-weight:800;color:${c.heading};">⚖️ ${healthData.latestWeight.toFixed(1)} lbs${fmt(healthData.weightDelta, 'lbs', true)}</div>`
-        : null,
-      healthData.latestBodyFat != null
-        ? `<div style="font-size:13px;font-weight:800;color:${c.heading};">📊 ${healthData.latestBodyFat.toFixed(1)}% body fat${fmt(healthData.bodyFatDelta, '%', true)}</div>`
-        : null,
-    ].filter(Boolean);
-
-    if (rows.length === 0) return '';
     return `
-      <div style="
-        background:rgba(201,168,76,0.08);
-        border:1px solid rgba(201,168,76,0.3);
-        border-radius:12px;padding:12px 16px;margin-bottom:20px;
+      <div class="vision-section" data-section-id="${s.id}" style="
+        background:${c.cardBg};
+        border:1px solid ${isFirst ? c.statementBdr : c.cardBorder};
+        border-radius:16px;padding:20px 16px;margin-bottom:14px;
       ">
-        <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:10px;">📥 Auto-Pulled This Week</div>
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          ${rows.join('')}
+
+        <!-- Heading -->
+        <div style="
+          font-size:10px;font-weight:900;letter-spacing:2.5px;
+          color:${isFirst ? c.gold : c.muted};
+          text-transform:uppercase;margin-bottom:${data.refined ? '12px' : '14px'};
+        ">${s.emoji} ${s.label}</div>
+
+        <!-- Refined statement -->
+        ${data.refined ? `
+          <div style="
+            background:${c.statementBg};border:1.5px solid ${c.statementBdr};
+            border-radius:12px;padding:14px 16px;margin-bottom:14px;
+          ">
+            <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:8px;">✦ Your Vision</div>
+            <div style="font-size:13px;font-weight:700;color:${c.statementTxt};line-height:1.75;">${_escHtml(data.refined)}</div>
+            ${draftCount > 0 ? `<div style="font-size:10px;color:${c.muted};margin-top:8px;font-weight:600;letter-spacing:0.5px;">${draftCount} draft${draftCount > 1 ? 's' : ''} — getting sharper each time</div>` : ''}
+          </div>
+        ` : ''}
+
+        <!-- Draft textarea -->
+        <textarea
+          id="vision-personal-input-${s.id}"
+          placeholder="${s.prompt}"
+          rows="3"
+          style="
+            width:100%;min-height:80px;background:${c.inputBg};
+            border:1px solid ${c.inputBorder};border-radius:10px;
+            color:${c.inputText};font-size:13px;font-weight:600;line-height:1.6;
+            padding:12px 14px;resize:vertical;box-sizing:border-box;
+            font-family:inherit;outline:none;
+          "
+        ></textarea>
+
+        <!-- Submit -->
+        <button
+          id="vision-personal-submit-${s.id}"
+          data-section="${s.id}"
+          style="
+            margin-top:10px;width:100%;padding:11px;border:none;border-radius:10px;
+            background:${c.goldBtn};color:${c.goldBtnTxt};
+            font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;
+            cursor:pointer;transition:opacity .18s;
+          "
+        >${data.refined ? '⟳ Refine Vision' : '✦ Distil My Vision'}</button>
+
+        <!-- Refining indicator -->
+        <div id="vision-personal-refining-${s.id}" style="display:none;text-align:center;padding:8px;font-size:11px;color:${c.muted};font-weight:600;font-style:italic;letter-spacing:0.5px;">
+          AI is distilling your vision…
+        </div>
+
+      </div>
+    `;
+  }).join('');
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   PERSONAL — LISTENERS
+───────────────────────────────────────────────────────────────────── */
+
+function _attachPersonalListeners(panel, c) {
+  PERSONAL_SECTIONS.forEach(s => {
+    const submitBtn  = panel.querySelector(`#vision-personal-submit-${s.id}`);
+    const textarea   = panel.querySelector(`#vision-personal-input-${s.id}`);
+    const refiningEl = panel.querySelector(`#vision-personal-refining-${s.id}`);
+
+    submitBtn?.addEventListener('click', async () => {
+      const draft = textarea?.value?.trim();
+      if (!draft) {
+        _toast('Write something first', c);
+        return;
+      }
+
+      // Optimistic UI
+      if (refiningEl)  refiningEl.style.display  = 'block';
+      if (submitBtn)   submitBtn.disabled         = true;
+      if (submitBtn)   submitBtn.textContent      = '⟳ Distilling…';
+
+      const data = _personalData[s.id];
+      _pushUndo(`Edit ${s.label}`);
+
+      const refined = await _refineWithAI(draft, data.refined, data.history);
+
+      // Always record the draft
+      data.history = [...(data.history || []), { text: draft, ts: Date.now() }];
+
+      if (refined) {
+        data.refined = refined;
+        _toast('Vision distilled ✦', c);
+      } else if (!data.refined) {
+        // Fallback: use raw draft if no AI
+        data.refined = draft;
+      }
+
+      await _savePersonal();
+      _paint();
+    });
+  });
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   BUSINESS — RENDER
+───────────────────────────────────────────────────────────────────── */
+
+function _renderBusiness(c) {
+  const oneYear = _businessData?.oneYear || { refined: '', history: [] };
+  const steps   = _businessData?.steps   || [];
+  const oyCount = oneYear.history?.length || 0;
+
+  return `
+    <!-- 1-Year Business Vision -->
+    <div style="
+      background:${c.cardBg};border:1.5px solid ${c.statementBdr};
+      border-radius:16px;padding:20px 16px;margin-bottom:20px;
+    ">
+      <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.gold};text-transform:uppercase;margin-bottom:${oneYear.refined ? '12px' : '14px'};">
+        🏆 1 Year From Now — Your Business
+      </div>
+
+      ${oneYear.refined ? `
+        <div style="background:${c.statementBg};border:1.5px solid ${c.statementBdr};border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+          <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:8px;">✦ Your Vision</div>
+          <div style="font-size:13px;font-weight:700;color:${c.statementTxt};line-height:1.75;">${_escHtml(oneYear.refined)}</div>
+          ${oyCount > 0 ? `<div style="font-size:10px;color:${c.muted};margin-top:8px;font-weight:600;">${oyCount} draft${oyCount > 1 ? 's' : ''} — getting sharper each time</div>` : ''}
+        </div>
+      ` : ''}
+
+      <textarea id="vision-biz-oneyear-input" placeholder="In one year from now, how will your business look? Revenue, reach, brand, team, impact — paint the full picture." rows="3" style="
+        width:100%;min-height:80px;background:${c.inputBg};border:1px solid ${c.inputBorder};
+        border-radius:10px;color:${c.inputText};font-size:13px;font-weight:600;line-height:1.6;
+        padding:12px 14px;resize:vertical;box-sizing:border-box;font-family:inherit;outline:none;
+      "></textarea>
+
+      <button id="vision-biz-oneyear-submit" style="
+        margin-top:10px;width:100%;padding:11px;border:none;border-radius:10px;
+        background:${c.goldBtn};color:${c.goldBtnTxt};
+        font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;cursor:pointer;
+      ">${oneYear.refined ? '⟳ Refine Vision' : '✦ Distil My Vision'}</button>
+      <div id="vision-biz-oneyear-refining" style="display:none;text-align:center;padding:8px;font-size:11px;color:${c.muted};font-weight:600;font-style:italic;">
+        AI is distilling your vision…
+      </div>
+    </div>
+
+    <!-- Steps heading -->
+    <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.muted};text-transform:uppercase;margin-bottom:12px;">
+      → The Path Forward — Step by Step
+    </div>
+
+    <!-- Step cards -->
+    <div id="vision-steps-container">
+      ${steps.map((step, i) => _renderStep(step, i, c)).join('')}
+    </div>
+
+    <!-- Add Step -->
+    <button id="vision-add-step" style="
+      width:100%;padding:16px;margin-top:8px;border:none;border-radius:14px;
+      background:${c.addStepBtn};color:${c.addStepBtnTxt};
+      font-size:14px;font-weight:900;letter-spacing:2.5px;text-transform:uppercase;
+      cursor:pointer;transition:opacity .18s;
+      box-shadow:0 4px 16px rgba(0,0,0,0.2);
+    ">+ ADD STEP</button>
+  `;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   BUSINESS — STEP CARD
+───────────────────────────────────────────────────────────────────── */
+
+function _renderStep(step, index, c) {
+  const draftCount = step.history?.length || 0;
+
+  // Deadline / progress bar
+  let progressHtml = '';
+  if (step.deadline) {
+    const now         = Date.now();
+    const deadlineTs  = new Date(step.deadline + 'T23:59:59').getTime();
+    const daysLeft    = Math.ceil((deadlineTs - now) / 86400000);
+    const isPast      = daysLeft < 0;
+    const isUrgent    = !isPast && daysLeft <= 14;
+    const barCol      = isPast ? '#e74c3c' : isUrgent ? '#C9A84C' : '#2ecc71';
+
+    // Progress: assume a 90-day window from now back; how far through are we?
+    const windowDays  = 90;
+    const elapsed     = windowDays - Math.max(0, daysLeft);
+    const pct         = Math.min(100, Math.max(2, Math.round((elapsed / windowDays) * 100)));
+    const deadlineStr = new Date(step.deadline + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+    progressHtml = `
+      <div style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="font-size:10px;font-weight:800;color:${c.muted};">🏁 ${deadlineStr}</div>
+          <div style="font-size:10px;font-weight:900;color:${barCol};">
+            ${isPast ? '⚠ OVERDUE' : isUrgent ? daysLeft + ' days left — close' : daysLeft + ' days left'}
+          </div>
+        </div>
+        <div style="height:6px;background:${c.cardBorder};border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${barCol};border-radius:4px;transition:width 0.4s ease;"></div>
         </div>
       </div>
     `;
-  })() : '';
+  }
 
-  overlay.innerHTML = `
-    <div style="
-      background:${isLight ? '#FFFFFF' : '#0E1C34'};
-      border-radius:20px 20px 0 0;
-      padding:28px 24px 48px;
-      width:100%;max-width:520px;
-      max-height:90vh;overflow-y:auto;
+  return `
+    <div class="vision-step-card" data-step-id="${step.id}" style="
+      background:${c.cardBg};border:1px solid ${c.cardBorder};
+      border-radius:16px;padding:20px 16px;margin-bottom:14px;
     ">
-      <div style="text-align:center;margin-bottom:24px;">
-        <div style="font-size:28px;margin-bottom:8px;">📋</div>
-        <div style="font-size:15px;font-weight:900;letter-spacing:2px;color:${c.heading};text-transform:uppercase;">Weekly Review</div>
-        <div style="font-size:11px;color:${c.muted};font-weight:600;margin-top:4px;">${_room?.label} — Be brutally honest.</div>
-      </div>
 
-      ${healthBanner}
+      <!-- Step header row -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
 
-      <!-- ── Step 0: Required baseline update ── -->
-      <div style="
-        background:rgba(201,168,76,0.07);
-        border:1.5px solid rgba(201,168,76,0.4);
-        border-radius:12px;
-        padding:14px 16px;
-        margin-bottom:22px;
-      ">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-          <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;">📍 Current Reality — Update Before Continuing</div>
-        </div>
-        <div style="font-size:10px;color:${c.muted};font-weight:600;margin-bottom:8px;font-style:italic;">Where things actually stand right now — numbers, stage, position. The AI calibrates every target from this.</div>
-        <textarea
-          id="review-baseline"
-          style="
-            width:100%;min-height:80px;
-            background:${c.inputBg};border:1px solid ${c.inputBorder};
-            border-radius:10px;color:${c.inputText};
-            font-size:13px;line-height:1.65;padding:10px 12px;
-            font-family:inherit;font-weight:600;
-            resize:vertical;box-sizing:border-box;outline:none;
-          "
-          placeholder="e.g. Still at zero listings on TJM, no sales yet. Just getting started…"
-        >${_escHtml(_baseline)}</textarea>
-      </div>
-
-      ${questions.map(q => `
-        <div style="margin-bottom:18px;">
-          <div style="font-size:11px;font-weight:900;color:${c.subheading};letter-spacing:1px;margin-bottom:4px;">${q.label}</div>
-          <div style="font-size:10px;color:${c.muted};font-weight:600;margin-bottom:8px;font-style:italic;">${q.hint}</div>
-          <textarea
-            id="review-${q.key}"
-            style="
-              width:100%;min-height:72px;
-              background:${c.inputBg};border:1px solid ${c.inputBorder};
-              border-radius:10px;color:${c.inputText};
-              font-size:13px;line-height:1.65;padding:10px 12px;
-              font-family:inherit;font-weight:600;
-              resize:vertical;box-sizing:border-box;outline:none;
-            "
-            placeholder="…"
-          >${_escHtml(prevAnswers[q.key] || '')}</textarea>
-        </div>
-      `).join('')}
-
-      <div style="margin-bottom:22px;">
-        <div style="font-size:11px;font-weight:900;color:${c.subheading};letter-spacing:1px;margin-bottom:8px;">${questions.length + 1}. Honest effort rating this week (1–10)</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          ${[1,2,3,4,5,6,7,8,9,10].map(n => `
-            <button
-              data-effort="${n}"
-              class="effort-btn"
-              style="
-                width:40px;height:40px;border-radius:8px;
-                background:${prevAnswers.effort == n ? c.goldBtn : c.inputBg};
-                border:1.5px solid ${prevAnswers.effort == n ? c.gold : c.inputBorder};
-                color:${prevAnswers.effort == n ? c.goldBtnTxt : c.inputText};
-                font-size:13px;font-weight:900;cursor:pointer;
-                transition:all .15s;
-              "
-            >${n}</button>
-          `).join('')}
-        </div>
-      </div>
-
-      <div style="display:flex;gap:10px;">
-        <button id="review-cancel" style="flex:1;padding:14px;background:${c.cardBg};border:1px solid ${c.cardBorder};border-radius:10px;color:${c.muted};font-size:12px;font-weight:800;letter-spacing:1px;cursor:pointer;">CANCEL</button>
-        <button id="review-submit" style="flex:2;padding:14px;background:${c.goldBtn};color:${c.goldBtnTxt};border:none;border-radius:10px;font-size:12px;font-weight:900;letter-spacing:2px;cursor:pointer;text-transform:uppercase;">SAVE & ANALYSE →</button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(overlay);
-
-  // Effort selector
-  let selectedEffort = prevAnswers.effort || null;
-  overlay.querySelectorAll('.effort-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      selectedEffort = parseInt(btn.dataset.effort);
-      overlay.querySelectorAll('.effort-btn').forEach(b => {
-        const active = parseInt(b.dataset.effort) === selectedEffort;
-        b.style.background = active ? c.goldBtn : c.inputBg;
-        b.style.borderColor = active ? c.gold : c.inputBorder;
-        b.style.color = active ? c.goldBtnTxt : c.inputText;
-      });
-    });
-  });
-
-  overlay.querySelector('#review-cancel').addEventListener('click', () => overlay.remove());
-
-  overlay.querySelector('#review-submit').addEventListener('click', async () => {
-    // Save the updated baseline first
-    const baselineVal = (overlay.querySelector('#review-baseline')?.value || '').trim();
-    if (baselineVal) await _saveBaseline(baselineVal);
-
-    // Collect answers for whichever question set was shown
-    const answers = { effort: selectedEffort, ts: Date.now() };
-    const activeQuestions = isHealthRoom ? healthQuestions : genericQuestions;
-    activeQuestions.forEach(q => {
-      answers[q.key] = overlay.querySelector(`#review-${q.key}`)?.value?.trim() || '';
-    });
-
-    // Attach auto-pulled health data so AI can use it
-    if (isHealthRoom && healthData) {
-      answers._healthData = {
-        weeklySteps:   healthData.weeklySteps   != null ? healthData.weeklySteps   : null,
-        latestWeight:  healthData.latestWeight  != null ? healthData.latestWeight  : null,
-        latestBodyFat: healthData.latestBodyFat != null ? healthData.latestBodyFat : null,
-        weightDelta:   healthData.weightDelta   != null ? healthData.weightDelta   : null,
-        bodyFatDelta:  healthData.bodyFatDelta  != null ? healthData.bodyFatDelta  : null,
-      };
-    }
-
-    overlay.remove();
-    await _saveWeeklyReview({ answers, ts: Date.now() });
-    _showReviewBanner = false;
-    if (_room) _overdueRooms.delete(_room.id);
-
-    // Trigger both AI analyses
-    _loadingRealityCheck = true;
-    _loading30Day = true;
-    _paintRoom();
-    await Promise.all([_doRealityCheck(), _do30DayFocus()]);
-    _loadingRealityCheck = false;
-    _loading30Day = false;
-    _paintRoom();
-    _toast('Review saved — analysis complete.', colors());
-  });
-
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   AI — REALITY CHECK
-───────────────────────────────────────────────────────────────────── */
-async function _doRealityCheck() {
-  if (!_statement || !_weeklyReview) return;
-
-  let apiKey = getApiKey();
-  if (!apiKey) {
-    apiKey = await _promptForApiKey();
-    if (!apiKey) return;
-    saveApiKey(apiKey);
-  }
-
-  try {
-    const a = _weeklyReview.answers || {};
-    const rid = _room?.id;
-    const isHealthRoom  = rid === 'health';
-    const isWealthRoom  = rid === 'biz_wealth';
-    const isTJMRoom     = rid === 'biz_tjm';
-    const isVintedRoom  = rid === 'biz_vinted';
-
-    let reviewText;
-    if (isHealthRoom) {
-      const hd = a._healthData || {};
-      const autoData = [
-        hd.weeklySteps   != null ? `Steps this week (auto-tracked): ${Number(hd.weeklySteps).toLocaleString()}` : '',
-        hd.latestWeight  != null ? `Current weight (auto-tracked): ${hd.latestWeight.toFixed(1)} lbs${hd.weightDelta != null ? ' (' + (hd.weightDelta > 0 ? '+' : '') + hd.weightDelta + 'lbs vs last week)' : ''}` : '',
-        hd.latestBodyFat != null ? `Body fat % (auto-tracked): ${hd.latestBodyFat.toFixed(1)}%${hd.bodyFatDelta != null ? ' (' + (hd.bodyFatDelta > 0 ? '+' : '') + hd.bodyFatDelta + '% vs last week)' : ''}` : '',
-      ].filter(Boolean);
-      reviewText = [
-        autoData.length ? `AUTO-TRACKED DATA:\n${autoData.join('\n')}` : '',
-        a.gymSessions  ? `Gym sessions completed: ${a.gymSessions}`    : '',
-        a.extraActivity? `Extra walks/runs: ${a.extraActivity}`         : '',
-        a.perfectDays  ? `Days on perfect diet: ${a.perfectDays}`      : '',
-        a.dietSlipUp   ? `Diet slip-up details: ${a.dietSlipUp}`       : '',
-        a.sleep        ? `Sleep this week: ${a.sleep}`                  : '',
-        a.niggles      ? `Soreness/niggles: ${a.niggles}`              : '',
-        a.dietPattern  ? `Diet pattern noticed: ${a.dietPattern}`      : '',
-        a.missedHabit  ? `Biggest missed habit: ${a.missedHabit}`      : '',
-        a.improvements ? `Commitments for next week: ${a.improvements}`: '',
-        a.effort       ? `Effort rating: ${a.effort}/10`                : '',
-      ].filter(Boolean).join('\n');
-    } else if (isWealthRoom) {
-      reviewText = [
-        a.income      ? `Income this week: ${a.income}`           : '',
-        a.spending    ? `Spending: ${a.spending}`                  : '',
-        a.savingsHit  ? `Savings target hit: ${a.savingsHit}`     : '',
-        a.leaks       ? `Money leaks: ${a.leaks}`                 : '',
-        a.position    ? `Current financial position: ${a.position}`: '',
-        a.opportunity ? `New opportunities: ${a.opportunity}`     : '',
-        a.priority    ? `Priority next week: ${a.priority}`       : '',
-        a.effort      ? `Effort rating: ${a.effort}/10`            : '',
-      ].filter(Boolean).join('\n');
-    } else if (isTJMRoom) {
-      reviewText = [
-        a.sales     ? `Sales/orders fulfilled: ${a.sales}`       : '',
-        a.revenue   ? `Revenue this week: ${a.revenue}`          : '',
-        a.listings  ? `New listings added: ${a.listings}`        : '',
-        a.marketing ? `Marketing/content output: ${a.marketing}` : '',
-        a.biz       ? `B2B/wholesale progress: ${a.biz}`         : '',
-        a.ops       ? `Operational issues: ${a.ops}`             : '',
-        a.nextWeek  ? `Priority next week: ${a.nextWeek}`        : '',
-        a.effort    ? `Effort rating: ${a.effort}/10`             : '',
-      ].filter(Boolean).join('\n');
-    } else if (isVintedRoom) {
-      reviewText = [
-        a.listed    ? `Items listed: ${a.listed}`             : '',
-        a.sales     ? `Sales & revenue: ${a.sales}`           : '',
-        a.sourced   ? `Stock sourced: ${a.sourced}`           : '',
-        a.momentum  ? `What's moving/stalling: ${a.momentum}` : '',
-        a.repriced  ? `Repriced listings: ${a.repriced}`      : '',
-        a.margin    ? `Estimated margin: ${a.margin}`         : '',
-        a.target    ? `Next week target: ${a.target}`         : '',
-        a.effort    ? `Effort rating: ${a.effort}/10`          : '',
-      ].filter(Boolean).join('\n');
-    } else {
-      reviewText = [
-        a.actions   ? `Actions taken: ${a.actions}`     : '',
-        a.results   ? `Results produced: ${a.results}`  : '',
-        a.avoided   ? `Avoided/delayed: ${a.avoided}`   : '',
-        a.effort    ? `Effort rating: ${a.effort}/10`    : '',
-        a.obstacle  ? `Biggest obstacle: ${a.obstacle}` : '',
-      ].filter(Boolean).join('\n');
-    }
-
-    const systemBase = `You are Robert's brutally honest but deeply believing mentor. He has given you his vision and his honest weekly review. Your job: call out the gap with complete honesty — be specific to HIS numbers and HIS situation, never generic. Name where he is falling short, making excuses, or playing small. Then remind him what he is genuinely capable of — grounded belief, not hype. Write 3–5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`;
-
-    const system = isHealthRoom
-      ? `You are Robert's brutally honest but deeply believing health mentor. He has given you his physical vision and his honest weekly review including real tracked data on his steps, weight and body fat.\n\nYour job: call out the gap with complete honesty. Be specific to HIS numbers — never generic. Name where discipline slipped. Then remind him what is actually possible — grounded belief, not hype.\n\nWrite 3–5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`
-      : isWealthRoom
-        ? `You are Robert's brutally honest financial mentor. He has given you his wealth vision and his honest weekly review of income, spending, savings and opportunities.\n\nYour job: call out where his financial behaviour this week aligned or conflicted with his vision. Be specific to HIS numbers. Name any leaks, excuses or missed opportunities. Then push him on what he is genuinely capable of building.\n\nWrite 3–5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`
-        : isTJMRoom
-          ? `You are Robert's brutally honest business mentor for The Jewellery Merchant. He has given you his brand vision and his honest weekly review of sales, content, wholesale progress and operations.\n\nYour job: call out exactly where execution fell short this week — missed listings, weak marketing, avoided conversations. Be specific to HIS numbers. Then push him on what TJM is capable of becoming.\n\nWrite 3–5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`
-          : isVintedRoom
-            ? `You are Robert's brutally honest business mentor for his Vinted reselling operation. He has given you his vision for the business and his honest weekly review of listings, sales, sourcing and margins.\n\nYour job: call out exactly where the numbers fell short, where effort was lacking, and what habits are holding the business back. Be specific to HIS figures. Then remind him of the scale this can reach if he executes consistently.\n\nWrite 3–5 sentences as a direct personal message to Robert. No bullet points. No headers. Just truth.`
-            : systemBase;
-
-    const user = `My vision for ${_room?.label}:\n${_statement}${_baseline ? '\n\nCURRENT REALITY BASELINE (use this to calibrate — this is where I actually am RIGHT NOW):\n' + _baseline : ''}\n\nMy weekly review:\n${reviewText}\n\nGive me my Reality Check.`;
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 350,
-        system,
-        messages: [{ role: 'user', content: user }],
-      }),
-    });
-
-    const data = await res.json();
-    const text = data?.content?.[0]?.text?.trim() || '';
-    if (text) await _saveRealityCheck(text);
-  } catch (err) {
-    console.error('[Vision] realityCheck error:', err);
-  }
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   AI — MONTHLY + WEEKLY FOCUS PLAN
-───────────────────────────────────────────────────────────────────── */
-async function _do30DayFocus() {
-  if (!_statement || !_weeklyReview) return;
-
-  let apiKey = getApiKey();
-  if (!apiKey) {
-    apiKey = await _promptForApiKey();
-    if (!apiKey) return;
-    saveApiKey(apiKey);
-  }
-
-  try {
-    const a = _weeklyReview.answers || {};
-    const isHealthRoom = _room?.id === 'health';
-
-    // ── Month timing — always deadline = last day of current month ──
-    const now          = new Date();
-    const monthName    = now.toLocaleString('en-GB', { month: 'long' });
-    const year         = now.getFullYear();
-    const todayStr     = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
-    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    const deadlineStr  = lastDayOfMonth.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-    const daysRemaining = Math.ceil((lastDayOfMonth - now) / 86400000);
-    const weeksRemaining = Math.ceil(daysRemaining / 7);
-
-    // Which week of the month are we in? (1–4)
-    const dayOfMonth    = now.getDate();
-    const currentWeekNum = Math.min(4, Math.ceil(dayOfMonth / 7));
-    const weeksToGenerate = Math.max(1, Math.min(4, weeksRemaining));
-
-    let reviewText;
-    const rid2 = _room?.id;
-    if (isHealthRoom) {
-      const hd = a._healthData || {};
-      const autoData = [
-        hd.weeklySteps   != null ? `Steps this week (auto-tracked): ${Number(hd.weeklySteps).toLocaleString()}` : '',
-        hd.latestWeight  != null ? `Current weight (auto-tracked): ${hd.latestWeight.toFixed(1)} lbs${hd.weightDelta != null ? ' (' + (hd.weightDelta > 0 ? '+' : '') + hd.weightDelta + 'lbs vs last week)' : ''}` : '',
-        hd.latestBodyFat != null ? `Body fat % (auto-tracked): ${hd.latestBodyFat.toFixed(1)}%${hd.bodyFatDelta != null ? ' (' + (hd.bodyFatDelta > 0 ? '+' : '') + hd.bodyFatDelta + '% vs last week)' : ''}` : '',
-      ].filter(Boolean);
-      reviewText = [
-        autoData.length ? `AUTO-TRACKED DATA:\n${autoData.join('\n')}` : '',
-        a.gymSessions  ? `Gym sessions this week: ${a.gymSessions}`    : '',
-        a.extraActivity? `Extra walks/runs: ${a.extraActivity}`         : '',
-        a.perfectDays  ? `Days on perfect diet: ${a.perfectDays}/7`    : '',
-        a.dietSlipUp   ? `Diet slip-up: ${a.dietSlipUp}`               : '',
-        a.sleep        ? `Sleep quality: ${a.sleep}`                    : '',
-        a.niggles      ? `Physical niggles: ${a.niggles}`              : '',
-        a.dietPattern  ? `Diet pattern: ${a.dietPattern}`              : '',
-        a.missedHabit  ? `Biggest missed habit: ${a.missedHabit}`      : '',
-        a.improvements ? `Commitments: ${a.improvements}`              : '',
-        a.effort       ? `Effort rating: ${a.effort}/10`                : '',
-      ].filter(Boolean).join('\n');
-    } else if (rid2 === 'biz_wealth') {
-      reviewText = [
-        a.income      ? `Income this week: ${a.income}`            : '',
-        a.spending    ? `Spending: ${a.spending}`                   : '',
-        a.savingsHit  ? `Savings target hit: ${a.savingsHit}`      : '',
-        a.leaks       ? `Money leaks: ${a.leaks}`                  : '',
-        a.position    ? `Current financial position: ${a.position}` : '',
-        a.opportunity ? `New opportunities: ${a.opportunity}`      : '',
-        a.priority    ? `Priority next week: ${a.priority}`        : '',
-        a.effort      ? `Effort rating: ${a.effort}/10`             : '',
-      ].filter(Boolean).join('\n');
-    } else if (rid2 === 'biz_tjm') {
-      reviewText = [
-        a.sales     ? `Sales/orders: ${a.sales}`               : '',
-        a.revenue   ? `Revenue: ${a.revenue}`                  : '',
-        a.listings  ? `New listings: ${a.listings}`            : '',
-        a.marketing ? `Marketing output: ${a.marketing}`       : '',
-        a.biz       ? `B2B/wholesale progress: ${a.biz}`       : '',
-        a.ops       ? `Operational issues: ${a.ops}`           : '',
-        a.nextWeek  ? `Priority next week: ${a.nextWeek}`      : '',
-        a.effort    ? `Effort rating: ${a.effort}/10`           : '',
-      ].filter(Boolean).join('\n');
-    } else if (rid2 === 'biz_vinted') {
-      reviewText = [
-        a.listed    ? `Items listed: ${a.listed}`              : '',
-        a.sales     ? `Sales & revenue: ${a.sales}`            : '',
-        a.sourced   ? `Stock sourced: ${a.sourced}`            : '',
-        a.momentum  ? `What's moving/stalling: ${a.momentum}`  : '',
-        a.repriced  ? `Repriced listings: ${a.repriced}`       : '',
-        a.margin    ? `Estimated margin: ${a.margin}`          : '',
-        a.target    ? `Next week target: ${a.target}`          : '',
-        a.effort    ? `Effort rating: ${a.effort}/10`           : '',
-      ].filter(Boolean).join('\n');
-    } else {
-      reviewText = [
-        a.actions   ? `Actions taken this week: ${a.actions}`     : '',
-        a.results   ? `Results produced: ${a.results}`            : '',
-        a.avoided   ? `Avoided/delayed: ${a.avoided}`             : '',
-        a.effort    ? `Effort rating: ${a.effort}/10`              : '',
-        a.obstacle  ? `Biggest obstacle right now: ${a.obstacle}` : '',
-      ].filter(Boolean).join('\n');
-    }
-
-    const planNote = isHealthRoom
-      ? `\n- Actions must be physical and measurable: gym session counts, diet targets (e.g. "5/7 days perfect diet"), specific training focus\n- Reference auto-tracked data (steps, weight, body fat) when setting the month objective\n- The challenge field must address real patterns he mentioned (diet slippage, missed sessions, weekends)`
-      : rid2 === 'biz_wealth'
-        ? `\n- Actions must be financial and specific: savings amounts, income targets, investments to make, leaks to plug\n- Reference his actual income and position numbers in the month objective\n- The challenge field must address his stated spending patterns or avoidance behaviours`
-        : rid2 === 'biz_tjm'
-          ? `\n- Actions must be business-specific: listing targets, content output (e.g. "3 TikToks this week"), wholesale calls, revenue targets\n- Reference his actual revenue and sales figures in the month objective\n- The challenge field must address his stated operational or marketing blockers`
-          : rid2 === 'biz_vinted'
-            ? `\n- Actions must be reselling-specific: items to list, sourcing trips, repricing sessions, revenue targets\n- Reference his actual listing and sales numbers in the month objective\n- The challenge field must address his stated momentum issues or sourcing blockers`
-            : '';
-
-    // Build week template string dynamically based on weeks remaining
-    const weekTemplates = Array.from({ length: weeksToGenerate }, (_, i) => {
-      const wkNum = currentWeekNum + i;
-      return `{ "week": ${wkNum}, "focus": "...", "actions": ["...", "...", "..."], "challenge": "..." }`;
-    }).join(',\n    ');
-
-    const system = `You are a sharp, direct coach creating a structured plan to take someone from TODAY to the end of this calendar month.
-
-You must respond with ONLY a valid JSON object — no markdown, no backticks, no explanation. Exactly this structure:
-
-{
-  "monthObjective": "One bold, specific, measurable objective to achieve by the end of ${monthName}. Must reference where Robert is TODAY and what he will achieve by ${deadlineStr}.",
-  "weeks": [
-    ${weekTemplates}
-  ]
-}
-
-Rules:
-- TODAY is ${todayStr}. The DEADLINE is ${deadlineStr} (last day of ${monthName}). There are ${daysRemaining} days and ${weeksToGenerate} week(s) remaining in the month.
-- We are currently in week ${currentWeekNum} of the month — only generate ${weeksToGenerate} week(s) (from week ${currentWeekNum} to the end of the month). Do NOT generate weeks that have already passed.
-- Each week should build on the previous — the final week locks in results before the month-end deadline
-- Actions must be concrete and measurable, not vague ("4 gym sessions this week" not "train more")
-- CRITICAL: The month objective and all week targets MUST be calibrated to the current reality baseline — do not set targets that are disconnected from where Robert actually is right now
-- The challenge field must directly reference their stated patterns and give a concrete coping strategy${planNote}
-- Return ONLY the JSON. Nothing else.`;
-
-    const user = `Month: ${monthName} ${year}
-Today: ${todayStr}
-Month-end deadline: ${deadlineStr}
-Days remaining: ${daysRemaining}
-Weeks remaining: ${weeksToGenerate} (starting at week ${currentWeekNum} of the month)
-Room: ${_room?.label}
-
-My vision:\n${_statement}${_baseline ? '\n\nCURRENT REALITY BASELINE — where I actually am RIGHT NOW (calibrate ALL targets from this, not from the vision):\n' + _baseline : ''}\n\nMy weekly review this week:\n${reviewText}`;
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 900,
-        system,
-        messages: [{ role: 'user', content: user }],
-      }),
-    });
-
-    const data = await res.json();
-    const raw = data?.content?.[0]?.text?.trim() || '';
-    if (!raw) return;
-
-    // Parse and validate JSON
-    try {
-      const clean = raw.replace(/^```json|^```|```$/gm, '').trim();
-      const parsed = JSON.parse(clean);
-      if (parsed.monthObjective && Array.isArray(parsed.weeks)) {
-
-        // Inject week date ranges programmatically — more reliable than asking AI
-        // Week end = next Sunday from today, then +7 each week, capped at month-end
-        const dayOfWeek    = now.getDay(); // 0=Sun
-        const daysToSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-        parsed.weeks.forEach(function(w, i) {
-          var weekEndRaw = new Date(now);
-          weekEndRaw.setDate(now.getDate() + daysToSunday + (i * 7));
-          var isLastWeek = (i === parsed.weeks.length - 1);
-          // Cap last week at month-end; also cap any week that overruns
-          if (weekEndRaw >= lastDayOfMonth || isLastWeek) {
-            w.weekEnd     = lastDayOfMonth.toISOString().slice(0, 10);
-            w.isMonthEnd  = true;
-          } else {
-            w.weekEnd    = weekEndRaw.toISOString().slice(0, 10);
-            w.isMonthEnd = false;
-          }
-          // Week start: Monday of this week for week 0, day-after-prev-end for rest
-          if (i === 0) {
-            var monday = new Date(now);
-            monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-            w.weekStart = monday.toISOString().slice(0, 10);
-          } else {
-            var prevEnd = new Date(parsed.weeks[i - 1].weekEnd);
-            prevEnd.setDate(prevEnd.getDate() + 1);
-            w.weekStart = prevEnd.toISOString().slice(0, 10);
-          }
-        });
-
-        // Store month start for progress tracking
-        parsed.monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        parsed.monthEnd   = lastDayOfMonth.toISOString().slice(0, 10);
-        parsed.generatedAt = Date.now();
-
-        await _saveFocusPlan(JSON.stringify(parsed));
-      }
-    } catch (parseErr) {
-      console.error('[Vision] 30dayFocus parse error:', parseErr, raw);
-    }
-  } catch (err) {
-    console.error('[Vision] 30dayFocus error:', err);
-  }
-}
-
-
-/* ─────────────────────────────────────────────────────────────────────
-   TOTAL PICTURE — AI-synthesised business & wealth command centre
-───────────────────────────────────────────────────────────────────── */
-
-async function _openTotalPicture() {
-  _view = 'room';
-  _room = { id: 'biz_total', label: 'Total Picture', emoji: '🗺️' };
-  const c = colors();
-  const panel = _panel();
-  if (!panel) return;
-
-  panel.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:center;height:200px;">
-      <div style="color:${c.muted};font-size:13px;font-weight:700;letter-spacing:2px;">LOADING…</div>
-    </div>
-  `;
-
-  await _tpLoad();
-
-  // Auto-refresh if never generated or older than 24h
-  const age = _tp_data?.generatedAt ? (Date.now() - _tp_data.generatedAt) : Infinity;
-  if (!_tp_data?.vision || age > 24 * 60 * 60 * 1000) {
-    _tp_generating = true;
-    _paintTotalPicture();
-    await _tpGenerate();
-    _tp_generating = false;
-  }
-
-  _paintTotalPicture();
-}
-
-async function _tpLoad() {
-  try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid) return;
-    const snap = await getDoc(doc(db, 'users', uid, 'visionRooms', 'biz_total'));
-    _tp_data = snap.exists() ? snap.data() : null;
-  } catch (err) {
-    console.error('[Vision] tpLoad error:', err);
-    _tp_data = null;
-  }
-}
-
-async function _tpSave() {
-  try {
-    const db = _db(); const uid = _uid();
-    if (!db || !uid || !_tp_data) return;
-    await setDoc(doc(db, 'users', uid, 'visionRooms', 'biz_total'), _tp_data, { merge: true });
-  } catch (err) {
-    console.error('[Vision] tpSave error:', err);
-  }
-}
-
-async function _tpLoadAllRoomsData() {
-  const db = _db(); const uid = _uid();
-  if (!db || !uid) return [];
-  const bizFolder = DEFAULT_ROOMS.find(r => r.isFolder);
-  if (!bizFolder) return [];
-  const subs = [...bizFolder.defaultSubRooms, ..._customSubRooms].filter(r => r.id !== 'biz_total');
-  const rooms = [];
-  await Promise.all(subs.map(async (sub) => {
-    try {
-      const snap = await getDoc(doc(db, 'users', uid, 'visionRooms', sub.id));
-      const data = snap.exists() ? snap.data() : {};
-      rooms.push({
-        label:       sub.label,
-        emoji:       sub.emoji,
-        statement:   data.statement    || '',
-        realityCheck:data.realityCheck || '',
-        weeklyReview:data.weeklyReview?.answers || null,
-      });
-    } catch (e) {
-      rooms.push({ label: sub.label, emoji: sub.emoji, statement: '', realityCheck: '', weeklyReview: null });
-    }
-  }));
-  return rooms;
-}
-
-async function _tpGenerate() {
-  let apiKey = getApiKey();
-  if (!apiKey) {
-    apiKey = await _promptForApiKey();
-    if (!apiKey) return;
-    saveApiKey(apiKey);
-  }
-  try {
-    const rooms = await _tpLoadAllRoomsData();
-    const now = new Date();
-    const monthName = now.toLocaleString('en-GB', { month: 'long' });
-    const year = now.getFullYear();
-
-    const contextStr = rooms.map(r => {
-      const parts = [`${r.emoji} ${r.label}`];
-      if (r.statement)    parts.push(`Vision: ${r.statement}`);
-      if (r.realityCheck) parts.push(`Reality Check: ${r.realityCheck}`);
-      if (r.weeklyReview) {
-        const a = r.weeklyReview;
-        if (a.actions)  parts.push(`Recent Actions: ${a.actions}`);
-        if (a.results)  parts.push(`Results: ${a.results}`);
-        if (a.avoided)  parts.push(`Avoided/Delayed: ${a.avoided}`);
-        if (a.obstacle) parts.push(`Biggest Obstacle: ${a.obstacle}`);
-        if (a.effort)   parts.push(`Effort: ${a.effort}/10`);
-      }
-      return parts.join('\n');
-    }).join('\n\n---\n\n');
-
-    const amendments    = _tp_data?.amendments || [];
-    const amendmentStr  = amendments.length > 0
-      ? `\n\nAmendments from Robert:\n${amendments.map((a, i) => `${i + 1}. ${a}`).join('\n')}`
-      : '';
-
-    const system = `You are a sharp strategic coach building an AI-powered command centre for Robert's business and wealth. You have data from all his business vision rooms. Synthesise this into a clear, actionable Total Picture.
-
-Respond with ONLY a valid JSON object — no markdown, no backticks, no explanation. Exactly this structure:
-
-{
-  "vision": "2–4 sentence synthesis of Robert's overall business and wealth vision — what he is building and why. Present tense, vivid, specific to his actual ventures.",
-  "currentReality": "2–4 sentence honest summary of where Robert is right now across his business and wealth — reference his reality checks and reviews. What's working and what's not.",
-  "objectives": [
-    "Specific measurable objective for ${monthName} — action verb + concrete outcome",
-    "Specific measurable objective for ${monthName}",
-    "Specific measurable objective for ${monthName}",
-    "Specific measurable objective for ${monthName}",
-    "Specific measurable objective for ${monthName}"
-  ],
-  "weeklyRoadmap": {
-    "month": "${monthName} ${year}",
-    "weeks": [
-      { "week": 1, "focus": "Single most important focus for Week 1 (one bold sentence)", "actions": ["Specific action 1", "Specific action 2", "Specific action 3"] },
-      { "week": 2, "focus": "…", "actions": ["…", "…", "…"] },
-      { "week": 3, "focus": "…", "actions": ["…", "…", "…"] },
-      { "week": 4, "focus": "…", "actions": ["…", "…", "…"] }
-    ]
-  }
-}
-
-Rules: Be brutally specific to Robert's actual businesses. Objectives must be achievable this calendar month. Actions must be concrete, not generic. Build the roadmap week by week with momentum. Return ONLY valid JSON.`;
-
-    const user = `Month: ${monthName} ${year}\n\nBusiness & Wealth room data:\n\n${contextStr}${amendmentStr}\n\nBuild the Total Picture.`;
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1400,
-        system,
-        messages: [{ role: 'user', content: user }],
-      }),
-    });
-
-    const data = await res.json();
-    const raw  = data?.content?.[0]?.text?.trim() || '';
-    if (!raw) return;
-
-    const clean  = raw.replace(/^```json|^```|```$/gm, '').trim();
-    const parsed = JSON.parse(clean);
-
-    // Preserve existing checkbox state
-    const prevMap = {};
-    (_tp_data?.objectives || []).forEach(o => { prevMap[o.text] = o.checked; });
-    const objectives = (parsed.objectives || []).map(text => ({
-      text,
-      checked: prevMap[text] || false,
-    }));
-
-    _tp_data = {
-      ...(_tp_data || {}),
-      vision:        parsed.vision        || '',
-      currentReality:parsed.currentReality|| '',
-      objectives,
-      weeklyRoadmap: parsed.weeklyRoadmap || null,
-      amendments:    _tp_data?.amendments || [],
-      generatedAt:   Date.now(),
-    };
-
-    await _tpSave();
-  } catch (err) {
-    console.error('[Vision] tpGenerate error:', err);
-  }
-}
-
-async function _tpRegenerateRoadmap(amendment) {
-  if (!amendment.trim()) return;
-  let apiKey = getApiKey();
-  if (!apiKey) {
-    apiKey = await _promptForApiKey();
-    if (!apiKey) return;
-    saveApiKey(apiKey);
-  }
-
-  // Append amendment
-  _tp_data = {
-    ...(_tp_data || {}),
-    amendments: [...(_tp_data?.amendments || []), amendment.trim()],
-  };
-
-  try {
-    const now        = new Date();
-    const monthName  = now.toLocaleString('en-GB', { month: 'long' });
-    const year       = now.getFullYear();
-    const current    = _tp_data.weeklyRoadmap ? JSON.stringify(_tp_data.weeklyRoadmap) : 'None yet';
-    const allAmends  = (_tp_data.amendments || []).map((a, i) => `${i + 1}. ${a}`).join('\n');
-
-    const system = `You are a strategic coach refining a monthly roadmap for Robert based on his corrections. Return ONLY a valid JSON object — no markdown, no explanation:
-
-{
-  "month": "${monthName} ${year}",
-  "weeks": [
-    { "week": 1, "focus": "…", "actions": ["…", "…", "…"] },
-    { "week": 2, "focus": "…", "actions": ["…", "…", "…"] },
-    { "week": 3, "focus": "…", "actions": ["…", "…", "…"] },
-    { "week": 4, "focus": "…", "actions": ["…", "…", "…"] }
-  ]
-}
-
-Rules: Incorporate ALL amendments — they override the original. Keep what works, refine the rest. Actions must be concrete. Return ONLY valid JSON.`;
-
-    const user = `Current roadmap:\n${current}\n\nRobert's amendments:\n${allAmends}`;
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 900,
-        system,
-        messages: [{ role: 'user', content: user }],
-      }),
-    });
-
-    const data   = await res.json();
-    const raw    = data?.content?.[0]?.text?.trim() || '';
-    if (!raw) return;
-    const clean  = raw.replace(/^```json|^```|```$/gm, '').trim();
-    const parsed = JSON.parse(clean);
-    _tp_data.weeklyRoadmap = parsed;
-    await _tpSave();
-  } catch (err) {
-    console.error('[Vision] tpRegenerateRoadmap error:', err);
-  }
-}
-
-function _paintTotalPicture() {
-  const c     = colors();
-  const panel = _panel();
-  if (!panel) return;
-  const d       = _tp_data;
-  const hasData = d && d.vision;
-  const monthLabel = d?.weeklyRoadmap?.month
-    || new Date().toLocaleString('en-GB', { month: 'long', year: 'numeric' });
-
-  panel.innerHTML = `
-    <div class="vision-page" style="background:${c.pageBg};min-height:100%;padding:24px 20px 80px;">
-
-      <!-- Header -->
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-        <button id="tp-back" style="${_backBtnStyle(c)}">← Back</button>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:17px;font-weight:900;letter-spacing:2px;color:${c.heading};text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🗺️ Total Picture</div>
-          <div style="font-size:10px;color:${c.muted};letter-spacing:1px;font-weight:600;">AI-synthesised from all your business rooms</div>
-        </div>
-        <button id="tp-refresh" style="
+        <!-- Step number badge -->
+        <div style="
+          width:28px;height:28px;border-radius:50%;flex-shrink:0;
           background:${c.goldBtn};color:${c.goldBtnTxt};
-          border:none;border-radius:8px;
-          font-size:10px;font-weight:900;letter-spacing:1px;
-          padding:8px 12px;cursor:pointer;white-space:nowrap;flex-shrink:0;
-          opacity:${_tp_generating ? '0.6' : '1'};
-        " ${_tp_generating ? 'disabled' : ''}>${_tp_generating ? '⟳ Generating…' : '⟳ Refresh'}</button>
+          display:flex;align-items:center;justify-content:center;
+          font-size:12px;font-weight:900;
+        ">${index + 1}</div>
+
+        <!-- Title — editable or locked -->
+        ${step.locked
+          ? `<div style="flex:1;font-size:13px;font-weight:800;color:${c.heading};line-height:1.4;word-break:break-word;">${_escHtml(step.title)}</div>`
+          : `<input
+              id="vision-step-title-${step.id}"
+              type="text"
+              value="${_escHtml(step.title)}"
+              placeholder="The next step is to..."
+              style="
+                flex:1;background:${c.inputBg};border:1px solid ${c.inputBorder};
+                border-radius:8px;color:${c.inputText};font-size:13px;font-weight:800;
+                padding:7px 10px;outline:none;font-family:inherit;
+              "
+            >`
+        }
+
+        <!-- Lock / unlock -->
+        <button
+          class="vision-step-lock-btn"
+          data-step-id="${step.id}"
+          title="${step.locked ? 'Unlock to edit title' : 'Lock title (read-only)'}"
+          style="
+            background:transparent;border:1px solid ${c.cardBorder};border-radius:8px;
+            color:${c.muted};font-size:14px;padding:5px 8px;cursor:pointer;flex-shrink:0;
+          "
+        >${step.locked ? '🔒' : '🔓'}</button>
+
+        <!-- Delete -->
+        <button
+          class="vision-step-delete-btn"
+          data-step-id="${step.id}"
+          title="Delete this step"
+          style="
+            background:transparent;border:1px solid ${c.dangerTxt}33;border-radius:8px;
+            color:${c.dangerTxt};font-size:11px;font-weight:900;padding:5px 9px;cursor:pointer;flex-shrink:0;
+          "
+        >✕</button>
       </div>
 
-      ${_tp_generating ? `
-        <div style="
-          background:${c.cardBg};border:1px solid ${c.cardBorder};
-          border-radius:14px;padding:40px 16px;text-align:center;
-        ">
-          <div style="font-size:28px;margin-bottom:14px;">🗺️</div>
-          <div style="font-size:12px;font-weight:900;letter-spacing:2px;color:${c.muted};text-transform:uppercase;">Synthesising your rooms…</div>
-          <div style="font-size:11px;color:${c.muted};margin-top:8px;font-weight:600;line-height:1.6;">Pulling vision, reality checks & weekly reviews from all business rooms</div>
+      <!-- Progress bar (if deadline set) -->
+      ${progressHtml}
+
+      <!-- Refined vision for this step -->
+      ${step.refined ? `
+        <div style="background:${c.statementBg};border:1.5px solid ${c.statementBdr};border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+          <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:8px;">✦ Vision for this step</div>
+          <div style="font-size:13px;font-weight:700;color:${c.statementTxt};line-height:1.75;">${_escHtml(step.refined)}</div>
+          ${draftCount > 0 ? `<div style="font-size:10px;color:${c.muted};margin-top:8px;font-weight:600;">${draftCount} draft${draftCount > 1 ? 's' : ''}</div>` : ''}
         </div>
+      ` : ''}
 
-      ` : !hasData ? `
-        <div style="
-          background:${c.cardBg};border:1px solid ${c.cardBorder};
-          border-radius:14px;padding:40px 16px;text-align:center;
-        ">
-          <div style="font-size:32px;margin-bottom:12px;">🗺️</div>
-          <div style="font-size:13px;font-weight:900;letter-spacing:1px;color:${c.heading};margin-bottom:8px;">No picture yet</div>
-          <div style="font-size:12px;color:${c.muted};font-weight:600;line-height:1.6;margin-bottom:20px;">
-            Add vision entries and weekly reviews to your business rooms, then generate your Total Picture.
-          </div>
-          <button id="tp-generate-now" style="
-            background:${c.goldBtn};color:${c.goldBtnTxt};border:none;
-            border-radius:10px;padding:12px 24px;
-            font-size:12px;font-weight:900;letter-spacing:1px;cursor:pointer;text-transform:uppercase;
-          ">Generate Now →</button>
-        </div>
+      <!-- Deadline picker -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${c.muted};text-transform:uppercase;white-space:nowrap;flex-shrink:0;">🏁 Target date:</div>
+        <input
+          type="date"
+          id="vision-step-deadline-${step.id}"
+          value="${step.deadline || ''}"
+          style="
+            flex:1;background:${c.inputBg};border:1px solid ${c.inputBorder};
+            border-radius:8px;color:${c.inputText};font-size:12px;font-weight:700;
+            padding:7px 10px;outline:none;font-family:inherit;
+          "
+        >
+      </div>
 
-      ` : `
+      <!-- Draft textarea -->
+      <textarea
+        id="vision-step-input-${step.id}"
+        placeholder="Describe your vision for this step — what does completion look like?"
+        rows="3"
+        style="
+          width:100%;min-height:80px;background:${c.inputBg};border:1px solid ${c.inputBorder};
+          border-radius:10px;color:${c.inputText};font-size:13px;font-weight:600;line-height:1.6;
+          padding:12px 14px;resize:vertical;box-sizing:border-box;font-family:inherit;outline:none;
+        "
+      ></textarea>
 
-        <!-- 0. OVERALL VISION -->
-        <div style="
-          background:${c.statementBg};border:1.5px solid ${c.statementBdr};
-          border-radius:14px;padding:18px 16px;margin-bottom:14px;
-        ">
-          <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.gold};text-transform:uppercase;margin-bottom:10px;">✦ 0 — Overall Vision & Goal</div>
-          <div style="font-size:14px;line-height:1.75;color:${c.statementTxt};font-weight:600;">${_nl2br(_escHtml(d.vision || ''))}</div>
-        </div>
+      <!-- Submit -->
+      <button
+        class="vision-step-submit-btn"
+        data-step-id="${step.id}"
+        style="
+          margin-top:10px;width:100%;padding:11px;border:none;border-radius:10px;
+          background:${c.goldBtn};color:${c.goldBtnTxt};
+          font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;cursor:pointer;
+        "
+      >${step.refined ? '⟳ Refine Vision' : '✦ Distil My Vision'}</button>
 
-        <!-- 1. WHERE I AM NOW -->
-        <div style="
-          background:${c.cardBg};border:1px solid ${c.cardBorder};
-          border-radius:14px;padding:18px 16px;margin-bottom:14px;
-        ">
-          <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.muted};text-transform:uppercase;margin-bottom:10px;">🔍 1 — Where I Am Now</div>
-          <div style="font-size:13px;line-height:1.75;color:${c.subheading};font-weight:600;">${_nl2br(_escHtml(d.currentReality || ''))}</div>
-        </div>
+      <div id="vision-step-refining-${step.id}" style="display:none;text-align:center;padding:8px;font-size:11px;color:${c.muted};font-weight:600;font-style:italic;">
+        AI is distilling your vision…
+      </div>
 
-        <!-- 2. MONTHLY OBJECTIVES -->
-        <div style="
-          background:${c.cardBg};border:1px solid ${c.cardBorder};
-          border-radius:14px;padding:18px 16px;margin-bottom:14px;
-        ">
-          <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.muted};text-transform:uppercase;margin-bottom:14px;">
-            📋 2 — ${monthLabel.toUpperCase()} OBJECTIVES
-          </div>
-          <div style="display:flex;flex-direction:column;gap:10px;">
-            ${(d.objectives || []).map((obj, i) => `
-              <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
-                <input
-                  type="checkbox"
-                  data-tp-obj="${i}"
-                  ${obj.checked ? 'checked' : ''}
-                  style="width:18px;height:18px;margin-top:3px;flex-shrink:0;accent-color:${c.gold};cursor:pointer;"
-                >
-                <span style="
-                  font-size:13px;font-weight:600;line-height:1.55;
-                  color:${obj.checked ? c.muted : c.subheading};
-                  ${obj.checked ? 'text-decoration:line-through;opacity:0.55;' : ''}
-                ">${_escHtml(obj.text)}</span>
-              </label>
-            `).join('')}
-          </div>
-        </div>
-
-        <!-- 3. WEEKLY ROADMAP -->
-        <div style="
-          background:${c.cardBg};border:1px solid ${c.cardBorder};
-          border-radius:14px;padding:18px 16px;margin-bottom:14px;
-        ">
-          <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:${c.muted};text-transform:uppercase;margin-bottom:14px;">
-            🗓️ 3 — Weekly Roadmap — ${monthLabel.toUpperCase()}
-          </div>
-
-          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
-            ${(d.weeklyRoadmap?.weeks || []).map(w => `
-              <div style="border:1px solid ${c.cardBorder};border-radius:10px;padding:14px;">
-                <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;">
-                  <div style="
-                    background:${c.goldBtn};color:${c.goldBtnTxt};
-                    border-radius:6px;padding:3px 10px;
-                    font-size:10px;font-weight:900;letter-spacing:1px;
-                    white-space:nowrap;flex-shrink:0;margin-top:1px;
-                  ">WK ${w.week}</div>
-                  <div style="font-size:12px;font-weight:800;color:${c.heading};line-height:1.45;">${_escHtml(w.focus || '')}</div>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:6px;padding-left:2px;">
-                  ${(w.actions || []).map(a => `
-                    <div style="display:flex;align-items:flex-start;gap:8px;">
-                      <div style="color:${c.gold};font-size:11px;font-weight:900;margin-top:2px;flex-shrink:0;">→</div>
-                      <div style="font-size:12px;color:${c.subheading};font-weight:600;line-height:1.5;">${_escHtml(a)}</div>
-                    </div>
-                  `).join('')}
-                </div>
-              </div>
-            `).join('')}
-          </div>
-
-          <!-- Amendment box -->
-          <div style="border-top:1px solid ${c.divider};padding-top:16px;">
-            <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:${c.muted};text-transform:uppercase;margin-bottom:8px;">✏️ Amend the Roadmap</div>
-            <textarea
-              id="tp-amendment"
-              placeholder="Tell AI what to change — e.g. 'Push week 3 TikTok content to week 4, I have a trade show week 3' or 'Focus more on Vinted in week 2'…"
-              style="
-                width:100%;min-height:80px;
-                background:${c.inputBg};border:1px solid ${c.inputBorder};
-                border-radius:10px;color:${c.inputText};
-                font-size:13px;line-height:1.65;padding:10px 12px;
-                font-family:inherit;font-weight:600;resize:vertical;
-                box-sizing:border-box;outline:none;
-              "
-              ${_tp_amending ? 'disabled' : ''}
-            >${_escHtml(_tp_amendDraft)}</textarea>
-            <button id="tp-amend-submit" style="
-              margin-top:10px;width:100%;
-              background:${c.goldBtn};color:${c.goldBtnTxt};
-              border:none;border-radius:10px;
-              padding:12px;font-size:11px;font-weight:900;
-              letter-spacing:2px;text-transform:uppercase;cursor:pointer;
-              opacity:${_tp_amending ? '0.6' : '1'};
-            " ${_tp_amending ? 'disabled' : ''}>${_tp_amending ? '⟳ Updating Roadmap…' : 'SUBMIT AMENDMENT →'}</button>
-          </div>
-        </div>
-
-        ${d.generatedAt ? `
-          <div style="font-size:10px;color:${c.muted};text-align:center;font-weight:600;letter-spacing:1px;">
-            Last generated ${_fmtDate(d.generatedAt)}
-          </div>
-        ` : ''}
-      `}
     </div>
   `;
+}
 
-  // Back
-  panel.querySelector('#tp-back')?.addEventListener('click', () => {
-    const folder = DEFAULT_ROOMS.find(r => r.isFolder);
-    if (folder) _openFolder(folder);
+/* ─────────────────────────────────────────────────────────────────────
+   BUSINESS — LISTENERS
+───────────────────────────────────────────────────────────────────── */
+
+function _attachBusinessListeners(panel, c) {
+
+  // ── 1-year vision ──
+  panel.querySelector('#vision-biz-oneyear-submit')?.addEventListener('click', async () => {
+    const ta          = panel.querySelector('#vision-biz-oneyear-input');
+    const refiningEl  = panel.querySelector('#vision-biz-oneyear-refining');
+    const submitBtn   = panel.querySelector('#vision-biz-oneyear-submit');
+    const draft       = ta?.value?.trim();
+    if (!draft) { _toast('Write something first', c); return; }
+
+    if (refiningEl) refiningEl.style.display = 'block';
+    if (submitBtn)  { submitBtn.disabled = true; submitBtn.textContent = '⟳ Distilling…'; }
+
+    _pushUndo('Edit Business 1 Year Vision');
+    const data    = _businessData.oneYear;
+    const refined = await _refineWithAI(draft, data.refined, data.history);
+
+    data.history = [...(data.history || []), { text: draft, ts: Date.now() }];
+    if (refined)        { data.refined = refined; _toast('Vision distilled ✦', c); }
+    else if (!data.refined) { data.refined = draft; }
+
+    await _saveBusiness();
+    _paint();
   });
 
-  // Refresh
-  panel.querySelector('#tp-refresh')?.addEventListener('click', async () => {
-    if (_tp_generating) return;
-    _tp_generating = true;
-    _paintTotalPicture();
-    await _tpGenerate();
-    _tp_generating = false;
-    _paintTotalPicture();
-    _toast('Total Picture refreshed.', colors());
+  // ── Per-step listeners ──
+  (_businessData.steps || []).forEach(step => {
+
+    // Title autosave on blur (only when unlocked)
+    const titleInput = panel.querySelector(`#vision-step-title-${step.id}`);
+    if (titleInput) {
+      titleInput.addEventListener('blur', async () => {
+        if (titleInput.value !== step.title) {
+          _pushUndo(`Rename step ${step.title.slice(0, 20)}`);
+          step.title = titleInput.value;
+          await _saveBusiness();
+        }
+      });
+    }
+
+    // Deadline change
+    const deadlineInput = panel.querySelector(`#vision-step-deadline-${step.id}`);
+    if (deadlineInput) {
+      deadlineInput.addEventListener('change', async () => {
+        _pushUndo(`Set deadline on step ${step.title.slice(0, 20)}`);
+        step.deadline = deadlineInput.value;
+        await _saveBusiness();
+        _paint(); // repaint to show/update progress bar
+      });
+    }
   });
 
-  // Generate now (empty state)
-  panel.querySelector('#tp-generate-now')?.addEventListener('click', async () => {
-    _tp_generating = true;
-    _paintTotalPicture();
-    await _tpGenerate();
-    _tp_generating = false;
-    _paintTotalPicture();
-  });
+  // ── Lock / unlock ──
+  panel.querySelectorAll('.vision-step-lock-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const step = _businessData.steps.find(s => s.id === btn.dataset.stepId);
+      if (!step) return;
 
-  // Objective checkboxes
-  panel.querySelectorAll('[data-tp-obj]').forEach(cb => {
-    cb.addEventListener('change', async () => {
-      const idx = parseInt(cb.dataset.tpObj);
-      if (!_tp_data?.objectives?.[idx]) return;
-      _tp_data.objectives[idx].checked = cb.checked;
-      await _tpSave();
-      _paintTotalPicture();
+      // Save any in-flight title edit before locking
+      if (!step.locked) {
+        const titleInput = panel.querySelector(`#vision-step-title-${step.id}`);
+        if (titleInput && titleInput.value !== step.title) {
+          step.title = titleInput.value;
+        }
+      }
+
+      _pushUndo(`${step.locked ? 'Unlock' : 'Lock'} step: ${step.title.slice(0, 25)}`);
+      step.locked = !step.locked;
+      await _saveBusiness();
+      _paint();
     });
   });
 
-  // Amendment submit
-  panel.querySelector('#tp-amend-submit')?.addEventListener('click', async () => {
-    if (_tp_amending) return;
-    const ta   = panel.querySelector('#tp-amendment');
-    const text = (ta?.value || '').trim();
-    if (!text) { _toast('Write your amendment first.', colors()); return; }
-    _tp_amendDraft = text;
-    _tp_amending   = true;
-    _paintTotalPicture();
-    await _tpRegenerateRoadmap(text);
-    _tp_amendDraft = '';
-    _tp_amending   = false;
-    _paintTotalPicture();
-    _toast('Roadmap updated with your amendment.', colors());
+  // ── Delete step ──
+  panel.querySelectorAll('.vision-step-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const step  = _businessData.steps.find(s => s.id === btn.dataset.stepId);
+      if (!step) return;
+      const label = step.title.length > 50 ? step.title.slice(0, 50) + '…' : step.title;
+
+      if (!confirm(`Delete this step?\n\n"${label}"\n\nAll vision entries for this step will be removed.\nYou can undo this immediately after.`)) return;
+
+      _pushUndo(`Delete step: ${label.slice(0, 30)}`);
+      _businessData.steps = _businessData.steps.filter(s => s.id !== step.id);
+      await _saveBusiness();
+      _toast('Step deleted — tap Undo to restore', c);
+      _paint();
+    });
+  });
+
+  // ── Submit vision for step ──
+  panel.querySelectorAll('.vision-step-submit-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const step       = _businessData.steps.find(s => s.id === btn.dataset.stepId);
+      if (!step) return;
+      const ta         = panel.querySelector(`#vision-step-input-${step.id}`);
+      const refiningEl = panel.querySelector(`#vision-step-refining-${step.id}`);
+      const draft      = ta?.value?.trim();
+      if (!draft) { _toast('Write something first', c); return; }
+
+      if (refiningEl) refiningEl.style.display = 'block';
+      btn.disabled    = true;
+      btn.textContent = '⟳ Distilling…';
+
+      _pushUndo(`Edit step: ${step.title.slice(0, 25)}`);
+      const refined = await _refineWithAI(draft, step.refined, step.history);
+
+      step.history = [...(step.history || []), { text: draft, ts: Date.now() }];
+      if (refined)         { step.refined = refined; _toast('Vision distilled ✦', c); }
+      else if (!step.refined) { step.refined = draft; }
+
+      await _saveBusiness();
+      _paint();
+    });
+  });
+
+  // ── Add step ──
+  panel.querySelector('#vision-add-step')?.addEventListener('click', async () => {
+    _pushUndo('Add new step');
+    const newStep = {
+      id:       `step_${Date.now()}`,
+      title:    'The next step is to...',
+      locked:   false,
+      refined:  '',
+      history:  [],
+      deadline: '',
+    };
+    _businessData.steps.push(newStep);
+    await _saveBusiness();
+    _paint();
+    // Scroll to the new step
+    setTimeout(() => {
+      const p = _panel();
+      if (p) p.scrollTop = p.scrollHeight;
+    }, 80);
   });
 }
 
-
 /* ─────────────────────────────────────────────────────────────────────
-   HEALTH ACTUALS — pull real data for a given date range from state
+   HELPERS
 ───────────────────────────────────────────────────────────────────── */
-function _getWeekHealthActuals(weekStart, weekEnd) {
-  const healthData = _deps && _deps.state && _deps.state.healthData;
-  if (!healthData || !healthData.length) return null;
-
-  const entries = healthData.filter(function(h) {
-    return h.date >= weekStart && h.date <= weekEnd;
-  }).sort(function(a, b) { return a.date.localeCompare(b.date); });
-
-  if (entries.length === 0) return null;
-
-  const totalSteps  = entries.reduce(function(s, h) { return s + (h.steps || 0); }, 0);
-  const firstWeight = (entries.find(function(h) { return h.weight != null; }) || {}).weight || null;
-  const lastWeight  = [...entries].reverse().find(function(h) { return h.weight != null; });
-  const lastBF      = [...entries].reverse().find(function(h) { return h.bodyFat != null; });
-  const firstBF     = entries.find(function(h) { return h.bodyFat != null; });
-
-  return {
-    totalSteps:   totalSteps > 0 ? Math.round(totalSteps) : null,
-    endWeight:    lastWeight  ? lastWeight.weight   : null,
-    endBodyFat:   lastBF      ? lastBF.bodyFat      : null,
-    weightChange: (lastWeight && firstWeight) ? +(lastWeight.weight - firstWeight).toFixed(1) : null,
-    bfChange:     (lastBF && firstBF) ? +(lastBF.bodyFat - firstBF.bodyFat).toFixed(2) : null,
-    entryCount:   entries.length,
-  };
-}
-
-function _getMonthHealthActuals(monthStart) {
-  const healthData = _deps && _deps.state && _deps.state.healthData;
-  if (!healthData || !healthData.length) return null;
-
-  const todayISO = new Date().toISOString().slice(0, 10);
-  const entries  = healthData.filter(function(h) {
-    return h.date >= monthStart && h.date <= todayISO;
-  }).sort(function(a, b) { return a.date.localeCompare(b.date); });
-
-  if (entries.length === 0) return null;
-
-  const totalSteps = entries.reduce(function(s, h) { return s + (h.steps || 0); }, 0);
-  const firstW     = entries.find(function(h) { return h.weight  != null; });
-  const lastW      = [...entries].reverse().find(function(h) { return h.weight  != null; });
-  const firstBF    = entries.find(function(h) { return h.bodyFat != null; });
-  const lastBF     = [...entries].reverse().find(function(h) { return h.bodyFat != null; });
-
-  return {
-    totalSteps:        totalSteps > 0 ? Math.round(totalSteps) : null,
-    startWeight:       firstW  ? firstW.weight   : null,
-    currentWeight:     lastW   ? lastW.weight    : null,
-    weightChange:      (firstW && lastW)  ? +(lastW.weight  - firstW.weight).toFixed(1)  : null,
-    startBodyFat:      firstBF ? firstBF.bodyFat : null,
-    currentBodyFat:    lastBF  ? lastBF.bodyFat  : null,
-    bodyFatChange:     (firstBF && lastBF) ? +(lastBF.bodyFat - firstBF.bodyFat).toFixed(2) : null,
-    daysWithData:      entries.length,
-  };
-}
-
-
-/* ─────────────────────────────────────────────────────────────────────
-   HEALTH TRACKER CARD — live stats, on-track status & 4-week projection
-───────────────────────────────────────────────────────────────────── */
-function _buildHealthTrackerHtml(c) {
-  try {
-    const healthData = _deps && _deps.state && _deps.state.healthData;
-    if (!healthData || !healthData.length) return '';
-
-    const sorted = [...healthData].sort(function(a, b) { return b.date.localeCompare(a.date); });
-
-    // Latest values
-    const latestWeight = (sorted.find(function(h) { return h.weight  != null; }) || {}).weight  || null;
-    const latestBF     = (sorted.find(function(h) { return h.bodyFat != null; }) || {}).bodyFat || null;
-    if (latestWeight == null && latestBF == null) return '';
-
-    // Weekly deltas (compare vs 5–10 days ago)
-    const sevenDaysAgo = new Date(Date.now() - 7  * 86400000).toISOString().slice(0, 10);
-    const tenDaysAgo   = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
-    const weekOld      = sorted.filter(function(h) { return h.date >= tenDaysAgo && h.date <= sevenDaysAgo; });
-    const weekOldWt    = (weekOld.find(function(h) { return h.weight  != null; }) || {}).weight  || null;
-    const weekOldBF    = (weekOld.find(function(h) { return h.bodyFat != null; }) || {}).bodyFat || null;
-    const weightDelta  = (latestWeight != null && weekOldWt  != null) ? +(latestWeight - weekOldWt).toFixed(1)  : null;
-    const bfDelta      = (latestBF     != null && weekOldBF  != null) ? +(latestBF     - weekOldBF).toFixed(2) : null;
-
-    // 7-day BF pace (positive = losing)
-    const withBF   = sorted.filter(function(h) { return h.bodyFat != null; });
-    const recent7  = withBF.filter(function(h) { return h.date >= sevenDaysAgo; });
-    let pace7d = null;
-    if (recent7.length >= 2) {
-      var r7newest = recent7[0], r7oldest = recent7[recent7.length - 1];
-      var r7days = (new Date(r7newest.date) - new Date(r7oldest.date)) / 86400000;
-      if (r7days >= 1) pace7d = +(( r7oldest.bodyFat - r7newest.bodyFat) / (r7days / 7)).toFixed(3);
-    } else if (withBF.length >= 2) {
-      // Fall back to overall pace if not enough recent data
-      var bfNewest = withBF[0], bfOldest = withBF[withBF.length - 1];
-      var bfDays = (new Date(bfNewest.date) - new Date(bfOldest.date)) / 86400000;
-      if (bfDays >= 3) pace7d = +((bfOldest.bodyFat - bfNewest.bodyFat) / (bfDays / 7)).toFixed(3);
-    }
-
-    // Target rate from settings (default 0.75%/wk)
-    var targetRate = 0.75;
-    try { var s = _deps.getSettings && _deps.getSettings(); if (s && s.bfLossRate) targetRate = s.bfLossRate; } catch(e) {}
-
-    // On-track status
-    var trackStatus = 'no-data';
-    var trackLabel  = '';
-    var trackCol    = c.muted;
-    if (pace7d !== null) {
-      if (pace7d >= targetRate * 1.15)      { trackStatus = 'ahead';   trackLabel = '🚀 Ahead of pace';    trackCol = '#2ecc71'; }
-      else if (pace7d >= targetRate * 0.85) { trackStatus = 'on';      trackLabel = '✅ On track';          trackCol = '#2ecc71'; }
-      else if (pace7d > 0)                  { trackStatus = 'behind';  trackLabel = '⚠️ Behind pace';      trackCol = '#C9A84C'; }
-      else                                  { trackStatus = 'gaining'; trackLabel = '🔴 Not progressing';  trackCol = '#e74c3c'; }
-    }
-
-    const effectivePace = (pace7d != null && pace7d > 0) ? pace7d : targetRate;
-    const borderCol = trackStatus === 'ahead' || trackStatus === 'on'
-      ? 'rgba(46,204,113,0.3)' : trackStatus === 'behind'
-      ? 'rgba(201,168,76,0.3)' : trackStatus === 'gaining'
-      ? 'rgba(231,76,60,0.3)'  : c.cardBorder;
-
-    // Delta formatter
-    function dfmt(val, unit, lowerIsBetter) {
-      if (val == null) return '';
-      var improved = lowerIsBetter ? val < 0 : val > 0;
-      var col = improved ? '#2ecc71' : (val === 0 ? c.muted : '#e74c3c');
-      var arrow = val < 0 ? '▼' : '▲';
-      return '<span style="color:' + col + ';font-size:11px;font-weight:800;margin-left:4px;">' + arrow + ' ' + Math.abs(val) + unit + ' this wk</span>';
-    }
-
-    // 4-week projection rows
-    var projRows = [1,2,3,4].map(function(wk) {
-      var d = new Date();
-      d.setDate(d.getDate() + wk * 7);
-      var label = d.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
-      var pBF  = latestBF     != null ? Math.max(0, +(latestBF     - effectivePace * wk).toFixed(1)) : null;
-      var pWt  = latestWeight != null ? Math.max(0, +(latestWeight - (latestWeight * effectivePace / 100) * wk).toFixed(1)) : null;
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:' + c.inputBg + ';border-radius:8px;">'
-        + '<div style="font-size:11px;font-weight:800;color:' + c.muted + ';">+' + wk + ' wk &nbsp;·&nbsp; ' + label + '</div>'
-        + '<div style="display:flex;gap:12px;align-items:center;">'
-        + (pWt  != null ? '<span style="font-size:11px;font-weight:900;color:' + c.subheading + ';">⚖️ ' + pWt.toFixed(1)  + ' lbs</span>' : '')
-        + (pBF  != null ? '<span style="font-size:11px;font-weight:900;color:' + c.gold       + ';">📊 ' + pBF.toFixed(1)  + '%</span>'    : '')
-        + '</div>'
-        + '</div>';
-    }).join('');
-
-    // Pace bar
-    var paceBarHtml = '';
-    if (pace7d !== null) {
-      var pct    = Math.min(100, Math.round((pace7d / targetRate) * 100));
-      var barCol = pct >= 100 ? '#2ecc71' : pct >= 60 ? '#C9A84C' : '#e74c3c';
-      paceBarHtml = '<div style="margin-bottom:14px;">'
-        + '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">'
-        + '<div style="font-size:10px;font-weight:800;color:' + c.muted + ';">Weekly BF loss pace</div>'
-        + '<div style="font-size:10px;font-weight:800;color:' + barCol + ';">' + (pace7d > 0 ? pace7d.toFixed(2) : '0.00') + '%/wk &nbsp;·&nbsp; target ' + targetRate + '%/wk</div>'
-        + '</div>'
-        + '<div style="height:5px;background:' + c.cardBorder + ';border-radius:3px;overflow:hidden;">'
-        + '<div style="height:100%;width:' + pct + '%;background:' + barCol + ';border-radius:3px;"></div>'
-        + '</div>'
-        + '</div>';
-    } else {
-      paceBarHtml = '<div style="font-size:11px;color:' + c.muted + ';font-weight:600;font-style:italic;margin-bottom:14px;">Target: ' + targetRate + '%/wk body fat loss — syncing data to measure your pace</div>';
-    }
-
-    return '<div style="background:' + c.cardBg + ';border:1px solid ' + borderCol + ';border-radius:14px;padding:18px 16px;margin-bottom:16px;">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
-      + '<div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:' + c.muted + ';text-transform:uppercase;">📊 Health Tracker</div>'
-      + (trackLabel ? '<div style="font-size:10px;font-weight:900;letter-spacing:1px;color:' + trackCol + ';">' + trackLabel + '</div>' : '')
-      + '</div>'
-
-      // Current stats
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'
-      + (latestWeight != null ? '<div style="background:' + c.inputBg + ';border-radius:10px;padding:12px;">'
-          + '<div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:' + c.muted + ';text-transform:uppercase;margin-bottom:4px;">⚖️ Weight</div>'
-          + '<div style="font-size:20px;font-weight:900;color:' + c.heading + ';">' + latestWeight.toFixed(1) + '<span style="font-size:11px;font-weight:600;color:' + c.muted + ';"> lbs</span></div>'
-          + dfmt(weightDelta, ' lbs', true)
-          + '</div>' : '')
-      + (latestBF != null ? '<div style="background:' + c.inputBg + ';border-radius:10px;padding:12px;">'
-          + '<div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:' + c.muted + ';text-transform:uppercase;margin-bottom:4px;">📊 Body Fat</div>'
-          + '<div style="font-size:20px;font-weight:900;color:' + c.heading + ';">' + latestBF.toFixed(1) + '<span style="font-size:11px;font-weight:600;color:' + c.muted + ';">%</span></div>'
-          + dfmt(bfDelta, '%', true)
-          + '</div>' : '')
-      + '</div>'
-
-      // Pace bar
-      + paceBarHtml
-
-      // 4-week projection
-      + '<div><div style="font-size:9px;font-weight:900;letter-spacing:2px;color:' + c.muted + ';text-transform:uppercase;margin-bottom:8px;">📅 Projected Path (' + (pace7d !== null ? 'at current pace' : 'at target pace') + ')</div>'
-      + '<div style="display:flex;flex-direction:column;gap:6px;">' + projRows + '</div>'
-      + '</div>'
-      + '</div>';
-  } catch(err) {
-    console.warn('[Vision] _buildHealthTrackerHtml error:', err);
-    return '';
-  }
-}
-
 
 function _panel() {
   return document.getElementById('tab-vision')
@@ -2695,56 +815,22 @@ function _panel() {
       || document.querySelector('[data-tab="vision"]');
 }
 
-function _findRoom(id) {
-  for (const r of DEFAULT_ROOMS) {
-    if (r.id === id) return r;
-    if (r.isFolder) {
-      const sub = r.defaultSubRooms?.find(s => s.id === id)
-               || _customSubRooms.find(s => s.id === id);
-      if (sub) return sub;
-    }
-  }
-  return null;
-}
-
-function _backBtnStyle(c) {
-  return `
-    background:${c.backBtn};border:none;border-radius:8px;
-    color:${c.backBtnTxt};font-size:11px;font-weight:800;
-    letter-spacing:1px;padding:8px 12px;cursor:pointer;
-    white-space:nowrap;flex-shrink:0;
-  `;
-}
-
-function _smallBtnStyle(c, danger) {
-  return `
-    background:transparent;
-    border:1px solid ${danger ? c.dangerTxt : c.cardBorder};
-    border-radius:7px;color:${danger ? c.dangerTxt : c.subheading};
-    font-size:10px;font-weight:800;letter-spacing:1px;
-    padding:5px 10px;cursor:pointer;white-space:nowrap;
-  `;
-}
-
-function _nl2br(str) {
-  return str.replace(/\n/g, '<br>');
-}
-
 function _escHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function _fmtDate(ts) {
-  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function _toast(msg, c) {
-  const t = document.createElement('div');
+  const t       = document.createElement('div');
   t.style.cssText = `
     position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
     background:${c.goldBtn};color:${c.goldBtnTxt};
     padding:10px 20px;border-radius:10px;font-size:12px;font-weight:800;
-    letter-spacing:1px;z-index:99999;pointer-events:none;
+    letter-spacing:1px;z-index:99999;pointer-events:none;white-space:nowrap;
   `;
   t.textContent = msg;
   document.body.appendChild(t);
