@@ -222,20 +222,43 @@ async function _refineWithAI(newDraft, existingRefined, history) {
   }
 
   const historyBlock = (history && history.length > 0)
-    ? `\n\nPrevious drafts (oldest → newest):\n${history.map((h, i) => `Draft ${i + 1}: "${h.text}"`).join('\n')}`
+    ? `\n\nPrevious raw drafts from this person (oldest → newest — use these to understand the full depth of what they want):\n${history.map((h, i) => `Draft ${i + 1}: "${h.text}"`).join('\n')}`
     : '';
 
   const existingBlock = existingRefined
-    ? `\n\nPreviously refined statement: "${existingRefined}"`
+    ? `\n\nCurrent refined statement (your previous best version — now make it richer, more vivid, more real):\n"${existingRefined}"`
     : '';
 
-  const prompt = `You are a vision coach specialising in building total clarity. Your job: take a raw draft and distil it into a powerful, present-tense vision statement — vivid, specific, emotionally compelling. No filler. Every word earns its place.
+  const prompt = `You are a master of subconscious reprogramming through precision language. Your job is to take someone's raw vision and forge it into a first-person affirmation so vivid and emotionally true that after reading it once, they close their eyes and live it.
 
-With each new draft the user submits, build on what came before. Expand what's gaining clarity, simplify what's already been said well, and sharpen the overall statement. It should feel stronger and more certain with every iteration.${existingBlock}${historyBlock}
+ABOUT THIS PERSON:
+- They are building toward complete time and financial freedom — never working for anyone else, only building their own legacy
+- Their internal voice at their best is calm, certain, and quietly aggressive — the tone of someone who already knows
+- They want to feel: energetic, certain, clear, confident, and challenged
+- They are still becoming the best version of themselves — reference that identity, not any external figure
 
-New draft: "${newDraft}"
+YOUR RULES:
+1. Write in FIRST PERSON PRESENT TENSE only — "I am", "I walk", "I feel", "I have". Not "you will" or "one day". It is happening NOW.
+2. Paint ONE vivid scene — the specific moment this vision is real and being lived. Not a declaration. A lived experience the mind can step inside.
+3. Write ONE single punchy paragraph. No lists. No headers. No line breaks within it. A single wave of language that builds and lands.
+4. Use SENSORY detail — what they see, what they feel in their chest and body, what the room or environment looks like, the quality of the silence or the sound around them. Make it physical.
+5. Pull out every emotion they mention in their draft and amplify it into a bodily sensation — not "I feel proud" but "there is a quiet fire in my chest that needs no audience".
+6. Weave in their core drive: the freedom from ever being owned by someone else's clock or vision. The arrival feels earned because of what it cost.
+7. ONLY reference specific details they actually mention — names, places, businesses, relationships. Don't invent. If they mention it, make it vivid. If they don't, keep it universal.
+8. Voice: calm authority. No hype. No cheerleading. The certainty of someone standing in something they built.
+9. After the main paragraph, add a single blank line, then write one ANCHOR LINE — under 12 words, punchy, unforgettable — the sentence they repeat in the gym, the mirror, the quiet moment before sleep.
 
-Respond with ONLY the refined vision statement. No preamble, no explanation, no quotation marks around it.`;
+EVOLUTION RULE:
+If previous drafts or a refined version exist, go deeper. Add more sensory texture. Sharpen the scene. Deepen the emotional truth. Never dilute — only enrich. Each iteration should feel more real than the last, like the image coming into focus.${existingBlock}${historyBlock}
+
+New draft from this person: "${newDraft}"
+
+OUTPUT FORMAT:
+[Single paragraph vision statement]
+
+[Anchor line]
+
+Nothing else. No preamble. No labels. No quotation marks. Just the paragraph, a blank line, then the anchor.`;
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -254,6 +277,31 @@ Respond with ONLY the refined vision statement. No preamble, no explanation, no 
     _toast('AI refine failed — check your connection', colors());
     return null;
   }
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────
+   RENDER REFINED STATEMENT (shared)
+───────────────────────────────────────────────────────────────────── */
+
+function _renderRefined(refined, draftCount, c) {
+  if (!refined) return '';
+  const parts  = refined.split(/\n\n+/);
+  const para   = parts[0] || '';
+  const anchor = parts[1] || '';
+  return \`
+    <div style="background:\${c.statementBg};border:1.5px solid \${c.statementBdr};border-radius:12px;padding:16px 16px 14px;margin-bottom:14px;">
+      <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:\${c.gold};text-transform:uppercase;margin-bottom:10px;">✦ Your Vision</div>
+      <div style="font-size:13px;font-weight:700;color:\${c.statementTxt};line-height:1.8;">\${_escHtml(para)}</div>
+      \${anchor ? \`
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid \${c.statementBdr};">
+          <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:\${c.gold};text-transform:uppercase;margin-bottom:6px;">⚡ Anchor</div>
+          <div style="font-size:14px;font-weight:900;color:\${c.gold};line-height:1.5;letter-spacing:0.5px;font-style:italic;">\${_escHtml(anchor)}</div>
+        </div>
+      \` : ''}
+      \${draftCount > 0 ? \`<div style="font-size:10px;color:\${c.muted};margin-top:10px;font-weight:600;letter-spacing:0.5px;">\${draftCount} draft\${draftCount > 1 ? 's' : ''} — getting sharper each time</div>\` : ''}
+    </div>
+  \`;
 }
 
 /* ─────────────────────────────────────────────────────────────────────
@@ -356,16 +404,7 @@ function _renderPersonal(c) {
         ">${s.emoji} ${s.label}</div>
 
         <!-- Refined statement -->
-        ${data.refined ? `
-          <div style="
-            background:${c.statementBg};border:1.5px solid ${c.statementBdr};
-            border-radius:12px;padding:14px 16px;margin-bottom:14px;
-          ">
-            <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:8px;">✦ Your Vision</div>
-            <div style="font-size:13px;font-weight:700;color:${c.statementTxt};line-height:1.75;">${_escHtml(data.refined)}</div>
-            ${draftCount > 0 ? `<div style="font-size:10px;color:${c.muted};margin-top:8px;font-weight:600;letter-spacing:0.5px;">${draftCount} draft${draftCount > 1 ? 's' : ''} — getting sharper each time</div>` : ''}
-          </div>
-        ` : ''}
+        ${_renderRefined(data.refined, draftCount, c)}
 
         <!-- Draft textarea -->
         <textarea
@@ -466,13 +505,7 @@ function _renderBusiness(c) {
         🏆 1 Year From Now — Your Business
       </div>
 
-      ${oneYear.refined ? `
-        <div style="background:${c.statementBg};border:1.5px solid ${c.statementBdr};border-radius:12px;padding:14px 16px;margin-bottom:14px;">
-          <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:8px;">✦ Your Vision</div>
-          <div style="font-size:13px;font-weight:700;color:${c.statementTxt};line-height:1.75;">${_escHtml(oneYear.refined)}</div>
-          ${oyCount > 0 ? `<div style="font-size:10px;color:${c.muted};margin-top:8px;font-weight:600;">${oyCount} draft${oyCount > 1 ? 's' : ''} — getting sharper each time</div>` : ''}
-        </div>
-      ` : ''}
+      ${_renderRefined(oneYear.refined, oyCount, c)}
 
       <textarea id="vision-biz-oneyear-input" placeholder="In one year from now, how will your business look? Revenue, reach, brand, team, impact — paint the full picture." rows="3" style="
         width:100%;min-height:80px;background:${c.inputBg};border:1px solid ${c.inputBorder};
@@ -609,13 +642,7 @@ function _renderStep(step, index, c) {
       ${progressHtml}
 
       <!-- Refined vision for this step -->
-      ${step.refined ? `
-        <div style="background:${c.statementBg};border:1.5px solid ${c.statementBdr};border-radius:12px;padding:14px 16px;margin-bottom:14px;">
-          <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:8px;">✦ Vision for this step</div>
-          <div style="font-size:13px;font-weight:700;color:${c.statementTxt};line-height:1.75;">${_escHtml(step.refined)}</div>
-          ${draftCount > 0 ? `<div style="font-size:10px;color:${c.muted};margin-top:8px;font-weight:600;">${draftCount} draft${draftCount > 1 ? 's' : ''}</div>` : ''}
-        </div>
-      ` : ''}
+      ${_renderRefined(step.refined, draftCount, c)}
 
       <!-- Deadline picker -->
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
