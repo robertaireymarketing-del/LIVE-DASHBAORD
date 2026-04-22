@@ -308,6 +308,40 @@ function _renderRefined(refined, draftCount, c) {
   `;
 }
 
+// Which sections have their history panel open
+let _historyOpen = {};
+
+function _renderHistory(sectionId, history, c) {
+  if (!history || history.length === 0) return '';
+  const isOpen = !!_historyOpen[sectionId];
+  const rows = history.map((entry, i) => {
+    const date = new Date(entry.ts).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    return `
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid ${c.cardBorder};">
+        <div style="flex:1;">
+          <div style="font-size:11px;color:${c.muted};font-weight:700;margin-bottom:4px;letter-spacing:0.5px;">${date}</div>
+          <div style="font-size:12px;color:${c.subheading};font-weight:600;line-height:1.6;">${_escHtml(entry.text)}</div>
+        </div>
+        <button
+          class="vision-delete-draft"
+          data-section="${sectionId}"
+          data-index="${i}"
+          style="flex-shrink:0;background:transparent;border:1px solid ${c.dangerTxt}44;border-radius:7px;color:${c.dangerTxt};font-size:10px;font-weight:900;padding:4px 8px;cursor:pointer;margin-top:2px;"
+        >✕</button>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div style="margin-bottom:14px;">
+      <button class="vision-history-toggle" data-section="${sectionId}"
+        style="background:transparent;border:none;padding:0;font-size:10px;font-weight:800;letter-spacing:1px;color:${c.muted};text-transform:uppercase;cursor:pointer;display:flex;align-items:center;gap:6px;"
+      >${isOpen ? '▾' : '▸'} ${history.length} previous draft${history.length > 1 ? 's' : ''}</button>
+      ${isOpen ? `<div style="margin-top:10px;padding:0 4px;">${rows}</div>` : ''}
+    </div>
+  `;
+}
+
 /* ─────────────────────────────────────────────────────────────────────
    MAIN PAINT
 ───────────────────────────────────────────────────────────────────── */
@@ -410,6 +444,9 @@ function _renderPersonal(c) {
         <!-- Refined statement -->
         ${_renderRefined(data.refined, draftCount, c)}
 
+        <!-- Draft history -->
+        ${_renderHistory(s.id, data.history, c)}
+
         <!-- Draft textarea -->
         <textarea
           id="vision-personal-input-${s.id}"
@@ -479,12 +516,43 @@ function _attachPersonalListeners(panel, c) {
       if (refined) {
         data.refined = refined;
         _toast('Vision distilled ✦', c);
-      } else if (!data.refined) {
-        // Fallback: use raw draft if no AI
+      } else {
+        // No AI / key missing — still update so user sees their latest draft
         data.refined = draft;
       }
 
       await _savePersonal();
+      _paint();
+    });
+  });
+
+  // History toggle & delete — personal
+  panel.querySelectorAll('.vision-history-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sid = btn.dataset.section;
+      _historyOpen[sid] = !_historyOpen[sid];
+      _paint();
+    });
+  });
+
+  panel.querySelectorAll('.vision-delete-draft').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const sid = btn.dataset.section;
+      const idx = parseInt(btn.dataset.index, 10);
+      const section = _personalData[sid];
+      if (!section) return;
+      const entry = section.history[idx];
+      if (!entry) return;
+      const preview = entry.text.length > 60 ? entry.text.slice(0, 60) + '…' : entry.text;
+      if (!confirm(`Delete this draft entry?
+
+"${preview}"
+
+You can undo this.`)) return;
+      _pushUndo(`Delete draft from ${sid}`);
+      section.history = section.history.filter((_, i) => i !== idx);
+      await _savePersonal();
+      _toast('Draft deleted', c);
       _paint();
     });
   });
@@ -510,6 +578,8 @@ function _renderBusiness(c) {
       </div>
 
       ${_renderRefined(oneYear.refined, oyCount, c)}
+
+      ${_renderHistory('biz_oneyear', oneYear.history, c)}
 
       <textarea id="vision-biz-oneyear-input" placeholder="In one year from now, how will your business look? Revenue, reach, brand, team, impact — paint the full picture." rows="3" style="
         width:100%;min-height:80px;background:${c.inputBg};border:1px solid ${c.inputBorder};
@@ -648,6 +718,9 @@ function _renderStep(step, index, c) {
       <!-- Refined vision for this step -->
       ${_renderRefined(step.refined, draftCount, c)}
 
+      <!-- Draft history -->
+      ${_renderHistory(step.id, step.history, c)}
+
       <!-- Deadline picker -->
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${c.muted};text-transform:uppercase;white-space:nowrap;flex-shrink:0;">🏁 Target date:</div>
@@ -716,8 +789,8 @@ function _attachBusinessListeners(panel, c) {
     const refined = await _refineWithAI(draft, data.refined, data.history);
 
     data.history = [...(data.history || []), { text: draft, ts: Date.now() }];
-    if (refined)        { data.refined = refined; _toast('Vision distilled ✦', c); }
-    else if (!data.refined) { data.refined = draft; }
+    if (refined) { data.refined = refined; _toast('Vision distilled ✦', c); }
+    else          { data.refined = draft; }
 
     await _saveBusiness();
     _paint();
@@ -806,11 +879,62 @@ function _attachBusinessListeners(panel, c) {
       const refined = await _refineWithAI(draft, step.refined, step.history);
 
       step.history = [...(step.history || []), { text: draft, ts: Date.now() }];
-      if (refined)         { step.refined = refined; _toast('Vision distilled ✦', c); }
-      else if (!step.refined) { step.refined = draft; }
+      if (refined) { step.refined = refined; _toast('Vision distilled ✦', c); }
+      else          { step.refined = draft; }
 
       await _saveBusiness();
       _paint();
+    });
+  });
+
+  // ── History toggle & delete — business ──
+  panel.querySelectorAll('.vision-history-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sid = btn.dataset.section;
+      _historyOpen[sid] = !_historyOpen[sid];
+      _paint();
+    });
+  });
+
+  panel.querySelectorAll('.vision-delete-draft').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const sid = btn.dataset.section;
+      const idx = parseInt(btn.dataset.index, 10);
+      let changed = false;
+
+      if (sid === 'biz_oneyear') {
+        const entry = _businessData.oneYear.history[idx];
+        if (!entry) return;
+        const preview = entry.text.length > 60 ? entry.text.slice(0, 60) + '…' : entry.text;
+        if (!confirm(`Delete this draft entry?
+
+"${preview}"
+
+You can undo this.`)) return;
+        _pushUndo('Delete business draft');
+        _businessData.oneYear.history = _businessData.oneYear.history.filter((_, i) => i !== idx);
+        changed = true;
+      } else {
+        const step = _businessData.steps.find(s => s.id === sid);
+        if (!step) return;
+        const entry = step.history[idx];
+        if (!entry) return;
+        const preview = entry.text.length > 60 ? entry.text.slice(0, 60) + '…' : entry.text;
+        if (!confirm(`Delete this draft entry?
+
+"${preview}"
+
+You can undo this.`)) return;
+        _pushUndo('Delete step draft');
+        step.history = step.history.filter((_, i) => i !== idx);
+        changed = true;
+      }
+
+      if (changed) {
+        await _saveBusiness();
+        _toast('Draft deleted', c);
+        _paint();
+      }
     });
   });
 
