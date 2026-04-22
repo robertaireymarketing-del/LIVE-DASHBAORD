@@ -77,8 +77,7 @@ export function renderJournalTab() {
           <div id="journalStoicMeaning" style="font-size:12px;font-weight:600;color:rgba(201,168,76,0.7);letter-spacing:1px;text-transform:uppercase;margin-top:4px;margin-bottom:14px;"></div>
           <div id="journalStoicQuote" style="font-size:14px;font-style:italic;line-height:1.65;border-left:2px solid rgba(201,168,76,0.4);padding-left:14px;margin-bottom:6px;"></div>
           <div id="journalStoicAttr" style="font-size:10px;font-weight:700;letter-spacing:1px;margin-bottom:16px;padding-left:14px;"></div>
-          <div class="journal-prompt" style="margin-bottom:8px;">I will embody this today by...</div>
-          <textarea class="journal-textarea" id="journal-stoicEmbody" placeholder="...accepting what I cannot control and directing all energy into what I can — my work, my standard, my actions."></textarea>
+          <div id="journalStoicApplication" style="font-size:13px;line-height:1.75;color:rgba(255,255,255,0.6);padding:14px 16px;background:rgba(201,168,76,0.06);border-radius:10px;border-left:2px solid rgba(201,168,76,0.3);margin-top:4px;font-style:italic;"></div>
         </div>
 
         <div>
@@ -93,16 +92,15 @@ export function renderJournalTab() {
           <div class="journal-note" id="journalMorningAveragesNote">Vs last week: -- · Vs month: --</div>
           <div class="journal-note">These scores can later calculate weekly and monthly averages.</div>
         </div>
-        <div><h2>Identity</h2><div class="journal-prompt">I am showing up today as...</div><textarea class="journal-textarea" id="journal-identity" placeholder="...a focused, disciplined man who executes without hesitation and leads from the front."></textarea></div>
-        <div><h2>Purpose</h2><div class="journal-prompt">The man I am becoming needs me to... because...</div><textarea class="journal-textarea" id="journal-purpose" placeholder="...show up fully today and execute without excuses... because every day I do compounds into the version of me I'm building."></textarea></div>
-        <div><h2>State & Confidence</h2><div class="journal-prompt">Today I move like a man who... and nothing will shake my state today because...</div><textarea class="journal-textarea" id="journal-stateConfidence" placeholder="...has already decided to win... and nothing will shake my state today because I know who I am and what I'm here to do."></textarea></div>
-        <div class="journal-mission"><h2>Mission</h2><div class="journal-prompt">Today's mission is...</div><textarea class="journal-textarea" id="journal-mission" placeholder="...to record and publish the next batch of high-performing videos for The Jewellery Merchant."></textarea></div>
-        <div><h2>Top 3 Priorities</h2><div class="journal-priorities">
-          <div class="journal-priority"><div class="journal-number">1</div><input class="journal-input" type="text" id="journal-priority1" placeholder="I will get done today..." /></div>
-          <div class="journal-priority"><div class="journal-number">2</div><input class="journal-input" type="text" id="journal-priority2" placeholder="I will get done today..." /></div>
-          <div class="journal-priority"><div class="journal-number">3</div><input class="journal-input" type="text" id="journal-priority3" placeholder="I will get done today..." /></div>
-        </div></div>
-        <div><h2>Obstacle Forecast</h2><div class="journal-prompt">The one thing I will not let stop me today is...</div><textarea class="journal-textarea" id="journal-obstacles" placeholder="...scrolling and low-value distractions pulling me away from deep work."></textarea></div>
+        <div><h2>Most Powerful Self</h2><div class="journal-prompt">What is the most powerful version of myself that I can step into today?</div><textarea class="journal-textarea" id="journal-powerfulSelf" placeholder="The most powerful version of me today is..."></textarea></div>
+        <div><h2>Most Important Action</h2><div class="journal-prompt">What is the single most important action I can take today that will move me closer to my biggest dream?</div><textarea class="journal-textarea" id="journal-mostImportantAction" placeholder="The one action that moves everything forward is..."></textarea></div>
+        <div><h2>Lose &amp; Gain</h2><div class="journal-prompt">What will I lose if I don't show up as my most powerful self today — and what will I gain if I do?</div><textarea class="journal-textarea" id="journal-loseGain" placeholder="If I don't show up fully today I lose... but if I do, I gain..."></textarea></div>
+        <div><h2>Unstoppable Evidence</h2><div class="journal-prompt">What evidence will I create today that proves I am unstoppable in achieving my dreams?</div><textarea class="journal-textarea" id="journal-unstoppable" placeholder="By the end of today I will have proven it by..."></textarea></div>
+        <div>
+          <h2>Today's Priorities</h2>
+          <div class="journal-prompt" style="margin-bottom:10px;">Pulled from your planner for today.</div>
+          <div id="journalDayPrioritiesDisplay" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
           <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.3);text-align:center;letter-spacing:0.5px;">✓ Auto-saves when you collapse</div>
           <button class="journal-toggle-btn" id="journalCollapseMorningBtnBottom">Collapse Morning Journal</button>
@@ -134,11 +132,22 @@ export function renderJournalTab() {
           <div class="journal-score-total"><div class="journal-score-total-label">Execution Score</div><div class="journal-score-total-value"><span id="journalEveningScoreValue">15</span><span style="font-size:14px;color:inherit;font-weight:600;opacity:.6;"> / 30</span></div></div>
           <div class="journal-note" id="journalEveningAveragesNote">Vs last week: -- · Vs month: --</div>
         </div>
-        <div><h2>Mission Debrief</h2><div class="journal-prompt">Today's mission was... and I...</div><div id="journalTodayMissionReminder" style="display:none;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.25);border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:13px;font-weight:700;color:#C9A84C;letter-spacing:0.2px;"></div><textarea class="journal-textarea" id="journal-eveningMissionDebrief" placeholder="...to record the video batch... and I executed fully, getting all 3 done before midday."></textarea></div>
-        <div><h2>Biggest Win</h2><div class="journal-prompt">Today I moved forward by...</div><textarea class="journal-textarea" id="journal-eveningBiggestWin" placeholder="...staying locked in during deep work and not breaking focus until the session was done."></textarea></div>
-        <div><h2>Biggest Lesson</h2><div class="journal-prompt">Today taught me that...</div><textarea class="journal-textarea" id="journal-eveningBiggestLesson" placeholder="...I work best when I go straight into deep work after the gym with no phone in between."></textarea></div>
-        <div><h2>Identity Reflection</h2><div class="journal-prompt">Today I showed up as the man I'm becoming when... and I fell short when...</div><textarea class="journal-textarea" id="journal-eveningIdentityReflection" placeholder="...I pushed through resistance and executed without excuses... and I fell short when I let scrolling eat into my evening wind-down."></textarea></div>
-        <div><h2>Improve Tomorrow</h2><div class="journal-prompt">Tomorrow I will...</div><textarea class="journal-textarea" id="journal-eveningImproveTomorrow" placeholder="...start recording immediately at 8am, phone face down, no messages until the first session is done."></textarea></div>
+        <div><h2>Most Proud</h2><div class="journal-prompt">What am I most proud of about how I showed up today?</div><textarea class="journal-textarea" id="journal-proud" placeholder="Today I showed up powerfully when I..."></textarea></div>
+        <div><h2>Biggest Learning</h2><div class="journal-prompt">What did I learn today that will make me even more effective tomorrow?</div><textarea class="journal-textarea" id="journal-learned" placeholder="Today taught me that..."></textarea></div>
+        <div><h2>Release &amp; Intention</h2><div class="journal-prompt">What can I release from today, and what intention will I set for a powerful tomorrow?</div><textarea class="journal-textarea" id="journal-release" placeholder="I release... and tomorrow I intend to..."></textarea></div>
+        <div><h2>Alignment</h2><div class="journal-prompt">How did my actions today align with the person I am becoming and the life I am creating?</div><textarea class="journal-textarea" id="journal-alignment" placeholder="Today I moved toward the man I'm becoming by..."></textarea><div style="font-size:11px;font-weight:700;color:rgba(201,168,76,0.6);letter-spacing:0.3px;margin-top:8px;font-style:italic;">Acknowledge · Extract the lesson · Affirm commitment</div></div>
+        <div>
+          <h2>Gratitude</h2>
+          <div class="journal-prompt" style="margin-bottom:12px;">What are you grateful for today? Complete at least one.</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <input class="journal-input" type="text" id="journal-grateful1" placeholder="I am grateful for..." />
+            <input class="journal-input" type="text" id="journal-grateful2" placeholder="I am grateful for..." />
+            <input class="journal-input" type="text" id="journal-grateful3" placeholder="I am grateful for..." />
+            <input class="journal-input" type="text" id="journal-grateful4" placeholder="I am grateful for..." />
+            <input class="journal-input" type="text" id="journal-grateful5" placeholder="I am grateful for..." />
+            <input class="journal-input" type="text" id="journal-grateful6" placeholder="I am grateful for..." />
+          </div>
+        </div>
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
           <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.3);text-align:center;letter-spacing:0.5px;">✓ Auto-saves when you collapse</div>
           <button class="journal-toggle-btn" id="journalCollapseEveningBtnBottom">Collapse Evening Reflection</button>

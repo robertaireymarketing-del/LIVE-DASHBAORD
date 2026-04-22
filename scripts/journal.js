@@ -34,11 +34,12 @@ export function initJournalTab(deps) {
 
   const morningFields = {
     rested: document.getElementById('journal-rested-range'), sharpness: document.getElementById('journal-sharpness-range'), calm: document.getElementById('journal-calm-range'), motivation: document.getElementById('journal-motivation-range'), clarity: document.getElementById('journal-clarity-range'), drive: document.getElementById('journal-drive-range'),
-    stoicEmbody: document.getElementById('journal-stoicEmbody'), identity: document.getElementById('journal-identity'), purpose: document.getElementById('journal-purpose'), stateConfidence: document.getElementById('journal-stateConfidence'), mission: document.getElementById('journal-mission'), priority1: document.getElementById('journal-priority1'), priority2: document.getElementById('journal-priority2'), priority3: document.getElementById('journal-priority3'), obstacles: document.getElementById('journal-obstacles')
+    powerfulSelf: document.getElementById('journal-powerfulSelf'), mostImportantAction: document.getElementById('journal-mostImportantAction'), loseGain: document.getElementById('journal-loseGain'), unstoppable: document.getElementById('journal-unstoppable')
   };
   const eveningFields = {
     execution: document.getElementById('journal-execution-range'), discipline: document.getElementById('journal-discipline-range'), dopamine: document.getElementById('journal-dopamine-range'), physical: document.getElementById('journal-physical-range'), builder: document.getElementById('journal-builder-range'), sleepprep: document.getElementById('journal-sleepprep-range'),
-    missionDebrief: document.getElementById('journal-eveningMissionDebrief'), biggestWin: document.getElementById('journal-eveningBiggestWin'), biggestLesson: document.getElementById('journal-eveningBiggestLesson'), identityReflection: document.getElementById('journal-eveningIdentityReflection'), improveTomorrow: document.getElementById('journal-eveningImproveTomorrow')
+    proud: document.getElementById('journal-proud'), learned: document.getElementById('journal-learned'), release: document.getElementById('journal-release'), alignment: document.getElementById('journal-alignment'),
+    grateful1: document.getElementById('journal-grateful1'), grateful2: document.getElementById('journal-grateful2'), grateful3: document.getElementById('journal-grateful3'), grateful4: document.getElementById('journal-grateful4'), grateful5: document.getElementById('journal-grateful5'), grateful6: document.getElementById('journal-grateful6')
   };
 
   const morningBindings = [['rested','journal-rested-val'],['sharpness','journal-sharpness-val'],['calm','journal-calm-val'],['motivation','journal-motivation-val'],['clarity','journal-clarity-val'],['drive','journal-drive-val']];
@@ -430,42 +431,42 @@ export function initJournalTab(deps) {
   }
   function computeMorningScore(){ const total=Number(morningFields.rested.value)+Number(morningFields.sharpness.value)+Number(morningFields.calm.value)+Number(morningFields.motivation.value)+Number(morningFields.clarity.value)+Number(morningFields.drive.value); morningScoreValue.textContent=total; updateBestVersionPercent(); return total; }
   function computeEveningScore(){ const total=Number(eveningFields.execution.value)+Number(eveningFields.discipline.value)+Number(eveningFields.dopamine.value)+Number(eveningFields.physical.value)+Number(eveningFields.builder.value)+Number(eveningFields.sleepprep.value); eveningScoreValue.textContent=total; updateBestVersionPercent(); return total; }
-  function evaluateMorningCompletion(){ const complete=[morningFields.identity,morningFields.purpose,morningFields.stateConfidence,morningFields.mission,morningFields.priority1,morningFields.priority2,morningFields.priority3,morningFields.obstacles].every(el=>isFilled(el.value)); morningCard.classList.toggle('complete-block', complete); morningBadge.textContent=complete?'Complete':'In progress'; morningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
-  function evaluateEveningCompletion(){ const complete=[eveningFields.missionDebrief,eveningFields.biggestWin,eveningFields.biggestLesson,eveningFields.identityReflection,eveningFields.improveTomorrow].every(el=>isFilled(el.value)); eveningCard.classList.toggle('complete-block', complete); eveningBadge.textContent=complete?'Complete':'In progress'; eveningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
+  function evaluateMorningCompletion(){ const complete=[morningFields.powerfulSelf,morningFields.mostImportantAction,morningFields.loseGain,morningFields.unstoppable].every(el=>isFilled(el.value)); morningCard.classList.toggle('complete-block', complete); morningBadge.textContent=complete?'Complete':'In progress'; morningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
+  function evaluateEveningCompletion(){ const textComplete=[eveningFields.proud,eveningFields.learned,eveningFields.release,eveningFields.alignment].every(el=>isFilled(el.value)); const gratitudeComplete=[eveningFields.grateful1,eveningFields.grateful2,eveningFields.grateful3,eveningFields.grateful4,eveningFields.grateful5,eveningFields.grateful6].some(el=>isFilled(el.value)); const complete=textComplete&&gratitudeComplete; eveningCard.classList.toggle('complete-block', complete); eveningBadge.textContent=complete?'Complete':'In progress'; eveningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
 
   // ── Morning Launch Overlay ─────────────────────────────────────────────
   // ── 30 Stoic Principles (rotate daily) ────────────────────────────────
   const STOIC_PRINCIPLES = [
-    { name:'AMOR FATI', meaning:'Love of Fate', quote:'Do not seek for things to happen the way you want them to; wish that what happens, happens as it does — and you will have a tranquil flow of life.', attr:'Epictetus' },
-    { name:'MEMENTO MORI', meaning:'Remember You Will Die', quote:'Think of yourself as dead. You have lived your life. Now take what is left and live it properly.', attr:'Marcus Aurelius' },
-    { name:'DICHOTOMY OF CONTROL', meaning:'Know What Is Yours', quote:'Make the best use of what is in your power, and take the rest as it happens.', attr:'Epictetus' },
-    { name:'PREMEDITATIO MALORUM', meaning:'Premeditation of Adversity', quote:'Let us prepare our minds as if we had come to the very end of life. Let us postpone nothing.', attr:'Seneca' },
-    { name:'THE OBSTACLE IS THE WAY', meaning:'Resistance Becomes the Path', quote:'The impediment to action advances action. What stands in the way becomes the way.', attr:'Marcus Aurelius' },
-    { name:'THE INNER CITADEL', meaning:'Your Mind is Unbreakable', quote:'You have power over your mind, not outside events. Realise this, and you will find strength.', attr:'Marcus Aurelius' },
-    { name:'VOLUNTARY DISCOMFORT', meaning:'Choose Hardship Before It Chooses You', quote:'Set aside a certain number of days during which you shall be content with the scantiest and cheapest fare.', attr:'Seneca' },
-    { name:'EQUANIMITY', meaning:'Unshakeable Calm', quote:'Be like the promontory against which the waves continually break, but which stands firm and tames the fury of the water around it.', attr:'Marcus Aurelius' },
-    { name:'VIRTUE IS THE ONLY GOOD', meaning:'Character Above All', quote:'Just as it is a crime to break up the united life of man, so it is a crime to break up the moral order.', attr:'Marcus Aurelius' },
-    { name:'THE VIEW FROM ABOVE', meaning:'See the Bigger Picture', quote:'Look down from above on the countless herds of men and their countless solemnities, and the infinitely varied voyagings in storms and calms.', attr:'Marcus Aurelius' },
-    { name:'SYMPATHEIA', meaning:'Everything is Connected', quote:'We are all working together for one great end. Some of us knowingly and purposefully, others without knowing it.', attr:'Marcus Aurelius' },
-    { name:'TRANQUILITY THROUGH DISCIPLINE', meaning:'Discipline is Peace', quote:'If you want to improve, be content to be thought foolish and stupid about externals.', attr:'Epictetus' },
-    { name:'THE EXAMINED LIFE', meaning:'Know Yourself Daily', quote:'Waste no more time arguing what a good man should be. Be one.', attr:'Marcus Aurelius' },
-    { name:'RESPOND, DON\'T REACT', meaning:'The Pause is Power', quote:'Between stimulus and response there is a space. In that space is our power to choose our response.', attr:'Viktor Frankl' },
-    { name:'TEMPERANCE', meaning:'Master Your Appetites', quote:'I begin to be a friend to myself. That was indeed a great benefit; certainly such a man is never alone.', attr:'Seneca' },
-    { name:'THE MORNING MEDITATION', meaning:'Set Your Compass First', quote:'In the morning when you rise unwillingly, let this thought be present: I am rising to the work of a human being.', attr:'Marcus Aurelius' },
-    { name:'TIME IS IRREPLACEABLE', meaning:'Spend It Like a Man', quote:'It is not that we have a short time to live, but that we waste a good deal of it.', attr:'Seneca' },
-    { name:'SELF-MASTERY', meaning:'Command Yourself First', quote:'No man is free who is not master of himself.', attr:'Epictetus' },
-    { name:'ACT WITHOUT ATTACHMENT', meaning:'Do the Work, Release the Outcome', quote:'Confine yourself to the present.', attr:'Marcus Aurelius' },
-    { name:'SIMPLICITY', meaning:'Strip Away the Unnecessary', quote:'Very little is needed to make a happy life; it is all within yourself, in your way of thinking.', attr:'Marcus Aurelius' },
-    { name:'COURAGE IN ADVERSITY', meaning:'Hardship Reveals the Man', quote:'How long are you going to wait before you demand the best for yourself?', attr:'Epictetus' },
-    { name:'DUTY', meaning:'Show Up Whether You Feel It or Not', quote:'Do not indulge in dreams of what you do not have, but count the blessings you actually possess.', attr:'Marcus Aurelius' },
-    { name:'THE BODY AS A TOOL', meaning:'Build It. Command It.', quote:'First say to yourself what you would be; and then do what you have to do.', attr:'Epictetus' },
-    { name:'CHARACTER OVER REPUTATION', meaning:'What You Are Matters More Than What They Think', quote:'If it is not right, do not do it; if it is not true, do not say it.', attr:'Marcus Aurelius' },
-    { name:'PHILOSOPHY AS PRACTICE', meaning:'Wisdom Without Action is Nothing', quote:'Don\'t explain your philosophy. Embody it.', attr:'Epictetus' },
-    { name:'PROGRESS NOT PERFECTION', meaning:'The Direction is What Counts', quote:'Begin at once to live, and count each separate day as a separate life.', attr:'Seneca' },
-    { name:'THE POWER OF HABIT', meaning:'You Become What You Repeatedly Do', quote:'First we make our habits, then our habits make us.', attr:'Seneca' },
-    { name:'FACING FEAR', meaning:'Walk Toward What You Avoid', quote:'Do the thing you fear and the death of fear is certain.', attr:'Epictetus' },
-    { name:'LIVING FULLY', meaning:'All In, Every Day', quote:'Perfection of character is this: to live each day as if it were your last, without frenzy, without apathy, without pretense.', attr:'Marcus Aurelius' },
-    { name:'THE LONG GAME', meaning:'Compound Every Day', quote:'He suffers more than necessary, who suffers before it is necessary.', attr:'Seneca' },
+    { name:'AMOR FATI', meaning:'Love of Fate', quote:'Do not seek for things to happen the way you want them to; wish that what happens, happens as it does — and you will have a tranquil flow of life.', attr:'Epictetus', application:'The slow rebuild of TJM, the uncertainty with the shop, the early low-view days — love all of it. This resistance is not against you. It is building you. Go into today\'s work with total acceptance and total fire.' },
+    { name:'MEMENTO MORI', meaning:'Remember You Will Die', quote:'Think of yourself as dead. You have lived your life. Now take what is left and live it properly.', attr:'Marcus Aurelius', application:'The window to build TJM is not infinite. The life you\'re building with Warda, the freedom you want — none of it happens automatically. Use this morning fully. Every hour is a resource you\'ll never get back.' },
+    { name:'DICHOTOMY OF CONTROL', meaning:'Know What Is Yours', quote:'Make the best use of what is in your power, and take the rest as it happens.', attr:'Epictetus', application:'You can\'t control the algorithm, the views, or who buys today. You can control your camera, your effort, your standard, and whether you show up. Put everything into what is yours. Release the rest.' },
+    { name:'PREMEDITATIO MALORUM', meaning:'Premeditation of Adversity', quote:'Let us prepare our minds as if we had come to the very end of life. Let us postpone nothing.', attr:'Seneca', application:'What if the shop lease falls through? What if today\'s content doesn\'t land? Prepare for it now. Let those possibilities sharpen your urgency to build TJM into something that needs nothing external to survive.' },
+    { name:'THE OBSTACLE IS THE WAY', meaning:'Resistance Becomes the Path', quote:'The impediment to action advances action. What stands in the way becomes the way.', attr:'Marcus Aurelius', application:'The friction of rebuilding your audience, the slow follower regrowth, the discipline required — these are the path. Every creator who pushed through this phase is now ahead. You are on that path right now.' },
+    { name:'THE INNER CITADEL', meaning:'Your Mind is Unbreakable', quote:'You have power over your mind, not outside events. Realise this, and you will find strength.', attr:'Marcus Aurelius', application:'The algorithm doesn\'t decide your worth. The view count doesn\'t decide your momentum. Your commitment to your standard does. Nothing outside can break what you build inside. Hold the citadel today.' },
+    { name:'VOLUNTARY DISCOMFORT', meaning:'Choose Hardship Before It Chooses You', quote:'Set aside a certain number of days during which you shall be content with the scantiest and cheapest fare.', attr:'Seneca', application:'The early alarm, the gym, the cold discipline of your routine — you\'ve already chosen the harder path that most avoid. That choice is your edge. Honour it fully today.' },
+    { name:'EQUANIMITY', meaning:'Unshakeable Calm', quote:'Be like the promontory against which the waves continually break, but which stands firm and tames the fury of the water around it.', attr:'Marcus Aurelius', application:'One bad content day, a slow sales week, an obstacle in the shop — meet it with the same calm you\'d bring to a win. Steadiness over time is what builds empires. Be the rock.' },
+    { name:'VIRTUE IS THE ONLY GOOD', meaning:'Character Above All', quote:'Just as it is a crime to break up the united life of man, so it is a crime to break up the moral order.', attr:'Marcus Aurelius', application:'Build TJM the right way — honest reviews, real education, genuine value to your audience. Your reputation is the only asset that compounds without limit. Protect it with everything you do today.' },
+    { name:'THE VIEW FROM ABOVE', meaning:'See the Bigger Picture', quote:'Look down from above on the countless herds of men and their countless solemnities, and the infinitely varied voyagings in storms and calms.', attr:'Marcus Aurelius', application:'Zoom out. You are building a brand that could be global. The life with Warda, the financial freedom, the TJM you envision — today\'s action is one brick in that structure. Lay it perfectly.' },
+    { name:'SYMPATHEIA', meaning:'Everything is Connected', quote:'We are all working together for one great end. Some of us knowingly and purposefully, others without knowing it.', attr:'Marcus Aurelius', application:'Your audience is out there right now, buying jewellery from brands that don\'t deserve their trust. Your knowledge, your 30+ years of family expertise, is exactly what they need. Your content connects you to them.' },
+    { name:'TRANQUILITY THROUGH DISCIPLINE', meaning:'Discipline is Peace', quote:'If you want to improve, be content to be thought foolish and stupid about externals.', attr:'Epictetus', application:'Your routine — the gym, the deep work block, the treadmill thinking time — is not a cage. It is the architecture of your power. Honour every part of it today and feel the calm that discipline creates.' },
+    { name:'THE EXAMINED LIFE', meaning:'Know Yourself Daily', quote:'Waste no more time arguing what a good man should be. Be one.', attr:'Marcus Aurelius', application:'Who do you need to be today to close this journal tonight with full pride? Define it with complete honesty right now — and then go live it without compromise.' },
+    { name:'RESPOND, DON\'T REACT', meaning:'The Pause is Power', quote:'Between stimulus and response there is a space. In that space is our power to choose our response.', attr:'Viktor Frankl', application:'When a video underperforms, when something in the shop disrupts the day, when the phone pulls at you — pause. That gap between trigger and response is where your power lives. Use it today.' },
+    { name:'TEMPERANCE', meaning:'Master Your Appetites', quote:'I begin to be a friend to myself. That was indeed a great benefit; certainly such a man is never alone.', attr:'Seneca', application:'Appetite for distraction, for scrolling, for the easy path — these are the enemy of TJM. The man who governs his impulses governs his outcomes. Master the small urges today and the big wins follow.' },
+    { name:'THE MORNING MEDITATION', meaning:'Set Your Compass First', quote:'In the morning when you rise unwillingly, let this thought be present: I am rising to the work of a human being.', attr:'Marcus Aurelius', application:'You rose before most of the world. You\'ve already won the first battle. Now use this journal to set your compass precisely — then walk straight toward it without deviation.' },
+    { name:'TIME IS IRREPLACEABLE', meaning:'Spend It Like a Man', quote:'It is not that we have a short time to live, but that we waste a good deal of it.', attr:'Seneca', application:'Every hour you spend in distraction is an hour TJM doesn\'t exist, an hour the life with Warda doesn\'t get closer. Your time today is the most valuable resource you will ever have. Spend it accordingly.' },
+    { name:'SELF-MASTERY', meaning:'Command Yourself First', quote:'No man is free who is not master of himself.', attr:'Epictetus', application:'TJM will grow as fast as you do. Master your habits, your focus, your creative output, your body — and the brand follows the man. Every act of self-command today is an investment in the brand.' },
+    { name:'ACT WITHOUT ATTACHMENT', meaning:'Do the Work, Release the Outcome', quote:'Confine yourself to the present.', attr:'Marcus Aurelius', application:'Film the video. Write the content. Record the post. Then release it — without obsessing over the numbers. Your job is the work and the standard. The outcome will follow the standard, not the anxiety.' },
+    { name:'SIMPLICITY', meaning:'Strip Away the Unnecessary', quote:'Very little is needed to make a happy life; it is all within yourself, in your way of thinking.', attr:'Marcus Aurelius', application:'What is the one thing that moves TJM forward today? Strip everything else. Do that one thing with total focus and total quality. Complexity is the enemy of execution.' },
+    { name:'COURAGE IN ADVERSITY', meaning:'Hardship Reveals the Man', quote:'How long are you going to wait before you demand the best for yourself?', attr:'Epictetus', application:'The dormant account, the low views, the rebuild — that is adversity. Right now is the moment to demand the absolute best from yourself. Don\'t wait for conditions to improve. Create them.' },
+    { name:'DUTY', meaning:'Show Up Whether You Feel It or Not', quote:'Do not indulge in dreams of what you do not have, but count the blessings you actually possess.', attr:'Marcus Aurelius', application:'You have a duty to the version of yourself that decided TJM was the path. You have a duty to Warda, to the future you\'re building. Show up for that man today — not because you feel like it, but because it\'s who you are.' },
+    { name:'THE BODY AS A TOOL', meaning:'Build It. Command It.', quote:'First say to yourself what you would be; and then do what you have to do.', attr:'Epictetus', application:'The gym is not vanity — it is the engine that drives your clarity, your confidence, and your output on camera. Build it like TJM depends on it. Because it does.' },
+    { name:'CHARACTER OVER REPUTATION', meaning:'What You Are Matters More Than What They Think', quote:'If it is not right, do not do it; if it is not true, do not say it.', attr:'Marcus Aurelius', application:'Forget what the metrics say today. Ask instead: am I the man I set out to be? Build that character with absolute consistency and the reputation — the followers, the sales, the brand — will catch up.' },
+    { name:'PHILOSOPHY AS PRACTICE', meaning:'Wisdom Without Action is Nothing', quote:'Don\'t explain your philosophy. Embody it.', attr:'Epictetus', application:'The discipline, the routine, the standard — none of it counts unless you live it today. Don\'t think about the man you want to become. Be him. Right now. In every choice this day presents.' },
+    { name:'PROGRESS NOT PERFECTION', meaning:'The Direction is What Counts', quote:'Begin at once to live, and count each separate day as a separate life.', attr:'Seneca', application:'Every video doesn\'t need to be perfect. Every day doesn\'t need to be flawless. What matters is that you move forward. One piece of content today beats a perfect plan that never executes.' },
+    { name:'THE POWER OF HABIT', meaning:'You Become What You Repeatedly Do', quote:'First we make our habits, then our habits make us.', attr:'Seneca', application:'Your morning routine, your gym session, your deep work block — these are not just habits. They are the architecture of TJM\'s success. Every time you honour them, you compound the man you\'re becoming.' },
+    { name:'FACING FEAR', meaning:'Walk Toward What You Avoid', quote:'Do the thing you fear and the death of fear is certain.', attr:'Epictetus', application:'The fear of being on camera, of being judged, of putting yourself fully out there with TJM — walk toward it today. That fear is the exact wall between you and the life you are building. Walk through it.' },
+    { name:'LIVING FULLY', meaning:'All In, Every Day', quote:'Perfection of character is this: to live each day as if it were your last, without frenzy, without apathy, without pretense.', attr:'Marcus Aurelius', application:'This day — the shop, TJM, the life you\'re building with Warda — deserves your absolute full presence. Not 80%. Not when you feel ready. All of it, right now.' },
+    { name:'THE LONG GAME', meaning:'Compound Every Day', quote:'He suffers more than necessary, who suffers before it is necessary.', attr:'Seneca', application:'You are not building TJM for this month. You are building it for the next decade. Each day of discipline, each video, each standard held — it is a compound investment. Trust the process. Keep going.' },
   ];
 
   function getDayPrinciple() {
@@ -485,6 +486,8 @@ export function initJournalTab(deps) {
     meaningEl.textContent = p.meaning;
     quoteEl.textContent = '\u201C' + p.quote + '\u201D';
     attrEl.textContent = '\u2014 ' + p.attr;
+    const appEl = document.getElementById('journalStoicApplication');
+    if (appEl && p.application) appEl.textContent = p.application;
 
     const isLight = document.body.classList.contains('light');
 
@@ -536,11 +539,11 @@ export function initJournalTab(deps) {
     sessionStorage.setItem('launchOverlayShown_' + todayKey, '1');
 
     const quote = STOIC_QUOTES[Math.floor(Math.random() * STOIC_QUOTES.length)];
-    const mission = (payload.mission || '').trim();
-    const p1 = (payload.priority1 || '').trim();
-    const p2 = (payload.priority2 || '').trim();
-    const p3 = (payload.priority3 || '').trim();
-    const priorities = [p1, p2, p3].filter(Boolean);
+    const action = (payload.mostImportantAction || '').trim();
+    const dateKey = keyFromDate(currentDate);
+    const dayData = deps.state.data?.days?.[dateKey] || {};
+    const rawTasks = Array.isArray(dayData.tasks) ? dayData.tasks : [];
+    const priorities = rawTasks.map(t => typeof t === 'string' ? t : (t.text || t.title || t.name || '')).filter(Boolean);
 
     // Build overlay
     const overlay = document.createElement('div');
@@ -573,17 +576,17 @@ export function initJournalTab(deps) {
           <div style="font-size:14px;color:rgba(255,255,255,0.45);margin-top:10px;">The bed is done. The day begins.</div>
         </div>
 
-        <!-- Mission -->
-        ${mission ? `
+        <!-- Most Important Action -->
+        ${action ? `
         <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:14px;padding:16px 18px;text-align:left;">
-          <div style="font-size:9px;font-weight:900;letter-spacing:2.5px;color:#C9A84C;text-transform:uppercase;margin-bottom:8px;">Today's Mission</div>
-          <div style="font-size:16px;font-weight:800;color:#ffffff;line-height:1.4;">"${mission}"</div>
+          <div style="font-size:9px;font-weight:900;letter-spacing:2.5px;color:#C9A84C;text-transform:uppercase;margin-bottom:8px;">Most Important Action Today</div>
+          <div style="font-size:16px;font-weight:800;color:#ffffff;line-height:1.4;">"${action}"</div>
         </div>` : ''}
 
         <!-- Priorities -->
         ${priorities.length ? `
         <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px 18px;text-align:left;">
-          <div style="font-size:9px;font-weight:900;letter-spacing:2.5px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:10px;">Your 3 Priorities</div>
+          <div style="font-size:9px;font-weight:900;letter-spacing:2.5px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:10px;">Today's Priorities</div>
           ${priorities.map((p,i) => `
             <div style="display:flex;gap:12px;align-items:flex-start;${i>0?'margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);':''}">
               <div style="width:22px;height:22px;flex-shrink:0;border-radius:6px;background:#C9A84C;color:#050A14;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;">${i+1}</div>
@@ -653,7 +656,7 @@ export function initJournalTab(deps) {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     const existing = getJournalEntry(keyFromDate(currentDate),'morning') || {};
-    const payload={rested:morningFields.rested.value,sharpness:morningFields.sharpness.value,calm:morningFields.calm.value,motivation:morningFields.motivation.value,clarity:morningFields.clarity.value,drive:morningFields.drive.value,stoicEmbody:morningFields.stoicEmbody?.value??'',identity:morningFields.identity.value,purpose:morningFields.purpose.value,stateConfidence:morningFields.stateConfidence.value,mission:morningFields.mission.value,priority1:morningFields.priority1.value,priority2:morningFields.priority2.value,priority3:morningFields.priority3.value,obstacles:morningFields.obstacles.value,score:computeMorningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
+    const payload={rested:morningFields.rested.value,sharpness:morningFields.sharpness.value,calm:morningFields.calm.value,motivation:morningFields.motivation.value,clarity:morningFields.clarity.value,drive:morningFields.drive.value,powerfulSelf:morningFields.powerfulSelf.value,mostImportantAction:morningFields.mostImportantAction.value,loseGain:morningFields.loseGain.value,unstoppable:morningFields.unstoppable.value,score:computeMorningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
     setJournalEntry(keyFromDate(currentDate),'morning',payload);
     morningSavedPill.textContent = `Saved ${timeStr}`;
     morningSavedPill.style.display='inline';
@@ -668,7 +671,7 @@ export function initJournalTab(deps) {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     const existing = getJournalEntry(keyFromDate(currentDate),'evening') || {};
-    const payload={execution:eveningFields.execution.value,discipline:eveningFields.discipline.value,dopamine:eveningFields.dopamine.value,physical:eveningFields.physical.value,builder:eveningFields.builder.value,sleepprep:eveningFields.sleepprep.value,missionDebrief:eveningFields.missionDebrief.value,biggestWin:eveningFields.biggestWin.value,biggestLesson:eveningFields.biggestLesson.value,identityReflection:eveningFields.identityReflection.value,improveTomorrow:eveningFields.improveTomorrow.value,score:computeEveningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
+    const payload={execution:eveningFields.execution.value,discipline:eveningFields.discipline.value,dopamine:eveningFields.dopamine.value,physical:eveningFields.physical.value,builder:eveningFields.builder.value,sleepprep:eveningFields.sleepprep.value,proud:eveningFields.proud.value,learned:eveningFields.learned.value,release:eveningFields.release.value,alignment:eveningFields.alignment.value,grateful1:eveningFields.grateful1.value,grateful2:eveningFields.grateful2.value,grateful3:eveningFields.grateful3.value,grateful4:eveningFields.grateful4.value,grateful5:eveningFields.grateful5.value,grateful6:eveningFields.grateful6.value,score:computeEveningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
     setJournalEntry(keyFromDate(currentDate),'evening',payload);
     eveningSavedPill.textContent = `Saved ${timeStr}`;
     eveningSavedPill.style.display='inline';
@@ -677,18 +680,29 @@ export function initJournalTab(deps) {
     updateAverageNotes(); updateBestVersionPercent(); updateStreakDisplay(); updateLauncherButtons();
   }
 
-  function loadMorning(){ const data=getJournalEntry(keyFromDate(currentDate),'morning')||{}; morningFields.rested.value=data.rested??3; morningFields.sharpness.value=data.sharpness??3; morningFields.calm.value=data.calm??3; morningFields.motivation.value=data.motivation??3; morningFields.clarity.value=data.clarity??3; morningFields.drive.value=data.drive??3; if(morningFields.stoicEmbody) morningFields.stoicEmbody.value=data.stoicEmbody??''; morningFields.identity.value=data.identity??''; morningFields.purpose.value=data.purpose??''; morningFields.stateConfidence.value=data.stateConfidence??''; morningFields.mission.value=data.mission??''; morningFields.priority1.value=data.priority1??''; morningFields.priority2.value=data.priority2??''; morningFields.priority3.value=data.priority3??''; morningFields.obstacles.value=data.obstacles??''; morningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = morningFields[key].value; }); computeMorningScore(); evaluateMorningCompletion(); }
+  function loadMorning(){ const data=getJournalEntry(keyFromDate(currentDate),'morning')||{}; morningFields.rested.value=data.rested??3; morningFields.sharpness.value=data.sharpness??3; morningFields.calm.value=data.calm??3; morningFields.motivation.value=data.motivation??3; morningFields.clarity.value=data.clarity??3; morningFields.drive.value=data.drive??3; morningFields.powerfulSelf.value=data.powerfulSelf??''; morningFields.mostImportantAction.value=data.mostImportantAction??''; morningFields.loseGain.value=data.loseGain??''; morningFields.unstoppable.value=data.unstoppable??''; morningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = morningFields[key].value; }); computeMorningScore(); evaluateMorningCompletion(); renderDayPriorities(); }
 
-  function loadEvening(){ const data=getJournalEntry(keyFromDate(currentDate),'evening')||{}; eveningFields.execution.value=data.execution??3; eveningFields.discipline.value=data.discipline??3; eveningFields.dopamine.value=data.dopamine??3; eveningFields.physical.value=data.physical??3; eveningFields.builder.value=data.builder??3; eveningFields.sleepprep.value=data.sleepprep??3; eveningFields.missionDebrief.value=data.missionDebrief??''; eveningFields.biggestWin.value=data.biggestWin??''; eveningFields.biggestLesson.value=data.biggestLesson??''; eveningFields.identityReflection.value=data.identityReflection??''; eveningFields.improveTomorrow.value=data.improveTomorrow??''; eveningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = eveningFields[key].value; }); computeEveningScore(); evaluateEveningCompletion();
-    const morningEl = document.getElementById('journalTodayMissionReminder');
-    if (morningEl) {
-      const morningData = getJournalEntry(keyFromDate(currentDate), 'morning') || {};
-      if (morningData.mission && morningData.mission.trim()) {
-        morningEl.style.display = 'block';
-        morningEl.textContent = '📋 Today\'s mission: "' + morningData.mission.trim() + '"';
-      } else { morningEl.style.display = 'none'; }
+  function renderDayPriorities() {
+    const el = document.getElementById('journalDayPrioritiesDisplay');
+    if (!el) return;
+    const dateKey = keyFromDate(currentDate);
+    const dayData = deps.state.data?.days?.[dateKey] || {};
+    // Tasks may be stored as an array under 'tasks', or as individual entries — adjust path if needed
+    const tasks = Array.isArray(dayData.tasks) ? dayData.tasks : [];
+    const isLight = document.body.classList.contains('light');
+    if (!tasks.length) {
+      el.innerHTML = `<div style="font-size:13px;font-style:italic;color:${isLight?'rgba(0,0,0,0.3)':'rgba(255,255,255,0.25)'};">No tasks added to the planner for today.</div>`;
+      return;
     }
-  }
+    el.innerHTML = tasks.map((t, i) => {
+      const text = typeof t === 'string' ? t : (t.text || t.title || t.name || JSON.stringify(t));
+      const done = t.done || t.complete || t.completed || false;
+      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:10px;background:${isLight?(done?'rgba(46,204,113,0.06)':'#fff'):(done?'rgba(46,204,113,0.06)':'rgba(255,255,255,0.03)')};border:1px solid ${isLight?(done?'rgba(46,204,113,0.3)':'#CDD4E0'):(done?'rgba(46,204,113,0.25)':'rgba(255,255,255,0.08)')};${done?'opacity:0.55;':''}">
+        <div style="width:18px;height:18px;flex-shrink:0;border-radius:5px;background:${done?'rgba(46,204,113,0.2)':'transparent'};border:1.5px solid ${done?'#2ecc71':'rgba(201,168,76,0.4)'};color:#2ecc71;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:900;margin-top:1px;">${done?'✓':''}</div>
+        <div style="font-size:14px;font-weight:700;color:${isLight?(done?'rgba(0,0,0,0.35)':'#0A1628'):(done?'rgba(255,255,255,0.35)':'rgba(255,255,255,0.88)')};line-height:1.4;${done?'text-decoration:line-through;':''}">${text}</div>
+      </div>`;
+    }).join('');
+  } const data=getJournalEntry(keyFromDate(currentDate),'evening')||{}; eveningFields.execution.value=data.execution??3; eveningFields.discipline.value=data.discipline??3; eveningFields.dopamine.value=data.dopamine??3; eveningFields.physical.value=data.physical??3; eveningFields.builder.value=data.builder??3; eveningFields.sleepprep.value=data.sleepprep??3; eveningFields.proud.value=data.proud??''; eveningFields.learned.value=data.learned??''; eveningFields.release.value=data.release??''; eveningFields.alignment.value=data.alignment??''; eveningFields.grateful1.value=data.grateful1??''; eveningFields.grateful2.value=data.grateful2??''; eveningFields.grateful3.value=data.grateful3??''; eveningFields.grateful4.value=data.grateful4??''; eveningFields.grateful5.value=data.grateful5??''; eveningFields.grateful6.value=data.grateful6??''; eveningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = eveningFields[key].value; }); computeEveningScore(); evaluateEveningCompletion(); }
 
   // ── Open Journal ───────────────────────────────────────────────────────
   function autoExpandOpenTextarea() {
