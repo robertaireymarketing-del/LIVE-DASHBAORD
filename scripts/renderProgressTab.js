@@ -430,18 +430,36 @@ export function renderProgressTab(deps) {
         const projWtPace = currentWeight * bfLossRate / 100;
         const projBF     = +(currentBF     - bfLossRate * wksAhead).toFixed(1);
         const projWt     = +(currentWeight - projWtPace * wksAhead).toFixed(1);
-        const dispBF    = actual?.bodyFat != null ? +actual.bodyFat.toFixed(1) : (isPast ? null : projBF);
-        const dispWt    = actual?.weight  != null ? +actual.weight.toFixed(1)  : (isPast ? null : projWt);
-        const locked    = actual != null;
+        // For the current week, always show a projected end-of-week figure
+        // (current value minus target pace scaled to remaining days in week)
+        const projEndBF = +(currentBF     - bfLossRate * (daysAhead / 7)).toFixed(1);
+        const projEndWt = +(currentWeight - projWtPace * (daysAhead / 7)).toFixed(1);
+        const dispBF    = isCurrent ? projEndBF : (actual?.bodyFat != null ? +actual.bodyFat.toFixed(1) : (isPast ? null : projBF));
+        const dispWt    = isCurrent ? projEndWt : (actual?.weight  != null ? +actual.weight.toFixed(1)  : (isPast ? null : projWt));
+        const locked    = actual != null && !isCurrent;
         return { ...wk, actual, isPast, isCurrent, isFuture, dispBF, dispWt, locked };
       });
 
       // YOU ARE HERE block — inserted before the current week
+      const youAreHereStatusEl = (() => {
+        if (blendedPace === null) return '';
+        if (blendedPace < -0.05) {
+          return '<span style="font-size:9px;font-weight:800;color:#e74c3c;background:#1f0a0a;border:1px solid #5a1a1a;border-radius:4px;padding:2px 7px;white-space:nowrap;">▲ GAINED</span>';
+        } else if (blendedPace < bfLossRate * 0.55) {
+          return '<span style="font-size:9px;font-weight:800;color:#f39c12;background:#1f1500;border:1px solid #7a4a00;border-radius:4px;padding:2px 7px;white-space:nowrap;">~ SLOW</span>';
+        } else {
+          return '<span style="font-size:9px;font-weight:800;color:#2ecc71;background:#0a1f14;border:1px solid #1a5a2a;border-radius:4px;padding:2px 7px;white-space:nowrap;">✓ ON TRACK</span>';
+        }
+      })();
+
       const youAreHereHtml =
-        '<div style="background:#0d2a1a;border:2px solid #27ae60;border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">' +
-          '<div>' +
-            '<div style="font-size:8px;font-weight:900;letter-spacing:2px;color:#27ae60;margin-bottom:6px;">📍 YOU ARE HERE</div>' +
-            '<div style="font-size:10px;font-weight:700;color:#4a9a6a;">Today · ' + todayStr.split('-').reverse().map((v,i) => i===2 ? v : v).join('/') + '</div>' +
+        '<div style="background:#0d2a1a;border:2px solid #27ae60;border-radius:12px;padding:14px 16px;margin-bottom:8px;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+            '<div>' +
+              '<div style="font-size:8px;font-weight:900;letter-spacing:2px;color:#27ae60;margin-bottom:4px;">📍 YOU ARE HERE</div>' +
+              '<div style="font-size:10px;font-weight:700;color:#4a9a6a;">Today · ' + todayStr.split('-').reverse().join('/') + '</div>' +
+            '</div>' +
+            youAreHereStatusEl +
           '</div>' +
           '<div style="display:flex;gap:12px;">' +
             '<div style="text-align:center;">' +
@@ -487,10 +505,11 @@ export function renderProgressTab(deps) {
         const goldVal     = '#D4AF37';
         const projVal     = '#5a7a94';
         const noDataV     = '#2a3a4a';
-        const wtColor     = wk.locked ? goldVal : wk.isFuture ? projVal : noDataV;
-        const bfColor     = wk.locked ? goldVal : wk.isFuture ? projVal : noDataV;
+        const wtColor     = wk.isCurrent ? '#5dade2' : wk.locked ? goldVal : wk.isFuture ? projVal : noDataV;
+        const bfColor     = wk.isCurrent ? '#5dade2' : wk.locked ? goldVal : wk.isFuture ? projVal : noDataV;
         const wtDisp      = wk.dispWt != null ? wk.dispWt + ' lb' : '—';
         const bfDisp      = wk.dispBF != null ? wk.dispBF + '%'   : '—';
+        const projSubLabel = wk.isCurrent ? '<div style="font-size:8px;font-weight:700;color:rgba(93,173,226,0.55);letter-spacing:0.8px;margin-top:3px;">PROJ. END OF WEEK</div>' : '';
 
         const badge = wk.isCurrent
           ? '<span style="font-size:8px;font-weight:900;color:#D4AF37;background:#1a2e10;border:1px solid #C9A84C;border-radius:4px;padding:2px 7px;letter-spacing:1px;margin-right:6px;">THIS WEEK</span>'
@@ -534,10 +553,12 @@ export function renderProgressTab(deps) {
             <div style="background:${innerBg};border:1px solid ${innerBorder};border-radius:8px;padding:10px 12px;">
               <div style="font-size:9px;font-weight:900;color:rgba(201,168,76,0.6);letter-spacing:1.5px;margin-bottom:4px;">WEIGHT</div>
               <div style="font-size:22px;font-weight:900;color:${wtColor};letter-spacing:-0.5px;">${wtDisp}</div>
+              ${projSubLabel}
             </div>
             <div style="background:${innerBg};border:1px solid ${innerBorder};border-radius:8px;padding:10px 12px;">
               <div style="font-size:9px;font-weight:900;color:rgba(201,168,76,0.6);letter-spacing:1.5px;margin-bottom:4px;">BODY FAT</div>
               <div style="font-size:22px;font-weight:900;color:${bfColor};letter-spacing:-0.5px;">${bfDisp}</div>
+              ${projSubLabel}
             </div>
           </div>
         </div>`;
