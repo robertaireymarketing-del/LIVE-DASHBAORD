@@ -416,33 +416,49 @@ export function renderProgressTab(deps) {
         .filter(h => h.date.startsWith(moStr))
         .sort((a, b) => a.date.localeCompare(b.date));
 
-      const weekData = calWeeks.map((wk) => {
+      // Build week data in two passes:
+      // Pass 1 — compute actual/locked data and current week projection
+      const weekDataRaw = calWeeks.map((wk) => {
         const entries   = syncAll.filter(h => h.date >= wk.startStr && h.date <= wk.endStr);
         const actual    = entries.length > 0 ? entries[entries.length - 1] : null;
         const isPast    = wk.endStr < todayStr;
         const isCurrent = wk.startStr <= todayStr && wk.endStr >= todayStr;
         const isFuture  = wk.startStr > todayStr;
-        // Always project to END of each week so partial weeks are handled correctly.
-        // e.g. a 2-day final week: daysAhead/7 = 2/7 fraction → proportionally smaller drop.
-        const daysAhead  = Math.max(0, (new Date(wk.endStr + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / 86400000);
-        const wksAhead   = daysAhead / 7;
-        // Future projections use the user's TARGET pace (bfLossRate), not actual pace
-        const projWtPace = currentWeight * bfLossRate / 100;
-        const projBF     = +(currentBF     - bfLossRate * wksAhead).toFixed(1);
-        const projWt     = +(currentWeight - projWtPace * wksAhead).toFixed(1);
-        // For the current week, project to end of week from the PREVIOUS week's
-        // closing figures at full target pace — not from today's reading.
+        // Days actually in this week (e.g. Apr 29–30 = 2 days)
+        const daysInWeek = wk.end - wk.start + 1;
         const prevWeekEntry = [...(state.healthData||[])]
           .filter(h => h.date < wk.startStr && (h.bodyFat != null || h.weight != null))
           .sort((a,b) => b.date.localeCompare(a.date))[0];
         const bfBase = prevWeekEntry?.bodyFat ?? currentBF;
         const wtBase = prevWeekEntry?.weight  ?? currentWeight;
+        // Current week: project full target pace from last week's close
         const projEndBF = +(bfBase - bfLossRate).toFixed(1);
         const projEndWt = +(wtBase - wtBase * bfLossRate / 100).toFixed(1);
-        const dispBF    = isCurrent ? projEndBF : (actual?.bodyFat != null ? +actual.bodyFat.toFixed(1) : (isPast ? null : projBF));
-        const dispWt    = isCurrent ? projEndWt : (actual?.weight  != null ? +actual.weight.toFixed(1)  : (isPast ? null : projWt));
-        const locked    = actual != null && !isCurrent;
-        return { ...wk, actual, isPast, isCurrent, isFuture, dispBF, dispWt, locked, prevWeekEntry };
+        const locked = actual != null && !isCurrent;
+        return { ...wk, actual, isPast, isCurrent, isFuture, daysInWeek, projEndBF, projEndWt, locked, prevWeekEntry };
+      });
+
+      // Pass 2 — chain future week projections off the previous week's projected end
+      const weekData = weekDataRaw.map((wk, idx) => {
+        let dispBF, dispWt;
+        if (wk.isCurrent) {
+          dispBF = wk.projEndBF;
+          dispWt = wk.projEndWt;
+        } else if (wk.isFuture) {
+          // Find the closest prior week that has a projected or actual end value
+          const prev = weekDataRaw[idx - 1];
+          const prevBF = prev?.isCurrent ? prev.projEndBF : (prev?.actual?.bodyFat ?? prev?.projEndBF ?? currentBF);
+          const prevWt = prev?.isCurrent ? prev.projEndWt : (prev?.actual?.weight  ?? prev?.projEndWt ?? currentWeight);
+          // Apply only this week's proportional fraction of target pace
+          const fraction = wk.daysInWeek / 7;
+          dispBF = +(prevBF - bfLossRate * fraction).toFixed(1);
+          dispWt = +(prevWt - prevWt * bfLossRate / 100 * fraction).toFixed(1);
+        } else {
+          // Past or locked
+          dispBF = wk.actual?.bodyFat != null ? +wk.actual.bodyFat.toFixed(1) : null;
+          dispWt = wk.actual?.weight  != null ? +wk.actual.weight.toFixed(1)  : null;
+        }
+        return { ...wk, dispBF, dispWt };
       });
 
       // YOU ARE HERE block — inserted before the current week
