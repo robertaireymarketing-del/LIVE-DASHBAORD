@@ -216,8 +216,10 @@ async function _undo() {
 
 async function _refineWithAI(newDraft, existingRefined, history) {
   const key = getApiKey();
+  console.log('[Vision] _refineWithAI called, key present:', !!key, 'key length:', key.length);
   if (!key) {
-    _toast('Add your Anthropic API key in Settings to enable AI refining', colors());
+    _toast('No API key found — add your Anthropic key in Settings', colors());
+    console.warn('[Vision] No API key in localStorage key:', ''tjm_anthropic_key'');
     return null;
   }
 
@@ -271,22 +273,25 @@ Nothing else. No preamble. No labels. No quotation marks. Just the paragraph, a 
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
+    console.log('[Vision] Scene API response status:', res.status);
     if (!res.ok) {
       const errText = await res.text();
       console.warn('[Vision] Scene API HTTP error:', res.status, errText);
       return null;
     }
     const data = await res.json();
+    console.log('[Vision] Scene API data:', JSON.stringify(data).slice(0, 200));
     if (data.error) {
       console.warn('[Vision] Scene API error:', data.error);
       return null;
     }
     const text = data.content?.[0]?.text?.trim();
+    console.log('[Vision] Scene result length:', text?.length);
     return text || null;
   } catch (e) {
     console.warn('[Vision] AI refine error:', e);
@@ -348,7 +353,7 @@ Nothing else. No labels. No preamble. No quotation marks.`;
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 600,
         messages: [{ role: 'user', content: prompt }],
       }),
