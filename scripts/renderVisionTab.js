@@ -232,6 +232,7 @@ async function _refineWithAI(newDraft, existingRefined, history) {
   const prompt = `You are a master of subconscious reprogramming through precision language. Your job is to take someone's raw vision and forge it into a first-person affirmation so vivid and emotionally true that after reading it once, they close their eyes and live it.
 
 ABOUT THIS PERSON:
+- They are based in England, UK. Use £ for any currency references, not $ or €.
 - They are building toward complete time and financial freedom — never working for anyone else, only building their own legacy
 - Their internal voice at their best is calm, certain, and quietly aggressive — the tone of someone who already knows
 - They want to feel: energetic, certain, clear, confident, and challenged
@@ -270,21 +271,25 @@ Nothing else. No preamble. No labels. No quotation marks. Just the paragraph, a 
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1000,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn('[Vision] Scene API HTTP error:', res.status, errText);
+      return null;
+    }
     const data = await res.json();
     if (data.error) {
-      console.warn('[Vision] API error:', data.error);
+      console.warn('[Vision] Scene API error:', data.error);
       return null;
     }
     const text = data.content?.[0]?.text?.trim();
     return text || null;
   } catch (e) {
     console.warn('[Vision] AI refine error:', e);
-    _toast('AI refine failed — check your connection', colors());
     return null;
   }
 }
@@ -314,6 +319,8 @@ async function _refineWithAISummary(newDraft, existingRefined, history) {
 
   const prompt = `You are distilling someone's vision into its clearest possible form. Read every draft they have written and produce a stripped-back, first-person present-tense summary — no imagery, no scene-painting, no metaphor. Just the core truth of what they are building and who they are becoming, stated with total clarity and calm authority.
 
+CONTEXT: This person is based in England, UK. Use £ for any currency references, not $ or €.
+
 RULES:
 1. First person present tense only. "I am", "I have", "I build", "I lead". Not "I will" or "one day".
 2. 4 to 5 sentences maximum. Every sentence must earn its place. No filler, no preamble.
@@ -341,11 +348,16 @@ Nothing else. No labels. No preamble. No quotation marks.`;
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 600,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn('[Vision] Summary API HTTP error:', res.status, errText);
+      return null;
+    }
     const data = await res.json();
     if (data.error) { console.warn('[Vision] Summary API error:', data.error); return null; }
     return data.content?.[0]?.text?.trim() || null;
@@ -622,10 +634,14 @@ function _attachPersonalListeners(panel, c) {
       ]);
 
       _personalData[s.id].history = [...currentHistory, { text: draft, ts: Date.now() }];
-      _personalData[s.id].refined = aiScene   || draft;
-      _personalData[s.id].summary = aiSummary || draft;
+      if (aiScene)   _personalData[s.id].refined = aiScene;
+      if (aiSummary) _personalData[s.id].summary = aiSummary;
 
-      if (aiScene || aiSummary) _toast('Vision distilled ✦', c);
+      if (aiScene || aiSummary) {
+        _toast('Vision distilled ✦', c);
+      } else {
+        _toast('AI unavailable — check your API key in Settings', colors());
+      }
 
       await _savePersonal();
       _paint();
@@ -945,10 +961,14 @@ function _attachBusinessListeners(panel, c) {
     ]);
 
     _businessData.oneYear.history = [...currentHistory, { text: draft, ts: Date.now() }];
-    _businessData.oneYear.refined = aiScene   || draft;
-    _businessData.oneYear.summary = aiSummary || draft;
+    if (aiScene)   _businessData.oneYear.refined = aiScene;
+    if (aiSummary) _businessData.oneYear.summary = aiSummary;
 
-    if (aiScene || aiSummary) _toast('Vision distilled ✦', c);
+    if (aiScene || aiSummary) {
+      _toast('Vision distilled ✦', c);
+    } else {
+      _toast('AI unavailable — check your API key in Settings', colors());
+    }
 
     await _saveBusiness();
     _paint();
@@ -1047,10 +1067,14 @@ function _attachBusinessListeners(panel, c) {
       ]);
 
       _businessData.steps[idx].history = [...currentHistory, { text: draft, ts: Date.now() }];
-      _businessData.steps[idx].refined = aiScene   || draft;
-      _businessData.steps[idx].summary = aiSummary || draft;
+      if (aiScene)   _businessData.steps[idx].refined = aiScene;
+      if (aiSummary) _businessData.steps[idx].summary = aiSummary;
 
-      if (aiScene || aiSummary) _toast('Vision distilled ✦', c);
+      if (aiScene || aiSummary) {
+        _toast('Vision distilled ✦', c);
+      } else {
+        _toast('AI unavailable — check your API key in Settings', colors());
+      }
 
       await _saveBusiness();
       _paint();
