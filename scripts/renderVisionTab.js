@@ -263,7 +263,12 @@ Nothing else. No preamble. No labels. No quotation marks. Just the paragraph, a 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
@@ -271,7 +276,12 @@ Nothing else. No preamble. No labels. No quotation marks. Just the paragraph, a 
       }),
     });
     const data = await res.json();
-    return data.content?.[0]?.text?.trim() || null;
+    if (data.error) {
+      console.warn('[Vision] API error:', data.error);
+      return null;
+    }
+    const text = data.content?.[0]?.text?.trim();
+    return text || null;
   } catch (e) {
     console.warn('[Vision] AI refine error:', e);
     _toast('AI refine failed — check your connection', colors());
@@ -495,31 +505,24 @@ function _attachPersonalListeners(panel, c) {
 
     submitBtn?.addEventListener('click', async () => {
       const draft = textarea?.value?.trim();
-      if (!draft) {
-        _toast('Write something first', c);
-        return;
-      }
+      if (!draft) { _toast('Write something first', c); return; }
 
-      // Optimistic UI
-      if (refiningEl)  refiningEl.style.display  = 'block';
-      if (submitBtn)   submitBtn.disabled         = true;
-      if (submitBtn)   submitBtn.textContent      = '⟳ Distilling…';
+      if (refiningEl) refiningEl.style.display = 'block';
+      if (submitBtn)  { submitBtn.disabled = true; submitBtn.textContent = '⟳ Distilling…'; }
 
-      const data = _personalData[s.id];
       _pushUndo(`Edit ${s.label}`);
 
-      const refined = await _refineWithAI(draft, data.refined, data.history);
+      // Capture current state before async call
+      const currentRefined  = _personalData[s.id].refined  || '';
+      const currentHistory  = _personalData[s.id].history  || [];
 
-      // Always record the draft
-      data.history = [...(data.history || []), { text: draft, ts: Date.now() }];
+      const aiResult = await _refineWithAI(draft, currentRefined, currentHistory);
 
-      if (refined) {
-        data.refined = refined;
-        _toast('Vision distilled ✦', c);
-      } else {
-        // No AI / key missing — still update so user sees their latest draft
-        data.refined = draft;
-      }
+      // Write back to _personalData by key — never through a cached reference
+      _personalData[s.id].history = [...currentHistory, { text: draft, ts: Date.now() }];
+      _personalData[s.id].refined = aiResult || draft;
+
+      if (aiResult) _toast('Vision distilled ✦', c);
 
       await _savePersonal();
       _paint();
@@ -775,22 +778,26 @@ function _attachBusinessListeners(panel, c) {
 
   // ── 1-year vision ──
   panel.querySelector('#vision-biz-oneyear-submit')?.addEventListener('click', async () => {
-    const ta          = panel.querySelector('#vision-biz-oneyear-input');
-    const refiningEl  = panel.querySelector('#vision-biz-oneyear-refining');
-    const submitBtn   = panel.querySelector('#vision-biz-oneyear-submit');
-    const draft       = ta?.value?.trim();
+    const ta         = panel.querySelector('#vision-biz-oneyear-input');
+    const refiningEl = panel.querySelector('#vision-biz-oneyear-refining');
+    const submitBtn  = panel.querySelector('#vision-biz-oneyear-submit');
+    const draft      = ta?.value?.trim();
     if (!draft) { _toast('Write something first', c); return; }
 
     if (refiningEl) refiningEl.style.display = 'block';
     if (submitBtn)  { submitBtn.disabled = true; submitBtn.textContent = '⟳ Distilling…'; }
 
     _pushUndo('Edit Business 1 Year Vision');
-    const data    = _businessData.oneYear;
-    const refined = await _refineWithAI(draft, data.refined, data.history);
 
-    data.history = [...(data.history || []), { text: draft, ts: Date.now() }];
-    if (refined) { data.refined = refined; _toast('Vision distilled ✦', c); }
-    else          { data.refined = draft; }
+    const currentRefined = _businessData.oneYear.refined  || '';
+    const currentHistory = _businessData.oneYear.history  || [];
+
+    const aiResult = await _refineWithAI(draft, currentRefined, currentHistory);
+
+    _businessData.oneYear.history = [...currentHistory, { text: draft, ts: Date.now() }];
+    _businessData.oneYear.refined = aiResult || draft;
+
+    if (aiResult) _toast('Vision distilled ✦', c);
 
     await _saveBusiness();
     _paint();
@@ -876,11 +883,19 @@ function _attachBusinessListeners(panel, c) {
       btn.textContent = '⟳ Distilling…';
 
       _pushUndo(`Edit step: ${step.title.slice(0, 25)}`);
-      const refined = await _refineWithAI(draft, step.refined, step.history);
 
-      step.history = [...(step.history || []), { text: draft, ts: Date.now() }];
-      if (refined) { step.refined = refined; _toast('Vision distilled ✦', c); }
-      else          { step.refined = draft; }
+      const idx = _businessData.steps.findIndex(s => s.id === step.id);
+      if (idx === -1) return;
+
+      const currentRefined = _businessData.steps[idx].refined  || '';
+      const currentHistory = _businessData.steps[idx].history  || [];
+
+      const aiResult = await _refineWithAI(draft, currentRefined, currentHistory);
+
+      _businessData.steps[idx].history = [...currentHistory, { text: draft, ts: Date.now() }];
+      _businessData.steps[idx].refined = aiResult || draft;
+
+      if (aiResult) _toast('Vision distilled ✦', c);
 
       await _saveBusiness();
       _paint();
