@@ -430,45 +430,65 @@ export function renderProgressTab(deps) {
         const projWtPace = currentWeight * bfLossRate / 100;
         const projBF     = +(currentBF     - bfLossRate * wksAhead).toFixed(1);
         const projWt     = +(currentWeight - projWtPace * wksAhead).toFixed(1);
-        // For the current week, always show a projected end-of-week figure
-        // (current value minus target pace scaled to remaining days in week)
-        const projEndBF = +(currentBF     - bfLossRate * (daysAhead / 7)).toFixed(1);
-        const projEndWt = +(currentWeight - projWtPace * (daysAhead / 7)).toFixed(1);
+        // For the current week, project to end of week from the PREVIOUS week's
+        // closing figures at full target pace — not from today's reading.
+        const prevWeekEntry = [...(state.healthData||[])]
+          .filter(h => h.date < wk.startStr && (h.bodyFat != null || h.weight != null))
+          .sort((a,b) => b.date.localeCompare(a.date))[0];
+        const bfBase = prevWeekEntry?.bodyFat ?? currentBF;
+        const wtBase = prevWeekEntry?.weight  ?? currentWeight;
+        const projEndBF = +(bfBase - bfLossRate).toFixed(1);
+        const projEndWt = +(wtBase - wtBase * bfLossRate / 100).toFixed(1);
         const dispBF    = isCurrent ? projEndBF : (actual?.bodyFat != null ? +actual.bodyFat.toFixed(1) : (isPast ? null : projBF));
         const dispWt    = isCurrent ? projEndWt : (actual?.weight  != null ? +actual.weight.toFixed(1)  : (isPast ? null : projWt));
         const locked    = actual != null && !isCurrent;
-        return { ...wk, actual, isPast, isCurrent, isFuture, dispBF, dispWt, locked };
+        return { ...wk, actual, isPast, isCurrent, isFuture, dispBF, dispWt, locked, prevWeekEntry };
       });
 
       // YOU ARE HERE block — inserted before the current week
       const youAreHereStatusEl = (() => {
-        if (blendedPace === null) return '';
-        if (blendedPace < -0.05) {
+        const currentWk = weekData.find(wk => wk.isCurrent);
+        if (!currentWk || !currentWk.prevWeekEntry?.bodyFat) return '';
+
+        // How many complete days have elapsed since the week started?
+        const daysElapsed = Math.round(
+          (new Date(todayStr + 'T12:00:00') - new Date(currentWk.startStr + 'T12:00:00')) / 86400000
+        );
+
+        // Where should BF be right now if hitting target pace daily?
+        const dailyTarget  = bfLossRate / 7;
+        const expectedBF   = +(currentWk.prevWeekEntry.bodyFat - dailyTarget * daysElapsed).toFixed(2);
+
+        // Compare to actual
+        if (currentBF >= currentWk.prevWeekEntry.bodyFat) {
+          // BF hasn't dropped at all since last week — gaining
           return '<span style="font-size:9px;font-weight:800;color:#e74c3c;background:#1f0a0a;border:1px solid #5a1a1a;border-radius:4px;padding:2px 7px;white-space:nowrap;">▲ GAINED</span>';
-        } else if (blendedPace < bfLossRate * 0.55) {
+        } else if (currentBF > expectedBF + 0.05) {
+          // Behind daily pace (with small 0.05% tolerance)
           return '<span style="font-size:9px;font-weight:800;color:#f39c12;background:#1f1500;border:1px solid #7a4a00;border-radius:4px;padding:2px 7px;white-space:nowrap;">~ SLOW</span>';
         } else {
+          // On or ahead of daily pace
           return '<span style="font-size:9px;font-weight:800;color:#2ecc71;background:#0a1f14;border:1px solid #1a5a2a;border-radius:4px;padding:2px 7px;white-space:nowrap;">✓ ON TRACK</span>';
         }
       })();
 
       const youAreHereHtml =
-        '<div style="background:#0d2a1a;border:2px solid #27ae60;border-radius:12px;padding:14px 16px;margin-bottom:8px;">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+        '<div style="background:#0d2a1a;border:2px solid #27ae60;border-radius:12px;padding:14px;margin-bottom:8px;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
             '<div>' +
               '<div style="font-size:8px;font-weight:900;letter-spacing:2px;color:#27ae60;margin-bottom:4px;">📍 YOU ARE HERE</div>' +
               '<div style="font-size:10px;font-weight:700;color:#4a9a6a;">Today · ' + todayStr.split('-').reverse().join('/') + '</div>' +
             '</div>' +
             youAreHereStatusEl +
           '</div>' +
-          '<div style="display:flex;gap:12px;">' +
-            '<div style="text-align:center;">' +
-              '<div style="font-size:9px;font-weight:900;color:rgba(39,174,96,0.7);letter-spacing:1px;margin-bottom:2px;">WEIGHT</div>' +
-              '<div style="font-size:20px;font-weight:900;color:#2ecc71;letter-spacing:-0.5px;">' + currentWeight + '<span style="font-size:10px;font-weight:600;color:#4a9a6a;"> lb</span></div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+            '<div style="background:#0a1f14;border:1px solid #1a4a2a;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">' +
+              '<div style="font-size:9px;font-weight:900;color:rgba(39,174,96,0.6);letter-spacing:1.5px;">WEIGHT</div>' +
+              '<div style="font-size:22px;font-weight:900;color:#2ecc71;letter-spacing:-0.5px;">' + currentWeight + '<span style="font-size:10px;font-weight:600;color:#4a9a6a;"> lb</span></div>' +
             '</div>' +
-            '<div style="text-align:center;">' +
-              '<div style="font-size:9px;font-weight:900;color:rgba(39,174,96,0.7);letter-spacing:1px;margin-bottom:2px;">BODY FAT</div>' +
-              '<div style="font-size:20px;font-weight:900;color:#2ecc71;letter-spacing:-0.5px;">' + currentBF + '<span style="font-size:10px;font-weight:600;color:#4a9a6a;">%</span></div>' +
+            '<div style="background:#0a1f14;border:1px solid #1a4a2a;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">' +
+              '<div style="font-size:9px;font-weight:900;color:rgba(39,174,96,0.6);letter-spacing:1.5px;">BODY FAT</div>' +
+              '<div style="font-size:22px;font-weight:900;color:#2ecc71;letter-spacing:-0.5px;">' + currentBF + '<span style="font-size:10px;font-weight:600;color:#4a9a6a;">%</span></div>' +
             '</div>' +
           '</div>' +
         '</div>';
