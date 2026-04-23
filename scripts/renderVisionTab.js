@@ -663,23 +663,25 @@ function _attachPersonalListeners(panel, c) {
 
     submitBtn?.addEventListener('click', async () => {
       const draft = textarea?.value?.trim();
-      if (!draft) { _toast('Write something first', c); return; }
+      const currentHistory = _personalData[s.id].history || [];
+
+      // If textarea empty but history exists — re-distil from history
+      if (!draft && currentHistory.length === 0) { _toast('Write something first', c); return; }
 
       if (refiningEl) refiningEl.style.display = 'block';
       if (submitBtn)  { submitBtn.disabled = true; submitBtn.textContent = '⟳ Distilling…'; }
 
       _pushUndo(`Edit ${s.label}`);
 
-      // Capture current state before async call
-      const currentRefined  = _personalData[s.id].refined  || '';
-      const currentHistory  = _personalData[s.id].history  || [];
+      const currentRefined = _personalData[s.id].refined || '';
+      const newHistory = draft ? [...currentHistory, { text: draft, ts: Date.now() }] : currentHistory;
 
       const [aiScene, aiSummary] = await Promise.all([
-        _refineWithAI(draft, currentRefined, currentHistory),
-        _refineWithAISummary(draft, _personalData[s.id].summary || '', currentHistory),
+        _refineWithAI(draft || '', currentRefined, currentHistory),
+        _refineWithAISummary(draft || '', _personalData[s.id].summary || '', currentHistory),
       ]);
 
-      _personalData[s.id].history = [...currentHistory, { text: draft, ts: Date.now() }];
+      _personalData[s.id].history = newHistory;
       if (aiScene)   _personalData[s.id].refined = aiScene;
       if (aiSummary) _personalData[s.id].summary = aiSummary;
 
@@ -991,22 +993,23 @@ function _attachBusinessListeners(panel, c) {
     const refiningEl = panel.querySelector('#vision-biz-oneyear-refining');
     const submitBtn  = panel.querySelector('#vision-biz-oneyear-submit');
     const draft      = ta?.value?.trim();
-    if (!draft) { _toast('Write something first', c); return; }
+    const currentHistory = _businessData.oneYear.history || [];
+    if (!draft && currentHistory.length === 0) { _toast('Write something first', c); return; }
 
     if (refiningEl) refiningEl.style.display = 'block';
     if (submitBtn)  { submitBtn.disabled = true; submitBtn.textContent = '⟳ Distilling…'; }
 
     _pushUndo('Edit Business 1 Year Vision');
 
-    const currentRefined = _businessData.oneYear.refined  || '';
-    const currentHistory = _businessData.oneYear.history  || [];
+    const currentRefined = _businessData.oneYear.refined || '';
+    const newHistory = draft ? [...currentHistory, { text: draft, ts: Date.now() }] : currentHistory;
 
     const [aiScene, aiSummary] = await Promise.all([
-      _refineWithAI(draft, currentRefined, currentHistory),
-      _refineWithAISummary(draft, _businessData.oneYear.summary || '', currentHistory),
+      _refineWithAI(draft || '', currentRefined, currentHistory),
+      _refineWithAISummary(draft || '', _businessData.oneYear.summary || '', currentHistory),
     ]);
 
-    _businessData.oneYear.history = [...currentHistory, { text: draft, ts: Date.now() }];
+    _businessData.oneYear.history = newHistory;
     if (aiScene)   _businessData.oneYear.refined = aiScene;
     if (aiSummary) _businessData.oneYear.summary = aiSummary;
 
@@ -1093,7 +1096,11 @@ function _attachBusinessListeners(panel, c) {
       const ta         = panel.querySelector(`#vision-step-input-${step.id}`);
       const refiningEl = panel.querySelector(`#vision-step-refining-${step.id}`);
       const draft      = ta?.value?.trim();
-      if (!draft) { _toast('Write something first', c); return; }
+      const idx = _businessData.steps.findIndex(s => s.id === step.id);
+      if (idx === -1) return;
+
+      const currentHistory = _businessData.steps[idx].history || [];
+      if (!draft && currentHistory.length === 0) { _toast('Write something first', c); return; }
 
       if (refiningEl) refiningEl.style.display = 'block';
       btn.disabled    = true;
@@ -1101,18 +1108,15 @@ function _attachBusinessListeners(panel, c) {
 
       _pushUndo(`Edit step: ${step.title.slice(0, 25)}`);
 
-      const idx = _businessData.steps.findIndex(s => s.id === step.id);
-      if (idx === -1) return;
-
-      const currentRefined = _businessData.steps[idx].refined  || '';
-      const currentHistory = _businessData.steps[idx].history  || [];
+      const currentRefined = _businessData.steps[idx].refined || '';
+      const newHistory = draft ? [...currentHistory, { text: draft, ts: Date.now() }] : currentHistory;
 
       const [aiScene, aiSummary] = await Promise.all([
-        _refineWithAI(draft, currentRefined, currentHistory),
-        _refineWithAISummary(draft, _businessData.steps[idx].summary || '', currentHistory),
+        _refineWithAI(draft || '', currentRefined, currentHistory),
+        _refineWithAISummary(draft || '', _businessData.steps[idx].summary || '', currentHistory),
       ]);
 
-      _businessData.steps[idx].history = [...currentHistory, { text: draft, ts: Date.now() }];
+      _businessData.steps[idx].history = newHistory;
       if (aiScene)   _businessData.steps[idx].refined = aiScene;
       if (aiSummary) _businessData.steps[idx].summary = aiSummary;
 
