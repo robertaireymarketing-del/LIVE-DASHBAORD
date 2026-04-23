@@ -248,13 +248,13 @@ YOUR RULES:
 8. Voice: calm authority. No hype. No cheerleading. The certainty of someone standing in something they built.
 9. After the main paragraph, add a single blank line, then write one ANCHOR LINE — under 12 words, punchy, unforgettable — the sentence they repeat in the gym, the mirror, the quiet moment before sleep.
 
-EVOLUTION RULE:
-If previous drafts or a refined version exist, go deeper. Add more sensory texture. Sharpen the scene. Deepen the emotional truth. Never dilute — only enrich. Each iteration should feel more real than the last, like the image coming into focus.${existingBlock}${historyBlock}
+COMBINING RULE — THIS IS CRITICAL:
+Your job is NOT to rewrite the latest draft. Your job is to read EVERY draft the person has ever written — including this new one — extract every meaningful detail, emotion, image, and desire across all of them, and forge them into one single evolving vision that contains the best of everything they have ever expressed. Each submission adds new raw material. Nothing valuable is lost. The vision gets richer, more specific, more real with every iteration — like a sculpture gaining detail, not a photo being retaken. If they mentioned something in draft 1 and never again, it still belongs in the vision if it mattered. If they mentioned something repeatedly, it is clearly important — make it vivid. The refined statement should always feel more complete and more true than the last version.${existingBlock}${historyBlock}
 
-New draft from this person: "${newDraft}"
+Latest draft (new raw material to absorb and combine with everything above): "${newDraft}"
 
 OUTPUT FORMAT:
-[Single paragraph vision statement]
+[Single paragraph vision statement combining ALL drafts]
 
 [Anchor line]
 
