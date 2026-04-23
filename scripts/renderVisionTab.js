@@ -502,6 +502,34 @@ function _paint() {
         ">💼 Business</button>
       </div>
 
+      <!-- API Key banner (only when missing) -->
+      ${!getApiKey() ? `
+        <div style="
+          background:rgba(201,168,76,0.1);border:1.5px solid rgba(201,168,76,0.4);
+          border-radius:12px;padding:14px 16px;margin-bottom:16px;
+        ">
+          <div style="font-size:10px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:8px;">⚙ Anthropic API Key Required</div>
+          <div style="font-size:12px;color:${c.subheading};font-weight:600;margin-bottom:10px;line-height:1.5;">Enter your key once to enable AI distilling. It's stored only in your browser.</div>
+          <div style="display:flex;gap:8px;">
+            <input
+              id="vision-api-key-input"
+              type="password"
+              placeholder="sk-ant-..."
+              style="
+                flex:1;background:${c.inputBg};border:1px solid ${c.inputBorder};
+                border-radius:8px;color:${c.inputText};font-size:13px;font-weight:600;
+                padding:9px 12px;outline:none;font-family:inherit;
+              "
+            >
+            <button id="vision-api-key-save" style="
+              background:${c.goldBtn};color:${c.goldBtnTxt};border:none;
+              border-radius:8px;font-size:11px;font-weight:900;letter-spacing:1px;
+              padding:9px 16px;cursor:pointer;white-space:nowrap;text-transform:uppercase;
+            ">Save Key</button>
+          </div>
+        </div>
+      ` : ''}
+
       <!-- Content -->
       <div id="vision-content">
         ${_activeTab === 'personal' ? _renderPersonal(c) : _renderBusiness(c)}
@@ -522,6 +550,19 @@ function _paint() {
       </div>
     ` : ''}
   `;
+
+  // API key save
+  panel.querySelector('#vision-api-key-save')?.addEventListener('click', () => {
+    const input = panel.querySelector('#vision-api-key-input');
+    const key = input?.value?.trim();
+    if (!key || !key.startsWith('sk-ant-')) {
+      _toast('Enter a valid Anthropic key (starts with sk-ant-)', colors());
+      return;
+    }
+    saveApiKey(key);
+    _toast('API key saved ✓ — ready to distil', colors());
+    _paint();
+  });
 
   // Toggle listeners
   panel.querySelector('#vision-toggle-personal')?.addEventListener('click', () => {
