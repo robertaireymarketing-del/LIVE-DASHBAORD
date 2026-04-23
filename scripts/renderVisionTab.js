@@ -219,7 +219,7 @@ async function _refineWithAI(newDraft, existingRefined, history) {
   console.log('[Vision] _refineWithAI called, key present:', !!key, 'key length:', key.length);
   if (!key) {
     _toast('No API key found — add your Anthropic key in Settings', colors());
-    console.warn('[Vision] No API key in localStorage key:', ''tjm_anthropic_key'');
+    console.warn('[Vision] No API key found in localStorage');
     return null;
   }
 
