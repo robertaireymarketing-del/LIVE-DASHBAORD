@@ -251,7 +251,7 @@ YOUR RULES:
 COMBINING RULE — THIS IS CRITICAL:
 Your job is NOT to rewrite the latest draft. Your job is to read EVERY draft the person has ever written — including this new one — extract every meaningful detail, emotion, image, and desire across all of them, and forge them into one single evolving vision that contains the best of everything they have ever expressed. Each submission adds new raw material. Nothing valuable is lost. The vision gets richer, more specific, more real with every iteration — like a sculpture gaining detail, not a photo being retaken. If they mentioned something in draft 1 and never again, it still belongs in the vision if it mattered. If they mentioned something repeatedly, it is clearly important — make it vivid. The refined statement should always feel more complete and more true than the last version.${existingBlock}${historyBlock}
 
-Latest draft (new raw material to absorb and combine with everything above): "${newDraft}"
+${newDraft ? `Latest draft (new raw material to absorb and combine with everything above): "${newDraft}"` : `A draft was just deleted. Regenerate the vision using ONLY the remaining drafts listed above. Do not include any content that is not represented in those drafts.`}
 
 OUTPUT FORMAT:
 [Single paragraph vision statement combining ALL drafts]
@@ -316,6 +316,20 @@ function _renderRefined(refined, draftCount, c) {
       ${draftHtml}
     </div>
   `;
+}
+
+function _clearVisionBtn(sectionId, isStep, c) {
+  return `<button
+    class="vision-clear-btn"
+    data-section="${sectionId}"
+    data-is-step="${isStep ? '1' : '0'}"
+    style="
+      margin-top:6px;width:100%;padding:9px;border:none;border-radius:10px;
+      background:transparent;border:1px solid ${c.dangerTxt}55;
+      color:${c.dangerTxt};font-size:10px;font-weight:900;letter-spacing:2px;
+      text-transform:uppercase;cursor:pointer;
+    "
+  >✕ Clear Entire Vision & Start Fresh</button>`;
 }
 
 // Which sections have their history panel open
@@ -457,6 +471,9 @@ function _renderPersonal(c) {
         <!-- Draft history -->
         ${_renderHistory(s.id, data.history, c)}
 
+        <!-- Clear vision -->
+        ${data.refined ? _clearVisionBtn(s.id, false, c) : ''}
+
         <!-- Draft textarea -->
         <textarea
           id="vision-personal-input-${s.id}"
@@ -538,6 +555,20 @@ function _attachPersonalListeners(panel, c) {
     });
   });
 
+  // Clear entire vision
+  panel.querySelectorAll('.vision-clear-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const sid = btn.dataset.section;
+      if (!confirm('Clear your entire vision for this section?\n\nAll drafts and the refined vision will be permanently removed. You can undo this immediately after.')) return;
+      _pushUndo(`Clear vision: ${sid}`);
+      _personalData[sid].refined = '';
+      _personalData[sid].history = [];
+      await _savePersonal();
+      _toast('Vision cleared — start fresh', c);
+      _paint();
+    });
+  });
+
   panel.querySelectorAll('.vision-delete-draft').forEach(btn => {
     btn.addEventListener('click', async () => {
       const sid = btn.dataset.section;
@@ -554,9 +585,23 @@ function _attachPersonalListeners(panel, c) {
 You can undo this.`)) return;
       _pushUndo(`Delete draft from ${sid}`);
       section.history = section.history.filter((_, i) => i !== idx);
-      await _savePersonal();
-      _toast('Draft deleted', c);
-      _paint();
+      // Regenerate refined from remaining drafts, or clear if none left
+      if (section.history.length === 0) {
+        section.refined = '';
+        await _savePersonal();
+        _toast('Draft deleted — vision cleared', c);
+        _paint();
+      } else {
+        await _savePersonal();
+        _toast('Draft deleted — regenerating vision…', c);
+        const combined = section.history.map((h, i) => `Draft ${i + 1}: "${h.text}"`).join('\n');
+        const aiResult = await _refineWithAI(combined, '', section.history);
+        if (aiResult) {
+          _personalData[sid].refined = aiResult;
+          await _savePersonal();
+        }
+        _paint();
+      }
     });
   });
 }
@@ -583,6 +628,8 @@ function _renderBusiness(c) {
       ${_renderRefined(oneYear.refined, oyCount, c)}
 
       ${_renderHistory('biz_oneyear', oneYear.history, c)}
+
+      ${oneYear.refined ? _clearVisionBtn('biz_oneyear', false, c) : ''}
 
       <textarea id="vision-biz-oneyear-input" placeholder="In one year from now, how will your business look? Revenue, reach, brand, team, impact — paint the full picture." rows="3" style="
         width:100%;min-height:80px;background:${c.inputBg};border:1px solid ${c.inputBorder};
@@ -738,6 +785,9 @@ function _renderStep(step, index, c) {
           "
         >
       </div>
+
+      <!-- Clear vision -->
+      ${step.refined ? _clearVisionBtn(step.id, true, c) : ''}
 
       <!-- Draft textarea -->
       <textarea
@@ -902,6 +952,25 @@ function _attachBusinessListeners(panel, c) {
     });
   });
 
+  // ── Clear entire vision — business ──
+  panel.querySelectorAll('.vision-clear-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const sid = btn.dataset.section;
+      if (!confirm('Clear your entire vision for this section?\n\nAll drafts and the refined vision will be permanently removed. You can undo this immediately after.')) return;
+      _pushUndo(`Clear vision: ${sid}`);
+      if (sid === 'biz_oneyear') {
+        _businessData.oneYear.refined = '';
+        _businessData.oneYear.history = [];
+      } else {
+        const stepIdx = _businessData.steps.findIndex(s => s.id === sid);
+        if (stepIdx !== -1) { _businessData.steps[stepIdx].refined = ''; _businessData.steps[stepIdx].history = []; }
+      }
+      await _saveBusiness();
+      _toast('Vision cleared — start fresh', c);
+      _paint();
+    });
+  });
+
   // ── History toggle & delete — business ──
   panel.querySelectorAll('.vision-history-toggle').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -915,40 +984,48 @@ function _attachBusinessListeners(panel, c) {
     btn.addEventListener('click', async () => {
       const sid = btn.dataset.section;
       const idx = parseInt(btn.dataset.index, 10);
-      let changed = false;
 
       if (sid === 'biz_oneyear') {
         const entry = _businessData.oneYear.history[idx];
         if (!entry) return;
         const preview = entry.text.length > 60 ? entry.text.slice(0, 60) + '…' : entry.text;
-        if (!confirm(`Delete this draft entry?
-
-"${preview}"
-
-You can undo this.`)) return;
+        if (!confirm(`Delete this draft entry?\n\n"${preview}"\n\nYou can undo this.`)) return;
         _pushUndo('Delete business draft');
         _businessData.oneYear.history = _businessData.oneYear.history.filter((_, i) => i !== idx);
-        changed = true;
+        await _saveBusiness();
+        if (_businessData.oneYear.history.length === 0) {
+          _businessData.oneYear.refined = '';
+          _toast('Draft deleted — vision cleared', c);
+          _paint();
+        } else {
+          _toast('Draft deleted — regenerating vision…', c);
+          _paint();
+          const aiResult = await _refineWithAI('', '', _businessData.oneYear.history);
+          if (aiResult) { _businessData.oneYear.refined = aiResult; await _saveBusiness(); }
+          _paint();
+        }
       } else {
-        const step = _businessData.steps.find(s => s.id === sid);
-        if (!step) return;
+        const stepIdx = _businessData.steps.findIndex(s => s.id === sid);
+        if (stepIdx === -1) return;
+        const step = _businessData.steps[stepIdx];
         const entry = step.history[idx];
         if (!entry) return;
         const preview = entry.text.length > 60 ? entry.text.slice(0, 60) + '…' : entry.text;
-        if (!confirm(`Delete this draft entry?
-
-"${preview}"
-
-You can undo this.`)) return;
+        if (!confirm(`Delete this draft entry?\n\n"${preview}"\n\nYou can undo this.`)) return;
         _pushUndo('Delete step draft');
-        step.history = step.history.filter((_, i) => i !== idx);
-        changed = true;
-      }
-
-      if (changed) {
+        _businessData.steps[stepIdx].history = step.history.filter((_, i) => i !== idx);
         await _saveBusiness();
-        _toast('Draft deleted', c);
-        _paint();
+        if (_businessData.steps[stepIdx].history.length === 0) {
+          _businessData.steps[stepIdx].refined = '';
+          _toast('Draft deleted — vision cleared', c);
+          _paint();
+        } else {
+          _toast('Draft deleted — regenerating vision…', c);
+          _paint();
+          const aiResult = await _refineWithAI('', '', _businessData.steps[stepIdx].history);
+          if (aiResult) { _businessData.steps[stepIdx].refined = aiResult; await _saveBusiness(); }
+          _paint();
+        }
       }
     });
   });
