@@ -68,17 +68,17 @@ let _refining     = {};          // { sectionId: bool }
 
 function _defaultPersonal() {
   const d = {};
-  PERSONAL_SECTIONS.forEach(s => { d[s.id] = { refined: '', history: [] }; });
+  PERSONAL_SECTIONS.forEach(s => { d[s.id] = { refined: '', summary: '', history: [] }; });
   return d;
 }
 
 function _defaultBusiness() {
   return {
-    oneYear: { refined: '', history: [] },
+    oneYear: { refined: '', summary: '', history: [] },
     steps: [
-      { id: 'step_1', title: 'The first step is to...', locked: false, refined: '', history: [], deadline: '' },
-      { id: 'step_2', title: 'The next step is to...', locked: false, refined: '', history: [], deadline: '' },
-      { id: 'step_3', title: 'The next step is to...', locked: false, refined: '', history: [], deadline: '' },
+      { id: 'step_1', title: 'The first step is to...', locked: false, refined: '', summary: '', history: [], deadline: '' },
+      { id: 'step_2', title: 'The next step is to...', locked: false, refined: '', summary: '', history: [], deadline: '' },
+      { id: 'step_3', title: 'The next step is to...', locked: false, refined: '', summary: '', history: [], deadline: '' },
     ],
   };
 }
@@ -291,27 +291,110 @@ Nothing else. No preamble. No labels. No quotation marks. Just the paragraph, a 
 
 
 /* ─────────────────────────────────────────────────────────────────────
+   VIEW MODE STATE (scene | summary per section)
+───────────────────────────────────────────────────────────────────── */
+
+let _viewMode = {}; // sectionId → 'scene' | 'summary'  (default: 'summary')
+
+/* ─────────────────────────────────────────────────────────────────────
+   AI SUMMARY (stripped-back, 4-5 sentences)
+───────────────────────────────────────────────────────────────────── */
+
+async function _refineWithAISummary(newDraft, existingRefined, history) {
+  const key = getApiKey();
+  if (!key) return null;
+
+  const historyBlock = (history && history.length > 0)
+    ? `\n\nAll previous drafts (oldest → newest):\n${history.map((h, i) => `Draft ${i + 1}: "${h.text}"`).join('\n')}`
+    : '';
+
+  const existingBlock = existingRefined
+    ? `\n\nCurrent summary (improve and build on this):\n"${existingRefined}"`
+    : '';
+
+  const prompt = `You are distilling someone's vision into its clearest possible form. Read every draft they have written and produce a stripped-back, first-person present-tense summary — no imagery, no scene-painting, no metaphor. Just the core truth of what they are building and who they are becoming, stated with total clarity and calm authority.
+
+RULES:
+1. First person present tense only. "I am", "I have", "I build", "I lead". Not "I will" or "one day".
+2. 4 to 5 sentences maximum. Every sentence must earn its place. No filler, no preamble.
+3. No scene-painting. No sensory detail. No imagery. Just clear, direct statements of fact about who they are and what they have built.
+4. Strong, active language. Avoid weak words: never use "strive", "try", "committed to", "working towards", "hope to".
+5. Combine ALL drafts — extract every meaningful intention and desire, fold them into the summary. Nothing valuable is lost.
+6. After the summary, add one blank line, then one ANCHOR LINE — under 12 words, unforgettable, the sentence they repeat to themselves.${existingBlock}${historyBlock}
+
+${newDraft ? `Latest draft: "${newDraft}"` : `A draft was removed. Rebuild the summary from only the remaining drafts above.`}
+
+OUTPUT FORMAT:
+[4-5 sentence summary]
+
+[Anchor line]
+
+Nothing else. No labels. No preamble. No quotation marks.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 600,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    const data = await res.json();
+    if (data.error) { console.warn('[Vision] Summary API error:', data.error); return null; }
+    return data.content?.[0]?.text?.trim() || null;
+  } catch (e) {
+    console.warn('[Vision] Summary refine error:', e);
+    return null;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
    RENDER REFINED STATEMENT (shared)
 ───────────────────────────────────────────────────────────────────── */
 
-function _renderRefined(refined, draftCount, c) {
-  if (!refined) return '';
-  const parts  = refined.split(/\n\n+/);
-  const para   = parts[0] || '';
-  const anchor = parts[1] || '';
-  const anchorHtml = anchor
-    ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid ${c.statementBdr};">
-        <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:6px;">⚡ Anchor</div>
-        <div style="font-size:14px;font-weight:900;color:${c.gold};line-height:1.5;letter-spacing:0.5px;font-style:italic;">${_escHtml(anchor)}</div>
-      </div>`
-    : '';
+function _renderRefined(sectionId, refined, summary, draftCount, c) {
+  const hasScene   = !!refined;
+  const hasSummary = !!summary;
+  if (!hasScene && !hasSummary) return '';
+
+  const mode     = _viewMode[sectionId] || 'summary';
+  const content  = mode === 'scene' ? refined : summary;
+  const parts    = (content || '').split(/\n\n+/);
+  const para     = parts[0] || '';
+  const anchor   = parts[1] || '';
+
+  const anchorHtml = anchor ? `
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid ${c.statementBdr};">
+      <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:6px;">⚡ Anchor</div>
+      <div style="font-size:14px;font-weight:900;color:${c.gold};line-height:1.5;letter-spacing:0.5px;font-style:italic;">${_escHtml(anchor)}</div>
+    </div>` : '';
+
   const draftHtml = draftCount > 0
     ? `<div style="font-size:10px;color:${c.muted};margin-top:10px;font-weight:600;letter-spacing:0.5px;">${draftCount} draft${draftCount > 1 ? 's' : ''} — getting sharper each time</div>`
     : '';
+
+  const btnBase = `flex:1;padding:8px;border:none;border-radius:7px;font-size:10px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:all .15s;`;
+  const activeStyle   = `${btnBase}background:${c.goldBtn};color:${c.goldBtnTxt};`;
+  const inactiveStyle = `${btnBase}background:transparent;color:${c.muted};border:1px solid ${c.cardBorder};`;
+
   return `
     <div style="background:${c.statementBg};border:1.5px solid ${c.statementBdr};border-radius:12px;padding:16px 16px 14px;margin-bottom:14px;">
-      <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${c.gold};text-transform:uppercase;margin-bottom:10px;">✦ Your Vision</div>
-      <div style="font-size:13px;font-weight:700;color:${c.statementTxt};line-height:1.8;">${_escHtml(para)}</div>
+      <!-- Toggle row -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;">
+        <button class="vision-mode-btn" data-section="${sectionId}" data-mode="summary"
+          style="${mode === 'summary' ? activeStyle : inactiveStyle}">📋 Summary</button>
+        <button class="vision-mode-btn" data-section="${sectionId}" data-mode="scene"
+          style="${mode === 'scene' ? activeStyle : inactiveStyle}">🎬 Scene</button>
+      </div>
+      <!-- Content -->
+      ${para ? `<div style="font-size:13px;font-weight:700;color:${c.statementTxt};line-height:1.8;">${_escHtml(para)}</div>` : `<div style="font-size:12px;color:${c.muted};font-style:italic;">Generating ${mode}…</div>`}
       ${anchorHtml}
       ${draftHtml}
     </div>
@@ -466,7 +549,7 @@ function _renderPersonal(c) {
         ">${s.emoji} ${s.label}</div>
 
         <!-- Refined statement -->
-        ${_renderRefined(data.refined, draftCount, c)}
+        ${_renderRefined(s.id, data.refined, data.summary || '', draftCount, c)}
 
         <!-- Draft history -->
         ${_renderHistory(s.id, data.history, c)}
@@ -533,15 +616,26 @@ function _attachPersonalListeners(panel, c) {
       const currentRefined  = _personalData[s.id].refined  || '';
       const currentHistory  = _personalData[s.id].history  || [];
 
-      const aiResult = await _refineWithAI(draft, currentRefined, currentHistory);
+      const [aiScene, aiSummary] = await Promise.all([
+        _refineWithAI(draft, currentRefined, currentHistory),
+        _refineWithAISummary(draft, _personalData[s.id].summary || '', currentHistory),
+      ]);
 
-      // Write back to _personalData by key — never through a cached reference
       _personalData[s.id].history = [...currentHistory, { text: draft, ts: Date.now() }];
-      _personalData[s.id].refined = aiResult || draft;
+      _personalData[s.id].refined = aiScene   || draft;
+      _personalData[s.id].summary = aiSummary || draft;
 
-      if (aiResult) _toast('Vision distilled ✦', c);
+      if (aiScene || aiSummary) _toast('Vision distilled ✦', c);
 
       await _savePersonal();
+      _paint();
+    });
+  });
+
+  // Scene / Summary mode toggle — personal
+  panel.querySelectorAll('.vision-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _viewMode[btn.dataset.section] = btn.dataset.mode;
       _paint();
     });
   });
@@ -562,6 +656,7 @@ function _attachPersonalListeners(panel, c) {
       if (!confirm('Clear your entire vision for this section?\n\nAll drafts and the refined vision will be permanently removed. You can undo this immediately after.')) return;
       _pushUndo(`Clear vision: ${sid}`);
       _personalData[sid].refined = '';
+      _personalData[sid].summary = '';
       _personalData[sid].history = [];
       await _savePersonal();
       _toast('Vision cleared — start fresh', c);
@@ -595,11 +690,13 @@ You can undo this.`)) return;
         await _savePersonal();
         _toast('Draft deleted — regenerating vision…', c);
         const combined = section.history.map((h, i) => `Draft ${i + 1}: "${h.text}"`).join('\n');
-        const aiResult = await _refineWithAI(combined, '', section.history);
-        if (aiResult) {
-          _personalData[sid].refined = aiResult;
-          await _savePersonal();
-        }
+        const [aiScene, aiSummary] = await Promise.all([
+          _refineWithAI('', '', section.history),
+          _refineWithAISummary('', '', section.history),
+        ]);
+        if (aiScene)   { _personalData[sid].refined = aiScene; }
+        if (aiSummary) { _personalData[sid].summary = aiSummary; }
+        if (aiScene || aiSummary) await _savePersonal();
         _paint();
       }
     });
@@ -625,7 +722,7 @@ function _renderBusiness(c) {
         🏆 1 Year From Now — Your Business
       </div>
 
-      ${_renderRefined(oneYear.refined, oyCount, c)}
+      ${_renderRefined('biz_oneyear', oneYear.refined, oneYear.summary || '', oyCount, c)}
 
       ${_renderHistory('biz_oneyear', oneYear.history, c)}
 
@@ -766,7 +863,7 @@ function _renderStep(step, index, c) {
       ${progressHtml}
 
       <!-- Refined vision for this step -->
-      ${_renderRefined(step.refined, draftCount, c)}
+      ${_renderRefined(step.id, step.refined, step.summary || '', draftCount, c)}
 
       <!-- Draft history -->
       ${_renderHistory(step.id, step.history, c)}
@@ -842,12 +939,16 @@ function _attachBusinessListeners(panel, c) {
     const currentRefined = _businessData.oneYear.refined  || '';
     const currentHistory = _businessData.oneYear.history  || [];
 
-    const aiResult = await _refineWithAI(draft, currentRefined, currentHistory);
+    const [aiScene, aiSummary] = await Promise.all([
+      _refineWithAI(draft, currentRefined, currentHistory),
+      _refineWithAISummary(draft, _businessData.oneYear.summary || '', currentHistory),
+    ]);
 
     _businessData.oneYear.history = [...currentHistory, { text: draft, ts: Date.now() }];
-    _businessData.oneYear.refined = aiResult || draft;
+    _businessData.oneYear.refined = aiScene   || draft;
+    _businessData.oneYear.summary = aiSummary || draft;
 
-    if (aiResult) _toast('Vision distilled ✦', c);
+    if (aiScene || aiSummary) _toast('Vision distilled ✦', c);
 
     await _saveBusiness();
     _paint();
@@ -940,14 +1041,26 @@ function _attachBusinessListeners(panel, c) {
       const currentRefined = _businessData.steps[idx].refined  || '';
       const currentHistory = _businessData.steps[idx].history  || [];
 
-      const aiResult = await _refineWithAI(draft, currentRefined, currentHistory);
+      const [aiScene, aiSummary] = await Promise.all([
+        _refineWithAI(draft, currentRefined, currentHistory),
+        _refineWithAISummary(draft, _businessData.steps[idx].summary || '', currentHistory),
+      ]);
 
       _businessData.steps[idx].history = [...currentHistory, { text: draft, ts: Date.now() }];
-      _businessData.steps[idx].refined = aiResult || draft;
+      _businessData.steps[idx].refined = aiScene   || draft;
+      _businessData.steps[idx].summary = aiSummary || draft;
 
-      if (aiResult) _toast('Vision distilled ✦', c);
+      if (aiScene || aiSummary) _toast('Vision distilled ✦', c);
 
       await _saveBusiness();
+      _paint();
+    });
+  });
+
+  // ── Scene / Summary mode toggle — business ──
+  panel.querySelectorAll('.vision-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _viewMode[btn.dataset.section] = btn.dataset.mode;
       _paint();
     });
   });
@@ -960,10 +1073,11 @@ function _attachBusinessListeners(panel, c) {
       _pushUndo(`Clear vision: ${sid}`);
       if (sid === 'biz_oneyear') {
         _businessData.oneYear.refined = '';
+        _businessData.oneYear.summary = '';
         _businessData.oneYear.history = [];
       } else {
         const stepIdx = _businessData.steps.findIndex(s => s.id === sid);
-        if (stepIdx !== -1) { _businessData.steps[stepIdx].refined = ''; _businessData.steps[stepIdx].history = []; }
+        if (stepIdx !== -1) { _businessData.steps[stepIdx].refined = ''; _businessData.steps[stepIdx].summary = ''; _businessData.steps[stepIdx].history = []; }
       }
       await _saveBusiness();
       _toast('Vision cleared — start fresh', c);
@@ -1000,8 +1114,13 @@ function _attachBusinessListeners(panel, c) {
         } else {
           _toast('Draft deleted — regenerating vision…', c);
           _paint();
-          const aiResult = await _refineWithAI('', '', _businessData.oneYear.history);
-          if (aiResult) { _businessData.oneYear.refined = aiResult; await _saveBusiness(); }
+          const [aiScene, aiSummary] = await Promise.all([
+            _refineWithAI('', '', _businessData.oneYear.history),
+            _refineWithAISummary('', '', _businessData.oneYear.history),
+          ]);
+          if (aiScene)   _businessData.oneYear.refined = aiScene;
+          if (aiSummary) _businessData.oneYear.summary = aiSummary;
+          if (aiScene || aiSummary) await _saveBusiness();
           _paint();
         }
       } else {
@@ -1022,8 +1141,13 @@ function _attachBusinessListeners(panel, c) {
         } else {
           _toast('Draft deleted — regenerating vision…', c);
           _paint();
-          const aiResult = await _refineWithAI('', '', _businessData.steps[stepIdx].history);
-          if (aiResult) { _businessData.steps[stepIdx].refined = aiResult; await _saveBusiness(); }
+          const [aiScene, aiSummary] = await Promise.all([
+            _refineWithAI('', '', _businessData.steps[stepIdx].history),
+            _refineWithAISummary('', '', _businessData.steps[stepIdx].history),
+          ]);
+          if (aiScene)   _businessData.steps[stepIdx].refined = aiScene;
+          if (aiSummary) _businessData.steps[stepIdx].summary = aiSummary;
+          if (aiScene || aiSummary) await _saveBusiness();
           _paint();
         }
       }
@@ -1038,6 +1162,7 @@ function _attachBusinessListeners(panel, c) {
       title:    'The next step is to...',
       locked:   false,
       refined:  '',
+      summary:  '',
       history:  [],
       deadline: '',
     };
