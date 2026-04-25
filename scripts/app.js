@@ -394,6 +394,11 @@ window.updateSetting = (field, value) => {
   updateSettings(field, stringFields.includes(field) ? value : parseFloat(value));
 };
 window.setCalorieWeekOffset = (offset) => { state.calorieWeekOffset = offset; render(); };
+window.changeHealthMonth = (delta) => {
+  if (state.healthMonthOffset === undefined) state.healthMonthOffset = 0;
+  state.healthMonthOffset = (state.healthMonthOffset || 0) + delta;
+  render();
+};
 window.logManualCalories = (dateStr, field) => {
   const input = document.getElementById(`cal-${field}-${dateStr}`);
   if (input) { const val = parseFloat(input.value) || 0; updateDayField(dateStr, field, val); }

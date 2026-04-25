@@ -393,10 +393,14 @@ export function renderProgressTab(deps) {
     <!-- ══ MONTHLY CALENDAR PROJECTION ══ -->
     ${(() => {
       const MN  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      if (state.healthMonthOffset === undefined) state.healthMonthOffset = 0;
+      const healthMonthOffset = state.healthMonthOffset || 0;
       const now = new Date(todayStr + 'T12:00:00');
-      const yr  = now.getFullYear();
-      const mo  = now.getMonth();
-      const moStr       = todayStr.slice(0, 7);
+      const displayDate = new Date(now.getFullYear(), now.getMonth() + healthMonthOffset, 1);
+      const yr  = displayDate.getFullYear();
+      const mo  = displayDate.getMonth();
+      const isCurrentMonth = healthMonthOffset === 0;
+      const moStr       = yr + '-' + String(mo + 1).padStart(2, '0');
       const daysInMonth = new Date(yr, mo + 1, 0).getDate();
       const monthLabel  = MN[mo].toUpperCase() + ' ' + yr;
 
@@ -612,7 +616,11 @@ export function renderProgressTab(deps) {
 
       return `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;margin-bottom:8px;">
-        <div class="section-title" style="margin-bottom:0;">${monthLabel}</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button onclick="changeHealthMonth(-1)" style="background:#1a2e42;border:1px solid #2a4a62;border-radius:8px;color:#C9A84C;font-size:16px;font-weight:900;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;line-height:1;">‹</button>
+          <div class="section-title" style="margin-bottom:0;min-width:80px;text-align:center;">${monthLabel}</div>
+          <button onclick="changeHealthMonth(1)" style="background:#1a2e42;border:1px solid #2a4a62;border-radius:8px;color:#C9A84C;font-size:16px;font-weight:900;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;line-height:1;">›</button>
+        </div>
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="text-align:right;">
             <div style="font-size:8px;font-weight:900;letter-spacing:1.5px;color:rgba(201,168,76,0.7);margin-bottom:3px;">TARGET PACE</div>
