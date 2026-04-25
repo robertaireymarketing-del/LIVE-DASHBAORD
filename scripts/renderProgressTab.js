@@ -416,6 +416,19 @@ export function renderProgressTab(deps) {
         day += 7;
       }
 
+      // For fully future months, project forward from today to the month's start
+      // so months chain correctly off each other rather than resetting to last real sync entry
+      const monthStartStr = yr + '-' + pad(mo+1) + '-01';
+      const isFullyFutureMonth = monthStartStr > todayStr;
+      let projectedMonthStartBF = currentBF;
+      let projectedMonthStartWt = currentWeight;
+      if (isFullyFutureMonth) {
+        const daysToMonthStart = (new Date(monthStartStr + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / 86400000;
+        const weeksToMonthStart = daysToMonthStart / 7;
+        projectedMonthStartBF = +(currentBF - bfLossRate * weeksToMonthStart).toFixed(2);
+        projectedMonthStartWt = +(currentWeight - currentWeight * bfLossRate / 100 * weeksToMonthStart).toFixed(1);
+      }
+
       const syncAll = [...(state.healthData || [])]
         .filter(h => h.date.startsWith(moStr))
         .sort((a, b) => a.date.localeCompare(b.date));
@@ -452,8 +465,8 @@ export function renderProgressTab(deps) {
           dispWt = wk.projEndWt;
         } else if (wk.isFuture) {
           const prev = weekData[idx - 1]; // use already-computed weekData, not weekDataRaw
-          const prevBF = prev?.dispBF ?? wk.prevWeekEntry?.bodyFat ?? currentBF;
-          const prevWt = prev?.dispWt ?? wk.prevWeekEntry?.weight  ?? currentWeight;
+          const prevBF = prev?.dispBF ?? (isFullyFutureMonth ? projectedMonthStartBF : (wk.prevWeekEntry?.bodyFat ?? currentBF));
+          const prevWt = prev?.dispWt ?? (isFullyFutureMonth ? projectedMonthStartWt : (wk.prevWeekEntry?.weight  ?? currentWeight));
           const fraction = wk.daysInWeek / 7;
           dispBF = +(prevBF - bfLossRate * fraction).toFixed(1);
           dispWt = +(prevWt - prevWt * bfLossRate / 100 * fraction).toFixed(1);
