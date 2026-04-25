@@ -442,28 +442,27 @@ export function renderProgressTab(deps) {
         return { ...wk, actual, isPast, isCurrent, isFuture, daysInWeek, projEndBF, projEndWt, locked, prevWeekEntry };
       });
 
-      // Pass 2 — chain future week projections off the previous week's projected end
-      const weekData = weekDataRaw.map((wk, idx) => {
+      // Pass 2 — iterative so each future week chains off the COMPUTED result of the prior week
+      const weekData = [];
+      for (let idx = 0; idx < weekDataRaw.length; idx++) {
+        const wk = weekDataRaw[idx];
         let dispBF, dispWt;
         if (wk.isCurrent) {
           dispBF = wk.projEndBF;
           dispWt = wk.projEndWt;
         } else if (wk.isFuture) {
-          // Find the closest prior week that has a projected or actual end value
-          const prev = weekDataRaw[idx - 1];
-          const prevBF = prev?.isCurrent ? prev.projEndBF : (prev?.actual?.bodyFat ?? prev?.projEndBF ?? currentBF);
-          const prevWt = prev?.isCurrent ? prev.projEndWt : (prev?.actual?.weight  ?? prev?.projEndWt ?? currentWeight);
-          // Apply only this week's proportional fraction of target pace
+          const prev = weekData[idx - 1]; // use already-computed weekData, not weekDataRaw
+          const prevBF = prev?.dispBF ?? wk.prevWeekEntry?.bodyFat ?? currentBF;
+          const prevWt = prev?.dispWt ?? wk.prevWeekEntry?.weight  ?? currentWeight;
           const fraction = wk.daysInWeek / 7;
           dispBF = +(prevBF - bfLossRate * fraction).toFixed(1);
           dispWt = +(prevWt - prevWt * bfLossRate / 100 * fraction).toFixed(1);
         } else {
-          // Past or locked
           dispBF = wk.actual?.bodyFat != null ? +wk.actual.bodyFat.toFixed(1) : null;
           dispWt = wk.actual?.weight  != null ? +wk.actual.weight.toFixed(1)  : null;
         }
-        return { ...wk, dispBF, dispWt };
-      });
+        weekData.push({ ...wk, dispBF, dispWt });
+      }
 
       // YOU ARE HERE block — inserted before the current week
       const youAreHereStatusEl = (() => {
