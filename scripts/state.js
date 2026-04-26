@@ -68,4 +68,6 @@ export const state = {
   taskDeleteConfirm: null,  // { fk, ti, text } — set when user taps remove on a draft task
   reminderDeleteConfirm: null,  // { id, source: 'active' | 'archived' } — set when user taps ✕ on a reminder
   remindersArchiveOpen: false,
+  reminderEditing: null,        // id of reminder currently being edited
+  reminderEditDraft: {},        // { text, deadline } draft while editing
 };

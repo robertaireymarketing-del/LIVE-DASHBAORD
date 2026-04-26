@@ -541,6 +541,65 @@ window.updateReminderDeadlineDisplay = (val) => {
   }
 };
 
+window.editReminder = (id) => {
+  const rem = (state.data.reminders || []).find(r => r.id === id);
+  if (!rem) return;
+  state.reminderEditing = id;
+  state.reminderEditDraft = { text: rem.text, deadline: rem.deadline || '' };
+  render();
+};
+window.saveReminderEdit = (id) => {
+  const textEl = document.getElementById(`reminder-edit-text-${id}`);
+  const deadlineEl = document.getElementById(`reminder-edit-deadline-${id}`);
+  const text = textEl?.value?.trim();
+  if (!text) return;
+  state.data.reminders = (state.data.reminders || []).map(r =>
+    r.id === id ? { ...r, text, deadline: deadlineEl?.value || null } : r
+  );
+  state.reminderEditing = null;
+  state.reminderEditDraft = {};
+  saveData();
+};
+window.cancelReminderEdit = () => { state.reminderEditing = null; state.reminderEditDraft = {}; render(); };
+window.updateReminderEditDeadlineDisplay = (id, val) => {
+  const el = document.getElementById(`reminder-edit-deadline-display-${id}`);
+  if (!el) return;
+  if (val) {
+    const dt = new Date(val + 'T00:00:00');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const ord = n => n + (n%10===1&&n!==11?'st':n%10===2&&n!==12?'nd':n%10===3&&n!==13?'rd':'th');
+    el.textContent = '📅 ' + ord(dt.getDate()) + ' ' + months[dt.getMonth()] + ' ' + dt.getFullYear();
+    el.style.color = '#8B6914';
+  } else {
+    el.textContent = '📅 Set deadline (optional)';
+    el.style.color = '#9aaabf';
+  }
+};
+window.addReminderToPlanner = (id) => {
+  const rem = (state.data.reminders || []).find(r => r.id === id);
+  if (!rem) return;
+  const weekKey = getWeekKey(new Date());
+  const dayKey = getTodayDayKey();
+  if (!state.data.weekPlans) state.data.weekPlans = {};
+  if (!state.data.weekPlans[weekKey]) state.data.weekPlans[weekKey] = {};
+  if (!state.data.weekPlans[weekKey]['_other']) state.data.weekPlans[weekKey]['_other'] = {};
+  const existing = state.data.weekPlans[weekKey]['_other'][dayKey];
+  const tasks = Array.isArray(existing) ? existing : (existing ? [existing] : []);
+  if (tasks.some(t => (typeof t === 'object' ? t.text : t) === rem.text)) {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#f39c12;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;white-space:nowrap;';
+    el.textContent = 'Already in today\'s planner';
+    document.body.appendChild(el); setTimeout(() => el.remove(), 2000);
+    return;
+  }
+  state.data.weekPlans[weekKey]['_other'][dayKey] = [...tasks, { text: rem.text }];
+  saveData();
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#2ecc71;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;white-space:nowrap;';
+  el.textContent = '✓ Added to today\'s planner!';
+  document.body.appendChild(el); setTimeout(() => el.remove(), 2000);
+};
+
 // ── Auth listener ──────────────────────────────────────────────────────────
 window.state = state;
 onAuthStateChanged(auth, async (user) => {
