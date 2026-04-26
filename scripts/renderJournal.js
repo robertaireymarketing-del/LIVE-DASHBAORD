@@ -48,13 +48,14 @@ export function renderJournalTab() {
             return s;
           }
           const fields = [
-            { key: 'gym',       label: 'GYM' },
-            { key: 'retention', label: 'RETENTION' },
-            { key: 'meditation',label: 'MEDITATION' },
+            { key: 'gym',       label: 'GYM',       emoji: '🏋️' },
+            { key: 'retention', label: 'RETENTION',  emoji: '🩸' },
+            { key: 'meditation',label: 'MEDITATION', emoji: '🧘' },
           ];
           return `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px;">
             ${fields.map(f => `
             <div onclick="toggleToday('${f.key}')" class="${todayData[f.key]?'jd-card-active':'jd-card-inactive'}" style="border-radius:16px;padding:16px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all 0.2s;border:2px solid;">
+              <span style="font-size:28px;line-height:1;">${f.emoji}</span>
               <span class="jd-icon" style="font-size:24px;font-weight:900;color:${todayData[f.key]?'#ffffff':'#C8D6E5'}!important;">${todayData[f.key]?'✓':'○'}</span>
               <span style="font-size:11px;font-weight:900;letter-spacing:1px;color:${todayData[f.key]?'#ffffff':'#0A1628'}!important;">${f.label}</span>
               <span class="jd-streak" style="font-size:10px;font-weight:700;color:${todayData[f.key]?'#ffffff':'#7b92aa'}!important;">${streak(f.key)} day streak</span>

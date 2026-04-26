@@ -613,8 +613,7 @@ ${renderInputCard('sales', 'SALES', todayData.sales, 'number', 'sales')}
 ${renderInputCard('revenue', 'REVENUE (£)', todayData.revenue, 'number', '£')}
 ${renderInputCard('dmsSent', 'DMs SENT', todayData.dmsSent, 'number', 'DMs')}
 ${renderInputCard('warmLeads', 'WARM LEADS', todayData.warmLeads, 'number', 'leads')}
-</div>
-<button class="panic-trigger" onclick="openPanic()"><span>🆘</span> PANIC BUTTON</button>`;
+</div>`;
 
 // ── Objectives Modal ───────────────────────────────────────────────────
 const activeObjTab = state.objModalTab || 'weekly';
