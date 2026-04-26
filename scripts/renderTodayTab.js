@@ -815,6 +815,8 @@ body.light .obj-month-calendar-meta--empty { color: #AAB4C4 !important; }
 body.light .fronts-empty-state { color: rgba(10,22,40,0.35) !important; }
 body.light .btn-blue-active { background: #1D4ED8 !important; color: #ffffff !important; border-color: #1D4ED8 !important; }
 body.light .btn-blue-active * { color: #ffffff !important; }
+body.light .obj-status-banner { color: #ffffff !important; }
+body.light .obj-status-banner * { color: #ffffff !important; }
 </style>`;
 
 // ── Objectives group (monthly + weekly) with collapse toggle ──────────
@@ -882,8 +884,8 @@ const objectivesGroupSection = `
           return `
           <div class="month-obj-card${obj.done?' month-obj-card-done':''}" style="background:#ffffff;border:1.5px solid ${obj.review?.outcome === 'completed' ? '#2ecc71' : obj.review?.outcome === 'uncompleted' ? '#e74c3c' : catColor+'55'};border-radius:14px;overflow:hidden;margin-bottom:8px;">
             ${obj.review?.outcome ? `
-            <div style="background:${obj.review.outcome === 'completed' ? '#1A5C3A' : '#c0392b'};padding:10px 16px;display:flex;align-items:center;gap:8px;">
-              <span style="font-size:16px;font-weight:900;color:#ffffff;letter-spacing:0.5px;">${obj.review.outcome === 'completed' ? '✓ COMPLETED' : '✗ NOT COMPLETED'}</span>
+            <div class="obj-status-banner" style="background:${obj.review.outcome === 'completed' ? '#1A5C3A' : '#c0392b'};padding:10px 16px;display:flex;align-items:center;gap:8px;">
+              <span style="font-size:16px;font-weight:900;letter-spacing:0.5px;">${obj.review.outcome === 'completed' ? '✓ COMPLETED' : '✗ NOT COMPLETED'}</span>
             </div>` : ''}
             <div style="padding:14px 16px;border-left:3px solid ${obj.review?.outcome === 'completed' ? '#2ecc71' : obj.review?.outcome === 'uncompleted' ? '#e74c3c' : catColor};">
             <div onclick="openObjReview('${objectiveMonthKey}',${objIdx})" style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
@@ -935,6 +937,51 @@ const objectivesGroupSection = `
           </div>`;
         }).join('')}</div>
       ` : `<div style="text-align:center;padding:10px 0 6px;color:rgba(255,255,255,0.2);font-size:13px;font-style:italic;">No objectives with a deadline in ${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})}</div>`}
+      ${(() => {
+        // Pull completed tasks from planner localStorage for this month
+        let wkAll = {};
+        try { wkAll = JSON.parse(localStorage.getItem('weekly_state')||'{}'); } catch {}
+        const completedTasks = [];
+        Object.entries(wkAll).forEach(([wkKey, ws]) => {
+          const m = wkKey.match(/^(\d{4})-W(\d+)$/);
+          if (!m) return;
+          const yr = parseInt(m[1]), wn = parseInt(m[2]);
+          // Calculate Monday of this ISO week
+          const jan4 = new Date(yr, 0, 4);
+          const mon = new Date(jan4);
+          mon.setDate(jan4.getDate() - ((jan4.getDay()+6)%7) + (wn-1)*7);
+          (ws.days||[]).forEach((dayData, di) => {
+            const dt = new Date(mon); dt.setDate(mon.getDate()+di);
+            const iso = dt.toISOString().slice(0,10);
+            if (!iso.startsWith(objectiveMonthKey)) return;
+            (dayData.tasks||[]).filter(t=>t.done).forEach(t => {
+              completedTasks.push({ name: t.name, iso, label: dt.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}) });
+            });
+          });
+        });
+        completedTasks.sort((a,b)=>a.iso.localeCompare(b.iso));
+        if (!completedTasks.length) return '';
+        const open = state.completedTasksOpen !== false;
+        return `
+        <div style="margin-top:16px;">
+          <div onclick="toggleCompletedTasks()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:#ffffff;border:1.5px solid rgba(46,204,113,0.4);border-radius:${open?'14px 14px 0 0':'14px'};">
+            <div>
+              <div style="font-size:19px;font-weight:900;color:#1A5C3A;">✓ What I Got Done</div>
+              <div style="font-size:12px;color:#7b92aa;margin-top:2px;font-weight:600;">${completedTasks.length} task${completedTasks.length!==1?'s':''} completed in ${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})}</div>
+            </div>
+            <span style="font-size:20px;color:#2ecc71;font-weight:900;">${open?'▲':'▼'}</span>
+          </div>
+          ${open ? `
+          <div style="background:#ffffff;border:1.5px solid rgba(46,204,113,0.4);border-top:none;border-radius:0 0 14px 14px;overflow:hidden;">
+            ${completedTasks.map(t=>`
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #E8EEF5;">
+              <div style="width:8px;height:8px;border-radius:50%;background:#2ecc71;flex-shrink:0;margin-top:2px;"></div>
+              <div style="flex:1;font-size:14px;font-weight:700;color:#0A1628;line-height:1.3;">${t.name}</div>
+              <div style="font-size:11px;color:#7b92aa;font-weight:700;flex-shrink:0;">${t.label}</div>
+            </div>`).join('')}
+          </div>` : ''}
+        </div>`;
+      })()}
       ${weekObjs.length > 0 ? `
         <div style="font-size:10px;font-weight:900;letter-spacing:1.4px;color:rgba(100,163,214,0.7);margin-bottom:8px;margin-top:${monthObjs.length > 0 ? '6px' : '4px'};">THIS WEEK</div>
         <div style="margin-bottom:8px;">${weekObjs.map((obj, i) => {

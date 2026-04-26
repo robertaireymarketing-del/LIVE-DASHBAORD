@@ -677,6 +677,8 @@ window.deleteChecklistItem = (remId, itemIdx) => {
   saveData();
 };
 
+window.toggleCompletedTasks = () => { state.completedTasksOpen = !state.completedTasksOpen; render(); };
+
 // ── Monthly Objective Review ───────────────────────────────────────────────
 window.openObjReview = (monthKey, idx) => {
   if (state.objReviewing?.monthKey === monthKey && state.objReviewing?.idx === idx) {
