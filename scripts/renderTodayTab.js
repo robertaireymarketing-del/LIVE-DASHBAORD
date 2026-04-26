@@ -972,20 +972,19 @@ const objectivesGroupSection = `
           });
         });
         completedTasks.sort((a,b)=>a.iso.localeCompare(b.iso));
-        if (!completedTasks.length) return '';
         const open = state.completedTasksOpen !== false;
         return `
         <div style="margin-top:16px;">
           <div onclick="toggleCompletedTasks()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:#ffffff;border:1.5px solid rgba(46,204,113,0.4);border-radius:${open?'14px 14px 0 0':'14px'};">
             <div>
               <div style="font-size:19px;font-weight:900;color:#1A5C3A;">✓ What I Got Done</div>
-              <div style="font-size:12px;color:#7b92aa;margin-top:2px;font-weight:600;">${completedTasks.length} item${completedTasks.length!==1?'s':''} in ${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})}</div>
+              <div style="font-size:12px;color:#7b92aa;margin-top:2px;font-weight:600;">${completedTasks.length ? `${completedTasks.length} item${completedTasks.length!==1?'s':''} in ${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})}` : `Nothing logged yet for ${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})}`}</div>
             </div>
             <span style="font-size:20px;color:#2ecc71;font-weight:900;">${open?'▲':'▼'}</span>
           </div>
           ${open ? `
           <div style="background:#ffffff;border:1.5px solid rgba(46,204,113,0.4);border-top:none;border-radius:0 0 14px 14px;overflow:hidden;">
-            ${completedTasks.map(t=>`
+            ${completedTasks.length === 0 ? `<div style="padding:16px 20px;text-align:center;color:#9aaabf;font-size:13px;font-style:italic;">Nothing marked as done in the planner or wins log yet</div>` : completedTasks.map(t=>`
             <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #E8EEF5;border-left:3px solid ${t.type==='win'?'#C9A84C':t.hex};">
               <span style="font-size:${t.type==='win'?'16':'14'}px;color:${t.type==='win'?'#C9A84C':t.hex};flex-shrink:0;">${t.type==='win'?'★':'✓'}</span>
               <div style="flex:1;font-size:14px;font-weight:700;color:#0A1628;line-height:1.3;">${t.name}</div>
