@@ -1041,7 +1041,7 @@ const remindersSection = `
           </div>`).join('')}
           <div style="display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #E8EEF5;">
             <input id="checklist-add-${r.id}" class="batch-editor-input" placeholder="Add item..." style="flex:1;background:#fff;border:1.5px solid #C8D6E5;color:#0A1628;font-size:14px;margin:0;" onkeydown="if(event.key==='Enter')addChecklistItem('${r.id}')">
-            <button onclick="addChecklistItem('${r.id}')" style="background:#0A1628;border:2px solid #0A1628;border-radius:10px;padding:10px 16px;color:#fff;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">+ Add</button>
+            <button onclick="addChecklistItem('${r.id}')" style="background:#1D4ED8;border:2px solid #1D4ED8;border-radius:10px;padding:10px 16px;color:#ffffff;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">+ Add</button>
           </div>
         </div>` : ''}
       </div>`;
@@ -1063,8 +1063,8 @@ const remindersSection = `
   }).join('')}
   <div style="padding:14px 16px;background:#F8FAFC;border-top:1.5px solid #E8EEF5;">
     <div style="display:flex;gap:8px;margin-bottom:10px;">
-      <button onclick="toggleNewReminderType('reminder')" style="flex:1;padding:9px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;background:${state.newReminderType!=='checklist'?'#0A1628':'#F0F4FA'};border:2px solid ${state.newReminderType!=='checklist'?'#0A1628':'#C8D6E5'};color:${state.newReminderType!=='checklist'?'#ffffff':'#516176'};">📝 Reminder</button>
-      <button onclick="toggleNewReminderType('checklist')" style="flex:1;padding:9px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;background:${state.newReminderType==='checklist'?'#0A1628':'#F0F4FA'};border:2px solid ${state.newReminderType==='checklist'?'#0A1628':'#C8D6E5'};color:${state.newReminderType==='checklist'?'#ffffff':'#516176'};">📋 Checklist</button>
+      <button onclick="toggleNewReminderType('reminder')" style="flex:1;padding:9px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;background:${state.newReminderType!=='checklist'?'#1D4ED8':'#F0F4FA'};border:2px solid ${state.newReminderType!=='checklist'?'#1D4ED8':'#C8D6E5'};color:${state.newReminderType!=='checklist'?'#ffffff':'#516176'};">📝 Reminder</button>
+      <button onclick="toggleNewReminderType('checklist')" style="flex:1;padding:9px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;background:${state.newReminderType==='checklist'?'#1D4ED8':'#F0F4FA'};border:2px solid ${state.newReminderType==='checklist'?'#1D4ED8':'#C8D6E5'};color:${state.newReminderType==='checklist'?'#ffffff':'#516176'};">📋 Checklist</button>
     </div>
     <input class="batch-editor-input" id="new-reminder-text" placeholder="${state.newReminderType==='checklist'?'Checklist name (e.g. Shopping List)...':'New reminder...'}" style="margin-bottom:10px;background:#fff;border:1.5px solid #C8D6E5;color:#0A1628;font-size:15px;" onkeydown="if(event.key==='Enter')addReminder()">
     <div style="display:flex;gap:8px;align-items:center;">
