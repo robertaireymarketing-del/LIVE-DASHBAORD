@@ -861,18 +861,24 @@ const objectivesGroupSection = `
           const hasReview = !!obj.review?.outcome;
           const reviewColor = obj.review?.outcome === 'completed' ? '#2ecc71' : '#e74c3c';
           const reviewBg   = obj.review?.outcome === 'completed' ? 'rgba(46,204,113,0.08)' : 'rgba(231,76,60,0.08)';
+          // Checkbox icon: green tick if completed review, red cross if uncompleted review, else normal
+          const checkIcon  = obj.review?.outcome === 'completed' ? '✓' : obj.review?.outcome === 'uncompleted' ? '✕' : obj.done ? '✓' : '';
+          const checkBorder = obj.review?.outcome === 'completed' ? '#2ecc71' : obj.review?.outcome === 'uncompleted' ? '#e74c3c' : catColor;
+          const checkBg    = obj.review?.outcome === 'completed' ? 'rgba(46,204,113,0.15)' : obj.review?.outcome === 'uncompleted' ? 'rgba(231,76,60,0.1)' : '#F0F6FF';
+          const checkColor  = obj.review?.outcome === 'completed' ? '#2ecc71' : obj.review?.outcome === 'uncompleted' ? '#e74c3c' : catColor;
           let deadlineHtml = '';
           if (obj.deadline) {
             const dl = new Date(obj.deadline + 'T00:00:00');
             const nowD = new Date(); nowD.setHours(0,0,0,0);
             const daysLeft = Math.ceil((dl - nowD) / 86400000);
-            const isOverdue = daysLeft < 0 && !obj.done;
-            deadlineHtml = `<span style="font-size:10px;font-weight:700;color:${isOverdue?'#e74c3c':obj.done?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.35)'};${isOverdue?'background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.3);border-radius:20px;padding:2px 8px;':''}margin-left:4px;">${isOverdue?'⚠ OVERDUE · ':''}${fmtDeadlineShort(obj.deadline)}</span>`;
+            // Only show overdue warning if no review has been set yet
+            const isOverdue = daysLeft < 0 && !hasReview;
+            deadlineHtml = `<span style="font-size:10px;font-weight:700;color:${isOverdue?'#e74c3c':'#7b92aa'};${isOverdue?'background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.3);border-radius:20px;padding:2px 8px;':''}margin-left:4px;">${isOverdue?'⚠ OVERDUE · ':''}${fmtDeadlineShort(obj.deadline)}</span>`;
           }
           return `
           <div class="month-obj-card${obj.done?' month-obj-card-done':''}" style="background:#ffffff;border:1.5px solid ${obj.done?'#2ecc71':catColor+'55'};border-radius:14px;padding:14px 16px;margin-bottom:8px;border-left:3px solid ${obj.done?'#2ecc71':catColor};">
             <div onclick="openObjReview('${objectiveMonthKey}',${objIdx})" style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
-              <div style="width:22px;height:22px;flex-shrink:0;margin-top:1px;border-radius:6px;border:2px solid ${obj.done?'#2ecc71':catColor};background:${obj.done?'rgba(46,204,113,0.15)':'#F0F6FF'};color:${obj.done?'#2ecc71':catColor};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</div>
+              <div style="width:22px;height:22px;flex-shrink:0;margin-top:1px;border-radius:6px;border:2px solid ${checkBorder};background:${checkBg};color:${checkColor};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${checkIcon}</div>
               <div style="flex:1;min-width:0;">
                 <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
                   <span style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${catColor};">${catLabel.toUpperCase()}</span>
@@ -887,10 +893,11 @@ const objectivesGroupSection = `
                   </div>
                   <span style="font-size:12px;font-weight:900;color:${catColor};min-width:36px;text-align:right;">${progress.pct}%</span>
                 </div>` : ''}
-                ${hasReview && obj.review.response && !isReviewing ? `
+                ${hasReview && !isReviewing ? `
                 <div style="margin-top:8px;padding:8px 10px;background:${reviewBg};border-radius:8px;border-left:3px solid ${reviewColor};">
-                  <div style="font-size:11px;font-weight:700;color:${reviewColor};margin-bottom:2px;">${obj.review.outcome === 'completed' ? '✓ Completed' : '✗ Not completed'}</div>
-                  <div style="font-size:12px;color:${reviewColor};line-height:1.4;font-style:italic;">"${obj.review.response}"</div>
+                  <div style="font-size:11px;font-weight:700;color:${reviewColor};margin-bottom:4px;">${obj.review.outcome === 'completed' ? '✓ Completed' : '✗ Not completed'}</div>
+                  ${obj.review.response ? `<div style="font-size:12px;color:${reviewColor};line-height:1.4;font-style:italic;margin-bottom:${obj.review.lessons?'6px':'0'};">"${obj.review.response}"</div>` : ''}
+                  ${obj.review.lessons ? `<div style="font-size:11px;color:${reviewColor};opacity:0.8;line-height:1.4;font-style:italic;border-top:1px solid ${reviewColor}22;padding-top:5px;margin-top:2px;">💡 ${obj.review.lessons}</div>` : ''}
                 </div>` : ''}
               </div>
               <div style="font-size:18px;color:#C8D6E5;flex-shrink:0;margin-top:2px;">${isReviewing?'▲':'▼'}</div>
