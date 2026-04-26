@@ -29,6 +29,30 @@ export function renderJournalTab() {
 
     <div class="journal-home">
       <div class="journal-launch-grid">
+        ${(() => {
+          const days = window.state?.data?.days || {};
+          const sorted = Object.keys(days).sort().reverse();
+          const today = new Date().toISOString().slice(0,10);
+          const todayData = days[today] || {};
+          function streak(field) {
+            let s = 0;
+            for (const d of sorted) { if (days[d]?.[field]) s++; else break; }
+            return s;
+          }
+          const fields = [
+            { key: 'gym',       label: 'GYM' },
+            { key: 'retention', label: 'RETENTION' },
+            { key: 'meditation',label: 'MEDITATION' },
+          ];
+          return `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px;">
+            ${fields.map(f => `
+            <div onclick="toggleToday('${f.key}')" style="background:${todayData[f.key]?'rgba(26,92,58,0.55)':'rgba(255,255,255,0.04)'};border:1.5px solid ${todayData[f.key]?'rgba(46,204,113,0.5)':'rgba(255,255,255,0.1)'};border-radius:16px;padding:16px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all 0.2s;">
+              <span style="font-size:24px;color:${todayData[f.key]?'#4fffaa':'rgba(255,255,255,0.2)'};">${todayData[f.key]?'✓':'○'}</span>
+              <span style="font-size:11px;font-weight:800;letter-spacing:1px;color:${todayData[f.key]?'#fff':'rgba(255,255,255,0.5)'};">${f.label}</span>
+              <span style="font-size:10px;color:${todayData[f.key]?'rgba(255,255,255,0.65)':'rgba(255,255,255,0.25)'};">${streak(f.key)} day streak</span>
+            </div>`).join('')}
+          </div>`;
+        })()}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
           <button class="journal-launch-btn" id="journalOpenMorningBtn">Morning Journal<small>Open readiness, identity, mission, and priorities</small></button>
           <button class="journal-launch-btn" id="journalOpenEveningBtn">Evening Reflection<small>Open execution, reflection, and reset for tomorrow</small></button>
