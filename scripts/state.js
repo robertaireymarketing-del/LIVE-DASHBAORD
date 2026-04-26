@@ -74,4 +74,6 @@ export const state = {
   frontTaskEditing: null,       // { key, oldText, taskIdx }
   objReviewing: null,           // { monthKey, idx } — objective currently open for review
   objReviewDraft: {},           // { outcome, response, lessons }
+  reminderExpanded: null,       // id of expanded checklist reminder
+  newReminderType: 'reminder',  // 'reminder' | 'checklist'
 };

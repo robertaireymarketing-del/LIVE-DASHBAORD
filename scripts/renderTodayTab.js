@@ -885,7 +885,7 @@ const objectivesGroupSection = `
                   ${deadlineHtml}
                   ${obj.done?`<span style="font-size:9px;font-weight:800;color:#2ecc71;background:rgba(46,204,113,0.15);padding:2px 7px;border-radius:20px;margin-left:2px;">DONE</span>`:''}
                 </div>
-                <div style="font-size:16px;font-weight:800;color:${obj.done?'#9aaabf':'#0A1628'};${obj.done?'text-decoration:line-through;':''}line-height:1.3;">${obj.text}</div>
+                <div style="font-size:16px;font-weight:800;color:${titleColor};${titleStrike}line-height:1.3;">${obj.text}</div>
                 ${progress ? `
                 <div style="display:flex;align-items:center;gap:8px;margin-top:9px;">
                   <div style="flex:1;height:5px;background:#E8EEF5;border-radius:3px;overflow:hidden;">
@@ -893,7 +893,9 @@ const objectivesGroupSection = `
                   </div>
                   <span style="font-size:12px;font-weight:900;color:${catColor};min-width:36px;text-align:right;">${progress.pct}%</span>
                 </div>` : ''}
-                ${hasReview && !isReviewing ? `
+                const titleColor = obj.review?.outcome === 'uncompleted' ? '#e74c3c' : obj.done ? '#9aaabf' : '#0A1628';
+                const titleStrike = (obj.done || obj.review?.outcome === 'uncompleted') ? 'text-decoration:line-through;' : '';
+                
                 <div style="margin-top:8px;padding:8px 10px;background:${reviewBg};border-radius:8px;border-left:3px solid ${reviewColor};">
                   <div style="font-size:11px;font-weight:700;color:${reviewColor};margin-bottom:4px;">${obj.review.outcome === 'completed' ? '✓ Completed' : '✗ Not completed'}</div>
                   ${obj.review.response ? `<div style="font-size:12px;color:${reviewColor};line-height:1.4;font-style:italic;margin-bottom:${obj.review.lessons?'6px':'0'};">"${obj.review.response}"</div>` : ''}
@@ -996,24 +998,61 @@ const remindersSection = `
       ? (rIsToday ? '📅 Due today' : rIsOverdue ? `⚠ Overdue · ${fmtDeadlineShort(r.deadline)}` : fmtDeadlineShort(r.deadline))
       : '';
     const isEditing = state.reminderEditing === r.id;
-    return isEditing ? `
+    const isChecklist = r.type === 'checklist';
+    const isExpanded = state.reminderExpanded === r.id;
+
+    if (isEditing) return `
     <div style="padding:14px 16px;border-bottom:1px solid #E8EEF5;background:#F0F6FF;">
       <input class="batch-editor-input" id="reminder-edit-text-${r.id}" value="${r.text.replace(/"/g,'&quot;')}" style="margin-bottom:10px;background:#fff;border:1.5px solid #aac0d8;color:#0A1628;font-size:15px;">
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
-        <div style="flex:1;position:relative;cursor:pointer;" onclick="document.getElementById('reminder-edit-deadline-${r.id}').showPicker&&document.getElementById('reminder-edit-deadline-${r.id}').showPicker()">
-          <input type="date" id="reminder-edit-deadline-${r.id}" value="${r.deadline||''}" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;" onchange="updateReminderEditDeadlineDisplay('${r.id}',this.value)">
-          <div id="reminder-edit-deadline-display-${r.id}" style="padding:10px 14px;background:#fff;border:1.5px solid #aac0d8;border-radius:8px;font-size:13px;color:${r.deadline?'#8B6914':'#9aaabf'};font-weight:${r.deadline?'700':'400'};pointer-events:none;">${r.deadline?'📅 '+fmtDeadlineShort(r.deadline):'📅 Set deadline (optional)'}</div>
-        </div>
+      <div style="position:relative;margin-bottom:10px;" onclick="document.getElementById('reminder-edit-deadline-${r.id}').showPicker&&document.getElementById('reminder-edit-deadline-${r.id}').showPicker()">
+        <input type="date" id="reminder-edit-deadline-${r.id}" value="${r.deadline||''}" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;" onchange="updateReminderEditDeadlineDisplay('${r.id}',this.value)">
+        <div id="reminder-edit-deadline-display-${r.id}" style="padding:10px 14px;background:#fff;border:1.5px solid #aac0d8;border-radius:8px;font-size:13px;color:${r.deadline?'#8B6914':'#9aaabf'};font-weight:${r.deadline?'700':'400'};pointer-events:none;">${r.deadline?'📅 '+fmtDeadlineShort(r.deadline):'📅 Set deadline (optional)'}</div>
       </div>
       <div style="display:flex;gap:8px;">
         <button onclick="saveReminderEdit('${r.id}')" style="flex:1;background:#1D4ED8;border:2px solid #1D4ED8;border-radius:10px;padding:11px;color:#ffffff;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;letter-spacing:0.3px;">Save</button>
         <button onclick="cancelReminderEdit()" style="background:#E8EEF5;border:1.5px solid #D0DAE8;border-radius:10px;padding:11px 18px;color:#516176;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
       </div>
-    </div>` : `
+    </div>`;
+
+    if (isChecklist) {
+      const items = r.items || [];
+      const doneCount = items.filter(it => it.done).length;
+      return `
+      <div style="border-bottom:1px solid #E8EEF5;${r.done?'opacity:0.48;':''}">
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:15px;font-weight:700;color:#0A1628;line-height:1.3;">📋 ${r.text}</div>
+            <div style="font-size:11px;color:#7b92aa;margin-top:2px;font-weight:700;">${doneCount}/${items.length} items${doneCount===items.length&&items.length>0?' · All done ✓':''}</div>
+            ${deadlineLabel ? `<div style="font-size:11px;font-weight:700;color:${deadlineColor};margin-top:3px;">${deadlineLabel}</div>` : ''}
+          </div>
+          <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;">
+            <button onclick="toggleReminderExpand('${r.id}')" style="background:#EEF5FF;border:1.5px solid #C5D8EE;border-radius:8px;padding:6px 12px;color:#3B82F6;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">${isExpanded?'▲':'▼'}</button>
+            <button onclick="editReminder('${r.id}')" style="width:28px;height:28px;background:#F0F6FF;border:1.5px solid #C5D8EE;border-radius:7px;color:#516176;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✎</button>
+            <button onclick="deleteReminder('${r.id}')" style="width:28px;height:28px;background:#FFF0F0;border:1.5px solid #FFCDD2;border-radius:7px;color:#e74c3c;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+          </div>
+        </div>
+        ${isExpanded ? `
+        <div style="padding:0 16px 14px;">
+          ${items.length === 0 ? `<div style="font-size:13px;color:#9aaabf;font-style:italic;padding:4px 0 10px;">No items yet — add one below</div>` : ''}
+          ${items.map((it, itemIdx) => `
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #F0F4FA;">
+            <button onclick="toggleChecklistItem('${r.id}',${itemIdx})" style="width:22px;height:22px;flex-shrink:0;border-radius:6px;border:2px solid ${it.done?'#2ecc71':'#C8D6E5'};background:${it.done?'rgba(46,204,113,0.15)':'#fff'};color:${it.done?'#2ecc71':'transparent'};font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${it.done?'✓':''}</button>
+            <span style="flex:1;font-size:14px;font-weight:600;color:${it.done?'#9aaabf':'#0A1628'};${it.done?'text-decoration:line-through;':''}line-height:1.3;">${it.text}</span>
+            <button onclick="deleteChecklistItem('${r.id}',${itemIdx})" style="width:24px;height:24px;flex-shrink:0;background:#FFF0F0;border:1.5px solid #FFCDD2;border-radius:6px;color:#e74c3c;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+          </div>`).join('')}
+          <div style="display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #E8EEF5;">
+            <input id="checklist-add-${r.id}" class="batch-editor-input" placeholder="Add item..." style="flex:1;background:#fff;border:1.5px solid #C8D6E5;color:#0A1628;font-size:14px;margin:0;" onkeydown="if(event.key==='Enter')addChecklistItem('${r.id}')">
+            <button onclick="addChecklistItem('${r.id}')" style="background:#0A1628;border:2px solid #0A1628;border-radius:10px;padding:10px 16px;color:#fff;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">+ Add</button>
+          </div>
+        </div>` : ''}
+      </div>`;
+    }
+
+    return `
     <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid #E8EEF5;${r.done ? 'opacity:0.48;' : ''}">
-      <button onclick="toggleReminder('${r.id}')" style="width:24px;height:24px;flex-shrink:0;border-radius:7px;border:2px solid ${r.done ? '#2ecc71' : '#aac0d8'};background:${r.done ? 'rgba(46,204,113,0.15)' : '#fff'};color:${r.done ? '#2ecc71' : 'transparent'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${r.done ? '✓' : ''}</button>
+      <button onclick="toggleReminder('${r.id}')" style="width:24px;height:24px;flex-shrink:0;border-radius:7px;border:2px solid ${r.done?'#2ecc71':'#aac0d8'};background:${r.done?'rgba(46,204,113,0.15)':'#fff'};color:${r.done?'#2ecc71':'transparent'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${r.done?'✓':''}</button>
       <div style="flex:1;min-width:0;">
-        <div style="font-size:15px;font-weight:700;color:${r.done ? '#9aaabf' : '#0A1628'};${r.done ? 'text-decoration:line-through;' : ''}line-height:1.3;">${r.text}</div>
+        <div style="font-size:15px;font-weight:700;color:${r.done?'#9aaabf':'#0A1628'};${r.done?'text-decoration:line-through;':''}line-height:1.3;">${r.text}</div>
         ${deadlineLabel ? `<div style="font-size:11px;font-weight:700;color:${deadlineColor};margin-top:3px;">${deadlineLabel}</div>` : ''}
       </div>
       <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;">
@@ -1024,7 +1063,11 @@ const remindersSection = `
     </div>`;
   }).join('')}
   <div style="padding:14px 16px;background:#F8FAFC;border-top:1.5px solid #E8EEF5;">
-    <input class="batch-editor-input" id="new-reminder-text" placeholder="New reminder..." style="margin-bottom:10px;background:#fff;border:1.5px solid #C8D6E5;color:#0A1628;font-size:15px;" onkeydown="if(event.key==='Enter')addReminder()">
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button onclick="toggleNewReminderType('reminder')" style="flex:1;padding:9px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;background:${state.newReminderType!=='checklist'?'#0A1628':'#F0F4FA'};border:2px solid ${state.newReminderType!=='checklist'?'#0A1628':'#C8D6E5'};color:${state.newReminderType!=='checklist'?'#ffffff':'#516176'};">📝 Reminder</button>
+      <button onclick="toggleNewReminderType('checklist')" style="flex:1;padding:9px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;background:${state.newReminderType==='checklist'?'#0A1628':'#F0F4FA'};border:2px solid ${state.newReminderType==='checklist'?'#0A1628':'#C8D6E5'};color:${state.newReminderType==='checklist'?'#ffffff':'#516176'};">📋 Checklist</button>
+    </div>
+    <input class="batch-editor-input" id="new-reminder-text" placeholder="${state.newReminderType==='checklist'?'Checklist name (e.g. Shopping List)...':'New reminder...'}" style="margin-bottom:10px;background:#fff;border:1.5px solid #C8D6E5;color:#0A1628;font-size:15px;" onkeydown="if(event.key==='Enter')addReminder()">
     <div style="display:flex;gap:8px;align-items:center;">
       <div style="flex:1;position:relative;cursor:pointer;" onclick="document.getElementById('new-reminder-deadline').showPicker&&document.getElementById('new-reminder-deadline').showPicker()">
         <input type="date" id="new-reminder-deadline" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;" onchange="updateReminderDeadlineDisplay(this.value)">

@@ -499,15 +499,18 @@ window.addReminder = () => {
   const deadlineEl = document.getElementById('new-reminder-deadline');
   const text = textEl?.value?.trim();
   if (!text) { textEl?.focus(); return; }
+  const isChecklist = state.newReminderType === 'checklist';
   const reminder = {
     id: 'rem_' + Date.now(),
     text,
     deadline: deadlineEl?.value || null,
     done: false,
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    ...(isChecklist ? { type: 'checklist', items: [] } : {})
   };
   if (!state.data.reminders) state.data.reminders = [];
   state.data.reminders = [reminder, ...state.data.reminders];
+  state.newReminderType = 'reminder';
   saveData();
 };
 window.toggleReminder = (id) => {
@@ -641,6 +644,37 @@ window.togglePlannerTask = (weekKey, dayIdx, taskIdx) => {
   all[weekKey].days[dayIdx].tasks[taskIdx] = { ...task, done: !task.done };
   localStorage.setItem('weekly_state', JSON.stringify(all));
   render();
+};
+
+window.toggleNewReminderType = (type) => { state.newReminderType = type; render(); };
+window.toggleReminderExpand  = (id) => { state.reminderExpanded = state.reminderExpanded === id ? null : id; render(); };
+window.addChecklistItem = (id) => {
+  const input = document.getElementById(`checklist-add-${id}`);
+  const text = input?.value?.trim();
+  if (!text) return;
+  state.data.reminders = (state.data.reminders || []).map(r => {
+    if (r.id !== id) return r;
+    const items = [...(r.items || []), { id: 'ci_' + Date.now(), text, done: false }];
+    return { ...r, items };
+  });
+  saveData();
+};
+window.toggleChecklistItem = (remId, itemIdx) => {
+  state.data.reminders = (state.data.reminders || []).map(r => {
+    if (r.id !== remId) return r;
+    const items = (r.items || []).map((it, i) => i === itemIdx ? { ...it, done: !it.done } : it);
+    const done = items.length > 0 && items.every(it => it.done);
+    return { ...r, items, done };
+  });
+  saveData();
+};
+window.deleteChecklistItem = (remId, itemIdx) => {
+  state.data.reminders = (state.data.reminders || []).map(r => {
+    if (r.id !== remId) return r;
+    const items = (r.items || []).filter((_, i) => i !== itemIdx);
+    return { ...r, items };
+  });
+  saveData();
 };
 
 // ── Monthly Objective Review ───────────────────────────────────────────────
