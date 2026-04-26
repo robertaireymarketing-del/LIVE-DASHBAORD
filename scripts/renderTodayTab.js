@@ -835,15 +835,15 @@ const objectivesGroupSection = `
   </div>
   ${objectivesVisible ? `
     ${planMyObjBanner}
-    ${hasAnyObjectives ? `
-      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px;margin-top:4px;">
-        <button onclick="shiftObjectivesPeriod(-1)" style="width:36px;height:36px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:10px;color:#fff;font-size:18px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;">←</button>
-        <div style="text-align:center;">
-          <div style="font-size:22px;font-weight:900;color:#fff;letter-spacing:0.5px;line-height:1.1;">${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})} Objectives</div>
-          <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1px;">${objectiveBaseDate.getFullYear()}</div>
-        </div>
-        <button onclick="shiftObjectivesPeriod(1)" style="width:36px;height:36px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:10px;color:#fff;font-size:18px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;">→</button>
+    <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px;margin-top:4px;">
+      <button onclick="shiftObjectivesPeriod(-1)" style="width:36px;height:36px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:10px;color:#fff;font-size:18px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;">←</button>
+      <div style="text-align:center;">
+        <div style="font-size:22px;font-weight:900;color:#fff;letter-spacing:0.5px;line-height:1.1;">${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})} Objectives</div>
+        <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1px;">${objectiveBaseDate.getFullYear()}</div>
       </div>
+      <button onclick="shiftObjectivesPeriod(1)" style="width:36px;height:36px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:10px;color:#fff;font-size:18px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;">→</button>
+    </div>
+    ${hasAnyObjectives ? `
       ${navMonthObjs.length > 0 ? `
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <div class="month-obj-progress-track" style="flex:1;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
