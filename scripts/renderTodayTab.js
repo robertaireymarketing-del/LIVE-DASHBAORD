@@ -291,94 +291,47 @@ ${weekObjs.map((obj, i) => {
 }).join('')}
 </div>` : '';
 
-// ── Today's Fronts ─────────────────────────────────────────────────────
-const DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
-const todayDayKey = getTodayDayKey();
-const allTodayTasks = [];
-
-['tjm','vinted','notts','_other'].forEach(key => {
-  const f = fronts[key] || { name: key === '_other' ? 'Other' : key, weekPlans: {} };
-  const plan = f.weekPlans?.[weekKey] || {};
-  const tasks = plan[todayDayKey] || [];
-  const tasksArr = Array.isArray(tasks) ? tasks : (tasks ? [tasks] : []);
-  const displayName = key === '_other' ? 'Other' : f.name;
-  const taskHex = FRONT_COLOURS[key] || '#C9A84C';
-  tasksArr.forEach((task, taskIdx) => {
-    if (typeof task === 'object' && task.reminderTask) return;
-    const taskText = typeof task === 'object' ? task.text : task;
-    const startTime = typeof task === 'object' ? (task.start||'') : '';
-    const endTime = typeof task === 'object' ? (task.end||'') : '';
-    let duration = '';
-    if (startTime && endTime) {
-      const [sh,sm]=startTime.split(':').map(Number);
-      const [eh,em]=endTime.split(':').map(Number);
-      const mins=(eh*60+em)-(sh*60+sm);
-      if(mins>0) duration=(Math.floor(mins/60)?Math.floor(mins/60)+'h ':'')+(mins%60?mins%60+'m':'');
-    }
-    if (taskText) allTodayTasks.push({ type:'manual', key, name: displayName, task: taskText, startTime, endTime, duration, hex: taskHex, taskIdx });
-  });
-});
-
-(state.data.dayBatchPlan?.[weekKey]?.[todayDayKey]?._batch || []).forEach((s, si) => {
-  const hex = BATCH_COLOURS.find(c=>c.id===(s.colourId||'gold'))?.hex || '#C9A84C';
-  const mins = s.timeBlock||30;
-  const dur = mins<60?mins+'m':Math.floor(mins/60)+'h'+(mins%60?mins%60+'m':'');
-  const batchObj = (state.data.tjmBatches||[]).find(b=>b.id===s.batchId);
-  const stepDeadline = batchObj?.steps?.[s.stepIdx]?.deadline || '';
-  allTodayTasks.push({ type:'batch', key:s.batchId, name:s.batchName, task:s.stepName, startTime:s.startTime||'', endTime:'', duration:dur, hex, batchStepIdx:si, done:s.done||false, stepDeadline });
-});
-
-(state.data.dayBatchPlan?.[weekKey]?.[todayDayKey]?._streams || []).forEach((s, si) => {
-  let duration = '';
-  if(s.start&&s.end){const [sh,sm]=s.start.split(':').map(Number);const [eh,em]=s.end.split(':').map(Number);const mins=(eh*60+em)-(sh*60+sm);if(mins>0)duration=(Math.floor(mins/60)?Math.floor(mins/60)+'h ':'')+(mins%60?mins%60+'m':'');}
-  allTodayTasks.push({ type:'stream', key:'_stream_'+si, name:'Livestream', task:s.topic||'Livestream', startTime:s.start||'', endTime:s.end||'', duration, hex:'#3498db', streamIdx:si });
-});
-
+// ── Today's Plan (reads from planner localStorage) ────────────────────────
+const planDayIdx = (now.getDay() + 6) % 7;
+const planMon = new Date(now); planMon.setHours(0,0,0,0);
+planMon.setDate(now.getDate() - (now.getDay()===0 ? 6 : now.getDay()-1));
+const planU = new Date(Date.UTC(planMon.getFullYear(), planMon.getMonth(), planMon.getDate()));
+planU.setUTCDate(planU.getUTCDate() + 4 - (planU.getUTCDay()||7));
+const planY1 = new Date(Date.UTC(planU.getUTCFullYear(),0,1));
+const planWn = Math.ceil((((planU-planY1)/86400000)+1)/7);
+const planWkKey = planMon.getFullYear()+'-W'+String(planWn).padStart(2,'0');
+let planTasks = [];
+try { const wkAll = JSON.parse(localStorage.getItem('weekly_state')||'{}'); planTasks = wkAll[planWkKey]?.days?.[planDayIdx]?.tasks || []; } catch {}
+const planAmTasks = planTasks.map((t,i)=>({t,i})).filter(({t})=>(t.period||'am')==='am');
+const planPmTasks = planTasks.map((t,i)=>({t,i})).filter(({t})=>t.period==='pm');
+function renderPlanTask(t, i) {
+  const done = !!t.done;
+  return `
+  <div style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid rgba(255,255,255,0.06);${done?'opacity:0.5;':''}">
+    <button onclick="togglePlannerTask('${planWkKey}',${planDayIdx},${i})" style="width:24px;height:24px;flex-shrink:0;border-radius:7px;border:2px solid ${done?'rgba(46,204,113,0.7)':'rgba(255,255,255,0.28)'};background:${done?'rgba(46,204,113,0.2)':'transparent'};color:${done?'#2ecc71':'transparent'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${done?'✓':''}</button>
+    <div style="flex:1;font-size:15px;font-weight:700;color:${done?'rgba(255,255,255,0.4)':'#fff'};${done?'text-decoration:line-through;':''}line-height:1.3;">${t.name}</div>
+    ${t.rolledOver?`<span style="font-size:10px;color:rgba(255,255,255,0.3);flex-shrink:0;font-weight:700;">↩ rolled</span>`:''}
+  </div>`;
+}
 const frontsSection = `
-<div class="cc-section-title">Today's Fronts</div>
-${allTodayTasks.length === 0
-  ? `<div class="fronts-empty-state" style="text-align:center;padding:16px 0;color:rgba(255,255,255,0.2);font-size:13px;font-style:italic;">Nothing scheduled for today yet — plan your week via the objectives menu above</div>`
-  : allTodayTasks.map(item => {
-    const isDone = item.type==='batch' ? item.done : ((state.data.frontsDone||{})[getToday()]?.[item.key+':'+item.task]||false);
-    const hex = item.hex;
-    const isEditingThisTask = item.type === 'manual' && state.frontTaskEditing?.key === item.key && state.frontTaskEditing?.oldText === item.task;
-    return `
-    <div style="border:1.5px solid ${isDone?'#1A5C3A':hex+'44'};background:${isDone?'rgba(26,92,58,0.85)':'transparent'};border-radius:12px;padding:14px 16px;margin-bottom:8px;border-left:3px solid ${isDone?'#2ecc71':hex};">
-    ${isEditingThisTask ? `
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${hex};margin-bottom:2px;">${item.name.toUpperCase()}</div>
-      <input id="front-task-edit-input" class="batch-editor-input" value="${item.task.replace(/"/g,'&quot;')}" style="font-size:15px;font-weight:700;">
-      <div style="display:flex;gap:8px;">
-        <button onclick="saveFrontTaskEdit('${item.key}','${item.task.replace(/'/g,"\\'")}',${item.taskIdx})" style="flex:1;background:#0A1628;border:2px solid #0A1628;border-radius:10px;padding:10px;color:#ffffff;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;">Save</button>
-        <button onclick="cancelFrontTaskEdit()" style="background:#E8EEF5;border:1.5px solid #D0DAE8;border-radius:10px;padding:10px 18px;color:#516176;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
-      </div>
-    </div>` : `
-    <div style="display:flex;align-items:flex-start;gap:12px;">
-    <button onclick="${item.type==='batch'?`toggleBatchStepDoneToday('${item.key}',${item.batchStepIdx})`:`toggleFrontDone('${item.key+':'+item.task}')`}" style="width:30px;height:30px;flex-shrink:0;margin-top:2px;border-radius:8px;border:2px solid ${isDone?'rgba(46,204,113,0.7)':hex+'88'};background:${isDone?'rgba(46,204,113,0.2)':'transparent'};color:${isDone?'#2ecc71':hex};font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">${isDone?'✓':''}</button>
-    <div style="flex:1;min-width:0;">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-    <span style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${hex};">${item.type==='stream'?'LIVESTREAM':item.name.toUpperCase()}</span>
-    ${isDone?`<span style="font-size:9px;font-weight:800;color:#2ecc71;background:rgba(46,204,113,0.15);padding:2px 7px;border-radius:20px;">DONE</span>`:''}
-    </div>
-    <div style="font-size:16px;font-weight:700;color:${isDone?'rgba(255,255,255,0.85)':'#fff'};${isDone?'text-decoration:line-through;':''}line-height:1.3;">${item.task}</div>
-    ${item.startTime ? `<div style="font-size:22px;font-weight:900;color:${isDone?'rgba(255,255,255,0.25)':hex};margin-top:6px;letter-spacing:-0.5px;">${item.startTime}${item.endTime?`<span style="font-size:16px;font-weight:600;opacity:0.6;"> → ${item.endTime}</span>`:''} ${item.duration?`<span style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.35);">· ${item.duration}</span>`:''}</div>` : item.duration ? `<div style="font-size:13px;color:rgba(255,255,255,0.35);margin-top:4px;font-weight:700;">⏱ ${item.duration}</div>` : ''}
-    ${item.stepDeadline && !isDone ? (() => {
-      const dl = new Date(item.stepDeadline); dl.setHours(0,0,0,0);
-      const nw = new Date(); nw.setHours(0,0,0,0);
-      const daysLeft = Math.ceil((dl-nw)/86400000);
-      const colour = daysLeft<=1?'#e74c3c':daysLeft<=3?'#e67e22':daysLeft<=7?'#f1c40f':'rgba(255,255,255,0.35)';
-      const label = daysLeft<0?'OVERDUE':daysLeft===0?'DUE TODAY':daysLeft===1?'DUE TOMORROW':`${daysLeft}d`;
-      return `<div style="display:inline-flex;align-items:center;gap:4px;margin-top:5px;background:${daysLeft<=1?'rgba(231,76,60,0.15)':daysLeft<=3?'rgba(230,126,34,0.12)':'rgba(255,255,255,0.05)'};border:1px solid ${colour}55;border-radius:20px;padding:3px 10px;"><span style="font-size:11px;font-weight:900;color:${colour};letter-spacing:0.5px;">${label}</span></div>`;
-    })() : ''}
-    </div>
-    ${item.type === 'manual' ? `
-    <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0;margin-top:2px;">
-      <button onclick="editFrontTask('${item.key}','${item.task.replace(/'/g,"\\'")}',${item.taskIdx})" style="width:28px;height:28px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:7px;color:rgba(255,255,255,0.6);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✎</button>
-      <button onclick="deleteFrontTask('${item.key}','${item.task.replace(/'/g,"\\'")}',${item.taskIdx})" style="width:28px;height:28px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.55);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
-    </div>` : ''}
-    </div>`}
-    </div>`;
-  }).join('')}`;
+<div class="cc-section-title">Today's Plan</div>
+<div class="cc-card" style="padding:0;overflow:hidden;margin-bottom:4px;">
+  ${planTasks.length === 0 ? `
+    <div style="padding:18px 20px;text-align:center;color:rgba(255,255,255,0.22);font-size:13px;font-style:italic;">Nothing planned for today — add tasks in the Planner tab</div>
+  ` : `
+    ${planAmTasks.length > 0 ? `
+      <div style="padding:10px 16px 4px;font-size:10px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.4);">AM</div>
+      ${planAmTasks.map(({t,i}) => renderPlanTask(t,i)).join('')}
+    ` : ''}
+    ${planPmTasks.length > 0 ? `
+      <div style="padding:10px 16px 4px;font-size:10px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.4);">PM</div>
+      ${planPmTasks.map(({t,i}) => renderPlanTask(t,i)).join('')}
+    ` : ''}
+    ${planAmTasks.length === 0 && planPmTasks.length === 0 ? `
+      <div style="padding:18px 20px;text-align:center;color:rgba(255,255,255,0.22);font-size:13px;font-style:italic;">Nothing planned for today — add tasks in the Planner tab</div>
+    ` : ''}
+  `}
+</div>`;
 
 // ── Active Batches ─────────────────────────────────────────────────────
 const PROJECT_LABELS = { tjm: 'TJM', vinted: 'Vinted', notts: 'Nottingham', other: 'Other' };
@@ -878,7 +831,14 @@ const objectivesGroupSection = `
     ${planMyObjBanner}
     ${hasAnyObjectives ? `
       ${monthObjs.length > 0 ? `
-        <div style="font-size:10px;font-weight:900;letter-spacing:1.4px;color:rgba(255,255,255,0.35);margin-bottom:8px;margin-top:4px;">MONTHLY</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px;margin-top:4px;">
+          <button onclick="shiftObjectivesPeriod(-1)" style="width:36px;height:36px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:10px;color:#fff;font-size:18px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;">←</button>
+          <div style="text-align:center;">
+            <div style="font-size:22px;font-weight:900;color:#fff;letter-spacing:0.5px;line-height:1.1;">${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})}</div>
+            <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1px;">${objectiveBaseDate.getFullYear()}</div>
+          </div>
+          <button onclick="shiftObjectivesPeriod(1)" style="width:36px;height:36px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:10px;color:#fff;font-size:18px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;">→</button>
+        </div>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <div class="month-obj-progress-track" style="flex:1;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
             <div style="height:100%;width:${monthOverallPct}%;background:linear-gradient(90deg,#C9A84C,#e8c96a);border-radius:3px;transition:width 0.4s;"></div>

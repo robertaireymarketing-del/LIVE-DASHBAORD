@@ -633,6 +633,16 @@ window.addReminderToPlanner = (id) => {
   document.body.appendChild(el); setTimeout(()=>el.remove(),2000);
 };
 
+window.togglePlannerTask = (weekKey, dayIdx, taskIdx) => {
+  let all = {};
+  try { all = JSON.parse(localStorage.getItem('weekly_state')||'{}'); } catch {}
+  const task = all[weekKey]?.days?.[dayIdx]?.tasks?.[taskIdx];
+  if (!task) return;
+  all[weekKey].days[dayIdx].tasks[taskIdx] = { ...task, done: !task.done };
+  localStorage.setItem('weekly_state', JSON.stringify(all));
+  render();
+};
+
 // ── Today's Fronts — edit & delete ────────────────────────────────────────
 window.deleteFrontTask = (key, taskText, taskIdx) => {
   state.frontTaskDeleteConfirm = { key, taskText, taskIdx };
