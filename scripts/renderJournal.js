@@ -28,6 +28,14 @@ export function renderJournalTab() {
     </div>
 
     <div class="journal-home">
+      <style>
+        .jd-card-active span { color: #ffffff !important; font-weight: 800 !important; }
+        .jd-card-active { background: #1A5C3A !important; border-color: #2ecc71 !important; }
+        .jd-card-inactive { background: #ffffff !important; border-color: #C8D6E5 !important; }
+        .jd-card-inactive span { color: #0A1628 !important; }
+        .jd-card-inactive .jd-streak { color: #7b92aa !important; }
+        .jd-card-inactive .jd-icon { color: #C8D6E5 !important; }
+      </style>
       <div class="journal-launch-grid">
         ${(() => {
           const days = window.state?.data?.days || {};
@@ -46,10 +54,10 @@ export function renderJournalTab() {
           ];
           return `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px;">
             ${fields.map(f => `
-            <div onclick="toggleToday('${f.key}')" style="background:${todayData[f.key]?'#1A5C3A':'#FFFFFF'};border:2px solid ${todayData[f.key]?'#2ecc71':'#C8D6E5'};border-radius:16px;padding:16px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all 0.2s;">
-              <span style="font-size:24px;color:${todayData[f.key]?'#ffffff':'#9aaabf'};">${todayData[f.key]?'✓':'○'}</span>
-              <span style="font-size:11px;font-weight:800;letter-spacing:1px;color:${todayData[f.key]?'#ffffff':'#0A1628'};">${f.label}</span>
-              <span style="font-size:10px;font-weight:700;color:${todayData[f.key]?'rgba(255,255,255,0.8)':'#7b92aa'};">${streak(f.key)} day streak</span>
+            <div onclick="toggleToday('${f.key}')" class="${todayData[f.key]?'jd-card-active':'jd-card-inactive'}" style="border-radius:16px;padding:16px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all 0.2s;border:2px solid;">
+              <span class="jd-icon" style="font-size:24px;font-weight:900;color:${todayData[f.key]?'#ffffff':'#C8D6E5'}!important;">${todayData[f.key]?'✓':'○'}</span>
+              <span style="font-size:11px;font-weight:900;letter-spacing:1px;color:${todayData[f.key]?'#ffffff':'#0A1628'}!important;">${f.label}</span>
+              <span class="jd-streak" style="font-size:10px;font-weight:700;color:${todayData[f.key]?'#ffffff':'#7b92aa'}!important;">${streak(f.key)} day streak</span>
             </div>`).join('')}
           </div>`;
         })()}
