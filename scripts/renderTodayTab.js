@@ -307,9 +307,9 @@ const planPmTasks = planTasks.map((t,i)=>({t,i})).filter(({t})=>t.period==='pm')
 function renderPlanTask(t, i) {
   const done = !!t.done;
   return `
-  <div style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid rgba(255,255,255,0.06);${done?'opacity:0.5;':''}">
-    <button onclick="togglePlannerTask('${planWkKey}',${planDayIdx},${i})" style="width:24px;height:24px;flex-shrink:0;border-radius:7px;border:2px solid ${done?'rgba(46,204,113,0.7)':'rgba(255,255,255,0.28)'};background:${done?'rgba(46,204,113,0.2)':'transparent'};color:${done?'#2ecc71':'transparent'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${done?'✓':''}</button>
-    <div style="flex:1;font-size:15px;font-weight:700;color:${done?'rgba(255,255,255,0.4)':'#fff'};${done?'text-decoration:line-through;':''}line-height:1.3;">${t.name}</div>
+  <div style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid #E8EEF5;${done?'opacity:0.5;':''}">
+    <button onclick="togglePlannerTask('${planWkKey}',${planDayIdx},${i})" style="width:24px;height:24px;flex-shrink:0;border-radius:7px;border:2px solid ${done?'#2ecc71':'#C8D6E5'};background:${done?'rgba(46,204,113,0.2)':'#ffffff'};color:${done?'#2ecc71':'transparent'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${done?'✓':''}</button>
+    <div style="flex:1;font-size:15px;font-weight:700;color:${done?'#9aaabf':'#0A1628'};${done?'text-decoration:line-through;':''}line-height:1.3;">${t.name}</div>
     ${t.rolledOver?`<span style="font-size:10px;color:rgba(255,255,255,0.3);flex-shrink:0;font-weight:700;">↩ rolled</span>`:''}
   </div>`;
 }
@@ -320,11 +320,11 @@ const frontsSection = `
     <div style="padding:18px 20px;text-align:center;color:rgba(255,255,255,0.22);font-size:13px;font-style:italic;">Nothing planned for today — add tasks in the Planner tab</div>
   ` : `
     ${planAmTasks.length > 0 ? `
-      <div style="padding:10px 16px 4px;font-size:10px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.4);">AM</div>
+      <div style="padding:10px 16px 4px;font-size:10px;font-weight:900;letter-spacing:2px;color:#7b92aa;">AM</div>
       ${planAmTasks.map(({t,i}) => renderPlanTask(t,i)).join('')}
     ` : ''}
     ${planPmTasks.length > 0 ? `
-      <div style="padding:10px 16px 4px;font-size:10px;font-weight:900;letter-spacing:2px;color:rgba(255,255,255,0.4);">PM</div>
+      <div style="padding:10px 16px 4px;font-size:10px;font-weight:900;letter-spacing:2px;color:#7b92aa;">PM</div>
       ${planPmTasks.map(({t,i}) => renderPlanTask(t,i)).join('')}
     ` : ''}
     ${planAmTasks.length === 0 && planPmTasks.length === 0 ? `
@@ -817,7 +817,13 @@ body.light .fronts-empty-state { color: rgba(10,22,40,0.35) !important; }
 
 // ── Objectives group (monthly + weekly) with collapse toggle ──────────
 const objectivesVisible = state.objectivesCollapsed !== true;
-const hasAnyObjectives = monthObjs.length > 0 || weekObjs.length > 0;
+// Only show objectives whose deadline falls within the currently viewed month
+const navMonthObjs = (state.data.monthObjectives?.[objectiveMonthKey] || []).filter(obj =>
+  obj.deadline && obj.deadline.startsWith(objectiveMonthKey)
+);
+const navMonthDoneCount = navMonthObjs.filter(o => o.done).length;
+const navMonthOverallPct = navMonthObjs.length > 0 ? Math.round((navMonthDoneCount / navMonthObjs.length) * 100) : 0;
+const hasAnyObjectives = navMonthObjs.length > 0 || weekObjs.length > 0;
 const objectivesGroupSection = `
 <div style="margin-bottom:4px;">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${objectivesVisible ? '10px' : '4px'};">
@@ -830,22 +836,22 @@ const objectivesGroupSection = `
   ${objectivesVisible ? `
     ${planMyObjBanner}
     ${hasAnyObjectives ? `
-      ${monthObjs.length > 0 ? `
-        <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px;margin-top:4px;">
-          <button onclick="shiftObjectivesPeriod(-1)" style="width:36px;height:36px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:10px;color:#fff;font-size:18px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;">←</button>
-          <div style="text-align:center;">
-            <div style="font-size:22px;font-weight:900;color:#fff;letter-spacing:0.5px;line-height:1.1;">${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})}</div>
-            <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1px;">${objectiveBaseDate.getFullYear()}</div>
-          </div>
-          <button onclick="shiftObjectivesPeriod(1)" style="width:36px;height:36px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:10px;color:#fff;font-size:18px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;">→</button>
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px;margin-top:4px;">
+        <button onclick="shiftObjectivesPeriod(-1)" style="width:36px;height:36px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:10px;color:#fff;font-size:18px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;">←</button>
+        <div style="text-align:center;">
+          <div style="font-size:22px;font-weight:900;color:#fff;letter-spacing:0.5px;line-height:1.1;">${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})} Objectives</div>
+          <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1px;">${objectiveBaseDate.getFullYear()}</div>
         </div>
+        <button onclick="shiftObjectivesPeriod(1)" style="width:36px;height:36px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:10px;color:#fff;font-size:18px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;">→</button>
+      </div>
+      ${navMonthObjs.length > 0 ? `
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <div class="month-obj-progress-track" style="flex:1;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
-            <div style="height:100%;width:${monthOverallPct}%;background:linear-gradient(90deg,#C9A84C,#e8c96a);border-radius:3px;transition:width 0.4s;"></div>
+            <div style="height:100%;width:${navMonthOverallPct}%;background:linear-gradient(90deg,#C9A84C,#e8c96a);border-radius:3px;transition:width 0.4s;"></div>
           </div>
-          <span class="month-obj-score" style="font-size:12px;font-weight:900;color:#C9A84C;min-width:40px;text-align:right;">${monthDoneCount}/${monthObjs.length}</span>
+          <span class="month-obj-score" style="font-size:12px;font-weight:900;color:#C9A84C;min-width:40px;text-align:right;">${navMonthDoneCount}/${navMonthObjs.length}</span>
         </div>
-        <div style="margin-bottom:10px;">${monthObjs.map((obj, i) => {
+        <div style="margin-bottom:10px;">${navMonthObjs.map((obj, i) => {
           const catLabel = obj.categoryCustom || MONTH_CAT_LABELS[obj.category] || 'Personal';
           const catColor = MONTH_CAT_COLOURS[obj.category] || '#C9A84C';
           const progress = getMonthObjProgress(obj.id);
@@ -857,8 +863,9 @@ const objectivesGroupSection = `
             const isOverdue = daysLeft < 0 && !obj.done;
             deadlineHtml = `<span class="month-obj-deadline${isOverdue?' month-obj-deadline-overdue':''}" style="font-size:10px;font-weight:700;color:${isOverdue?'#e74c3c':obj.done?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.35)'};${isOverdue?'background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.3);border-radius:20px;padding:2px 8px;':''}margin-left:4px;">${isOverdue?'⚠ OVERDUE · ':''}${fmtDeadlineShort(obj.deadline)}</span>`;
           }
+          const objIdx = (state.data.monthObjectives?.[objectiveMonthKey] || []).findIndex(o => o.id === obj.id);
           return `
-          <div onclick="toggleMonthObj('${monthKey}',${i})" class="month-obj-card${obj.done?' month-obj-card-done':''}" style="border:1.5px solid ${obj.done?'rgba(46,204,113,0.35)':catColor+'33'};background:${obj.done?'rgba(26,92,58,0.55)':'rgba(255,255,255,0.02)'};border-radius:14px;padding:14px 16px;margin-bottom:8px;border-left:3px solid ${obj.done?'#2ecc71':catColor};cursor:pointer;transition:all 0.2s;">
+          <div onclick="toggleMonthObj('${objectiveMonthKey}',${objIdx})" class="month-obj-card${obj.done?' month-obj-card-done':''}" style="border:1.5px solid ${obj.done?'rgba(46,204,113,0.35)':catColor+'33'};background:${obj.done?'rgba(26,92,58,0.55)':'rgba(255,255,255,0.02)'};border-radius:14px;padding:14px 16px;margin-bottom:8px;border-left:3px solid ${obj.done?'#2ecc71':catColor};cursor:pointer;transition:all 0.2s;">
             <div style="display:flex;align-items:flex-start;gap:12px;">
               <div style="width:22px;height:22px;flex-shrink:0;margin-top:1px;border-radius:6px;border:2px solid ${obj.done?'rgba(46,204,113,0.7)':catColor+'88'};background:${obj.done?'rgba(46,204,113,0.2)':'transparent'};color:${obj.done?'#2ecc71':catColor};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</div>
               <div style="flex:1;min-width:0;">
@@ -879,7 +886,7 @@ const objectivesGroupSection = `
             </div>
           </div>`;
         }).join('')}</div>
-      ` : ''}
+      ` : `<div style="text-align:center;padding:10px 0 6px;color:rgba(255,255,255,0.2);font-size:13px;font-style:italic;">No objectives with a deadline in ${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})}</div>`}
       ${weekObjs.length > 0 ? `
         <div style="font-size:10px;font-weight:900;letter-spacing:1.4px;color:rgba(100,163,214,0.7);margin-bottom:8px;margin-top:${monthObjs.length > 0 ? '6px' : '4px'};">THIS WEEK</div>
         <div style="margin-bottom:8px;">${weekObjs.map((obj, i) => {
@@ -1009,7 +1016,7 @@ ${remindersArchived.length > 0 ? `
 </div>` : ''}`;
 
 // ── ORDER: Due-Today Banner → Habits → Reminders → Today's Fronts → Objectives (collapsible) → Batches (collapsible) ──
-return injectedCSS + dueTodayBanner + remindersSection + frontsSection + objectivesGroupSection + batchesGroupSection + `
+return injectedCSS + dueTodayBanner + frontsSection + remindersSection + objectivesGroupSection + batchesGroupSection + `
 <div style="margin-top:16px;margin-bottom:8px;">
 <button onclick="openPastDays()" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:14px;color:rgba(255,255,255,0.5);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
 📅 Review Previous Days
