@@ -813,8 +813,8 @@ body.light .obj-month-calendar-day { color: #0A1628 !important; }
 body.light .obj-month-calendar-meta { color: #5B6B82 !important; }
 body.light .obj-month-calendar-meta--empty { color: #AAB4C4 !important; }
 body.light .fronts-empty-state { color: rgba(10,22,40,0.35) !important; }
-button[style*="background:#1D4ED8"] { color: #ffffff !important; }
-button[style*="background: #1D4ED8"] { color: #ffffff !important; }
+.btn-blue-active { background: #1D4ED8 !important; color: #ffffff !important; border-color: #1D4ED8 !important; }
+.btn-blue-active * { color: #ffffff !important; }
 </style>`;
 
 // ── Objectives group (monthly + weekly) with collapse toggle ──────────
@@ -981,7 +981,7 @@ const dueTodayBanner = urgentReminders.length > 0 ? `
       <div style="font-size:16px;font-weight:800;color:#0A1628;line-height:1.3;">${r.text}</div>
       ${isOverdue ? `<div style="font-size:11px;font-weight:800;color:#1D4ED8;margin-top:2px;">⚠ Overdue · ${fmtDeadlineShort(r.deadline)}</div>` : `<div style="font-size:11px;font-weight:700;color:#2563EB;margin-top:2px;">Due today</div>`}
     </div>
-    <button onclick="toggleReminder('${r.id}')" style="background:#1D4ED8;border:none;border-radius:10px;padding:9px 16px;color:#fff;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">✓ Done</button>
+    <button onclick="toggleReminder('${r.id}')" class="btn-blue-active" style="background:#1D4ED8;border:none;border-radius:10px;padding:9px 16px;color:#ffffff;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">✓ Done</button>
   </div>`;
   }).join('')}
 </div>` : '';
@@ -1065,8 +1065,8 @@ const remindersSection = `
   }).join('')}
   <div style="padding:14px 16px;background:#F8FAFC;border-top:1.5px solid #E8EEF5;">
     <div style="display:flex;gap:8px;margin-bottom:10px;">
-      <button onclick="toggleNewReminderType('reminder')" style="flex:1;padding:9px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;background:${state.newReminderType!=='checklist'?'#1D4ED8':'#F0F4FA'};border:2px solid ${state.newReminderType!=='checklist'?'#1D4ED8':'#C8D6E5'};color:${state.newReminderType!=='checklist'?'#ffffff':'#516176'};">📝 Reminder</button>
-      <button onclick="toggleNewReminderType('checklist')" style="flex:1;padding:9px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;background:${state.newReminderType==='checklist'?'#1D4ED8':'#F0F4FA'};border:2px solid ${state.newReminderType==='checklist'?'#1D4ED8':'#C8D6E5'};color:${state.newReminderType==='checklist'?'#ffffff':'#516176'};">📋 Checklist</button>
+      <button onclick="toggleNewReminderType('reminder')" class="${state.newReminderType!=='checklist'?'btn-blue-active':''}" style="flex:1;padding:9px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;background:${state.newReminderType!=='checklist'?'#1D4ED8':'#F0F4FA'};border:2px solid ${state.newReminderType!=='checklist'?'#1D4ED8':'#C8D6E5'};color:${state.newReminderType!=='checklist'?'#ffffff':'#516176'};">📝 Reminder</button>
+      <button onclick="toggleNewReminderType('checklist')" class="${state.newReminderType==='checklist'?'btn-blue-active':''}" style="flex:1;padding:9px;border-radius:9px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;background:${state.newReminderType==='checklist'?'#1D4ED8':'#F0F4FA'};border:2px solid ${state.newReminderType==='checklist'?'#1D4ED8':'#C8D6E5'};color:${state.newReminderType==='checklist'?'#ffffff':'#516176'};">📋 Checklist</button>
     </div>
     <input class="batch-editor-input" id="new-reminder-text" placeholder="${state.newReminderType==='checklist'?'Checklist name (e.g. Shopping List)...':'New reminder...'}" style="margin-bottom:10px;background:#fff;border:1.5px solid #C8D6E5;color:#0A1628;font-size:15px;" onkeydown="if(event.key==='Enter')addReminder()">
     <div style="display:flex;gap:8px;align-items:center;">
