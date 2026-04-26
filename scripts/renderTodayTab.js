@@ -813,6 +813,8 @@ body.light .obj-month-calendar-day { color: #0A1628 !important; }
 body.light .obj-month-calendar-meta { color: #5B6B82 !important; }
 body.light .obj-month-calendar-meta--empty { color: #AAB4C4 !important; }
 body.light .fronts-empty-state { color: rgba(10,22,40,0.35) !important; }
+button[style*="background:#1D4ED8"] { color: #ffffff !important; }
+button[style*="background: #1D4ED8"] { color: #ffffff !important; }
 </style>`;
 
 // ── Objectives group (monthly + weekly) with collapse toggle ──────────
