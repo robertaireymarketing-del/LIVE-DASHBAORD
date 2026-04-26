@@ -897,7 +897,8 @@ const objectivesGroupSection = `
                   </div>
                   <span style="font-size:12px;font-weight:900;color:${catColor};min-width:36px;text-align:right;">${progress.pct}%</span>
                 </div>` : ''}
-                ${hasReview && !isReviewing ? `padding:8px 10px;background:${reviewBg};border-radius:8px;border-left:3px solid ${reviewColor};">
+                ${hasReview && !isReviewing ? `
+                <div style="margin-top:8px;padding:8px 10px;background:${reviewBg};border-radius:8px;border-left:3px solid ${reviewColor};">
                   <div style="font-size:11px;font-weight:700;color:${reviewColor};margin-bottom:4px;">${obj.review.outcome === 'completed' ? '✓ Completed' : '✗ Not completed'}</div>
                   ${obj.review.response ? `<div style="font-size:12px;color:${reviewColor};line-height:1.4;font-style:italic;margin-bottom:${obj.review.lessons?'6px':'0'};">"${obj.review.response}"</div>` : ''}
                   ${obj.review.lessons ? `<div style="font-size:11px;color:${reviewColor};opacity:0.8;line-height:1.4;font-style:italic;border-top:1px solid ${reviewColor}22;padding-top:5px;margin-top:2px;">💡 ${obj.review.lessons}</div>` : ''}
