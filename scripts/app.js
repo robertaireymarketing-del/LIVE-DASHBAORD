@@ -305,6 +305,7 @@ function render() {
       </div>
     </div>`;
     })() : ''}
+    ${state.reminderDeleteConfirm ? (() => {
       const isArchived = state.reminderDeleteConfirm.source === 'archived';
       const rem = isArchived
         ? (state.data.remindersArchived || []).find(r => r.id === state.reminderDeleteConfirm.id)
