@@ -880,7 +880,12 @@ const objectivesGroupSection = `
             deadlineHtml = `<span style="font-size:10px;font-weight:700;color:${isOverdue?'#e74c3c':'#7b92aa'};${isOverdue?'background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.3);border-radius:20px;padding:2px 8px;':''}margin-left:4px;">${isOverdue?'⚠ OVERDUE · ':''}${fmtDeadlineShort(obj.deadline)}</span>`;
           }
           return `
-          <div class="month-obj-card${obj.done?' month-obj-card-done':''}" style="background:#ffffff;border:1.5px solid ${obj.done?'#2ecc71':catColor+'55'};border-radius:14px;padding:14px 16px;margin-bottom:8px;border-left:3px solid ${obj.done?'#2ecc71':catColor};">
+          <div class="month-obj-card${obj.done?' month-obj-card-done':''}" style="background:#ffffff;border:1.5px solid ${obj.review?.outcome === 'completed' ? '#2ecc71' : obj.review?.outcome === 'uncompleted' ? '#e74c3c' : catColor+'55'};border-radius:14px;overflow:hidden;margin-bottom:8px;">
+            ${obj.review?.outcome ? `
+            <div style="background:${obj.review.outcome === 'completed' ? '#1A5C3A' : '#c0392b'};padding:10px 16px;display:flex;align-items:center;gap:8px;">
+              <span style="font-size:16px;font-weight:900;color:#ffffff;letter-spacing:0.5px;">${obj.review.outcome === 'completed' ? '✓ COMPLETED' : '✗ NOT COMPLETED'}</span>
+            </div>` : ''}
+            <div style="padding:14px 16px;border-left:3px solid ${obj.review?.outcome === 'completed' ? '#2ecc71' : obj.review?.outcome === 'uncompleted' ? '#e74c3c' : catColor};">
             <div onclick="openObjReview('${objectiveMonthKey}',${objIdx})" style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
               <div style="width:22px;height:22px;flex-shrink:0;margin-top:1px;border-radius:6px;border:2px solid ${checkBorder};background:${checkBg};color:${checkColor};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${checkIcon}</div>
               <div style="flex:1;min-width:0;">
@@ -906,8 +911,9 @@ const objectivesGroupSection = `
               </div>
               <div style="font-size:18px;color:#C8D6E5;flex-shrink:0;margin-top:2px;">${isReviewing?'▲':'▼'}</div>
             </div>
+            </div><!-- end padding wrapper -->
             ${isReviewing ? `
-            <div style="margin-top:14px;padding-top:14px;border-top:1.5px solid #E8EEF5;" onclick="event.stopPropagation()">
+            <div style="margin-top:0;padding:14px 16px;padding-top:0;border-top:1.5px solid #E8EEF5;" onclick="event.stopPropagation()">
               <div style="display:flex;gap:8px;margin-bottom:14px;">
                 <button onclick="setObjReviewOutcome('completed')" style="flex:1;padding:11px;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;background:${draft.outcome==='completed'?'#1A5C3A':'#F0F6FF'};border:2px solid ${draft.outcome==='completed'?'#2ecc71':'#C8D6E5'};color:${draft.outcome==='completed'?'#ffffff':'#0A1628'};">✓ Completed</button>
                 <button onclick="setObjReviewOutcome('uncompleted')" style="flex:1;padding:11px;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;background:${draft.outcome==='uncompleted'?'rgba(231,76,60,0.1)':'#F0F6FF'};border:2px solid ${draft.outcome==='uncompleted'?'#e74c3c':'#C8D6E5'};color:${draft.outcome==='uncompleted'?'#e74c3c':'#0A1628'};">✗ Not Completed</button>
