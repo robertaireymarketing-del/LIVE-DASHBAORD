@@ -1053,11 +1053,12 @@ export function initWeeklyTab() {
     if (!obj.subtasks) obj.subtasks = [];
     obj.subtasks.push({ text, duration: dur, done: false, addedAt: Date.now() });
 
-    // Also add to today's tasks
-    const todayIdx = (new Date().getDay() + 6) % 7;
-    if (!ws.days[todayIdx])       ws.days[todayIdx]       = {};
-    if (!ws.days[todayIdx].tasks) ws.days[todayIdx].tasks = [];
-    ws.days[todayIdx].tasks.push({
+    // Add to today if current week, or Monday if a future week
+    const _offset = window._weeklyOffset || 0;
+    const targetIdx = _offset === 0 ? (new Date().getDay() + 6) % 7 : 0;
+    if (!ws.days[targetIdx])       ws.days[targetIdx]       = {};
+    if (!ws.days[targetIdx].tasks) ws.days[targetIdx].tasks = [];
+    ws.days[targetIdx].tasks.push({
       name:   dur ? text + ' (' + dur + ')' : text,
       color:  obj.color || 'gold',
       period: 'am',
@@ -1404,6 +1405,12 @@ export function initWeeklyTab() {
     ).join('');
 
     const period = task.period||'am';
+    const _DAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const moveBtns = _DAY_LABELS.map((d, di) =>
+      di === dayIdx ? '' :
+      `<button class="wk-btn-cancel wk-btn-sm" style="padding:3px 10px;font-size:11px;opacity:.85;"
+        onclick="weeklyMoveTask(${dayIdx},${taskIdx},${di})">${d}</button>`
+    ).join('');
     el.draggable = false;
     el.innerHTML = `
       <div style="flex:1;">
@@ -1418,6 +1425,10 @@ export function initWeeklyTab() {
             onclick="wkEditTaskPeriod(${dayIdx},${taskIdx},'pm',this)">PM</button>
           <div style="flex:1;"></div>
           <div class="wk-swatches" id="wkEditTaskSw${dayIdx}_${taskIdx}">${swatches}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #e5e3dc;">
+          <span style="font-size:10px;font-weight:700;color:#aaa89f;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;">Move to →</span>
+          ${moveBtns}
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="wk-btn-cancel wk-btn-sm" onclick="weeklyRerender()">Cancel</button>
@@ -1455,6 +1466,17 @@ export function initWeeklyTab() {
       color:  (window._wkEditTaskColors||{})[key]  || ws.days[dayIdx].tasks[taskIdx].color,
       period: (window._wkEditTaskPeriods||{})[key] || ws.days[dayIdx].tasks[taskIdx].period || 'am',
     };
+    wkSaveWS(ws, window._weeklyOffset);
+    rerender();
+  };
+
+  window.weeklyMoveTask = (fromDay, taskIdx, toDay) => {
+    const ws   = wkGetWS(window._weeklyOffset);
+    const task = ws.days[fromDay]?.tasks?.[taskIdx]; if (!task) return;
+    if (!ws.days[toDay])       ws.days[toDay]       = {};
+    if (!ws.days[toDay].tasks) ws.days[toDay].tasks = [];
+    ws.days[toDay].tasks.push({ ...task });
+    ws.days[fromDay].tasks.splice(taskIdx, 1);
     wkSaveWS(ws, window._weeklyOffset);
     rerender();
   };
