@@ -46,10 +46,10 @@ export function renderJournalTab() {
           ];
           return `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px;">
             ${fields.map(f => `
-            <div onclick="toggleToday('${f.key}')" style="background:${todayData[f.key]?'#1A5C3A':'rgba(255,255,255,0.04)'};border:1.5px solid ${todayData[f.key]?'#2ecc71':'rgba(255,255,255,0.1)'};border-radius:16px;padding:16px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all 0.2s;">
-              <span style="font-size:24px;color:${todayData[f.key]?'#4fffaa':'rgba(255,255,255,0.2)'};">${todayData[f.key]?'✓':'○'}</span>
-              <span style="font-size:11px;font-weight:800;letter-spacing:1px;color:${todayData[f.key]?'#fff':'rgba(255,255,255,0.5)'};">${f.label}</span>
-              <span style="font-size:10px;color:${todayData[f.key]?'rgba(255,255,255,0.65)':'rgba(255,255,255,0.25)'};">${streak(f.key)} day streak</span>
+            <div onclick="toggleToday('${f.key}')" style="background:${todayData[f.key]?'#1A5C3A':'#FFFFFF'};border:2px solid ${todayData[f.key]?'#2ecc71':'#C8D6E5'};border-radius:16px;padding:16px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all 0.2s;">
+              <span style="font-size:24px;color:${todayData[f.key]?'#ffffff':'#9aaabf'};">${todayData[f.key]?'✓':'○'}</span>
+              <span style="font-size:11px;font-weight:800;letter-spacing:1px;color:${todayData[f.key]?'#ffffff':'#0A1628'};">${f.label}</span>
+              <span style="font-size:10px;font-weight:700;color:${todayData[f.key]?'rgba(255,255,255,0.8)':'#7b92aa'};">${streak(f.key)} day streak</span>
             </div>`).join('')}
           </div>`;
         })()}
