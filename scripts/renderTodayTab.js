@@ -938,7 +938,7 @@ const objectivesGroupSection = `
         }).join('')}</div>
       ` : `<div style="text-align:center;padding:10px 0 6px;color:rgba(255,255,255,0.2);font-size:13px;font-style:italic;">No objectives with a deadline in ${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})}</div>`}
       ${(() => {
-        // Pull completed tasks from planner localStorage for this month
+        // Pull completed tasks AND wins from planner localStorage for this month
         let wkAll = {};
         try { wkAll = JSON.parse(localStorage.getItem('weekly_state')||'{}'); } catch {}
         const completedTasks = [];
@@ -946,17 +946,27 @@ const objectivesGroupSection = `
           const m = wkKey.match(/^(\d{4})-W(\d+)$/);
           if (!m) return;
           const yr = parseInt(m[1]), wn = parseInt(m[2]);
-          // Calculate Monday of this ISO week
           const jan4 = new Date(yr, 0, 4);
           const mon = new Date(jan4);
           mon.setDate(jan4.getDate() - ((jan4.getDay()+6)%7) + (wn-1)*7);
+          // Regular done tasks
           (ws.days||[]).forEach((dayData, di) => {
             const dt = new Date(mon); dt.setDate(mon.getDate()+di);
             const iso = dt.toISOString().slice(0,10);
             if (!iso.startsWith(objectiveMonthKey)) return;
+            const label = dt.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
             (dayData.tasks||[]).filter(t=>t.done).forEach(t => {
-              completedTasks.push({ name: t.name, iso, label: dt.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}) });
+              completedTasks.push({ name: t.name, iso, label, type: 'task' });
             });
+          });
+          // Wins ("Things I Got Done")
+          (ws.wins||[]).forEach(w => {
+            if (w.day === undefined) return;
+            const dt = new Date(mon); dt.setDate(mon.getDate() + w.day);
+            const iso = dt.toISOString().slice(0,10);
+            if (!iso.startsWith(objectiveMonthKey)) return;
+            const label = dt.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+            completedTasks.push({ name: w.text, iso, label, type: 'win' });
           });
         });
         completedTasks.sort((a,b)=>a.iso.localeCompare(b.iso));
@@ -967,15 +977,15 @@ const objectivesGroupSection = `
           <div onclick="toggleCompletedTasks()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:#ffffff;border:1.5px solid rgba(46,204,113,0.4);border-radius:${open?'14px 14px 0 0':'14px'};">
             <div>
               <div style="font-size:19px;font-weight:900;color:#1A5C3A;">✓ What I Got Done</div>
-              <div style="font-size:12px;color:#7b92aa;margin-top:2px;font-weight:600;">${completedTasks.length} task${completedTasks.length!==1?'s':''} completed in ${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})}</div>
+              <div style="font-size:12px;color:#7b92aa;margin-top:2px;font-weight:600;">${completedTasks.length} item${completedTasks.length!==1?'s':''} in ${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})}</div>
             </div>
             <span style="font-size:20px;color:#2ecc71;font-weight:900;">${open?'▲':'▼'}</span>
           </div>
           ${open ? `
           <div style="background:#ffffff;border:1.5px solid rgba(46,204,113,0.4);border-top:none;border-radius:0 0 14px 14px;overflow:hidden;">
             ${completedTasks.map(t=>`
-            <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #E8EEF5;">
-              <div style="width:8px;height:8px;border-radius:50%;background:#2ecc71;flex-shrink:0;margin-top:2px;"></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #E8EEF5;border-left:3px solid ${t.type==='win'?'#C9A84C':'#2ecc71'};">
+              <span style="font-size:${t.type==='win'?'16':'12'}px;color:${t.type==='win'?'#C9A84C':'#2ecc71'};flex-shrink:0;">${t.type==='win'?'★':'✓'}</span>
               <div style="flex:1;font-size:14px;font-weight:700;color:#0A1628;line-height:1.3;">${t.name}</div>
               <div style="font-size:11px;color:#7b92aa;font-weight:700;flex-shrink:0;">${t.label}</div>
             </div>`).join('')}
