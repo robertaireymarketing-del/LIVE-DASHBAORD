@@ -72,4 +72,6 @@ export const state = {
   reminderEditDraft: {},        // { text, deadline } draft while editing
   frontTaskDeleteConfirm: null, // { key, taskText, taskIdx }
   frontTaskEditing: null,       // { key, oldText, taskIdx }
+  objReviewing: null,           // { monthKey, idx } — objective currently open for review
+  objReviewDraft: {},           // { outcome, response, lessons }
 };

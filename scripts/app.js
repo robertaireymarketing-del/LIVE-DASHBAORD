@@ -643,6 +643,43 @@ window.togglePlannerTask = (weekKey, dayIdx, taskIdx) => {
   render();
 };
 
+// ── Monthly Objective Review ───────────────────────────────────────────────
+window.openObjReview = (monthKey, idx) => {
+  if (state.objReviewing?.monthKey === monthKey && state.objReviewing?.idx === idx) {
+    state.objReviewing = null; state.objReviewDraft = {}; render(); return;
+  }
+  const obj = state.data.monthObjectives?.[monthKey]?.[idx];
+  if (!obj) return;
+  const existing = obj.review || {};
+  state.objReviewing = { monthKey, idx };
+  state.objReviewDraft = {
+    outcome: existing.outcome || (obj.done ? 'completed' : null),
+    response: existing.response || '',
+    lessons: existing.lessons || ''
+  };
+  render();
+};
+window.setObjReviewOutcome = (outcome) => {
+  state.objReviewDraft = { ...state.objReviewDraft, outcome };
+  render();
+};
+window.saveObjReview = (monthKey, idx) => {
+  const responseEl = document.getElementById(`obj-review-response-${idx}`);
+  const lessonsEl  = document.getElementById(`obj-review-lessons-${idx}`);
+  const response = responseEl?.value?.trim() || '';
+  const lessons  = lessonsEl?.value?.trim()  || '';
+  const outcome  = state.objReviewDraft.outcome;
+  if (!state.data.monthObjectives?.[monthKey]?.[idx]) return;
+  state.data.monthObjectives[monthKey][idx] = {
+    ...state.data.monthObjectives[monthKey][idx],
+    done: outcome === 'completed',
+    review: { outcome, response, lessons }
+  };
+  state.objReviewing = null; state.objReviewDraft = {};
+  saveData();
+};
+window.closeObjReview = () => { state.objReviewing = null; state.objReviewDraft = {}; render(); };
+
 // ── Today's Fronts — edit & delete ────────────────────────────────────────
 window.deleteFrontTask = (key, taskText, taskIdx) => {
   state.frontTaskDeleteConfirm = { key, taskText, taskIdx };

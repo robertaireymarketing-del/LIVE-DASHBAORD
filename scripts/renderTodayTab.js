@@ -855,35 +855,66 @@ const objectivesGroupSection = `
           const catLabel = obj.categoryCustom || MONTH_CAT_LABELS[obj.category] || 'Personal';
           const catColor = MONTH_CAT_COLOURS[obj.category] || '#C9A84C';
           const progress = getMonthObjProgress(obj.id);
+          const objIdx = (state.data.monthObjectives?.[objectiveMonthKey] || []).findIndex(o => o.id === obj.id);
+          const isReviewing = state.objReviewing?.monthKey === objectiveMonthKey && state.objReviewing?.idx === objIdx;
+          const draft = isReviewing ? (state.objReviewDraft || {}) : {};
+          const hasReview = !!obj.review?.outcome;
+          const reviewColor = obj.review?.outcome === 'completed' ? '#2ecc71' : '#e74c3c';
+          const reviewBg   = obj.review?.outcome === 'completed' ? 'rgba(46,204,113,0.08)' : 'rgba(231,76,60,0.08)';
           let deadlineHtml = '';
           if (obj.deadline) {
             const dl = new Date(obj.deadline + 'T00:00:00');
             const nowD = new Date(); nowD.setHours(0,0,0,0);
             const daysLeft = Math.ceil((dl - nowD) / 86400000);
             const isOverdue = daysLeft < 0 && !obj.done;
-            deadlineHtml = `<span class="month-obj-deadline${isOverdue?' month-obj-deadline-overdue':''}" style="font-size:10px;font-weight:700;color:${isOverdue?'#e74c3c':obj.done?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.35)'};${isOverdue?'background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.3);border-radius:20px;padding:2px 8px;':''}margin-left:4px;">${isOverdue?'⚠ OVERDUE · ':''}${fmtDeadlineShort(obj.deadline)}</span>`;
+            deadlineHtml = `<span style="font-size:10px;font-weight:700;color:${isOverdue?'#e74c3c':obj.done?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.35)'};${isOverdue?'background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.3);border-radius:20px;padding:2px 8px;':''}margin-left:4px;">${isOverdue?'⚠ OVERDUE · ':''}${fmtDeadlineShort(obj.deadline)}</span>`;
           }
-          const objIdx = (state.data.monthObjectives?.[objectiveMonthKey] || []).findIndex(o => o.id === obj.id);
           return `
-          <div onclick="toggleMonthObj('${objectiveMonthKey}',${objIdx})" class="month-obj-card${obj.done?' month-obj-card-done':''}" style="border:1.5px solid ${obj.done?'rgba(46,204,113,0.35)':catColor+'33'};background:${obj.done?'rgba(26,92,58,0.55)':'rgba(255,255,255,0.02)'};border-radius:14px;padding:14px 16px;margin-bottom:8px;border-left:3px solid ${obj.done?'#2ecc71':catColor};cursor:pointer;transition:all 0.2s;">
-            <div style="display:flex;align-items:flex-start;gap:12px;">
-              <div style="width:22px;height:22px;flex-shrink:0;margin-top:1px;border-radius:6px;border:2px solid ${obj.done?'rgba(46,204,113,0.7)':catColor+'88'};background:${obj.done?'rgba(46,204,113,0.2)':'transparent'};color:${obj.done?'#2ecc71':catColor};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</div>
+          <div class="month-obj-card${obj.done?' month-obj-card-done':''}" style="background:#ffffff;border:1.5px solid ${obj.done?'#2ecc71':catColor+'55'};border-radius:14px;padding:14px 16px;margin-bottom:8px;border-left:3px solid ${obj.done?'#2ecc71':catColor};">
+            <div onclick="openObjReview('${objectiveMonthKey}',${objIdx})" style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;">
+              <div style="width:22px;height:22px;flex-shrink:0;margin-top:1px;border-radius:6px;border:2px solid ${obj.done?'#2ecc71':catColor};background:${obj.done?'rgba(46,204,113,0.15)':'#F0F6FF'};color:${obj.done?'#2ecc71':catColor};font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</div>
               <div style="flex:1;min-width:0;">
                 <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
                   <span style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${catColor};">${catLabel.toUpperCase()}</span>
                   ${deadlineHtml}
                   ${obj.done?`<span style="font-size:9px;font-weight:800;color:#2ecc71;background:rgba(46,204,113,0.15);padding:2px 7px;border-radius:20px;margin-left:2px;">DONE</span>`:''}
                 </div>
-                <div class="month-obj-title${obj.done?' obj-done-item-text':''}" style="font-size:16px;font-weight:800;color:${obj.done?'rgba(255,255,255,0.45)':'#fff'};${obj.done?'text-decoration:line-through;':''}line-height:1.3;">${obj.text}</div>
+                <div style="font-size:16px;font-weight:800;color:${obj.done?'#9aaabf':'#0A1628'};${obj.done?'text-decoration:line-through;':''}line-height:1.3;">${obj.text}</div>
                 ${progress ? `
                 <div style="display:flex;align-items:center;gap:8px;margin-top:9px;">
-                  <div class="month-obj-sub-track" style="flex:1;height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">
-                    <div style="height:100%;width:${progress.pct}%;background:${obj.done?'rgba(46,204,113,0.7)':catColor};border-radius:3px;transition:width 0.4s;box-shadow:0 0 6px ${catColor}66;"></div>
+                  <div style="flex:1;height:5px;background:#E8EEF5;border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:${progress.pct}%;background:${obj.done?'#2ecc71':catColor};border-radius:3px;"></div>
                   </div>
-                  <span style="font-size:12px;font-weight:900;color:${obj.done?'rgba(46,204,113,0.7)':catColor};min-width:36px;text-align:right;">${progress.pct}%</span>
+                  <span style="font-size:12px;font-weight:900;color:${catColor};min-width:36px;text-align:right;">${progress.pct}%</span>
+                </div>` : ''}
+                ${hasReview && obj.review.response && !isReviewing ? `
+                <div style="margin-top:8px;padding:8px 10px;background:${reviewBg};border-radius:8px;border-left:3px solid ${reviewColor};">
+                  <div style="font-size:11px;font-weight:700;color:${reviewColor};margin-bottom:2px;">${obj.review.outcome === 'completed' ? '✓ Completed' : '✗ Not completed'}</div>
+                  <div style="font-size:12px;color:${reviewColor};line-height:1.4;font-style:italic;">"${obj.review.response}"</div>
                 </div>` : ''}
               </div>
+              <div style="font-size:18px;color:#C8D6E5;flex-shrink:0;margin-top:2px;">${isReviewing?'▲':'▼'}</div>
             </div>
+            ${isReviewing ? `
+            <div style="margin-top:14px;padding-top:14px;border-top:1.5px solid #E8EEF5;" onclick="event.stopPropagation()">
+              <div style="display:flex;gap:8px;margin-bottom:14px;">
+                <button onclick="setObjReviewOutcome('completed')" style="flex:1;padding:11px;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;background:${draft.outcome==='completed'?'#1A5C3A':'#F0F6FF'};border:2px solid ${draft.outcome==='completed'?'#2ecc71':'#C8D6E5'};color:${draft.outcome==='completed'?'#ffffff':'#0A1628'};">✓ Completed</button>
+                <button onclick="setObjReviewOutcome('uncompleted')" style="flex:1;padding:11px;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;background:${draft.outcome==='uncompleted'?'rgba(231,76,60,0.1)':'#F0F6FF'};border:2px solid ${draft.outcome==='uncompleted'?'#e74c3c':'#C8D6E5'};color:${draft.outcome==='uncompleted'?'#e74c3c':'#0A1628'};">✗ Not Completed</button>
+              </div>
+              ${draft.outcome ? `
+              <div style="margin-bottom:12px;">
+                <div style="font-size:11px;font-weight:800;color:#516176;margin-bottom:6px;letter-spacing:0.3px;">${draft.outcome === 'completed' ? 'What went well to allow you to successfully complete this objective?' : 'Why were you unsuccessful in completing this objective?'}</div>
+                <textarea id="obj-review-response-${objIdx}" style="width:100%;padding:12px;background:#ffffff;border:1.5px solid #C8D6E5;border-radius:10px;font-size:14px;color:#0A1628;font-family:inherit;resize:none;min-height:80px;box-sizing:border-box;line-height:1.5;" placeholder="Write your reflection..." oninput="autoResizeTextarea(this)">${escAttr(draft.response||'')}</textarea>
+              </div>
+              <div style="margin-bottom:14px;">
+                <div style="font-size:11px;font-weight:800;color:#516176;margin-bottom:6px;letter-spacing:0.3px;">What lessons did you learn, and how will you implement them going forward?</div>
+                <textarea id="obj-review-lessons-${objIdx}" style="width:100%;padding:12px;background:#ffffff;border:1.5px solid #C8D6E5;border-radius:10px;font-size:14px;color:#0A1628;font-family:inherit;resize:none;min-height:80px;box-sizing:border-box;line-height:1.5;" placeholder="Lessons learned..." oninput="autoResizeTextarea(this)">${escAttr(draft.lessons||'')}</textarea>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <button onclick="saveObjReview('${objectiveMonthKey}',${objIdx})" style="flex:1;background:#1D4ED8;border:2px solid #1D4ED8;border-radius:10px;padding:12px;color:#ffffff;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;">Save Review</button>
+                <button onclick="closeObjReview()" style="background:#F0F4FA;border:1.5px solid #C8D6E5;border-radius:10px;padding:12px 18px;color:#516176;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
+              </div>` : `<div style="text-align:center;padding:8px 0;color:#9aaabf;font-size:13px;">Select completed or not completed above</div>`}
+            </div>` : ''}
           </div>`;
         }).join('')}</div>
       ` : `<div style="text-align:center;padding:10px 0 6px;color:rgba(255,255,255,0.2);font-size:13px;font-style:italic;">No objectives with a deadline in ${objectiveBaseDate.toLocaleString('en-GB',{month:'long'})}</div>`}
