@@ -342,7 +342,7 @@ function render() {
     </div>` : ''}
     `;
 
-    if (state.activeTab === 'journal') setTimeout(() => { try { initJournalTab({ state, getToday, saveDataQuiet, getWeekKey }); } catch(e) { console.error('Journal init error:', e); } }, 0);
+    if (state.activeTab === 'journal') setTimeout(() => { try { initJournalTab({ state, getToday, saveDataQuiet, getWeekKey, getDayByDate, getJournalEntry }); } catch(e) { console.error('Journal init error:', e); } }, 0);
     if (state.activeTab === 'planner') setTimeout(() => { try { initWeeklyTabExternal(); } catch(e) { console.error('Weekly init error:', e); } }, 0);
     if (state.activeTab === 'vision') setTimeout(() => { try { renderVisionTabExternal({ db, user: state.user }); } catch(e) { console.error('Vision init error:', e); } }, 0);
   } catch(e) {

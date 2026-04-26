@@ -958,6 +958,91 @@ export function initJournalTab(deps) {
     updateStreakDisplay(); updateJournalMonthObjectives(); updateJournalWeekObjectives(); updateWeekMission();
   });
 
+  // ── Journal Month Calendar ─────────────────────────────────────────────
+  function getJournalWordRating(dateStr) {
+    if (!deps.getDayByDate) return null;
+    const day = deps.getDayByDate(dateStr) || {};
+    const morning = getJournalEntry(dateStr, 'morning');
+    const evening = getJournalEntry(dateStr, 'evening');
+    const hasHabits = day.gym || day.retention || day.meditation;
+    const hasMorning = morning && Object.keys(morning).some(k => typeof morning[k] === 'number' && morning[k] > 0);
+    const hasEvening = evening && Object.keys(evening).some(k => typeof evening[k] === 'number' && evening[k] > 0);
+    if (!hasHabits && !hasMorning && !hasEvening) return null;
+    const round1 = n => Math.round(Number(n || 0) * 10) / 10;
+    const scale = (raw, rawMax, targetMax) => rawMax > 0 ? round1((Number(raw || 0) / rawMax) * targetMax) : 0;
+    const g = (obj, key) => Number(obj?.[key] ?? 0);
+    const sleepRaw = g(evening, 'sleepprep');
+    const tier1 = round1((day.gym ? 15 : 0) + (day.retention ? 10 : 0) + (day.meditation ? 5 : 0) + Math.min(10, sleepRaw * 2));
+    const eveningRaw = round1(['execution','discipline','dopamine','physical','builder','sleepprep'].reduce((s,k) => s + g(evening, k), 0));
+    const tier2 = scale(eveningRaw, 30, 45);
+    const morningRaw = round1(['rested','sharpness','calm','motivation','clarity','drive'].reduce((s,k) => s + g(morning, k), 0));
+    const tier3 = scale(morningRaw, 30, 15);
+    const pct = Math.round(round1(tier1 + tier2 + tier3));
+    if (pct >= 95) return { label: 'LEGENDARY', colour: '#D4AF37', pct };
+    if (pct >= 90) return { label: 'ELITE',      colour: '#2ecc71', pct };
+    if (pct >= 80) return { label: 'STRONG',     colour: '#3498db', pct };
+    if (pct >= 70) return { label: 'ABOVE AVG',  colour: '#1abc9c', pct };
+    if (pct >= 60) return { label: 'AVERAGE',    colour: '#f39c12', pct };
+    if (pct >= 50) return { label: 'WEAK',       colour: '#e67e22', pct };
+    return           { label: 'POOR',       colour: '#e74c3c', pct };
+  }
+
+  function renderJournalCalendar() {
+    const calContainer = document.getElementById('journal-cal-section');
+    if (!calContainer) return;
+    const y = deps.state.calendarYear, m = deps.state.calendarMonth;
+    const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const startOffset = (new Date(y, m, 1).getDay() + 6) % 7;
+    const today = deps.getToday();
+    const dayHeaders = ['M','T','W','T','F','S','S'].map(d => `<div class="calendar-day-header">${d}</div>`).join('');
+    let cells = '';
+    for (let i = 0; i < startOffset; i++) cells += `<div class="calendar-day empty"></div>`;
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const dayData = (deps.getDayByDate ? deps.getDayByDate(dateStr) : null) || {};
+      const isT = dateStr === today, isFuture = dateStr > today, isSel = deps.state.selectedEditDate === dateStr;
+      const didRetention = !!dayData.retention, didGym = !!dayData.gym, didMeditate = !!dayData.meditation, didLive = !!dayData.live;
+      const coreCount = [didRetention, didGym, didMeditate].filter(Boolean).length;
+      const hasAnyData = coreCount > 0 || didLive || (dayData.sales || 0) > 0;
+      let habitBg = '', habitBorder = '';
+      if (!isFuture && hasAnyData) {
+        if (coreCount === 0)      { habitBg = 'rgba(231,76,60,0.18)';  habitBorder = 'rgba(231,76,60,0.45)'; }
+        else if (coreCount === 1) { habitBg = 'rgba(243,156,18,0.18)'; habitBorder = 'rgba(243,156,18,0.5)'; }
+        else if (coreCount === 2) { habitBg = 'rgba(243,156,18,0.22)'; habitBorder = 'rgba(243,156,18,0.55)'; }
+        else                      { habitBg = 'rgba(39,174,96,0.22)';  habitBorder = 'rgba(39,174,96,0.55)'; }
+      }
+      const emojiGrid = hasAnyData ? `<div style="display:flex;justify-content:center;gap:1px;margin-top:2px;flex-wrap:wrap;max-width:100%;overflow:hidden;"><span style="font-size:8px;line-height:1.4;opacity:${didRetention?1:0.15};">${didRetention?'🩸':'·'}</span><span style="font-size:8px;line-height:1.4;opacity:${didGym?1:0.15};">${didGym?'🏋️':'·'}</span><span style="font-size:8px;line-height:1.4;opacity:${didMeditate?1:0.15};">${didMeditate?'🧘':'·'}</span>${didLive?'<span style="font-size:8px;line-height:1.4;" title="Live">⭐</span>':''}</div>` : '';
+      const morning = getJournalEntry(dateStr, 'morning');
+      const evening = getJournalEntry(dateStr, 'evening');
+      const bothComplete = morning?.complete && evening?.complete;
+      const jr = (!isFuture && bothComplete) ? getJournalWordRating(dateStr) : null;
+      const ratingHtml = jr ? `<span style="display:block;font-size:9px;font-weight:900;letter-spacing:0.2px;color:${jr.colour};line-height:1.1;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-shadow:0 0 8px ${jr.colour}80;">${jr.label}</span><span style="display:block;font-size:11px;font-weight:900;color:${jr.colour};line-height:1.1;opacity:0.9;">${jr.pct}<span style="font-size:7px;opacity:0.65;">/100</span></span>` : '';
+      const baseStyle = habitBg ? `background:${habitBg};border-color:${habitBorder};` : '';
+      const todayStyle = isT ? 'border:2px solid #D4AF37;color:#D4AF37;font-weight:700;' : '';
+      const selStyle = isSel ? 'background:rgba(212,175,55,0.3);border:2px solid #D4AF37;' : '';
+      cells += `<button class="calendar-day${isFuture?' future':''}${isSel?' selected':''}" style="min-height:72px;width:100%;box-sizing:border-box;overflow:hidden;${baseStyle}${todayStyle}${selStyle}" onclick="selectEditDate('${dateStr}')" ${isFuture?'disabled':''}><span class="cal-day-num" style="font-size:${jr?'9px':'11px'};opacity:${jr?'0.5':'1'};">${day}</span>${ratingHtml}${emojiGrid}</button>`;
+    }
+    calContainer.innerHTML = `
+      <div class="section-title" style="margin-top:24px;">Month Overview</div>
+      <div class="cal-nav" style="box-sizing:border-box;width:100%;">
+        <button class="cal-nav-btn" onclick="navigateCalendar(-1)">‹</button>
+        <span class="cal-nav-title">${monthNames[m]} ${y}</span>
+        <button class="cal-nav-btn" onclick="navigateCalendar(1)">›</button>
+      </div>
+      <div class="calendar-grid" style="display:grid;grid-template-columns:repeat(7,1fr);width:100%;box-sizing:border-box;gap:2px;padding:0;overflow:hidden;">
+        ${dayHeaders}${cells}
+      </div>`;
+  }
+
+  // Inject calendar container after openCard and render it
+  if (openCard && !document.getElementById('journal-cal-section')) {
+    const calDiv = document.createElement('div');
+    calDiv.id = 'journal-cal-section';
+    openCard.insertAdjacentElement('afterend', calDiv);
+  }
+  renderJournalCalendar();
+
   formatDateDisplay(currentDate);
   renderStoicPrinciple();
   loadMorning(); loadEvening(); loadOpen(); updateAverageNotes(); updateBestVersionPercent();
