@@ -593,39 +593,44 @@ window.updateReminderEditDeadlineDisplay = (id, val) => {
 window.addReminderToPlanner = (id) => {
   const rem = (state.data.reminders || []).find(r => r.id === id);
   if (!rem) return;
-  // Replicate the exact weekKey calculation the planner uses
-  const now = new Date();
-  const curDay = now.getDay();
-  const daysToMon = curDay === 0 ? 6 : curDay - 1;
-  const thisMonday = new Date(now);
-  thisMonday.setDate(now.getDate() - daysToMon);
-  thisMonday.setHours(0,0,0,0);
-  const tempD = new Date(thisMonday);
-  tempD.setDate(tempD.getDate() + 3 - (tempD.getDay()+6)%7);
-  const w1 = new Date(tempD.getFullYear(),0,4);
-  const wn = 1 + Math.round(((tempD-w1)/86400000 - 3 + (w1.getDay()+6)%7)/7);
-  const weekKey = tempD.getFullYear() + '-W' + String(wn).padStart(2,'0');
-  const dayKey = getTodayDayKey(); // 'mon','tue','wed','thu','fri','sat','sun'
-  const fk = '_other';
-  if (!state.data.projectFronts) state.data.projectFronts = {};
-  if (!state.data.projectFronts[fk]) state.data.projectFronts[fk] = { name: 'Other', status: 'pipeline', weekPlans: {} };
-  if (!state.data.projectFronts[fk].weekPlans) state.data.projectFronts[fk].weekPlans = {};
-  if (!state.data.projectFronts[fk].weekPlans[weekKey]) state.data.projectFronts[fk].weekPlans[weekKey] = {};
-  const existing = state.data.projectFronts[fk].weekPlans[weekKey][dayKey] || [];
-  const tasks = Array.isArray(existing) ? existing : (existing ? [existing] : []);
-  if (tasks.some(t => (typeof t === 'object' ? t.text : t) === rem.text)) {
+
+  // Weekly planner stores in localStorage under 'weekly_state', NOT Firebase.
+  // Day index: Mon=0 ... Sun=6  (same as (getDay()+6)%7)
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dayIdx = (today.getDay() + 6) % 7;
+
+  // Replicate wkGetKey(0) — ISO week number key e.g. '2026-W17'
+  const mon = new Date(today);
+  mon.setDate(today.getDate() - (today.getDay()===0 ? 6 : today.getDay()-1));
+  const u = new Date(Date.UTC(mon.getFullYear(), mon.getMonth(), mon.getDate()));
+  u.setUTCDate(u.getUTCDate() + 4 - (u.getUTCDay()||7));
+  const y1 = new Date(Date.UTC(u.getUTCFullYear(),0,1));
+  const wn = Math.ceil((((u-y1)/86400000)+1)/7);
+  const weekKey = mon.getFullYear()+'-W'+String(wn).padStart(2,'0');
+
+  let all = {};
+  try { all = JSON.parse(localStorage.getItem('weekly_state')||'{}'); } catch {}
+  if (!all[weekKey]) all[weekKey] = { objectives:[], days:[{},{},{},{},{},{},{}] };
+  while (all[weekKey].days.length < 7) all[weekKey].days.push({});
+
+  const dayData = all[weekKey].days[dayIdx];
+  if (!dayData.tasks) dayData.tasks = [];
+
+  if (dayData.tasks.some(t => t.name === rem.text)) {
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#f39c12;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;white-space:nowrap;';
     el.textContent = 'Already in today\'s planner';
-    document.body.appendChild(el); setTimeout(() => el.remove(), 2000);
+    document.body.appendChild(el); setTimeout(()=>el.remove(),2000);
     return;
   }
-  state.data.projectFronts[fk].weekPlans[weekKey][dayKey] = [...tasks, { text: rem.text, start: '', end: '', reminderTask: true }];
-  saveData();
+
+  dayData.tasks.push({ name: rem.text, done: false, period: 'am' });
+  localStorage.setItem('weekly_state', JSON.stringify(all));
+
   const el = document.createElement('div');
   el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#2ecc71;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;white-space:nowrap;';
   el.textContent = '✓ Added to today\'s planner!';
-  document.body.appendChild(el); setTimeout(() => el.remove(), 2000);
+  document.body.appendChild(el); setTimeout(()=>el.remove(),2000);
 };
 
 // ── Today's Fronts — edit & delete ────────────────────────────────────────
