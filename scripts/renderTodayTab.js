@@ -861,6 +861,8 @@ const objectivesGroupSection = `
           const hasReview = !!obj.review?.outcome;
           const reviewColor = obj.review?.outcome === 'completed' ? '#2ecc71' : '#e74c3c';
           const reviewBg   = obj.review?.outcome === 'completed' ? 'rgba(46,204,113,0.08)' : 'rgba(231,76,60,0.08)';
+          const titleColor  = obj.review?.outcome === 'uncompleted' ? '#e74c3c' : obj.done ? '#9aaabf' : '#0A1628';
+          const titleStrike = (obj.done || obj.review?.outcome === 'uncompleted') ? 'text-decoration:line-through;' : '';
           // Checkbox icon: green tick if completed review, red cross if uncompleted review, else normal
           const checkIcon  = obj.review?.outcome === 'completed' ? '✓' : obj.review?.outcome === 'uncompleted' ? '✕' : obj.done ? '✓' : '';
           const checkBorder = obj.review?.outcome === 'completed' ? '#2ecc71' : obj.review?.outcome === 'uncompleted' ? '#e74c3c' : catColor;
@@ -893,10 +895,7 @@ const objectivesGroupSection = `
                   </div>
                   <span style="font-size:12px;font-weight:900;color:${catColor};min-width:36px;text-align:right;">${progress.pct}%</span>
                 </div>` : ''}
-                const titleColor = obj.review?.outcome === 'uncompleted' ? '#e74c3c' : obj.done ? '#9aaabf' : '#0A1628';
-                const titleStrike = (obj.done || obj.review?.outcome === 'uncompleted') ? 'text-decoration:line-through;' : '';
-                
-                <div style="margin-top:8px;padding:8px 10px;background:${reviewBg};border-radius:8px;border-left:3px solid ${reviewColor};">
+                ${hasReview && !isReviewing ? `padding:8px 10px;background:${reviewBg};border-radius:8px;border-left:3px solid ${reviewColor};">
                   <div style="font-size:11px;font-weight:700;color:${reviewColor};margin-bottom:4px;">${obj.review.outcome === 'completed' ? '✓ Completed' : '✗ Not completed'}</div>
                   ${obj.review.response ? `<div style="font-size:12px;color:${reviewColor};line-height:1.4;font-style:italic;margin-bottom:${obj.review.lessons?'6px':'0'};">"${obj.review.response}"</div>` : ''}
                   ${obj.review.lessons ? `<div style="font-size:11px;color:${reviewColor};opacity:0.8;line-height:1.4;font-style:italic;border-top:1px solid ${reviewColor}22;padding-top:5px;margin-top:2px;">💡 ${obj.review.lessons}</div>` : ''}
