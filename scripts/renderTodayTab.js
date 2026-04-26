@@ -1050,7 +1050,7 @@ ${remindersArchived.length > 0 ? `
 </div>` : ''}`;
 
 // ── ORDER: Due-Today Banner → Habits → Reminders → Today's Fronts → Objectives (collapsible) → Batches (collapsible) ──
-return injectedCSS + dueTodayBanner + habitsSection + remindersSection + frontsSection + objectivesGroupSection + batchesGroupSection + `
+return injectedCSS + dueTodayBanner + remindersSection + frontsSection + objectivesGroupSection + batchesGroupSection + `
 <div style="margin-top:16px;margin-bottom:8px;">
 <button onclick="openPastDays()" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:14px;color:rgba(255,255,255,0.5);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
 📅 Review Previous Days
