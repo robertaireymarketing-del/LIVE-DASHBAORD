@@ -76,5 +76,5 @@ export const state = {
   objReviewDraft: {},           // { outcome, response, lessons }
   reminderExpanded: null,       // id of expanded checklist reminder
   newReminderType: 'reminder',  // 'reminder' | 'checklist'
-  completedTasksOpen: true,     // whether the "What I Got Done" section is expanded
+  completedTasksOpen: false,    // whether the "What I Got Done" section is expanded
 };
