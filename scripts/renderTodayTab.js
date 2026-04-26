@@ -949,14 +949,16 @@ const objectivesGroupSection = `
           const jan4 = new Date(yr, 0, 4);
           const mon = new Date(jan4);
           mon.setDate(jan4.getDate() - ((jan4.getDay()+6)%7) + (wn-1)*7);
-          // Regular done tasks
+          // Regular done tasks — carry the task colour
+          const WK_HEX = { gold:'#C9A84C', green:'#4caf7d', blue:'#5b8dd9', red:'#d95b5b', purple:'#9b59b6', orange:'#e07b39', teal:'#1abc9c', gray:'#aaa89f' };
           (ws.days||[]).forEach((dayData, di) => {
             const dt = new Date(mon); dt.setDate(mon.getDate()+di);
             const iso = dt.toISOString().slice(0,10);
             if (!iso.startsWith(objectiveMonthKey)) return;
             const label = dt.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
             (dayData.tasks||[]).filter(t=>t.done).forEach(t => {
-              completedTasks.push({ name: t.name, iso, label, type: 'task' });
+              const hex = WK_HEX[t.color] || '#4caf7d';
+              completedTasks.push({ name: t.name, iso, label, type: 'task', hex });
             });
           });
           // Wins ("Things I Got Done")
@@ -984,8 +986,8 @@ const objectivesGroupSection = `
           ${open ? `
           <div style="background:#ffffff;border:1.5px solid rgba(46,204,113,0.4);border-top:none;border-radius:0 0 14px 14px;overflow:hidden;">
             ${completedTasks.map(t=>`
-            <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #E8EEF5;border-left:3px solid ${t.type==='win'?'#C9A84C':'#2ecc71'};">
-              <span style="font-size:${t.type==='win'?'16':'12'}px;color:${t.type==='win'?'#C9A84C':'#2ecc71'};flex-shrink:0;">${t.type==='win'?'★':'✓'}</span>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #E8EEF5;border-left:3px solid ${t.type==='win'?'#C9A84C':t.hex};">
+              <span style="font-size:${t.type==='win'?'16':'14'}px;color:${t.type==='win'?'#C9A84C':t.hex};flex-shrink:0;">${t.type==='win'?'★':'✓'}</span>
               <div style="flex:1;font-size:14px;font-weight:700;color:#0A1628;line-height:1.3;">${t.name}</div>
               <div style="font-size:11px;color:#7b92aa;font-weight:700;flex-shrink:0;">${t.label}</div>
             </div>`).join('')}
