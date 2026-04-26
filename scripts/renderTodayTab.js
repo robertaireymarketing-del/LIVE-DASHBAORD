@@ -947,18 +947,18 @@ const remindersArchived = state.data.remindersArchived || [];
 const urgentReminders = reminders.filter(r => !r.done && r.deadline && r.deadline <= todayStr);
 
 const dueTodayBanner = urgentReminders.length > 0 ? `
-<div style="background:linear-gradient(135deg,rgba(231,76,60,0.22),rgba(231,76,60,0.08));border:2px solid rgba(231,76,60,0.65);border-radius:16px;padding:18px 20px;margin-bottom:16px;box-shadow:0 0 24px rgba(231,76,60,0.18);">
-  <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:#e74c3c;margin-bottom:12px;">🔔 REMINDERS DUE</div>
+<div style="background:linear-gradient(135deg,rgba(59,130,246,0.22),rgba(59,130,246,0.08));border:2px solid rgba(59,130,246,0.65);border-radius:16px;padding:18px 20px;margin-bottom:16px;box-shadow:0 0 24px rgba(59,130,246,0.18);">
+  <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:#3B82F6;margin-bottom:12px;">🔔 REMINDERS DUE</div>
   ${urgentReminders.map(r => {
     const isOverdue = r.deadline < todayStr;
     return `
-  <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid rgba(231,76,60,0.18);">
-    <button onclick="toggleReminder('${r.id}')" style="width:26px;height:26px;flex-shrink:0;border-radius:7px;border:2.5px solid rgba(231,76,60,0.7);background:transparent;color:transparent;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;transition:all 0.15s;"></button>
+  <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid rgba(59,130,246,0.18);">
+    <button onclick="toggleReminder('${r.id}')" style="width:26px;height:26px;flex-shrink:0;border-radius:7px;border:2.5px solid rgba(59,130,246,0.7);background:transparent;color:transparent;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;transition:all 0.15s;"></button>
     <div style="flex:1;min-width:0;">
       <div style="font-size:16px;font-weight:800;color:#fff;line-height:1.3;">${r.text}</div>
-      ${isOverdue ? `<div style="font-size:11px;font-weight:800;color:#ff6b6b;margin-top:2px;">⚠ Overdue · ${fmtDeadlineShort(r.deadline)}</div>` : `<div style="font-size:11px;font-weight:700;color:rgba(255,150,150,0.8);margin-top:2px;">Due today</div>`}
+      ${isOverdue ? `<div style="font-size:11px;font-weight:800;color:#93C5FD;margin-top:2px;">⚠ Overdue · ${fmtDeadlineShort(r.deadline)}</div>` : `<div style="font-size:11px;font-weight:700;color:#BFDBFE;margin-top:2px;">Due today</div>`}
     </div>
-    <button onclick="toggleReminder('${r.id}')" style="background:rgba(46,204,113,0.15);border:1px solid rgba(46,204,113,0.45);border-radius:10px;padding:9px 16px;color:#2ecc71;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">✓ Done</button>
+    <button onclick="toggleReminder('${r.id}')" style="background:rgba(59,130,246,0.2);border:1px solid rgba(59,130,246,0.5);border-radius:10px;padding:9px 16px;color:#93C5FD;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">✓ Done</button>
   </div>`;
   }).join('')}
 </div>` : '';

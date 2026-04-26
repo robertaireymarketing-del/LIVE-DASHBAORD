@@ -578,8 +578,19 @@ window.updateReminderEditDeadlineDisplay = (id, val) => {
 window.addReminderToPlanner = (id) => {
   const rem = (state.data.reminders || []).find(r => r.id === id);
   if (!rem) return;
-  const weekKey = getWeekKey(new Date());
-  const dayKey = getTodayDayKey();
+  // Replicate the exact weekKey calculation the planner uses
+  const now = new Date();
+  const curDay = now.getDay();
+  const daysToMon = curDay === 0 ? 6 : curDay - 1;
+  const thisMonday = new Date(now);
+  thisMonday.setDate(now.getDate() - daysToMon);
+  thisMonday.setHours(0,0,0,0);
+  const tempD = new Date(thisMonday);
+  tempD.setDate(tempD.getDate() + 3 - (tempD.getDay()+6)%7);
+  const w1 = new Date(tempD.getFullYear(),0,4);
+  const wn = 1 + Math.round(((tempD-w1)/86400000 - 3 + (w1.getDay()+6)%7)/7);
+  const weekKey = tempD.getFullYear() + '-W' + String(wn).padStart(2,'0');
+  const dayKey = getTodayDayKey(); // 'mon','tue','wed','thu','fri','sat','sun'
   const fk = '_other';
   if (!state.data.projectFronts) state.data.projectFronts = {};
   if (!state.data.projectFronts[fk]) state.data.projectFronts[fk] = { name: 'Other', status: 'pipeline', weekPlans: {} };
