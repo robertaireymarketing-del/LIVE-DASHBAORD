@@ -875,8 +875,12 @@ export function initJournalTab(deps) {
     const el = document.getElementById('journalMonthObjectives');
     if (!el) return;
 
-    const monthKey = currentDate.getFullYear() + '-' + String(currentDate.getMonth()+1).padStart(2,'0');
-    const monthObjs = deps.state.data.monthObjectives?.[monthKey] || [];
+    const now = new Date();
+    const monthKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const allMonthObjs = deps.state.data.monthObjectives?.[monthKey] || [];
+    // Exclude objectives rolled over from previous months (createdAt before this month)
+    const monthObjs = allMonthObjs.filter(obj => !obj.createdAt || obj.createdAt >= monthStart);
 
     if (!monthObjs.length) { el.innerHTML = ''; return; }
 
