@@ -290,6 +290,25 @@ function render() {
     ${state.challengeSetupOpen ? renderChallengeModal() : ''}
     ${state.crmDatePicker ? renderDatePickerModal() : ''}
     ${state.crmSoldModal ? renderSoldModal() : ''}
+    ${state.reminderDeleteConfirm ? (() => {
+      const isArchived = state.reminderDeleteConfirm.source === 'archived';
+      const rem = isArchived
+        ? (state.data.remindersArchived || []).find(r => r.id === state.reminderDeleteConfirm.id)
+        : (state.data.reminders || []).find(r => r.id === state.reminderDeleteConfirm.id);
+      return `
+    <div onclick="cancelReminderDelete()" style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;">
+      <div onclick="event.stopPropagation()" style="background:#1c1c1e;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:28px 24px;max-width:340px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+        <div style="font-size:32px;margin-bottom:14px;">${isArchived ? '🗑️' : '📦'}</div>
+        <div style="font-size:17px;font-weight:900;color:#fff;margin-bottom:8px;">${isArchived ? 'Delete permanently?' : 'Archive this reminder?'}</div>
+        ${rem ? `<div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.55);margin-bottom:6px;line-height:1.4;">"${rem.text}"</div>` : ''}
+        <div style="font-size:12px;color:rgba(255,255,255,0.35);margin-bottom:22px;">${isArchived ? 'This cannot be undone.' : 'It will be moved to your archive where you can delete it later.'}</div>
+        <div style="display:flex;gap:10px;">
+          <button onclick="cancelReminderDelete()" style="flex:1;padding:13px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:12px;color:rgba(255,255,255,0.7);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
+          <button onclick="confirmReminderDelete()" style="flex:1;padding:13px;background:rgba(231,76,60,0.15);border:1.5px solid rgba(231,76,60,0.5);border-radius:12px;color:#e74c3c;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;">${isArchived ? 'Delete' : 'Archive'}</button>
+        </div>
+      </div>
+    </div>`;
+    })() : ''}
     ${state.stepConfirm ? `
     <div class="step-confirm-overlay">
     <div class="step-confirm-modal">
@@ -457,6 +476,69 @@ window.saveChallengeSetup = async () => {
   if (daysVal) state.data.settings.challengeDays = daysVal;
   state.challengeSetupOpen = false;
   await saveData(); render();
+};
+
+// ── Reminders ──────────────────────────────────────────────────────────────
+window.addReminder = () => {
+  const textEl = document.getElementById('new-reminder-text');
+  const deadlineEl = document.getElementById('new-reminder-deadline');
+  const text = textEl?.value?.trim();
+  if (!text) { textEl?.focus(); return; }
+  const reminder = {
+    id: 'rem_' + Date.now(),
+    text,
+    deadline: deadlineEl?.value || null,
+    done: false,
+    createdAt: Date.now()
+  };
+  if (!state.data.reminders) state.data.reminders = [];
+  state.data.reminders = [reminder, ...state.data.reminders];
+  saveData();
+};
+window.toggleReminder = (id) => {
+  if (!state.data.reminders) return;
+  state.data.reminders = state.data.reminders.map(r => r.id === id ? { ...r, done: !r.done } : r);
+  saveData();
+};
+window.deleteReminder = (id) => {
+  state.reminderDeleteConfirm = { id, source: 'active' };
+  render();
+};
+window.deleteArchivedReminder = (id) => {
+  state.reminderDeleteConfirm = { id, source: 'archived' };
+  render();
+};
+window.confirmReminderDelete = () => {
+  const { id, source } = state.reminderDeleteConfirm || {};
+  if (!id) return;
+  if (source === 'active') {
+    const rem = (state.data.reminders || []).find(r => r.id === id);
+    if (rem) {
+      if (!state.data.remindersArchived) state.data.remindersArchived = [];
+      state.data.remindersArchived = [{ ...rem, archivedAt: Date.now() }, ...state.data.remindersArchived];
+      state.data.reminders = state.data.reminders.filter(r => r.id !== id);
+    }
+  } else {
+    state.data.remindersArchived = (state.data.remindersArchived || []).filter(r => r.id !== id);
+  }
+  state.reminderDeleteConfirm = null;
+  saveData();
+};
+window.cancelReminderDelete = () => { state.reminderDeleteConfirm = null; render(); };
+window.toggleRemindersArchive = () => { state.remindersArchiveOpen = !state.remindersArchiveOpen; render(); };
+window.updateReminderDeadlineDisplay = (val) => {
+  const el = document.getElementById('new-reminder-deadline-display');
+  if (!el) return;
+  if (val) {
+    const dt = new Date(val + 'T00:00:00');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const ord = n => n + (n%10===1&&n!==11?'st':n%10===2&&n!==12?'nd':n%10===3&&n!==13?'rd':'th');
+    el.textContent = '📅 ' + ord(dt.getDate()) + ' ' + months[dt.getMonth()] + ' ' + dt.getFullYear();
+    el.style.color = '#C9A84C';
+  } else {
+    el.textContent = '📅 Set deadline (optional)';
+    el.style.color = 'rgba(255,255,255,0.3)';
+  }
 };
 
 // ── Auth listener ──────────────────────────────────────────────────────────

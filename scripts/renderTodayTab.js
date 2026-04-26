@@ -582,12 +582,11 @@ ${BATCH_COLOURS.map((c,ci)=>`<div class="batch-colour-swatch${ci===0?' selected'
 const habitsSection = `
 <div class="cc-section-title">Discipline Status</div>
 <div class="toggle-grid">
-${['gym', 'retention', 'meditation', 'live'].map(field => `
+${['gym', 'retention', 'meditation'].map(field => `
 <div class="toggle-card ${todayData[field] ? 'active' : ''}" onclick="toggleToday('${field}')">
 <span class="toggle-icon">${todayData[field] ? '✓' : '○'}</span>
 <span class="toggle-label">${field.replace(/([A-Z])/g, ' $1').toUpperCase()}</span>
-${['gym', 'retention', 'meditation'].includes(field) ? `<span class="streak-badge">${getStreak(field)} day streak</span>` : ''}
-${field === 'live' ? `<span class="streak-badge">${state.data.marchStats?.lives || 0}/20 this month</span>` : ''}
+<span class="streak-badge">${getStreak(field)} day streak</span>
 </div>`).join('')}
 </div>`;
 
@@ -940,8 +939,76 @@ const batchesGroupSection = `
   ${batchesVisible ? batchesSection.replace('<div class="cc-section-title">Active Batches</div>', '') : ''}
 </div>`;
 
-// ── ORDER: Habits → Today's Fronts → Objectives (collapsible) → Batches (collapsible) ──
-return injectedCSS + habitsSection + frontsSection + objectivesGroupSection + batchesGroupSection + `
+// ── Reminders ──────────────────────────────────────────────────────────────
+const todayStr = now.toISOString().slice(0, 10);
+const reminders = state.data.reminders || [];
+const remindersArchived = state.data.remindersArchived || [];
+const dueTodayReminders = reminders.filter(r => !r.done && r.deadline === todayStr);
+
+const dueTodayBanner = dueTodayReminders.length > 0 ? `
+<div style="background:linear-gradient(135deg,rgba(231,76,60,0.22),rgba(231,76,60,0.08));border:2px solid rgba(231,76,60,0.65);border-radius:16px;padding:18px 20px;margin-bottom:16px;box-shadow:0 0 24px rgba(231,76,60,0.18);">
+  <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:#e74c3c;margin-bottom:12px;">🔔 DUE TODAY</div>
+  ${dueTodayReminders.map(r => `
+  <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid rgba(231,76,60,0.18);">
+    <div style="font-size:16px;font-weight:800;color:#fff;flex:1;line-height:1.3;">${r.text}</div>
+    <button onclick="toggleReminder('${r.id}')" style="background:rgba(46,204,113,0.15);border:1px solid rgba(46,204,113,0.45);border-radius:10px;padding:9px 16px;color:#2ecc71;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">✓ Done</button>
+  </div>`).join('')}
+</div>` : '';
+
+const remindersSection = `
+<div class="cc-section-title">Reminders</div>
+<div class="cc-card" style="padding:0;overflow:hidden;margin-bottom:4px;">
+  ${reminders.length === 0 ? `
+    <div style="padding:18px 20px;text-align:center;color:rgba(255,255,255,0.22);font-size:13px;font-style:italic;">No reminders yet — add one below</div>
+  ` : reminders.map(r => {
+    const rIsToday = r.deadline === todayStr;
+    const rIsOverdue = r.deadline && r.deadline < todayStr && !r.done;
+    const deadlineColor = r.done ? 'rgba(255,255,255,0.22)' : rIsToday ? '#e74c3c' : rIsOverdue ? '#e74c3c' : 'rgba(255,255,255,0.35)';
+    const deadlineLabel = r.deadline
+      ? (rIsToday ? '📅 Due today' : rIsOverdue ? `⚠ Overdue · ${fmtDeadlineShort(r.deadline)}` : fmtDeadlineShort(r.deadline))
+      : '';
+    return `
+    <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.055);${r.done ? 'opacity:0.45;' : ''}">
+      <button onclick="toggleReminder('${r.id}')" style="width:24px;height:24px;flex-shrink:0;border-radius:7px;border:2px solid ${r.done ? 'rgba(46,204,113,0.7)' : 'rgba(255,255,255,0.28)'};background:${r.done ? 'rgba(46,204,113,0.2)' : 'transparent'};color:${r.done ? '#2ecc71' : 'transparent'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;transition:all 0.15s;">${r.done ? '✓' : ''}</button>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:15px;font-weight:700;color:${r.done ? 'rgba(255,255,255,0.38)' : '#fff'};${r.done ? 'text-decoration:line-through;' : ''}line-height:1.3;">${r.text}</div>
+        ${deadlineLabel ? `<div style="font-size:11px;font-weight:700;color:${deadlineColor};margin-top:3px;">${deadlineLabel}</div>` : ''}
+      </div>
+      <button onclick="deleteReminder('${r.id}')" style="width:28px;height:28px;flex-shrink:0;background:rgba(231,76,60,0.07);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.55);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;">✕</button>
+    </div>`;
+  }).join('')}
+  <div style="padding:14px 16px;background:rgba(255,255,255,0.02);border-top:1px solid rgba(255,255,255,0.055);">
+    <input class="batch-editor-input" id="new-reminder-text" placeholder="New reminder..." style="margin-bottom:10px;" onkeydown="if(event.key==='Enter')addReminder()">
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div style="flex:1;position:relative;cursor:pointer;" onclick="document.getElementById('new-reminder-deadline').showPicker&&document.getElementById('new-reminder-deadline').showPicker()">
+        <input type="date" id="new-reminder-deadline" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;" onchange="updateReminderDeadlineDisplay(this.value)">
+        <div id="new-reminder-deadline-display" style="padding:10px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:13px;color:rgba(255,255,255,0.3);pointer-events:none;">📅 Set deadline (optional)</div>
+      </div>
+      <button onclick="addReminder()" style="background:#C9A84C;border:none;border-radius:10px;padding:10px 22px;color:#000;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">+ Add</button>
+    </div>
+  </div>
+</div>
+${remindersArchived.length > 0 ? `
+<div style="margin-bottom:4px;">
+  <button onclick="toggleRemindersArchive()" style="width:100%;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:11px 16px;color:rgba(255,255,255,0.32);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:space-between;letter-spacing:0.3px;">
+    <span>📦 Archived Reminders (${remindersArchived.length})</span>
+    <span style="font-size:10px;">${state.remindersArchiveOpen ? '▲ Hide' : '▼ Show'}</span>
+  </button>
+  ${state.remindersArchiveOpen ? `
+  <div class="cc-card" style="padding:0;margin-top:6px;overflow:hidden;">
+    ${remindersArchived.map(r => `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.045);opacity:0.5;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:700;color:rgba(255,255,255,0.45);text-decoration:line-through;line-height:1.3;">${r.text}</div>
+        ${r.deadline ? `<div style="font-size:11px;color:rgba(255,255,255,0.28);margin-top:2px;">${fmtDeadlineShort(r.deadline)}</div>` : ''}
+      </div>
+      <button onclick="deleteArchivedReminder('${r.id}')" style="width:28px;height:28px;flex-shrink:0;background:rgba(231,76,60,0.07);border:1px solid rgba(231,76,60,0.18);border-radius:7px;color:rgba(231,76,60,0.5);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="Delete permanently">✕</button>
+    </div>`).join('')}
+  </div>` : ''}
+</div>` : ''}`;
+
+// ── ORDER: Due-Today Banner → Habits → Reminders → Today's Fronts → Objectives (collapsible) → Batches (collapsible) ──
+return injectedCSS + dueTodayBanner + habitsSection + remindersSection + frontsSection + objectivesGroupSection + batchesGroupSection + `
 <div style="margin-top:16px;margin-bottom:8px;">
 <button onclick="openPastDays()" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:14px;color:rgba(255,255,255,0.5);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
 📅 Review Previous Days
