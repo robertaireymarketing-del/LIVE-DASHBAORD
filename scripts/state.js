@@ -70,4 +70,6 @@ export const state = {
   remindersArchiveOpen: false,
   reminderEditing: null,        // id of reminder currently being edited
   reminderEditDraft: {},        // { text, deadline } draft while editing
+  frontTaskDeleteConfirm: null, // { key, taskText, taskIdx }
+  frontTaskEditing: null,       // { key, oldText, taskIdx }
 };

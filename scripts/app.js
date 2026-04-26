@@ -290,7 +290,21 @@ function render() {
     ${state.challengeSetupOpen ? renderChallengeModal() : ''}
     ${state.crmDatePicker ? renderDatePickerModal() : ''}
     ${state.crmSoldModal ? renderSoldModal() : ''}
-    ${state.reminderDeleteConfirm ? (() => {
+    ${state.frontTaskDeleteConfirm ? (() => {
+      const { taskText } = state.frontTaskDeleteConfirm;
+      return `
+    <div onclick="cancelFrontTaskDelete()" style="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;">
+      <div onclick="event.stopPropagation()" style="background:#1c1c1e;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:28px 24px;max-width:340px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+        <div style="font-size:32px;margin-bottom:14px;">🗑️</div>
+        <div style="font-size:17px;font-weight:900;color:#fff;margin-bottom:8px;">Remove this task?</div>
+        <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.55);margin-bottom:20px;line-height:1.4;">"${taskText}"</div>
+        <div style="display:flex;gap:10px;">
+          <button onclick="cancelFrontTaskDelete()" style="flex:1;padding:13px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:12px;color:rgba(255,255,255,0.7);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
+          <button onclick="confirmFrontTaskDelete()" style="flex:1;padding:13px;background:rgba(231,76,60,0.15);border:1.5px solid rgba(231,76,60,0.5);border-radius:12px;color:#e74c3c;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;">Remove</button>
+        </div>
+      </div>
+    </div>`;
+    })() : ''}
       const isArchived = state.reminderDeleteConfirm.source === 'archived';
       const rem = isArchived
         ? (state.data.remindersArchived || []).find(r => r.id === state.reminderDeleteConfirm.id)
@@ -605,13 +619,51 @@ window.addReminderToPlanner = (id) => {
     document.body.appendChild(el); setTimeout(() => el.remove(), 2000);
     return;
   }
-  state.data.projectFronts[fk].weekPlans[weekKey][dayKey] = [...tasks, { text: rem.text, start: '', end: '' }];
+  state.data.projectFronts[fk].weekPlans[weekKey][dayKey] = [...tasks, { text: rem.text, start: '', end: '', reminderTask: true }];
   saveData();
   const el = document.createElement('div');
   el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#2ecc71;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;white-space:nowrap;';
   el.textContent = '✓ Added to today\'s planner!';
   document.body.appendChild(el); setTimeout(() => el.remove(), 2000);
 };
+
+// ── Today's Fronts — edit & delete ────────────────────────────────────────
+window.deleteFrontTask = (key, taskText, taskIdx) => {
+  state.frontTaskDeleteConfirm = { key, taskText, taskIdx };
+  render();
+};
+window.confirmFrontTaskDelete = () => {
+  const { key, taskIdx } = state.frontTaskDeleteConfirm || {};
+  const wk = getWeekKey();
+  const dk = getTodayDayKey();
+  const tasks = state.data.projectFronts?.[key]?.weekPlans?.[wk]?.[dk];
+  if (Array.isArray(tasks)) {
+    state.data.projectFronts[key].weekPlans[wk][dk] = tasks.filter((_, i) => i !== taskIdx);
+  }
+  state.frontTaskDeleteConfirm = null;
+  saveData();
+};
+window.cancelFrontTaskDelete = () => { state.frontTaskDeleteConfirm = null; render(); };
+window.editFrontTask = (key, oldText, taskIdx) => {
+  state.frontTaskEditing = { key, oldText, taskIdx };
+  render();
+};
+window.saveFrontTaskEdit = (key, oldText, taskIdx) => {
+  const newText = document.getElementById('front-task-edit-input')?.value?.trim();
+  if (!newText) return;
+  const wk = getWeekKey();
+  const dk = getTodayDayKey();
+  const tasks = state.data.projectFronts?.[key]?.weekPlans?.[wk]?.[dk];
+  if (Array.isArray(tasks)) {
+    state.data.projectFronts[key].weekPlans[wk][dk] = tasks.map((t, i) => {
+      if (i !== taskIdx) return t;
+      return typeof t === 'object' ? { ...t, text: newText } : newText;
+    });
+  }
+  state.frontTaskEditing = null;
+  saveData();
+};
+window.cancelFrontTaskEdit = () => { state.frontTaskEditing = null; render(); };
 
 // ── Auth listener ──────────────────────────────────────────────────────────
 window.state = state;

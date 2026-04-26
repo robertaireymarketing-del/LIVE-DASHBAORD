@@ -303,7 +303,8 @@ const allTodayTasks = [];
   const tasksArr = Array.isArray(tasks) ? tasks : (tasks ? [tasks] : []);
   const displayName = key === '_other' ? 'Other' : f.name;
   const taskHex = FRONT_COLOURS[key] || '#C9A84C';
-  tasksArr.forEach(task => {
+  tasksArr.forEach((task, taskIdx) => {
+    if (typeof task === 'object' && task.reminderTask) return;
     const taskText = typeof task === 'object' ? task.text : task;
     const startTime = typeof task === 'object' ? (task.start||'') : '';
     const endTime = typeof task === 'object' ? (task.end||'') : '';
@@ -314,7 +315,7 @@ const allTodayTasks = [];
       const mins=(eh*60+em)-(sh*60+sm);
       if(mins>0) duration=(Math.floor(mins/60)?Math.floor(mins/60)+'h ':'')+(mins%60?mins%60+'m':'');
     }
-    if (taskText) allTodayTasks.push({ type:'manual', key, name: displayName, task: taskText, startTime, endTime, duration, hex: taskHex });
+    if (taskText) allTodayTasks.push({ type:'manual', key, name: displayName, task: taskText, startTime, endTime, duration, hex: taskHex, taskIdx });
   });
 });
 
@@ -340,8 +341,18 @@ ${allTodayTasks.length === 0
   : allTodayTasks.map(item => {
     const isDone = item.type==='batch' ? item.done : ((state.data.frontsDone||{})[getToday()]?.[item.key+':'+item.task]||false);
     const hex = item.hex;
+    const isEditingThisTask = item.type === 'manual' && state.frontTaskEditing?.key === item.key && state.frontTaskEditing?.oldText === item.task;
     return `
     <div style="border:1.5px solid ${isDone?'#1A5C3A':hex+'44'};background:${isDone?'rgba(26,92,58,0.85)':'transparent'};border-radius:12px;padding:14px 16px;margin-bottom:8px;border-left:3px solid ${isDone?'#2ecc71':hex};">
+    ${isEditingThisTask ? `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${hex};margin-bottom:2px;">${item.name.toUpperCase()}</div>
+      <input id="front-task-edit-input" class="batch-editor-input" value="${item.task.replace(/"/g,'&quot;')}" style="font-size:15px;font-weight:700;">
+      <div style="display:flex;gap:8px;">
+        <button onclick="saveFrontTaskEdit('${item.key}','${item.task.replace(/'/g,"\\'")}',${item.taskIdx})" style="flex:1;background:#0A1628;border:2px solid #0A1628;border-radius:10px;padding:10px;color:#ffffff;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;">Save</button>
+        <button onclick="cancelFrontTaskEdit()" style="background:#E8EEF5;border:1.5px solid #D0DAE8;border-radius:10px;padding:10px 18px;color:#516176;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
+      </div>
+    </div>` : `
     <div style="display:flex;align-items:flex-start;gap:12px;">
     <button onclick="${item.type==='batch'?`toggleBatchStepDoneToday('${item.key}',${item.batchStepIdx})`:`toggleFrontDone('${item.key+':'+item.task}')`}" style="width:30px;height:30px;flex-shrink:0;margin-top:2px;border-radius:8px;border:2px solid ${isDone?'rgba(46,204,113,0.7)':hex+'88'};background:${isDone?'rgba(46,204,113,0.2)':'transparent'};color:${isDone?'#2ecc71':hex};font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">${isDone?'✓':''}</button>
     <div style="flex:1;min-width:0;">
@@ -360,7 +371,12 @@ ${allTodayTasks.length === 0
       return `<div style="display:inline-flex;align-items:center;gap:4px;margin-top:5px;background:${daysLeft<=1?'rgba(231,76,60,0.15)':daysLeft<=3?'rgba(230,126,34,0.12)':'rgba(255,255,255,0.05)'};border:1px solid ${colour}55;border-radius:20px;padding:3px 10px;"><span style="font-size:11px;font-weight:900;color:${colour};letter-spacing:0.5px;">${label}</span></div>`;
     })() : ''}
     </div>
-    </div>
+    ${item.type === 'manual' ? `
+    <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0;margin-top:2px;">
+      <button onclick="editFrontTask('${item.key}','${item.task.replace(/'/g,"\\'")}',${item.taskIdx})" style="width:28px;height:28px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:7px;color:rgba(255,255,255,0.6);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✎</button>
+      <button onclick="deleteFrontTask('${item.key}','${item.task.replace(/'/g,"\\'")}',${item.taskIdx})" style="width:28px;height:28px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.55);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>` : ''}
+    </div>`}
     </div>`;
   }).join('')}`;
 
@@ -955,10 +971,10 @@ const dueTodayBanner = urgentReminders.length > 0 ? `
   <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid rgba(59,130,246,0.18);">
     <button onclick="toggleReminder('${r.id}')" style="width:26px;height:26px;flex-shrink:0;border-radius:7px;border:2.5px solid rgba(59,130,246,0.7);background:transparent;color:transparent;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;transition:all 0.15s;"></button>
     <div style="flex:1;min-width:0;">
-      <div style="font-size:16px;font-weight:800;color:#fff;line-height:1.3;">${r.text}</div>
-      ${isOverdue ? `<div style="font-size:11px;font-weight:800;color:#93C5FD;margin-top:2px;">⚠ Overdue · ${fmtDeadlineShort(r.deadline)}</div>` : `<div style="font-size:11px;font-weight:700;color:#BFDBFE;margin-top:2px;">Due today</div>`}
+      <div style="font-size:16px;font-weight:800;color:#0A1628;line-height:1.3;">${r.text}</div>
+      ${isOverdue ? `<div style="font-size:11px;font-weight:800;color:#1D4ED8;margin-top:2px;">⚠ Overdue · ${fmtDeadlineShort(r.deadline)}</div>` : `<div style="font-size:11px;font-weight:700;color:#2563EB;margin-top:2px;">Due today</div>`}
     </div>
-    <button onclick="toggleReminder('${r.id}')" style="background:rgba(59,130,246,0.2);border:1px solid rgba(59,130,246,0.5);border-radius:10px;padding:9px 16px;color:#93C5FD;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">✓ Done</button>
+    <button onclick="toggleReminder('${r.id}')" style="background:#1D4ED8;border:none;border-radius:10px;padding:9px 16px;color:#fff;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;">✓ Done</button>
   </div>`;
   }).join('')}
 </div>` : '';
