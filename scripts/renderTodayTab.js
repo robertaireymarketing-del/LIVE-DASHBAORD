@@ -986,7 +986,7 @@ const remindersSection = `
         </div>
       </div>
       <div style="display:flex;gap:8px;">
-        <button onclick="saveReminderEdit('${r.id}')" style="flex:1;background:#0A1628;border:none;border-radius:10px;padding:11px;color:#fff;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;">Save</button>
+        <button onclick="saveReminderEdit('${r.id}')" style="flex:1;background:#0A1628;border:2px solid #0A1628;border-radius:10px;padding:11px;color:#ffffff;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;">Save</button>
         <button onclick="cancelReminderEdit()" style="background:#E8EEF5;border:1.5px solid #D0DAE8;border-radius:10px;padding:11px 18px;color:#516176;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Cancel</button>
       </div>
     </div>` : `

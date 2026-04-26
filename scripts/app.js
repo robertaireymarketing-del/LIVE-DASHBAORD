@@ -580,10 +580,12 @@ window.addReminderToPlanner = (id) => {
   if (!rem) return;
   const weekKey = getWeekKey(new Date());
   const dayKey = getTodayDayKey();
-  if (!state.data.weekPlans) state.data.weekPlans = {};
-  if (!state.data.weekPlans[weekKey]) state.data.weekPlans[weekKey] = {};
-  if (!state.data.weekPlans[weekKey]['_other']) state.data.weekPlans[weekKey]['_other'] = {};
-  const existing = state.data.weekPlans[weekKey]['_other'][dayKey];
+  const fk = '_other';
+  if (!state.data.projectFronts) state.data.projectFronts = {};
+  if (!state.data.projectFronts[fk]) state.data.projectFronts[fk] = { name: 'Other', status: 'pipeline', weekPlans: {} };
+  if (!state.data.projectFronts[fk].weekPlans) state.data.projectFronts[fk].weekPlans = {};
+  if (!state.data.projectFronts[fk].weekPlans[weekKey]) state.data.projectFronts[fk].weekPlans[weekKey] = {};
+  const existing = state.data.projectFronts[fk].weekPlans[weekKey][dayKey] || [];
   const tasks = Array.isArray(existing) ? existing : (existing ? [existing] : []);
   if (tasks.some(t => (typeof t === 'object' ? t.text : t) === rem.text)) {
     const el = document.createElement('div');
@@ -592,7 +594,7 @@ window.addReminderToPlanner = (id) => {
     document.body.appendChild(el); setTimeout(() => el.remove(), 2000);
     return;
   }
-  state.data.weekPlans[weekKey]['_other'][dayKey] = [...tasks, { text: rem.text }];
+  state.data.projectFronts[fk].weekPlans[weekKey][dayKey] = [...tasks, { text: rem.text, start: '', end: '' }];
   saveData();
   const el = document.createElement('div');
   el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#2ecc71;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:9999;white-space:nowrap;';
