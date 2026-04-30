@@ -757,6 +757,24 @@ export function renderProgressTab(deps) {
       </div>
     ` : ''}
 
+    <!-- ══ LEAN MASS ══ -->
+    <div class="body-dark-card" style="background:linear-gradient(145deg,#1e1e1e,#161616);border:1px solid rgba(46,204,113,0.25);border-left:4px solid rgba(46,204,113,0.6);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 4px 16px rgba(0,0,0,0.4);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.55);">START LEAN MASS</div>
+          <div style="font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.3px;">${startLeanMass} lb</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.55);">CHANGE</div>
+          <div style="font-size:18px;font-weight:700;color:${leanMassChange >= 0 ? '#2ecc71' : '#e74c3c'};">${leanMassChange >= 0 ? '+' : ''}${leanMassChange} lb</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:9px;letter-spacing:1.5px;color:rgba(46,204,113,0.8);">CURRENT LEAN</div>
+          <div style="font-size:22px;font-weight:900;color:#2ecc71;letter-spacing:-0.3px;">${currentLeanMass} lb</div>
+        </div>
+      </div>
+    </div>
+
     <!-- ══ GOAL PROJECTION ══ -->
     <div class="body-dark-card" style="background:linear-gradient(145deg,#1e1e1e,#161616);border:1px solid rgba(255,255,255,0.07);border-left:4px solid rgba(201,168,76,0.5);border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 4px 16px rgba(0,0,0,0.4);">
       <div style="font-size:10px;font-weight:900;letter-spacing:2.5px;color:rgba(201,168,76,0.85);margin-bottom:14px;text-transform:uppercase;">🎯 GOAL PROJECTION</div>
@@ -790,24 +808,6 @@ export function renderProgressTab(deps) {
         <div style="font-size:18px;font-weight:700;color:#D4AF37;">${weeklyTargetWeight} lb <span style="font-size:11px;font-weight:400;color:rgba(255,255,255,0.4);">based on ${bfLossRate}%/wk BF loss</span></div>
       </div>
       <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.7);margin-top:10px;">Pace: ${paceLabel}${!hasEnoughData ? ' · Building data — check back in a few days' : ''}</div>
-    </div>
-
-    <!-- ══ LEAN MASS ══ -->
-    <div class="body-dark-card" style="background:linear-gradient(145deg,#1e1e1e,#161616);border:1px solid rgba(46,204,113,0.25);border-left:4px solid rgba(46,204,113,0.6);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 4px 16px rgba(0,0,0,0.4);">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.55);">START LEAN MASS</div>
-          <div style="font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.3px;">${startLeanMass} lb</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.55);">CHANGE</div>
-          <div style="font-size:18px;font-weight:700;color:${leanMassChange >= 0 ? '#2ecc71' : '#e74c3c'};">${leanMassChange >= 0 ? '+' : ''}${leanMassChange} lb</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:9px;letter-spacing:1.5px;color:rgba(46,204,113,0.8);">CURRENT LEAN</div>
-          <div style="font-size:22px;font-weight:900;color:#2ecc71;letter-spacing:-0.3px;">${currentLeanMass} lb</div>
-        </div>
-      </div>
     </div>
 
     <!-- ══ CALORIE TRACKER ══ -->
