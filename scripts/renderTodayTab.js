@@ -1114,18 +1114,32 @@ const remindersSection = `
       </div>`;
     }
 
+    const showArchivePrompt = state.reminderArchivePrompt === r.id;
     return `
-    <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid #E8EEF5;${r.done ? 'opacity:0.48;' : ''}">
-      <button onclick="toggleReminder('${r.id}')" style="width:24px;height:24px;flex-shrink:0;border-radius:7px;border:2px solid ${r.done?'#2ecc71':'#aac0d8'};background:${r.done?'rgba(46,204,113,0.15)':'#fff'};color:${r.done?'#2ecc71':'transparent'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${r.done?'✓':''}</button>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:15px;font-weight:700;color:${r.done?'#9aaabf':'#0A1628'};${r.done?'text-decoration:line-through;':''}line-height:1.3;">${r.text}</div>
-        ${deadlineLabel ? `<div style="font-size:11px;font-weight:700;color:${deadlineColor};margin-top:3px;">${deadlineLabel}</div>` : ''}
+    <div style="border-bottom:1px solid #E8EEF5;">
+      <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;${r.done && !showArchivePrompt ? 'opacity:0.48;' : ''}">
+        <button onclick="${r.done ? `toggleReminder('${r.id}')` : `markReminderDoneAndPrompt('${r.id}')`}" style="width:24px;height:24px;flex-shrink:0;border-radius:7px;border:2px solid ${r.done?'#2ecc71':'#aac0d8'};background:${r.done?'rgba(46,204,113,0.15)':'#fff'};color:${r.done?'#2ecc71':'transparent'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${r.done?'✓':''}</button>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:15px;font-weight:700;color:${r.done?'#9aaabf':'#0A1628'};${r.done?'text-decoration:line-through;':''}line-height:1.3;">${r.text}</div>
+          ${deadlineLabel ? `<div style="font-size:11px;font-weight:700;color:${deadlineColor};margin-top:3px;">${deadlineLabel}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;">
+          <button onclick="addReminderToPlanner('${r.id}')" title="Add to today's planner" style="background:#EEF5FF;border:1.5px solid #C5D8EE;border-radius:8px;padding:6px 10px;color:#3B82F6;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;letter-spacing:0.3px;">📋 Plan</button>
+          <button onclick="editReminder('${r.id}')" style="width:28px;height:28px;background:#F0F6FF;border:1.5px solid #C5D8EE;border-radius:7px;color:#516176;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✎</button>
+          <button onclick="deleteReminder('${r.id}')" style="width:28px;height:28px;background:#FFF0F0;border:1.5px solid #FFCDD2;border-radius:7px;color:#e74c3c;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+        </div>
       </div>
-      <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;">
-        <button onclick="addReminderToPlanner('${r.id}')" title="Add to today's planner" style="background:#EEF5FF;border:1.5px solid #C5D8EE;border-radius:8px;padding:6px 10px;color:#3B82F6;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;letter-spacing:0.3px;">📋 Plan</button>
-        <button onclick="editReminder('${r.id}')" style="width:28px;height:28px;background:#F0F6FF;border:1.5px solid #C5D8EE;border-radius:7px;color:#516176;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✎</button>
-        <button onclick="deleteReminder('${r.id}')" style="width:28px;height:28px;background:#FFF0F0;border:1.5px solid #FFCDD2;border-radius:7px;color:#e74c3c;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
-      </div>
+      ${showArchivePrompt ? `
+      <div style="margin:0 14px 14px;background:#F0F7FF;border:2px solid #1D4ED8;border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:900;color:#1D4ED8;letter-spacing:0.3px;">Move to Archived?</div>
+          <div style="font-size:11px;color:#516176;margin-top:2px;font-weight:600;">This reminder is marked complete — archive it to keep things tidy.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button onclick="confirmArchiveReminder('${r.id}')" style="background:#1D4ED8;border:2px solid #1D4ED8;border-radius:9px;padding:8px 16px;color:#ffffff;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;">Yes</button>
+          <button onclick="dismissArchivePrompt()" style="background:#ffffff;border:2px solid #C8D6E5;border-radius:9px;padding:8px 14px;color:#516176;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">No</button>
+        </div>
+      </div>` : ''}
     </div>`;
   }).join('')}
   <div style="padding:14px 16px;background:#F8FAFC;border-top:1.5px solid #E8EEF5;">
@@ -1151,14 +1165,29 @@ ${remindersArchived.length > 0 ? `
   </button>
   ${state.remindersArchiveOpen ? `
   <div style="background:#fff;border:1.5px solid #D8E0EC;border-radius:12px;margin-top:6px;overflow:hidden;">
-    ${remindersArchived.map(r => `
-    <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #EDF1F7;opacity:0.55;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:14px;font-weight:700;color:#6B7A90;text-decoration:line-through;line-height:1.3;">${r.text}</div>
-        ${r.deadline ? `<div style="font-size:11px;color:#9aaabf;margin-top:2px;">${fmtDeadlineShort(r.deadline)}</div>` : ''}
+    ${remindersArchived.map(r => {
+      const confirmingDelete = state.archivedDeleteConfirm === r.id;
+      return `
+    <div style="border-bottom:1px solid #EDF1F7;">
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;opacity:${confirmingDelete ? '1' : '0.55'};">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:700;color:#6B7A90;text-decoration:line-through;line-height:1.3;">${r.text}</div>
+          ${r.deadline ? `<div style="font-size:11px;color:#9aaabf;margin-top:2px;">${fmtDeadlineShort(r.deadline)}</div>` : ''}
+        </div>
+        <button onclick="promptDeleteArchivedReminder('${r.id}')" style="width:28px;height:28px;flex-shrink:0;background:#FFF0F0;border:1.5px solid #FFCDD2;border-radius:7px;color:#e74c3c;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="Delete permanently">✕</button>
       </div>
-      <button onclick="deleteArchivedReminder('${r.id}')" style="width:28px;height:28px;flex-shrink:0;background:#FFF0F0;border:1.5px solid #FFCDD2;border-radius:7px;color:#e74c3c;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="Delete permanently">✕</button>
-    </div>`).join('')}
+      ${confirmingDelete ? `
+      <div style="margin:0 14px 12px;background:#FFF5F5;border:2px solid #e74c3c;border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:900;color:#c0392b;letter-spacing:0.3px;">Delete permanently?</div>
+          <div style="font-size:11px;color:#516176;margin-top:2px;font-weight:600;">This cannot be undone.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button onclick="executeDeleteArchivedReminder('${r.id}')" style="background:#e74c3c;border:2px solid #e74c3c;border-radius:9px;padding:8px 16px;color:#ffffff;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;">Delete</button>
+          <button onclick="cancelDeleteArchivedReminder()" style="background:#ffffff;border:2px solid #C8D6E5;border-radius:9px;padding:8px 14px;color:#516176;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;">Cancel</button>
+        </div>
+      </div>` : ''}
+    </div>`}).join('')}
   </div>` : ''}
 </div>` : ''}`;
 
