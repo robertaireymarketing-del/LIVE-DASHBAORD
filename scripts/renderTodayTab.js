@@ -1115,10 +1115,11 @@ const remindersSection = `
     }
 
     const showArchivePrompt = state.reminderArchivePrompt === r.id;
+    const checkboxOnclick = r.done ? `toggleReminder('${r.id}')` : `markReminderDoneAndPrompt('${r.id}')`;
     return `
     <div style="border-bottom:1px solid #E8EEF5;">
       <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;${r.done && !showArchivePrompt ? 'opacity:0.48;' : ''}">
-        <button onclick="${r.done ? `toggleReminder('${r.id}')` : `markReminderDoneAndPrompt('${r.id}')`}" style="width:24px;height:24px;flex-shrink:0;border-radius:7px;border:2px solid ${r.done?'#2ecc71':'#aac0d8'};background:${r.done?'rgba(46,204,113,0.15)':'#fff'};color:${r.done?'#2ecc71':'transparent'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${r.done?'✓':''}</button>
+        <button onclick="${checkboxOnclick}" style="width:24px;height:24px;flex-shrink:0;border-radius:7px;border:2px solid ${r.done?'#2ecc71':'#aac0d8'};background:${r.done?'rgba(46,204,113,0.15)':'#fff'};color:${r.done?'#2ecc71':'transparent'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${r.done?'✓':''}</button>
         <div style="flex:1;min-width:0;">
           <div style="font-size:15px;font-weight:700;color:${r.done?'#9aaabf':'#0A1628'};${r.done?'text-decoration:line-through;':''}line-height:1.3;">${r.text}</div>
           ${deadlineLabel ? `<div style="font-size:11px;font-weight:700;color:${deadlineColor};margin-top:3px;">${deadlineLabel}</div>` : ''}
