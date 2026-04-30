@@ -544,6 +544,37 @@ window.confirmReminderDelete = () => {
 };
 window.cancelReminderDelete = () => { state.reminderDeleteConfirm = null; render(); };
 window.toggleRemindersArchive = () => { state.remindersArchiveOpen = !state.remindersArchiveOpen; render(); };
+
+// ── Archive prompt (shown after marking a reminder done) ──────────────────
+window.markReminderDoneAndPrompt = (id) => {
+  if (!state.data.reminders) return;
+  state.data.reminders = state.data.reminders.map(r => r.id === id ? { ...r, done: true } : r);
+  state.reminderArchivePrompt = id;
+  saveData();
+  render();
+};
+window.confirmArchiveReminder = (id) => {
+  const rem = (state.data.reminders || []).find(r => r.id === id);
+  if (rem) {
+    if (!state.data.remindersArchived) state.data.remindersArchived = [];
+    state.data.remindersArchived = [{ ...rem, archivedAt: Date.now() }, ...state.data.remindersArchived];
+    state.data.reminders = state.data.reminders.filter(r => r.id !== id);
+  }
+  state.reminderArchivePrompt = null;
+  saveData();
+  render();
+};
+window.dismissArchivePrompt = () => { state.reminderArchivePrompt = null; render(); };
+
+// ── Archived reminder delete confirmation ─────────────────────────────────
+window.promptDeleteArchivedReminder = (id) => { state.archivedDeleteConfirm = id; render(); };
+window.executeDeleteArchivedReminder = (id) => {
+  state.data.remindersArchived = (state.data.remindersArchived || []).filter(r => r.id !== id);
+  state.archivedDeleteConfirm = null;
+  saveData();
+  render();
+};
+window.cancelDeleteArchivedReminder = () => { state.archivedDeleteConfirm = null; render(); };
 window.updateReminderDeadlineDisplay = (val) => {
   const el = document.getElementById('new-reminder-deadline-display');
   if (!el) return;
