@@ -448,9 +448,10 @@ export function renderProgressTab(deps) {
           .sort((a,b) => b.date.localeCompare(a.date))[0];
         const bfBase = prevWeekEntry?.bodyFat ?? currentBF;
         const wtBase = prevWeekEntry?.weight  ?? currentWeight;
-        // Current week: project full target pace from last week's close
-        const projEndBF = +(bfBase - bfLossRate).toFixed(1);
-        const projEndWt = +(wtBase - wtBase * bfLossRate / 100).toFixed(1);
+        // Current week: prorate target pace by how many days are actually in this week
+        const fraction   = daysInWeek / 7;
+        const projEndBF = +(bfBase - bfLossRate * fraction).toFixed(1);
+        const projEndWt = +(wtBase - wtBase * bfLossRate / 100 * fraction).toFixed(1);
         const locked = actual != null && !isCurrent;
         return { ...wk, actual, isPast, isCurrent, isFuture, daysInWeek, projEndBF, projEndWt, locked, prevWeekEntry };
       });
