@@ -498,6 +498,8 @@ window.refreshJournalHabitGrid = (dateKey) => {
       <span style="font-size:11px;font-weight:900;letter-spacing:1px;color:${viewedData[f.key]?'#ffffff':'#0A1628'}!important;">${f.label}</span>
       <span class="jd-streak" style="font-size:10px;font-weight:700;color:${viewedData[f.key]?'#ffffff':'#7b92aa'}!important;">${streak(f.key)} day streak</span>
     </div>`).join('');
+  window.renderJournalCalendar?.();
+  window.renderScoreAverages?.();
 };
 window.logInput = (field) => {
   const input = document.getElementById(`input-${field}`);
