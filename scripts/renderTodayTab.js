@@ -629,31 +629,57 @@ const monthlyObjModalContent = `
     const dayStart = new Date();
     dayStart.setHours(0,0,0,0);
     const daysLeft = dl ? Math.ceil((dl.getTime() - dayStart.getTime()) / 86400000) : null;
-    const isOverdue = daysLeft !== null && daysLeft < 0 && !obj.done;
+    const hasReview = !!obj.review?.outcome;
+    const isOverdue = daysLeft !== null && daysLeft < 0 && !hasReview;
     const isEditing = state.monthObjEditing === `${srcBucket}:${srcIndex}`;
+    // Review-aware visuals
+    const reviewOutcome = obj.review?.outcome;
+    const reviewColor = reviewOutcome === 'completed' ? '#2ecc71' : '#e74c3c';
+    const checkIcon   = reviewOutcome === 'completed' ? '✓' : reviewOutcome === 'uncompleted' ? '✕' : obj.done ? '✓' : '';
+    const checkBorder = reviewOutcome === 'completed' ? 'rgba(46,204,113,0.7)' : reviewOutcome === 'uncompleted' ? '#e74c3c' : catColor+'66';
+    const checkBg     = reviewOutcome === 'completed' ? 'rgba(46,204,113,0.2)' : reviewOutcome === 'uncompleted' ? 'rgba(231,76,60,0.15)' : 'transparent';
+    const checkColor  = reviewOutcome === 'completed' ? '#2ecc71' : reviewOutcome === 'uncompleted' ? '#e74c3c' : catColor;
+    const cardBorder  = reviewOutcome === 'completed' ? 'rgba(46,204,113,0.4)' : reviewOutcome === 'uncompleted' ? 'rgba(231,76,60,0.4)' : isOverdue ? 'rgba(231,76,60,0.3)' : catColor+'33';
+    const cardBg      = reviewOutcome === 'completed' ? 'rgba(26,92,58,0.4)' : reviewOutcome === 'uncompleted' ? 'rgba(80,20,20,0.4)' : isOverdue ? 'rgba(231,76,60,0.05)' : 'rgba(255,255,255,0.02)';
+    const titleColor  = reviewOutcome === 'uncompleted' ? 'rgba(231,76,60,0.8)' : obj.done ? 'rgba(255,255,255,0.4)' : '#fff';
+    const titleStrike = (obj.done || reviewOutcome === 'uncompleted') ? 'text-decoration:line-through;' : '';
     return `
-    <div style="border:1.5px solid ${obj.done?'rgba(46,204,113,0.3)':isOverdue?'rgba(231,76,60,0.3)':catColor+'33'};border-radius:12px;padding:12px 14px;margin-bottom:8px;background:${obj.done?'rgba(26,92,58,0.4)':isOverdue?'rgba(231,76,60,0.05)':'rgba(255,255,255,0.02)'};display:flex;align-items:${isEditing ? 'flex-start' : 'center'};gap:10px;">
-      <button onclick="toggleMonthObj('${srcBucket}',${srcIndex})" style="width:24px;height:24px;flex-shrink:0;border-radius:6px;border:2px solid ${obj.done?'rgba(46,204,113,0.7)':catColor+'66'};background:${obj.done?'rgba(46,204,113,0.2)':'transparent'};color:${obj.done?'#2ecc71':catColor};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</button>
-      <div style="flex:1;min-width:0;">
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:${isEditing ? '10px' : '2px'};">
-          <span style="font-size:9px;font-weight:900;letter-spacing:1px;color:${catColor};">${catLabel.toUpperCase()}</span>
-          ${obj.deadline ? `<span style="font-size:10px;color:${isOverdue?'#e74c3c':'rgba(255,255,255,0.35)'};font-weight:${isOverdue?'800':'600'};">${isOverdue?'⚠ OVERDUE · ':''}${fmtDeadlineShort(obj.deadline)}</span>` : ''}
+    <div style="border:1.5px solid ${cardBorder};border-radius:12px;margin-bottom:8px;background:${cardBg};overflow:hidden;">
+      ${hasReview ? `
+      <div style="background:${reviewOutcome === 'completed' ? '#1A5C3A' : '#8B1A1A'};padding:8px 14px;display:flex;align-items:center;gap:8px;">
+        <span style="font-size:13px;font-weight:900;color:#fff;letter-spacing:0.5px;">${reviewOutcome === 'completed' ? '✓ COMPLETED' : '✗ NOT COMPLETED'}</span>
+      </div>` : ''}
+      <div style="padding:12px 14px;border-left:3px solid ${reviewOutcome === 'completed' ? '#2ecc71' : reviewOutcome === 'uncompleted' ? '#e74c3c' : catColor};display:flex;align-items:${isEditing ? 'flex-start' : 'flex-start'};gap:10px;">
+        <button onclick="toggleMonthObj('${srcBucket}',${srcIndex})" style="width:24px;height:24px;flex-shrink:0;margin-top:2px;border-radius:6px;border:2px solid ${checkBorder};background:${checkBg};color:${checkColor};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${checkIcon}</button>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:${isEditing ? '10px' : '4px'};">
+            <span style="font-size:9px;font-weight:900;letter-spacing:1px;color:${catColor};">${catLabel.toUpperCase()}</span>
+            ${obj.deadline ? `<span style="font-size:10px;color:${isOverdue?'#e74c3c':'rgba(255,255,255,0.35)'};font-weight:${isOverdue?'800':'600'};">${isOverdue?'⚠ OVERDUE · ':''}${fmtDeadlineShort(obj.deadline)}</span>` : ''}
+          </div>
+          ${isEditing ? `
+            <input id="edit-month-obj-text-${srcIndex}" class="batch-editor-input" value="${escAttr(obj.text || '')}" placeholder="Objective title" style="margin-bottom:10px;">
+            <div style="position:relative;" onclick="document.getElementById('edit-month-obj-deadline-${srcIndex}').showPicker&&document.getElementById('edit-month-obj-deadline-${srcIndex}').showPicker()">
+              <input type="date" id="edit-month-obj-deadline-${srcIndex}" value="${obj.deadline || ''}" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
+              <div style="padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:14px;color:${obj.deadline ? '#C9A84C' : 'rgba(255,255,255,0.3)'};font-weight:${obj.deadline ? '800' : '400'};cursor:pointer;">${obj.deadline ? '📅 ' + fmtDeadlineShort(obj.deadline) : '📅 Set deadline (optional)'}</div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button onclick="saveMonthObjEdit('${srcBucket}',${srcIndex})" style="flex:1;background:#C9A84C;border:none;border-radius:8px;padding:10px 12px;color:#000;font-size:13px;font-weight:900;cursor:pointer;">Save</button>
+              <button onclick="cancelMonthObjEdit()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:rgba(255,255,255,0.7);font-size:13px;font-weight:800;cursor:pointer;">Cancel</button>
+            </div>
+          ` : `
+            <div style="font-size:15px;font-weight:700;color:${titleColor};${titleStrike}line-height:1.3;margin-bottom:${hasReview?'8px':'0'};">${obj.text}</div>
+            ${hasReview ? `
+            <div style="padding:8px 10px;background:${reviewOutcome === 'completed' ? 'rgba(46,204,113,0.08)' : 'rgba(231,76,60,0.08)'};border-radius:8px;border-left:3px solid ${reviewColor};">
+              <div style="font-size:11px;font-weight:700;color:${reviewColor};margin-bottom:${obj.review.response?'4px':'0'};">${reviewOutcome === 'completed' ? '✓ Completed' : '✗ Not completed'}</div>
+              ${obj.review.response ? `<div style="font-size:12px;color:${reviewColor};line-height:1.4;font-style:italic;margin-bottom:${obj.review.lessons?'6px':'0'};">"${obj.review.response}"</div>` : ''}
+              ${obj.review.lessons ? `<div style="font-size:11px;color:${reviewColor};opacity:0.8;line-height:1.4;font-style:italic;border-top:1px solid ${reviewColor}22;padding-top:5px;margin-top:2px;">💡 ${obj.review.lessons}</div>` : ''}
+            </div>` : ''}
+          `}
         </div>
-        ${isEditing ? `
-          <input id="edit-month-obj-text-${srcIndex}" class="batch-editor-input" value="${escAttr(obj.text || '')}" placeholder="Objective title" style="margin-bottom:10px;">
-          <div style="position:relative;" onclick="document.getElementById('edit-month-obj-deadline-${srcIndex}').showPicker&&document.getElementById('edit-month-obj-deadline-${srcIndex}').showPicker()">
-            <input type="date" id="edit-month-obj-deadline-${srcIndex}" value="${obj.deadline || ''}" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
-            <div style="padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:14px;color:${obj.deadline ? '#C9A84C' : 'rgba(255,255,255,0.3)'};font-weight:${obj.deadline ? '800' : '400'};cursor:pointer;">${obj.deadline ? '📅 ' + fmtDeadlineShort(obj.deadline) : '📅 Set deadline (optional)'}</div>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:10px;">
-            <button onclick="saveMonthObjEdit('${srcBucket}',${srcIndex})" style="flex:1;background:#C9A84C;border:none;border-radius:8px;padding:10px 12px;color:#000;font-size:13px;font-weight:900;cursor:pointer;">Save</button>
-            <button onclick="cancelMonthObjEdit()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:rgba(255,255,255,0.7);font-size:13px;font-weight:800;cursor:pointer;">Cancel</button>
-          </div>
-        ` : `<div style="font-size:15px;font-weight:700;color:${obj.done?'rgba(255,255,255,0.4)':'#fff'};${obj.done?'text-decoration:line-through;':''}line-height:1.3;">${obj.text}</div>`}
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
-        <button onclick="editMonthObj('${srcBucket}',${srcIndex})" style="width:28px;height:28px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:7px;color:rgba(255,255,255,0.75);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✎</button>
-        <button onclick="removeMonthObj('${srcBucket}',${srcIndex})" style="width:28px;height:28px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.6);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+        <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
+          <button onclick="editMonthObj('${srcBucket}',${srcIndex})" style="width:28px;height:28px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:7px;color:rgba(255,255,255,0.75);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✎</button>
+          <button onclick="removeMonthObj('${srcBucket}',${srcIndex})" style="width:28px;height:28px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.6);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+        </div>
       </div>
     </div>`;
   }).join('')}
