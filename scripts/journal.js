@@ -1060,63 +1060,52 @@ export function initJournalTab(deps) {
     const today = deps.getToday();
     const now = new Date(today + 'T12:00:00');
 
-    // 7-day scores (today + 6 prior)
-    const last7 = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(now); d.setDate(now.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
-      const r = getJournalWordRating(key);
-      if (r) last7.push(r.pct);
-    }
-    const avg7 = last7.length ? Math.round(last7.reduce((a,b) => a+b, 0) / last7.length) : null;
+    // 7-day average: today back 6 days
+    const sevenDaysAgo = new Date(now); sevenDaysAgo.setDate(now.getDate() - 6);
+    const avg7raw = getCombinedAverageForRange(sevenDaysAgo, now);
+    const avg7 = avg7raw !== null ? Math.round(avg7raw) : null;
 
-    // Current month scores
-    const y = now.getFullYear(), mo = now.getMonth();
-    const monthScores = [];
-    const daysInMonth = new Date(y, mo + 1, 0).getDate();
-    for (let d = 1; d <= daysInMonth; d++) {
-      const key = `${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      if (key > today) break;
-      const r = getJournalWordRating(key);
-      if (r) monthScores.push(r.pct);
-    }
-    const avgMonth = monthScores.length ? Math.round(monthScores.reduce((a,b) => a+b, 0) / monthScores.length) : null;
+    // Current month average: 1st of month to today
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0);
+    const avgMonthRaw = getCombinedAverageForRange(monthStart, now);
+    const avgMonth = avgMonthRaw !== null ? Math.round(avgMonthRaw) : null;
 
-    function scoreColour(pct) {
-      if (pct >= 90) return '#2ecc71';
-      if (pct >= 80) return '#3498db';
-      if (pct >= 70) return '#1abc9c';
-      if (pct >= 60) return '#f39c12';
-      if (pct >= 50) return '#e67e22';
-      return '#e74c3c';
+    // Count days with any data in each range
+    function countDays(start, end) {
+      let n = 0;
+      const c = new Date(start); c.setHours(12,0,0,0);
+      const f = new Date(end);   f.setHours(12,0,0,0);
+      while (c <= f) {
+        const s = getWeightedScores(keyFromDate(c));
+        if (s.total > 0) n++;
+        c.setDate(c.getDate() + 1);
+      }
+      return n;
     }
-    function scoreLabel(pct) {
-      if (pct >= 95) return 'LEGENDARY';
-      if (pct >= 90) return 'ELITE';
-      if (pct >= 80) return 'STRONG';
-      if (pct >= 70) return 'ABOVE AVG';
-      if (pct >= 60) return 'AVERAGE';
-      if (pct >= 50) return 'WEAK';
-      return 'POOR';
-    }
+    const days7 = countDays(sevenDaysAgo, now);
+    const daysMonth = countDays(monthStart, now);
 
-    const statBlock = (label, pct, days) => pct === null
-      ? `<div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;text-align:center;">
+    const statBlock = (label, pct, days) => {
+      if (pct === null || days === 0) return `
+        <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;text-align:center;">
           <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.3);margin-bottom:8px;">${label}</div>
           <div style="font-size:22px;font-weight:900;color:rgba(255,255,255,0.2);">—</div>
           <div style="font-size:10px;color:rgba(255,255,255,0.2);margin-top:4px;">No data</div>
-        </div>`
-      : `<div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid ${scoreColour(pct)}44;border-radius:14px;padding:16px;text-align:center;">
+        </div>`;
+      const t = getPerformanceTier(pct);
+      return `
+        <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid ${t.colour}44;border-radius:14px;padding:16px;text-align:center;">
           <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.35);margin-bottom:8px;">${label}</div>
-          <div style="font-size:28px;font-weight:900;color:${scoreColour(pct)};line-height:1;">${pct}<span style="font-size:13px;opacity:0.6;">/100</span></div>
-          <div style="font-size:10px;font-weight:800;color:${scoreColour(pct)};margin-top:5px;letter-spacing:0.5px;">${scoreLabel(pct)}</div>
+          <div style="font-size:28px;font-weight:900;color:${t.colour};line-height:1;">${pct}<span style="font-size:13px;opacity:0.6;">/100</span></div>
+          <div style="font-size:10px;font-weight:800;color:${t.colour};margin-top:5px;letter-spacing:0.5px;">${t.status}</div>
           <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:3px;">${days} day${days===1?'':'s'} of data</div>
         </div>`;
+    };
 
     el.innerHTML = `
       <div style="display:flex;gap:10px;margin-top:12px;margin-bottom:16px;">
-        ${statBlock('7-DAY AVG', avg7, last7.length)}
-        ${statBlock('THIS MONTH', avgMonth, monthScores.length)}
+        ${statBlock('7-DAY AVG', avg7, days7)}
+        ${statBlock('THIS MONTH', avgMonth, daysMonth)}
       </div>`;
   }
 
