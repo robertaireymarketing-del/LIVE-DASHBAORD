@@ -647,7 +647,7 @@ const monthlyObjModalContent = `
     <div style="border:1.5px solid ${cardBorder};border-radius:12px;margin-bottom:8px;background:${cardBg};overflow:hidden;">
       ${hasReview ? `
       <div style="background:${reviewOutcome === 'completed' ? '#1A5C3A' : '#8B1A1A'};padding:8px 14px;display:flex;align-items:center;gap:8px;">
-        <span style="font-size:13px;font-weight:900;color:#fff;letter-spacing:0.5px;">${reviewOutcome === 'completed' ? '✓ COMPLETED' : '✗ NOT COMPLETED'}</span>
+        <span style="font-size:13px;font-weight:900;color:#ffffff !important;letter-spacing:0.5px;">${reviewOutcome === 'completed' ? '✓ COMPLETED' : '✗ NOT COMPLETED'}</span>
       </div>` : ''}
       <div style="padding:12px 14px;border-left:3px solid ${reviewOutcome === 'completed' ? '#2ecc71' : reviewOutcome === 'uncompleted' ? '#e74c3c' : catColor};display:flex;align-items:${isEditing ? 'flex-start' : 'flex-start'};gap:10px;">
         <button onclick="toggleMonthObj('${srcBucket}',${srcIndex})" style="width:24px;height:24px;flex-shrink:0;margin-top:2px;border-radius:6px;border:2px solid ${checkBorder};background:${checkBg};color:${checkColor};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${checkIcon}</button>
