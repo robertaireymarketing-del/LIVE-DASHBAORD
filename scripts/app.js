@@ -248,7 +248,7 @@ function render() {
     <div class="quote-icon">✦</div>
     <div class="quote-text">"${quote.text}"</div>
     <div class="quote-author">— ${quote.author}</div>
-    <div class="quote-interpretation">${quote.interpretation}</div>
+    <div class="quote-interpretation" id="quote-interpretation-el">${quote.interpretation}</div>
     </div>` : ''}
 
     <div class="content">
@@ -345,6 +345,70 @@ function render() {
     if (state.activeTab === 'journal') setTimeout(() => { try { initJournalTab({ state, getToday, saveDataQuiet, getWeekKey, getDayByDate, getJournalEntry }); } catch(e) { console.error('Journal init error:', e); } }, 0);
     if (state.activeTab === 'planner') setTimeout(() => { try { initWeeklyTabExternal(); } catch(e) { console.error('Weekly init error:', e); } }, 0);
     if (state.activeTab === 'vision') setTimeout(() => { try { renderVisionTabExternal({ db, user: state.user }); } catch(e) { console.error('Vision init error:', e); } }, 0);
+
+    // ── AI-tailored quote interpretation ──────────────────────────────────
+    if (state.activeTab === 'today' || state.activeTab === 'journal') {
+      setTimeout(async () => {
+        try {
+          const el = document.getElementById('quote-interpretation-el');
+          if (!el) return;
+
+          const today = getToday();
+          const cacheKey = 'quote_interpretation_' + today;
+          const cached = sessionStorage.getItem(cacheKey);
+          if (cached) { el.textContent = cached; return; }
+
+          // Gather this month's objectives from all buckets
+          const now = new Date();
+          const monthKey = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+          const allBuckets = state.data && state.data.monthObjectives ? state.data.monthObjectives : {};
+          const monthObjs = Object.entries(allBuckets).flatMap(([, objs]) =>
+            (objs || []).filter(o => o.deadline && o.deadline.startsWith(monthKey))
+          );
+          const monthObjList = monthObjs.length
+            ? monthObjs.map(o => '- ' + o.text + (o.done ? ' (completed)' : '')).join('\n')
+            : null;
+
+          // Gather this week's objectives from state
+          const weekObjs = (() => {
+            try {
+              const wk = getWeekKey();
+              return (state.data && state.data.weekObjectives && state.data.weekObjectives[wk]) || [];
+            } catch { return []; }
+          })();
+          const weekObjList = weekObjs.length
+            ? weekObjs.map(o => '- ' + (o.text || o) + (o.done ? ' (completed)' : '')).join('\n')
+            : null;
+
+          const contextBlock = [
+            monthObjList ? 'Monthly objectives:\n' + monthObjList : null,
+            weekObjList  ? "This week's objectives:\n" + weekObjList  : null,
+          ].filter(Boolean).join('\n\n');
+
+          const prompt = contextBlock
+            ? 'You are writing a short, punchy motivational interpretation of a stoic quote for someone\'s personal dashboard. Connect the quote\'s wisdom directly to their current objectives — monthly and weekly.\n\nQuote: "' + quote.text + '" — ' + quote.author + '\n\n' + contextBlock + '\n\nWrite 2-3 sentences max. Be direct and personal — speak to the person, not about them. Reference their actual objectives by name where natural. No preamble, no labels, just the interpretation text itself.'
+            : 'You are writing a short, punchy motivational interpretation of a stoic quote for someone\'s personal dashboard. They are building an online jewellery brand called TJM and working toward financial independence.\n\nQuote: "' + quote.text + '" — ' + quote.author + '\n\nWrite 2-3 sentences max. Be direct and personal — speak to the person, not about them. No preamble, no labels, just the interpretation text itself.';
+
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 1000,
+              messages: [{ role: 'user', content: prompt }]
+            })
+          });
+          const data = await res.json();
+          const text = data && data.content && data.content[0] && data.content[0].text ? data.content[0].text.trim() : null;
+          if (text) {
+            el.textContent = text;
+            sessionStorage.setItem(cacheKey, text);
+          }
+        } catch(e) {
+          console.warn('Quote interpretation update failed:', e);
+        }
+      }, 0);
+    }
   } catch(e) {
     app.innerHTML = '<div style="color:#e74c3c;padding:20px;font-size:13px;"><strong>Render error:</strong><br>' + e.message + '<br><br><small>' + e.stack + '</small></div>';
   }
