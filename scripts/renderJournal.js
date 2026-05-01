@@ -39,7 +39,6 @@ export function renderJournalTab() {
       <div class="journal-launch-grid">
         ${(() => {
           const days = window.state?.data?.days || {};
-          const sorted = Object.keys(days).sort().reverse();
           // Use the journal's currently viewed date, falling back to today
           const viewedDate = window.state?.journalDate || new Date().toISOString().slice(0,10);
           const viewedData = days[viewedDate] || {};
