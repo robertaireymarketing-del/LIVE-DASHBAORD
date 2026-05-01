@@ -473,10 +473,14 @@ window.toggleJournalDay = (dateKey, field) => {
   const viewedData = days[dateKey] || {};
   function streak(f) {
     let s = 0;
-    const today = new Date().toISOString().slice(0,10);
-    for (const d of sorted) {
-      if (d === today && !days[d]?.[f]) continue; // today not done yet — don't break streak
-      if (days[d]?.[f]) s++;
+    const cursor = new Date();
+    cursor.setHours(12, 0, 0, 0);
+    const todayStr = cursor.toISOString().slice(0, 10);
+    // If today isn't ticked yet, start counting from yesterday
+    if (!days[todayStr]?.[f]) cursor.setDate(cursor.getDate() - 1);
+    for (let i = 0; i < 400; i++) {
+      const key = cursor.toISOString().slice(0, 10);
+      if (days[key]?.[f]) { s++; cursor.setDate(cursor.getDate() - 1); }
       else break;
     }
     return s;

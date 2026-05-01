@@ -44,11 +44,14 @@ export function renderJournalTab() {
           const viewedDate = window.state?.journalDate || new Date().toISOString().slice(0,10);
           const viewedData = days[viewedDate] || {};
           function streak(field) {
-            const today = new Date().toISOString().slice(0,10);
+            const cursor = new Date();
+            cursor.setHours(12, 0, 0, 0);
+            const todayStr = cursor.toISOString().slice(0, 10);
+            if (!days[todayStr]?.[field]) cursor.setDate(cursor.getDate() - 1);
             let s = 0;
-            for (const d of sorted) {
-              if (d === today && !days[d]?.[field]) continue; // today not done yet — don't break streak
-              if (days[d]?.[field]) s++;
+            for (let i = 0; i < 400; i++) {
+              const key = cursor.toISOString().slice(0, 10);
+              if (days[key]?.[field]) { s++; cursor.setDate(cursor.getDate() - 1); }
               else break;
             }
             return s;
