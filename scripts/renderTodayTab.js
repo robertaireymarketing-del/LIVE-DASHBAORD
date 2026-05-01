@@ -570,7 +570,34 @@ ${renderInputCard('warmLeads', 'WARM LEADS', todayData.warmLeads, 'number', 'lea
 
 // ── Objectives Modal ───────────────────────────────────────────────────
 const activeObjTab = state.objModalTab || 'weekly';
-const modalMonthObjs = state.data.monthObjectives?.[objectiveMonthKey] || [];
+const modalMonthObjs = (() => {
+  const allBuckets = state.data.monthObjectives || {};
+  const results = [];
+  const seenIds = new Set();
+
+  Object.entries(allBuckets).forEach(([bucketKey, objs]) => {
+    (objs || []).forEach((obj, idx) => {
+      const id = obj.id || (obj.text + ':' + bucketKey);
+      if (seenIds.has(id)) return;
+
+      if (obj.deadline) {
+        // Show objective in whichever month its deadline falls in
+        const dl = new Date(obj.deadline + 'T00:00:00');
+        const dlKey = dl.getFullYear() + '-' + String(dl.getMonth() + 1).padStart(2, '0');
+        if (dlKey === objectiveMonthKey) {
+          seenIds.add(id);
+          results.push({ ...obj, _sourceBucket: bucketKey, _sourceIndex: idx });
+        }
+      } else if (bucketKey === objectiveMonthKey) {
+        // No deadline — show in the month it was originally added
+        seenIds.add(id);
+        results.push({ ...obj, _sourceBucket: bucketKey, _sourceIndex: idx });
+      }
+    });
+  });
+
+  return results;
+})();
 const modalWeekObjs = state.data.weekObjectives?.[objectiveWeekKey] || [];
 const objectiveMonthLabel = objectiveBaseDate.toLocaleString('en-GB',{month:'long',year:'numeric'}).toUpperCase();
 const objectiveWeekLabel = `WEEK OF ${objectiveMondayDate.toLocaleDateString('en-GB',{day:'numeric',month:'short'}).toUpperCase()}${objectiveWeekEndDate.getMonth() !== objectiveMondayDate.getMonth() ? ' → ' + objectiveWeekEndDate.toLocaleDateString('en-GB',{day:'numeric',month:'short'}).toUpperCase() : ''}`;
@@ -594,6 +621,8 @@ const monthlyObjModalContent = `
   </div>
   ${modalMonthObjs.length === 0 ? `<div class="obj-empty-state">No monthly objectives yet — add one below</div>` : ''}
   ${modalMonthObjs.map((obj, i) => {
+    const srcBucket = obj._sourceBucket || objectiveMonthKey;
+    const srcIndex = obj._sourceIndex !== undefined ? obj._sourceIndex : i;
     const catLabel = obj.categoryCustom || MONTH_CAT_LABELS[obj.category] || 'Personal';
     const catColor = MONTH_CAT_COLOURS[obj.category] || '#C9A84C';
     const dl = obj.deadline ? new Date(obj.deadline + 'T00:00:00') : null;
@@ -601,30 +630,30 @@ const monthlyObjModalContent = `
     dayStart.setHours(0,0,0,0);
     const daysLeft = dl ? Math.ceil((dl.getTime() - dayStart.getTime()) / 86400000) : null;
     const isOverdue = daysLeft !== null && daysLeft < 0 && !obj.done;
-    const isEditing = state.monthObjEditing === `${objectiveMonthKey}:${i}`;
+    const isEditing = state.monthObjEditing === `${srcBucket}:${srcIndex}`;
     return `
     <div style="border:1.5px solid ${obj.done?'rgba(46,204,113,0.3)':isOverdue?'rgba(231,76,60,0.3)':catColor+'33'};border-radius:12px;padding:12px 14px;margin-bottom:8px;background:${obj.done?'rgba(26,92,58,0.4)':isOverdue?'rgba(231,76,60,0.05)':'rgba(255,255,255,0.02)'};display:flex;align-items:${isEditing ? 'flex-start' : 'center'};gap:10px;">
-      <button onclick="toggleMonthObj('${objectiveMonthKey}',${i})" style="width:24px;height:24px;flex-shrink:0;border-radius:6px;border:2px solid ${obj.done?'rgba(46,204,113,0.7)':catColor+'66'};background:${obj.done?'rgba(46,204,113,0.2)':'transparent'};color:${obj.done?'#2ecc71':catColor};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</button>
+      <button onclick="toggleMonthObj('${srcBucket}',${srcIndex})" style="width:24px;height:24px;flex-shrink:0;border-radius:6px;border:2px solid ${obj.done?'rgba(46,204,113,0.7)':catColor+'66'};background:${obj.done?'rgba(46,204,113,0.2)':'transparent'};color:${obj.done?'#2ecc71':catColor};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:900;">${obj.done?'✓':''}</button>
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:${isEditing ? '10px' : '2px'};">
           <span style="font-size:9px;font-weight:900;letter-spacing:1px;color:${catColor};">${catLabel.toUpperCase()}</span>
           ${obj.deadline ? `<span style="font-size:10px;color:${isOverdue?'#e74c3c':'rgba(255,255,255,0.35)'};font-weight:${isOverdue?'800':'600'};">${isOverdue?'⚠ OVERDUE · ':''}${fmtDeadlineShort(obj.deadline)}</span>` : ''}
         </div>
         ${isEditing ? `
-          <input id="edit-month-obj-text-${i}" class="batch-editor-input" value="${escAttr(obj.text || '')}" placeholder="Objective title" style="margin-bottom:10px;">
-          <div style="position:relative;" onclick="document.getElementById('edit-month-obj-deadline-${i}').showPicker&&document.getElementById('edit-month-obj-deadline-${i}').showPicker()">
-            <input type="date" id="edit-month-obj-deadline-${i}" value="${obj.deadline || ''}" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
+          <input id="edit-month-obj-text-${srcIndex}" class="batch-editor-input" value="${escAttr(obj.text || '')}" placeholder="Objective title" style="margin-bottom:10px;">
+          <div style="position:relative;" onclick="document.getElementById('edit-month-obj-deadline-${srcIndex}').showPicker&&document.getElementById('edit-month-obj-deadline-${srcIndex}').showPicker()">
+            <input type="date" id="edit-month-obj-deadline-${srcIndex}" value="${obj.deadline || ''}" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2;">
             <div style="padding:11px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:14px;color:${obj.deadline ? '#C9A84C' : 'rgba(255,255,255,0.3)'};font-weight:${obj.deadline ? '800' : '400'};cursor:pointer;">${obj.deadline ? '📅 ' + fmtDeadlineShort(obj.deadline) : '📅 Set deadline (optional)'}</div>
           </div>
           <div style="display:flex;gap:8px;margin-top:10px;">
-            <button onclick="saveMonthObjEdit('${objectiveMonthKey}',${i})" style="flex:1;background:#C9A84C;border:none;border-radius:8px;padding:10px 12px;color:#000;font-size:13px;font-weight:900;cursor:pointer;">Save</button>
+            <button onclick="saveMonthObjEdit('${srcBucket}',${srcIndex})" style="flex:1;background:#C9A84C;border:none;border-radius:8px;padding:10px 12px;color:#000;font-size:13px;font-weight:900;cursor:pointer;">Save</button>
             <button onclick="cancelMonthObjEdit()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:rgba(255,255,255,0.7);font-size:13px;font-weight:800;cursor:pointer;">Cancel</button>
           </div>
         ` : `<div style="font-size:15px;font-weight:700;color:${obj.done?'rgba(255,255,255,0.4)':'#fff'};${obj.done?'text-decoration:line-through;':''}line-height:1.3;">${obj.text}</div>`}
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
-        <button onclick="editMonthObj('${objectiveMonthKey}',${i})" style="width:28px;height:28px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:7px;color:rgba(255,255,255,0.75);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✎</button>
-        <button onclick="removeMonthObj('${objectiveMonthKey}',${i})" style="width:28px;height:28px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.6);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+        <button onclick="editMonthObj('${srcBucket}',${srcIndex})" style="width:28px;height:28px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:7px;color:rgba(255,255,255,0.75);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✎</button>
+        <button onclick="removeMonthObj('${srcBucket}',${srcIndex})" style="width:28px;height:28px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.2);border-radius:7px;color:rgba(231,76,60,0.6);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
       </div>
     </div>`;
   }).join('')}
