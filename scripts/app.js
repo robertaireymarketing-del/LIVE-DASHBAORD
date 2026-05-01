@@ -459,6 +459,7 @@ window.toggleTheme = () => {
   render();
 };
 window.toggleToday = (field) => { updateDayField(getToday(), field, !getTodayData()[field]); };
+window.toggleJournalDay = (dateKey, field) => { const d = getDayByDate(dateKey) || {}; updateDayField(dateKey, field, !d[field]); };
 window.logInput = (field) => {
   const input = document.getElementById(`input-${field}`);
   if (input?.value) {
