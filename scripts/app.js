@@ -466,6 +466,9 @@ window.toggleJournalDay = (field) => {
   if (!state.data.days[dateKey]) state.data.days[dateKey] = {};
   state.data.days[dateKey][field] = !state.data.days[dateKey][field];
   saveDataQuiet();
+  window.refreshJournalHabitGrid(dateKey);
+};
+window.refreshJournalHabitGrid = (dateKey) => {
   const grid = document.getElementById('journal-habit-grid');
   if (!grid) return;
   const days = state.data.days || {};
