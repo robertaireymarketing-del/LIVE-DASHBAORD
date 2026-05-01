@@ -1060,43 +1060,39 @@ export function initJournalTab(deps) {
     const today = deps.getToday();
     const now = new Date(today + 'T12:00:00');
 
-    // 7-day average: today back 6 days
-    const sevenDaysAgo = new Date(now); sevenDaysAgo.setDate(now.getDate() - 6);
-    const avg7raw = getCombinedAverageForRange(sevenDaysAgo, now);
-    const avg7 = avg7raw !== null ? Math.round(avg7raw) : null;
-
-    // Current month average: 1st of month to today
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0);
-    const avgMonthRaw = getCombinedAverageForRange(monthStart, now);
-    const avgMonth = avgMonthRaw !== null ? Math.round(avgMonthRaw) : null;
-
-    // Count days with any data in each range
-    function countDays(start, end) {
-      let n = 0;
-      const c = new Date(start); c.setHours(12,0,0,0);
-      const f = new Date(end);   f.setHours(12,0,0,0);
-      while (c <= f) {
-        const s = getWeightedScores(keyFromDate(c));
-        if (s.total > 0) n++;
-        c.setDate(c.getDate() + 1);
+    function avgOverRange(start, end) {
+      const scores = [];
+      const cursor = new Date(start); cursor.setHours(12,0,0,0);
+      const finish = new Date(end);   finish.setHours(12,0,0,0);
+      while (cursor <= finish) {
+        const key = keyFromDate(cursor);
+        const total = getWeightedScores(key).total;
+        if (typeof total === 'number' && !Number.isNaN(total) && total > 0) scores.push(total);
+        cursor.setDate(cursor.getDate() + 1);
       }
-      return n;
+      return scores.length
+        ? { avg: Math.round(scores.reduce((a,b) => a+b,0) / scores.length), days: scores.length }
+        : { avg: null, days: 0 };
     }
-    const days7 = countDays(sevenDaysAgo, now);
-    const daysMonth = countDays(monthStart, now);
 
-    const statBlock = (label, pct, days) => {
-      if (pct === null || days === 0) return `
+    const sevenDaysAgo = new Date(now); sevenDaysAgo.setDate(now.getDate() - 6);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0);
+
+    const r7    = avgOverRange(sevenDaysAgo, now);
+    const rMonth = avgOverRange(monthStart, now);
+
+    const statBlock = (label, avg, days) => {
+      if (avg === null) return `
         <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:16px;text-align:center;">
           <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.3);margin-bottom:8px;">${label}</div>
           <div style="font-size:22px;font-weight:900;color:rgba(255,255,255,0.2);">—</div>
           <div style="font-size:10px;color:rgba(255,255,255,0.2);margin-top:4px;">No data</div>
         </div>`;
-      const t = getPerformanceTier(pct);
+      const t = getPerformanceTier(avg);
       return `
         <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid ${t.colour}44;border-radius:14px;padding:16px;text-align:center;">
           <div style="font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.35);margin-bottom:8px;">${label}</div>
-          <div style="font-size:28px;font-weight:900;color:${t.colour};line-height:1;">${pct}<span style="font-size:13px;opacity:0.6;">/100</span></div>
+          <div style="font-size:28px;font-weight:900;color:${t.colour};line-height:1;">${avg}<span style="font-size:13px;opacity:0.6;">/100</span></div>
           <div style="font-size:10px;font-weight:800;color:${t.colour};margin-top:5px;letter-spacing:0.5px;">${t.status}</div>
           <div style="font-size:10px;color:rgba(255,255,255,0.3);margin-top:3px;">${days} day${days===1?'':'s'} of data</div>
         </div>`;
@@ -1104,8 +1100,8 @@ export function initJournalTab(deps) {
 
     el.innerHTML = `
       <div style="display:flex;gap:10px;margin-top:12px;margin-bottom:16px;">
-        ${statBlock('7-DAY AVG', avg7, days7)}
-        ${statBlock('THIS MONTH', avgMonth, daysMonth)}
+        ${statBlock('7-DAY AVG', r7.avg, r7.days)}
+        ${statBlock('THIS MONTH', rMonth.avg, rMonth.days)}
       </div>`;
   }
 
