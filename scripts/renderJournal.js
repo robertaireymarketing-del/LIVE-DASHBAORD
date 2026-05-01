@@ -53,7 +53,7 @@ export function renderJournalTab() {
             { key: 'retention', label: 'RETENTION',  emoji: '🩸' },
             { key: 'meditation',label: 'MEDITATION', emoji: '🧘' },
           ];
-          return `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px;">
+          return `<div id="journal-habit-grid" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px;">
             ${fields.map(f => `
             <div onclick="toggleJournalDay('${viewedDate}','${f.key}')" class="${viewedData[f.key]?'jd-card-active':'jd-card-inactive'}" style="border-radius:16px;padding:16px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all 0.2s;border:2px solid;">
               <span style="font-size:28px;line-height:1;">${f.emoji}</span>
