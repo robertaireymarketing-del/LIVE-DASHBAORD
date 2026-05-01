@@ -63,7 +63,7 @@ export function renderJournalTab() {
           ];
           return `<div id="journal-habit-grid" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px;">
             ${fields.map(f => `
-            <div onclick="toggleJournalDay('${viewedDate}','${f.key}')" class="${viewedData[f.key]?'jd-card-active':'jd-card-inactive'}" style="border-radius:16px;padding:16px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all 0.2s;border:2px solid;">
+            <div onclick="toggleJournalDay('${f.key}')" class="${viewedData[f.key]?'jd-card-active':'jd-card-inactive'}" style="border-radius:16px;padding:16px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all 0.2s;border:2px solid;">
               <span style="font-size:28px;line-height:1;">${f.emoji}</span>
               <span class="jd-icon" style="font-size:24px;font-weight:900;color:${viewedData[f.key]?'#ffffff':'#C8D6E5'}!important;">${viewedData[f.key]?'✓':'○'}</span>
               <span style="font-size:11px;font-weight:900;letter-spacing:1px;color:${viewedData[f.key]?'#ffffff':'#0A1628'}!important;">${f.label}</span>

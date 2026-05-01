@@ -459,25 +459,23 @@ window.toggleTheme = () => {
   render();
 };
 window.toggleToday = (field) => { updateDayField(getToday(), field, !getTodayData()[field]); };
-window.toggleJournalDay = (dateKey, field) => {
-  // Toggle the field directly in state — avoid full render() which causes journal re-init glitches
+window.toggleJournalDay = (field) => {
+  // Always read the current viewed date fresh from state — never bake it in
+  const dateKey = state.journalDate || getToday();
   if (!state.data.days) state.data.days = {};
   if (!state.data.days[dateKey]) state.data.days[dateKey] = {};
   state.data.days[dateKey][field] = !state.data.days[dateKey][field];
   saveDataQuiet();
-  // Re-render just the habit grid in-place
   const grid = document.getElementById('journal-habit-grid');
   if (!grid) return;
   const days = state.data.days || {};
-  const sorted = Object.keys(days).sort().reverse();
   const viewedData = days[dateKey] || {};
   function streak(f) {
-    let s = 0;
     const cursor = new Date();
     cursor.setHours(12, 0, 0, 0);
     const todayStr = cursor.toISOString().slice(0, 10);
-    // If today isn't ticked yet, start counting from yesterday
     if (!days[todayStr]?.[f]) cursor.setDate(cursor.getDate() - 1);
+    let s = 0;
     for (let i = 0; i < 400; i++) {
       const key = cursor.toISOString().slice(0, 10);
       if (days[key]?.[f]) { s++; cursor.setDate(cursor.getDate() - 1); }
@@ -491,7 +489,7 @@ window.toggleJournalDay = (dateKey, field) => {
     { key: 'meditation', label: 'MEDITATION', emoji: '🧘' },
   ];
   grid.innerHTML = fields.map(f => `
-    <div onclick="toggleJournalDay('${dateKey}','${f.key}')" class="${viewedData[f.key]?'jd-card-active':'jd-card-inactive'}" style="border-radius:16px;padding:16px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all 0.2s;border:2px solid;">
+    <div onclick="toggleJournalDay('${f.key}')" class="${viewedData[f.key]?'jd-card-active':'jd-card-inactive'}" style="border-radius:16px;padding:16px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all 0.2s;border:2px solid;">
       <span style="font-size:28px;line-height:1;">${f.emoji}</span>
       <span class="jd-icon" style="font-size:24px;font-weight:900;color:${viewedData[f.key]?'#ffffff':'#C8D6E5'}!important;">${viewedData[f.key]?'✓':'○'}</span>
       <span style="font-size:11px;font-weight:900;letter-spacing:1px;color:${viewedData[f.key]?'#ffffff':'#0A1628'}!important;">${f.label}</span>
