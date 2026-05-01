@@ -471,7 +471,16 @@ window.toggleJournalDay = (dateKey, field) => {
   const days = state.data.days || {};
   const sorted = Object.keys(days).sort().reverse();
   const viewedData = days[dateKey] || {};
-  function streak(f) { let s = 0, started = false; for (const d of sorted) { if (days[d]?.[f]) { started = true; s++; } else if (started) break; } return s; }
+  function streak(f) {
+    let s = 0;
+    const today = new Date().toISOString().slice(0,10);
+    for (const d of sorted) {
+      if (d === today && !days[d]?.[f]) continue; // today not done yet — don't break streak
+      if (days[d]?.[f]) s++;
+      else break;
+    }
+    return s;
+  }
   const fields = [
     { key: 'gym',        label: 'GYM',       emoji: '🏋️' },
     { key: 'retention',  label: 'RETENTION',  emoji: '🩸' },

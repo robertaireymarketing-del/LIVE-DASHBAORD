@@ -44,8 +44,13 @@ export function renderJournalTab() {
           const viewedDate = window.state?.journalDate || new Date().toISOString().slice(0,10);
           const viewedData = days[viewedDate] || {};
           function streak(field) {
-            let s = 0, started = false;
-            for (const d of sorted) { if (days[d]?.[field]) { started = true; s++; } else if (started) break; }
+            const today = new Date().toISOString().slice(0,10);
+            let s = 0;
+            for (const d of sorted) {
+              if (d === today && !days[d]?.[field]) continue; // today not done yet — don't break streak
+              if (days[d]?.[field]) s++;
+              else break;
+            }
             return s;
           }
           const fields = [
