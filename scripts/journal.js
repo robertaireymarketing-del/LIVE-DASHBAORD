@@ -1,3 +1,5 @@
+import { openNotebook } from './notebookCanvas.js';
+
 export function initJournalTab(deps) {
 
   const dayName = document.getElementById('journalDayName');
@@ -785,8 +787,23 @@ export function initJournalTab(deps) {
   }
   if (openOpenBtn) {
     openOpenBtn.addEventListener('click', () => {
-      if (openCard.classList.contains('journal-collapsed')) { toggleOpen(); }
-      else { saveOpen(); toggleOpen(); }
+      openNotebook({
+        dateKey:  keyFromDate(currentDate),
+        getEntry: () => getJournalEntry(keyFromDate(currentDate), 'open'),
+        saveEntry: (strokes, textFallback) => {
+          const now      = new Date();
+          const timeStr  = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+          const existing = getJournalEntry(keyFromDate(currentDate), 'open') || {};
+          setJournalEntry(keyFromDate(currentDate), 'open', {
+            text:         textFallback || existing.text || '',
+            strokes:      strokes,
+            hasContent:   strokes.length > 0 || !!(textFallback || existing.text || '').trim(),
+            savedAt:      timeStr,
+            firstSavedAt: existing.firstSavedAt || timeStr,
+          });
+          evaluateOpenCompletion();
+        },
+      });
     });
   }
 
