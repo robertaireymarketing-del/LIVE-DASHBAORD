@@ -1034,7 +1034,7 @@ export function openNotebook({ state, saveData }) {
         system:`You are a handwriting transcription assistant. The user has messy handwriting. `+
                `Transcribe exactly what is written on the lined paper. Output ONLY the transcribed text.${corrNote}`,
         messages:[{ role:'user', content:[
-          { type:'image', source:{ type:'base64', media_type:'image/png', data:imgData } },
+          { type:'image', source:{ type:'base64', media_type:'image/jpeg', data:imgData } },
           { type:'text',  text:'Please transcribe the handwriting on this notebook page.' },
         ]}],
       });
@@ -1065,18 +1065,45 @@ export function openNotebook({ state, saveData }) {
   }
 
   async function canvasToBase64() {
-    const dpr=window.devicePixelRatio||1, bw=getBaseWidth(), bh=LINE_SPACING*PAGE_ROWS+LINE_SPACING;
-    const off=document.createElement('canvas');
-    off.width=bw*dpr; off.height=bh*dpr;
-    const oc=off.getContext('2d'); oc.scale(dpr,dpr);
-    oc.fillStyle=PAPER_BG; oc.fillRect(0,0,bw,bh);
-    oc.strokeStyle=LINE_COLOR; oc.lineWidth=0.8;
-    for (let row=2; row<=PAGE_ROWS; row++) { const y=row*LINE_SPACING; oc.beginPath(); oc.moveTo(0,y); oc.lineTo(bw,y); oc.stroke(); }
-    oc.strokeStyle=MARGIN_COLOR; oc.lineWidth=1.5;
-    oc.beginPath(); oc.moveTo(MARGIN_LEFT,0); oc.lineTo(MARGIN_LEFT,bh); oc.stroke();
-    strokes.forEach(s=>renderStroke(oc,s));
+    // Export at a fixed width of 800px max — enough for Claude to read handwriting
+    // without blowing past the API's image size limit or timing out the function.
+    const EXPORT_W = 800;
+    const bh = LINE_SPACING * PAGE_ROWS + LINE_SPACING;
+    const bw = getBaseWidth();
+    const scale = EXPORT_W / bw;
+    const exportH = Math.round(bh * scale);
+
+    const off = document.createElement('canvas');
+    off.width  = EXPORT_W;
+    off.height = exportH;
+    const oc = off.getContext('2d');
+    oc.scale(scale, scale);
+
+    // Paper background
+    oc.fillStyle = PAPER_BG;
+    oc.fillRect(0, 0, bw, bh);
+
+    // Ruled lines
+    oc.strokeStyle = LINE_COLOR; oc.lineWidth = 0.8;
+    for (let row = 2; row <= PAGE_ROWS; row++) {
+      const y = row * LINE_SPACING;
+      oc.beginPath(); oc.moveTo(0, y); oc.lineTo(bw, y); oc.stroke();
+    }
+
+    // Margin line
+    oc.strokeStyle = MARGIN_COLOR; oc.lineWidth = 1.5;
+    oc.beginPath(); oc.moveTo(MARGIN_LEFT, 0); oc.lineTo(MARGIN_LEFT, bh); oc.stroke();
+
+    // Strokes
+    strokes.forEach(s => renderStroke(oc, s));
+
+    // Export as JPEG at 85% quality — much smaller than PNG for this use case
     return new Promise(res => {
-      off.toBlob(blob => { const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.readAsDataURL(blob); }, 'image/png', 0.92);
+      off.toBlob(blob => {
+        const r = new FileReader();
+        r.onload = () => res(r.result.split(',')[1]);
+        r.readAsDataURL(blob);
+      }, 'image/jpeg', 0.85);
     });
   }
 
