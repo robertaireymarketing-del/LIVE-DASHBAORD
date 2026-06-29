@@ -82,10 +82,13 @@ export function openNotebook({ state, saveData }) {
     #nbSidebar{
       width:256px; flex-shrink:0; background:#0d0d1a;
       border-right:1px solid rgba(255,255,255,0.07);
-      display:flex; flex-direction:column; overflow:hidden;
+      display:flex; flex-direction:column; overflow:visible;
       transition:width 0.22s ease;
+      position:relative;
     }
     #nbSidebar.collapsed { width:0; }
+    /* When collapsed, clip the sidebar content but not the tab */
+    #nbSidebar.collapsed > :not(#nbSideTab) { overflow:hidden; opacity:0; pointer-events:none; }
     #nbMain   { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; position:relative; }
 
     /* ══ TOOLBAR ══ */
@@ -220,59 +223,91 @@ export function openNotebook({ state, saveData }) {
       will-change:transform;
     }
 
-    /* ── Sidebar ── */
-    #nbSideHeader { padding:12px 12px 6px; flex-shrink:0; }
-    #nbSideTitle  { font-size:12px; font-weight:900; color:#C9A84C; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; }
-    #nbSearchBox  {
-      width:100%; padding:6px 10px; border-radius:7px;
-      background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.1);
-      color:#fff; font:600 12px inherit; outline:none;
+    /* ══ SIDEBAR — all text hardcoded white so light-mode body styles can't override ══ */
+
+    /* Sidebar wrapper — dark background always */
+    #nbSidebar, #nbSidebar * { color:#ffffff !important; }
+
+    /* Persistent toggle tab — sits on the right edge of the sidebar, always visible */
+    #nbSideTab {
+      position:absolute; top:50%; transform:translateY(-50%);
+      right:-20px; width:20px; height:48px;
+      background:#0d0d1a; border:1px solid rgba(255,255,255,0.12);
+      border-left:none; border-radius:0 6px 6px 0;
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; z-index:10; flex-shrink:0;
+      font-size:10px; color:#fff !important;
+      user-select:none;
     }
-    #nbSearchBox::placeholder { color:rgba(255,255,255,0.3); }
+    #nbSideTab:hover { background:#1a1a3a; }
+
+    #nbSideHeader { padding:12px 12px 6px; flex-shrink:0; }
+
+    #nbSideTitle {
+      font-size:12px; font-weight:900;
+      color:#C9A84C !important;
+      letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px;
+    }
+
+    #nbSearchBox {
+      width:100%; padding:6px 10px; border-radius:7px;
+      background:rgba(255,255,255,0.12) !important;
+      border:1px solid rgba(255,255,255,0.2) !important;
+      color:#ffffff !important;
+      font:600 12px inherit; outline:none;
+    }
+    #nbSearchBox::placeholder { color:rgba(255,255,255,0.4) !important; }
+
     #nbNewPageBtn, #nbNewFolderBtn {
       width:100%; padding:7px; border-radius:7px; margin-top:5px;
       font:700 11px inherit; cursor:pointer; border:1px dashed;
-      background:transparent; letter-spacing:0.3px;
+      background:transparent !important; letter-spacing:0.3px;
     }
-    #nbNewPageBtn   { border-color:rgba(201,168,76,0.45); color:#C9A84C; }
-    #nbNewFolderBtn { border-color:rgba(255,255,255,0.18); color:rgba(255,255,255,0.5); }
-    #nbNewPageBtn:hover   { background:rgba(201,168,76,0.1); }
-    #nbNewFolderBtn:hover { background:rgba(255,255,255,0.05); }
+    #nbNewPageBtn   { border-color:rgba(201,168,76,0.55) !important; color:#C9A84C !important; }
+    #nbNewFolderBtn { border-color:rgba(255,255,255,0.3) !important; color:#ffffff !important; }
+    #nbNewPageBtn:hover   { background:rgba(201,168,76,0.15) !important; }
+    #nbNewFolderBtn:hover { background:rgba(255,255,255,0.08) !important; }
+
     #nbSideList { flex:1; overflow-y:auto; padding:0 8px 16px; }
     #nbSideList::-webkit-scrollbar { width:3px; }
-    #nbSideList::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:2px; }
+    #nbSideList::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); border-radius:2px; }
 
     .nb-folder-row {
       display:flex; align-items:center; gap:5px;
       padding:5px 7px; border-radius:7px; margin-bottom:2px;
-      color:rgba(255,255,255,0.7); font:700 11px inherit; cursor:pointer; user-select:none;
+      color:#ffffff !important; font:700 11px inherit; cursor:pointer; user-select:none;
     }
-    .nb-folder-row:hover { background:rgba(255,255,255,0.05); }
-    .nb-folder-name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .nb-folder-row:hover { background:rgba(255,255,255,0.08) !important; }
+    .nb-folder-name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#ffffff !important; }
     .nb-folder-dot  { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
     .nb-folder-actions { display:none; gap:3px; }
     .nb-folder-row:hover .nb-folder-actions { display:flex; }
     .nb-folder-action-btn {
-      background:none; border:none; color:rgba(255,255,255,0.35);
+      background:none !important; border:none !important;
+      color:rgba(255,255,255,0.5) !important;
       cursor:pointer; font-size:10px; padding:2px 4px; border-radius:3px;
     }
-    .nb-folder-action-btn:hover { background:rgba(255,255,255,0.1); color:#fff; }
+    .nb-folder-action-btn:hover { background:rgba(255,255,255,0.12) !important; color:#ffffff !important; }
 
     .nb-page-row {
       display:flex; align-items:center; gap:5px;
       padding:7px 9px; border-radius:9px; margin-bottom:2px;
-      background:rgba(255,255,255,0.03); border:1px solid transparent;
+      background:rgba(255,255,255,0.05) !important;
+      border:1px solid rgba(255,255,255,0.06) !important;
       cursor:pointer; transition:background 0.1s;
     }
-    .nb-page-row:hover  { background:rgba(255,255,255,0.07); }
-    .nb-page-row.active { background:rgba(201,168,76,0.12); border-color:rgba(201,168,76,0.3); }
+    .nb-page-row:hover  { background:rgba(255,255,255,0.10) !important; }
+    .nb-page-row.active { background:rgba(201,168,76,0.18) !important; border-color:rgba(201,168,76,0.4) !important; }
     .nb-page-icon  { font-size:14px; flex-shrink:0; }
     .nb-page-info  { flex:1; min-width:0; }
-    .nb-page-title { font-size:11px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .nb-page-date  { font-size:9px; color:rgba(255,255,255,0.35); margin-top:2px; }
-    .nb-page-del   { background:none; border:none; color:rgba(255,255,255,0.2); cursor:pointer; font-size:12px; padding:2px 4px; border-radius:3px; display:none; }
+    .nb-page-title { font-size:11px; font-weight:700; color:#ffffff !important; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .nb-page-date  { font-size:9px; color:rgba(255,255,255,0.5) !important; margin-top:2px; }
+    .nb-page-del   { background:none !important; border:none !important; color:rgba(255,255,255,0.3) !important; cursor:pointer; font-size:12px; padding:2px 4px; border-radius:3px; display:none; }
     .nb-page-row:hover .nb-page-del { display:block; }
-    .nb-page-del:hover { background:rgba(231,76,60,0.2); color:#e74c3c; }
+    .nb-page-del:hover { background:rgba(231,76,60,0.25) !important; color:#ff6b6b !important; }
+
+    /* "No pages" empty message inside sidebar */
+    #nbSideList > div { color:#ffffff !important; }
 
     /* ── Empty state ── */
     #nbEmptyState {
@@ -312,33 +347,68 @@ export function openNotebook({ state, saveData }) {
 
     /* ── Text boxes on canvas ── */
     .nb-textbox-wrap {
-      position:absolute; min-width:120px; min-height:40px;
-      cursor:move; user-select:none; box-sizing:border-box;
+      position:absolute; min-width:140px; min-height:60px;
+      user-select:none; box-sizing:border-box;
+      display:flex; flex-direction:column;
     }
-    .nb-textbox-wrap.selected .nb-textbox-border { outline:2px solid #C9A84C; }
-    .nb-textbox-border { width:100%; height:100%; outline:1px dashed rgba(0,0,0,0.22); border-radius:2px; overflow:hidden; }
+
+    /* Drag handle bar at the top — this is the ONLY drag zone */
+    .nb-textbox-drag {
+      width:100%; height:32px; flex-shrink:0;
+      background:rgba(201,168,76,0.18);
+      border:1px solid rgba(201,168,76,0.35);
+      border-bottom:none;
+      border-radius:6px 6px 0 0;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:0 8px; cursor:grab; touch-action:none;
+    }
+    .nb-textbox-drag:active { cursor:grabbing; }
+    .nb-textbox-wrap.selected .nb-textbox-drag {
+      background:rgba(201,168,76,0.28);
+      border-color:rgba(201,168,76,0.6);
+    }
+    .nb-drag-dots {
+      font-size:13px; color:rgba(201,168,76,0.7); letter-spacing:2px;
+      pointer-events:none; line-height:1;
+    }
+    .nb-textbox-del {
+      width:28px; height:28px; border-radius:50%;
+      background:#e74c3c; border:2px solid rgba(255,255,255,0.8);
+      color:#fff; font-size:13px; font-weight:900;
+      cursor:pointer; display:flex; align-items:center; justify-content:center;
+      line-height:1; padding:0; flex-shrink:0;
+      touch-action:manipulation;
+    }
+
+    /* Text content area */
+    .nb-textbox-border {
+      flex:1; min-height:0;
+      border:1px solid rgba(201,168,76,0.35);
+      border-radius:0 0 6px 6px; overflow:hidden;
+      background:rgba(255,255,255,0.92);
+    }
+    .nb-textbox-wrap.selected .nb-textbox-border { border-color:rgba(201,168,76,0.7); border-width:2px; }
     .nb-textbox-inner {
-      width:100%; height:100%; padding:6px 8px;
+      width:100%; height:100%; padding:8px 10px;
       outline:none; background:transparent;
       white-space:pre-wrap; word-break:break-word;
-      line-height:1.5; cursor:text;
+      line-height:1.6; cursor:text; overflow-y:auto;
     }
+
+    /* Resize handle — large 40×40 touch target in bottom-right */
     .nb-textbox-resize {
       position:absolute; bottom:0; right:0;
-      width:16px; height:16px; cursor:se-resize;
-      background:rgba(201,168,76,0.75); border-radius:2px 0 2px 0;
-      display:none;
+      width:40px; height:40px; cursor:se-resize;
+      touch-action:none;
+      display:flex; align-items:flex-end; justify-content:flex-end;
+      padding:4px;
     }
-    .nb-textbox-wrap.selected .nb-textbox-resize { display:block; }
-    .nb-textbox-del {
-      position:absolute; top:-10px; right:-10px;
-      width:20px; height:20px; border-radius:50%;
-      background:#e74c3c; border:2px solid #fff;
-      color:#fff; font-size:11px; font-weight:900;
-      cursor:pointer; display:none; align-items:center; justify-content:center;
-      line-height:1; padding:0; pointer-events:all;
+    .nb-textbox-resize::after {
+      content:'';
+      display:block; width:16px; height:16px;
+      background:linear-gradient(135deg, transparent 50%, #C9A84C 50%);
+      border-radius:0 0 4px 0;
     }
-    .nb-textbox-wrap.selected .nb-textbox-del { display:flex; }
 
     /* ── Floating style toolbar ── */
     #nbTextStyleBar {
@@ -434,6 +504,8 @@ export function openNotebook({ state, saveData }) {
   <div id="nbShell">
     <!-- Sidebar -->
     <div id="nbSidebar">
+      <!-- Toggle tab — always visible on the right edge even when collapsed -->
+      <div id="nbSideTab" title="Toggle sidebar">‹</div>
       <div id="nbSideHeader">
         <div id="nbSideTitle">📓 Journal</div>
         <input type="text" id="nbSearchBox" placeholder="Search…" autocomplete="off" />
@@ -601,10 +673,18 @@ export function openNotebook({ state, saveData }) {
   /* ══════════════════════════════════════════════════════════════════════
      SIDEBAR TOGGLE
   ══════════════════════════════════════════════════════════════════════ */
-  sideToggle.addEventListener('click', () => {
-    sidebar.classList.toggle('collapsed');
+  const sideTab = $('nbSideTab');
+
+  function toggleSidebar() {
+    const isNowCollapsed = !sidebar.classList.contains('collapsed');
+    sidebar.classList.toggle('collapsed', isNowCollapsed);
+    // Arrow points right (open) when collapsed, left (close) when open
+    if (sideTab) sideTab.textContent = isNowCollapsed ? '›' : '‹';
     setTimeout(sizeCanvas, 250);
-  });
+  }
+
+  sideToggle.addEventListener('click', toggleSidebar);
+  if (sideTab) sideTab.addEventListener('click', toggleSidebar);
 
   /* ══════════════════════════════════════════════════════════════════════
      SIDEBAR RENDER
@@ -788,7 +868,12 @@ export function openNotebook({ state, saveData }) {
     ctx.setTransform(dpr*zoomLevel, 0, 0, dpr*zoomLevel, 0, 0);
     drawPaper();
     redrawStrokes();
-    renderAllTextBoxDOMs();
+    // Re-position text boxes to match new zoom (full rebuild only on page load)
+    if (canvasLayer && canvasLayer.querySelector('.nb-textbox-wrap')) {
+      reposAllTextBoxes();
+    } else {
+      renderAllTextBoxDOMs();
+    }
   }
 
   /* ══════════════════════════════════════════════════════════════════════
@@ -1263,24 +1348,48 @@ export function openNotebook({ state, saveData }) {
 
   function createTextBox(x, y, text='') {
     const id = uid();
-    const tb = { id, x, y, w:280, h:100, text, ...TB_DEFAULTS };
+    // Default width = 60% of logical page width, generous height
+    const bw = getBaseWidth();
+    const defaultW = Math.min(400, Math.round(bw * 0.6));
+    const defaultH = 120;
+    const tb = { id, x, y, w:defaultW, h:defaultH, text, ...TB_DEFAULTS };
     textBoxes.push(tb);
     dirtyFlag = true;
     buildTextBoxDOM(tb);
     selectTextBox(id);
+    // Scroll so the text box is visible
+    const wrap = canvasLayer.querySelector(`[data-tbid="${id}"]`);
+    if (wrap) wrap.scrollIntoView({ behavior:'smooth', block:'nearest' });
     return tb;
   }
 
   function buildTextBoxDOM(tb) {
-    // Remove existing DOM if present
     const existing = canvasLayer.querySelector(`[data-tbid="${tb.id}"]`);
     if (existing) existing.remove();
 
     const wrap = document.createElement('div');
     wrap.className = 'nb-textbox-wrap';
     wrap.dataset.tbid = tb.id;
-    wrap.style.cssText = `position:absolute;left:${tb.x*zoomLevel}px;top:${tb.y*zoomLevel}px;width:${tb.w*zoomLevel}px;height:${tb.h*zoomLevel}px;`;
+    setWrapGeometry(wrap, tb);
 
+    // ── Drag handle bar at top ──────────────────────────────────
+    const dragBar = document.createElement('div');
+    dragBar.className = 'nb-textbox-drag';
+
+    const dots = document.createElement('span');
+    dots.className = 'nb-drag-dots';
+    dots.textContent = '⠿⠿⠿';
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'nb-textbox-del';
+    delBtn.innerHTML = '✕';
+    delBtn.addEventListener('pointerdown', e => e.stopPropagation());
+    delBtn.addEventListener('click', e => { e.stopPropagation(); deleteTextBox(tb.id); });
+
+    dragBar.appendChild(dots);
+    dragBar.appendChild(delBtn);
+
+    // ── Text content ─────────────────────────────────────────────
     const border = document.createElement('div');
     border.className = 'nb-textbox-border';
 
@@ -1290,38 +1399,40 @@ export function openNotebook({ state, saveData }) {
     inner.spellcheck = false;
     inner.style.cssText = applyTbStyle(tb);
     inner.textContent = tb.text;
-    // Stop pointer events reaching canvas when editing text
     inner.addEventListener('pointerdown', e => e.stopPropagation());
     inner.addEventListener('touchstart',  e => e.stopPropagation(), { passive:true });
-    inner.addEventListener('input', () => {
-      tb.text = inner.textContent;
-      dirtyFlag = true;
-    });
+    inner.addEventListener('input', () => { tb.text = inner.textContent; dirtyFlag = true; });
     inner.addEventListener('focus', () => selectTextBox(tb.id));
 
+    border.appendChild(inner);
+
+    // ── Resize handle (large touch target, bottom-right) ─────────
     const resizeHandle = document.createElement('div');
     resizeHandle.className = 'nb-textbox-resize';
-    resizeHandle.title = 'Drag to resize';
 
-    const delBtn = document.createElement('button');
-    delBtn.className = 'nb-textbox-del';
-    delBtn.textContent = '✕';
-    delBtn.addEventListener('click', e => { e.stopPropagation(); deleteTextBox(tb.id); });
-
-    border.appendChild(inner);
+    wrap.appendChild(dragBar);
     wrap.appendChild(border);
     wrap.appendChild(resizeHandle);
-    wrap.appendChild(delBtn);
     canvasLayer.appendChild(wrap);
 
-    makeDraggable(wrap, tb);
-    makeResizable(resizeHandle, wrap, tb);
-
-    // Select on tap
-    wrap.addEventListener('pointerdown', e => {
-      if (e.target === resizeHandle || e.target === delBtn) return;
-      selectTextBox(tb.id);
+    // Select when tapping drag bar or border
+    [dragBar, border].forEach(el => {
+      el.addEventListener('pointerdown', e => {
+        if (e.target === delBtn) return;
+        selectTextBox(tb.id);
+      });
     });
+
+    makeDraggable(dragBar, wrap, tb);
+    makeResizable(resizeHandle, wrap, tb);
+  }
+
+  function setWrapGeometry(wrap, tb) {
+    wrap.style.left   = (tb.x * zoomLevel) + 'px';
+    wrap.style.top    = (tb.y * zoomLevel) + 'px';
+    wrap.style.width  = (tb.w * zoomLevel) + 'px';
+    // Height includes drag bar (32px) + content area
+    wrap.style.height = ((tb.h + 32) * zoomLevel) + 'px';
   }
 
   function applyTbStyle(tb) {
@@ -1371,9 +1482,16 @@ export function openNotebook({ state, saveData }) {
   }
 
   function renderAllTextBoxDOMs() {
-    // Clear existing DOM text boxes then rebuild
     canvasLayer.querySelectorAll('.nb-textbox-wrap').forEach(el=>el.remove());
     textBoxes.forEach(tb => buildTextBoxDOM(tb));
+  }
+
+  // When zoom changes, re-position existing text box wraps without full rebuild
+  function reposAllTextBoxes() {
+    textBoxes.forEach(tb => {
+      const wrap = canvasLayer.querySelector(`[data-tbid="${tb.id}"]`);
+      if (wrap) setWrapGeometry(wrap, tb);
+    });
   }
 
   // Deselect when clicking canvas background
@@ -1433,41 +1551,89 @@ export function openNotebook({ state, saveData }) {
 
   tsDelete.addEventListener('click', () => { if (selectedTB) deleteTextBox(selectedTB); });
 
-  /* ── Drag ──────────────────────────────────────────────────────── */
-  function makeDraggable(wrap, tb) {
+  /* ── Drag — finger/touch/pencil all work on the drag bar ─────── */
+  function makeDraggable(dragBar, wrap, tb) {
     let startX, startY, startTbX, startTbY, dragging=false;
 
-    wrap.addEventListener('pointerdown', e => {
-      if (e.target.classList.contains('nb-textbox-resize')) return;
-      if (e.target.classList.contains('nb-textbox-inner'))  return;
-      if (e.target.classList.contains('nb-textbox-del'))    return;
-      dragging=true; wrap.setPointerCapture(e.pointerId);
+    // Use raw touch events so finger drag always works regardless of pointerType filters
+    dragBar.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      dragging=true; startX=t.clientX; startY=t.clientY;
+      startTbX=tb.x; startTbY=tb.y;
+      e.stopPropagation(); e.preventDefault();
+    }, { passive:false });
+
+    dragBar.addEventListener('touchmove', e => {
+      if (!dragging || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const dx=(t.clientX-startX)/zoomLevel;
+      const dy=(t.clientY-startY)/zoomLevel;
+      tb.x = Math.max(0, startTbX+dx);
+      tb.y = Math.max(0, startTbY+dy);
+      setWrapGeometry(wrap, tb);
+      if (selectedTB===tb.id) positionStyleBar(wrap);
+      dirtyFlag=true;
+      e.stopPropagation(); e.preventDefault();
+    }, { passive:false });
+
+    dragBar.addEventListener('touchend',    () => { dragging=false; }, { passive:true });
+    dragBar.addEventListener('touchcancel', () => { dragging=false; }, { passive:true });
+
+    // Pointer events for mouse/Apple Pencil drag (pencil on the drag bar)
+    dragBar.addEventListener('pointerdown', e => {
+      if (e.pointerType==='touch') return; // handled by touch events above
+      dragging=true; dragBar.setPointerCapture(e.pointerId);
       startX=e.clientX; startY=e.clientY;
       startTbX=tb.x; startTbY=tb.y;
       e.stopPropagation();
-    }, { passive:false });
+    });
 
-    wrap.addEventListener('pointermove', e => {
-      if (!dragging) return;
+    dragBar.addEventListener('pointermove', e => {
+      if (!dragging || e.pointerType==='touch') return;
       const dx=(e.clientX-startX)/zoomLevel;
       const dy=(e.clientY-startY)/zoomLevel;
       tb.x = Math.max(0, startTbX+dx);
       tb.y = Math.max(0, startTbY+dy);
-      wrap.style.left = (tb.x*zoomLevel)+'px';
-      wrap.style.top  = (tb.y*zoomLevel)+'px';
+      setWrapGeometry(wrap, tb);
       if (selectedTB===tb.id) positionStyleBar(wrap);
       dirtyFlag=true;
     });
 
-    wrap.addEventListener('pointerup',     () => { dragging=false; });
-    wrap.addEventListener('pointercancel', () => { dragging=false; });
+    dragBar.addEventListener('pointerup',     () => { dragging=false; });
+    dragBar.addEventListener('pointercancel', () => { dragging=false; });
   }
 
-  /* ── Resize ─────────────────────────────────────────────────────── */
+  /* ── Resize — large 40×40 touch target in bottom-right corner ─── */
   function makeResizable(handle, wrap, tb) {
     let startX, startY, startW, startH, resizing=false;
 
+    handle.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      resizing=true; startX=t.clientX; startY=t.clientY;
+      startW=tb.w; startH=tb.h;
+      e.stopPropagation(); e.preventDefault();
+    }, { passive:false });
+
+    handle.addEventListener('touchmove', e => {
+      if (!resizing || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const dx=(t.clientX-startX)/zoomLevel;
+      const dy=(t.clientY-startY)/zoomLevel;
+      tb.w = Math.max(120, startW+dx);
+      tb.h = Math.max(40,  startH+dy);
+      setWrapGeometry(wrap, tb);
+      dirtyFlag=true;
+      e.stopPropagation(); e.preventDefault();
+    }, { passive:false });
+
+    handle.addEventListener('touchend',    () => { resizing=false; }, { passive:true });
+    handle.addEventListener('touchcancel', () => { resizing=false; }, { passive:true });
+
+    // Pointer fallback for mouse
     handle.addEventListener('pointerdown', e => {
+      if (e.pointerType==='touch') return;
       resizing=true; handle.setPointerCapture(e.pointerId);
       startX=e.clientX; startY=e.clientY;
       startW=tb.w; startH=tb.h;
@@ -1475,13 +1641,12 @@ export function openNotebook({ state, saveData }) {
     }, { passive:false });
 
     handle.addEventListener('pointermove', e => {
-      if (!resizing) return;
+      if (!resizing || e.pointerType==='touch') return;
       const dx=(e.clientX-startX)/zoomLevel;
       const dy=(e.clientY-startY)/zoomLevel;
-      tb.w = Math.max(80, startW+dx);
-      tb.h = Math.max(32, startH+dy);
-      wrap.style.width  = (tb.w*zoomLevel)+'px';
-      wrap.style.height = (tb.h*zoomLevel)+'px';
+      tb.w = Math.max(120, startW+dx);
+      tb.h = Math.max(40,  startH+dy);
+      setWrapGeometry(wrap, tb);
       dirtyFlag=true;
     });
 
@@ -1494,9 +1659,11 @@ export function openNotebook({ state, saveData }) {
     if (!activePageId) return;
     const text = transText.value.trim();
     if (!text) { transStatus.textContent = '⚠ No text to paste.'; return; }
-    // Place near top-left (after margin), visible at current scroll
-    const startX = (MARGIN_LEFT / zoomLevel) + 20;
-    const startY = LINE_SPACING * 2 + 10;
+    // Place at the current visible scroll position so it's immediately visible
+    const scrollX = canvasWrap.scrollLeft / zoomLevel;
+    const scrollY = canvasWrap.scrollTop  / zoomLevel;
+    const startX = scrollX + (MARGIN_LEFT / zoomLevel) + 10;
+    const startY = scrollY + LINE_SPACING * 2;
     createTextBox(startX, startY, text);
     transModal.classList.remove('open');
   });
