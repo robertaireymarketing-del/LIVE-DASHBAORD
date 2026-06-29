@@ -1,21 +1,13 @@
 /**
  * netlify/functions/anthropic-proxy.js
  * ─────────────────────────────────────────────────────────────────────────────
- * Serverless proxy that forwards requests from the browser to the Anthropic API.
- * Needed because browsers cannot call api.anthropic.com directly (CORS policy).
+ * Place this file at:  netlify/functions/anthropic-proxy.js
  *
- * SETUP
- * ─────
- * 1. Create the folder:  netlify/functions/
- * 2. Drop this file in:  netlify/functions/anthropic-proxy.js
- * 3. Add your API key to Netlify environment variables:
- *      Site settings → Environment variables → Add variable
- *      Key:   ANTHROPIC_API_KEY
- *      Value: sk-ant-…  (your key from console.anthropic.com)
- * 4. Deploy — the function is available at /.netlify/functions/anthropic-proxy
+ * Your Netlify env var is named: notebookkey
+ * (visible in Netlify → roberts-dashboard → Environment variables)
  *
- * The function accepts a POST with a standard Anthropic messages request body
- * and streams/returns the response directly back to the caller.
+ * This function forwards browser requests to Anthropic's API,
+ * bypassing CORS restrictions that prevent direct browser calls.
  */
 
 exports.handler = async function(event) {
@@ -24,11 +16,15 @@ exports.handler = async function(event) {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // Read API key — your Netlify var is "notebookkey"
+  const apiKey = process.env.notebookkey || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'ANTHROPIC_API_KEY environment variable is not set. Add it in Netlify → Site settings → Environment variables.' }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        error: 'API key not found. Make sure "notebookkey" is set in Netlify environment variables.'
+      }),
     };
   }
 
@@ -36,7 +32,11 @@ exports.handler = async function(event) {
   try {
     requestBody = JSON.parse(event.body);
   } catch {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON body' }) };
+    return {
+      statusCode: 400,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Invalid JSON body' }),
+    };
   }
 
   try {
@@ -63,6 +63,7 @@ exports.handler = async function(event) {
   } catch (err) {
     return {
       statusCode: 502,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Upstream request failed: ' + err.message }),
     };
   }

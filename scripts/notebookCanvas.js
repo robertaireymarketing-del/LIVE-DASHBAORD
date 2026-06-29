@@ -1039,19 +1039,23 @@ export function openNotebook({ state, saveData }) {
         ]}],
       });
 
-      let resp;
-      try {
-        resp = await fetch(API_ENDPOINT, { method:'POST', headers:{'Content-Type':'application/json'}, body });
-        if (!resp.ok) throw new Error('proxy '+resp.status);
-      } catch {
-        resp = await fetch('https://api.anthropic.com/v1/messages', {
-          method:'POST',
-          headers:{ 'Content-Type':'application/json','anthropic-version':'2023-06-01' },
-          body,
-        });
-      }
+      // Call via Netlify proxy (your env var: notebookkey)
+      const resp = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
 
-      if (!resp.ok) throw new Error('API error '+resp.status+': '+(await resp.text().catch(()=>'')).slice(0,200));
+      if (!resp.ok) {
+        let errMsg = 'HTTP ' + resp.status;
+        try {
+          const errData = await resp.json();
+          errMsg = errData.error || JSON.stringify(errData).slice(0, 200);
+        } catch { /* ignore parse error */ }
+        if (resp.status === 404) errMsg = 'Proxy not found — make sure netlify/functions/anthropic-proxy.js is deployed.';
+        if (resp.status === 500) errMsg = 'Proxy error — check that "notebookkey" is set in Netlify environment variables.';
+        throw new Error(errMsg);
+      }
       const data = await resp.json();
       const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
       transText.value = text||'(No handwriting detected)';
