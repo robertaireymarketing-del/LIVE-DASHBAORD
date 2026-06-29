@@ -54,6 +54,9 @@ export function openNotebook({ state, saveData }) {
   let curStroke    = null;
   let dirtyFlag    = false;
 
+  let textBoxes   = [];   // { id, x, y, w, h, text, font, size, color, bold, italic }
+  let selectedTB  = null; // id of selected text box
+
   let tool      = 'pen';
   let penColor  = INK_DEFAULT;
   let strokeW   = 2.5;
@@ -306,6 +309,64 @@ export function openNotebook({ state, saveData }) {
     .nb-correction-row input::placeholder { color:rgba(255,255,255,0.3); }
     .nb-corr-del { background:none; border:none; color:rgba(231,76,60,0.65); cursor:pointer; font-size:15px; padding:0 3px; }
     #nbCorrectionNote { font-size:10px; color:rgba(255,255,255,0.35); margin-bottom:9px; line-height:1.5; }
+
+    /* ── Text boxes on canvas ── */
+    .nb-textbox-wrap {
+      position:absolute; min-width:120px; min-height:40px;
+      cursor:move; user-select:none; box-sizing:border-box;
+    }
+    .nb-textbox-wrap.selected .nb-textbox-border { outline:2px solid #C9A84C; }
+    .nb-textbox-border { width:100%; height:100%; outline:1px dashed rgba(0,0,0,0.22); border-radius:2px; overflow:hidden; }
+    .nb-textbox-inner {
+      width:100%; height:100%; padding:6px 8px;
+      outline:none; background:transparent;
+      white-space:pre-wrap; word-break:break-word;
+      line-height:1.5; cursor:text;
+    }
+    .nb-textbox-resize {
+      position:absolute; bottom:0; right:0;
+      width:16px; height:16px; cursor:se-resize;
+      background:rgba(201,168,76,0.75); border-radius:2px 0 2px 0;
+      display:none;
+    }
+    .nb-textbox-wrap.selected .nb-textbox-resize { display:block; }
+    .nb-textbox-del {
+      position:absolute; top:-10px; right:-10px;
+      width:20px; height:20px; border-radius:50%;
+      background:#e74c3c; border:2px solid #fff;
+      color:#fff; font-size:11px; font-weight:900;
+      cursor:pointer; display:none; align-items:center; justify-content:center;
+      line-height:1; padding:0; pointer-events:all;
+    }
+    .nb-textbox-wrap.selected .nb-textbox-del { display:flex; }
+
+    /* ── Floating style toolbar ── */
+    #nbTextStyleBar {
+      position:absolute; z-index:30;
+      display:none; align-items:center; gap:5px; flex-wrap:wrap;
+      background:#0d0d1a; border:1px solid rgba(255,255,255,0.15);
+      border-radius:10px; padding:6px 8px;
+      box-shadow:0 4px 20px rgba(0,0,0,0.5);
+    }
+    #nbTextStyleBar.visible { display:flex; }
+    .nb-ts-select {
+      background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15);
+      color:#fff; border-radius:6px; padding:4px 6px;
+      font:600 11px inherit; outline:none; cursor:pointer; flex-shrink:0;
+    }
+    .nb-ts-select option { background:#0d0d1a; color:#fff; }
+    .nb-ts-btn {
+      background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15);
+      color:#fff; border-radius:6px; padding:4px 8px;
+      font:700 12px/1 inherit; cursor:pointer; flex-shrink:0;
+    }
+    .nb-ts-btn.active { background:#C9A84C; border-color:#C9A84C; color:#0d0d1a; }
+    .nb-ts-btn:hover  { background:rgba(255,255,255,0.18); }
+    .nb-ts-color {
+      width:22px; height:22px; border-radius:50%;
+      border:2px solid rgba(255,255,255,0.3); cursor:pointer; flex-shrink:0;
+    }
+    #nbTsColorPicker { opacity:0; position:fixed; width:1px; height:1px; top:-10px; left:-10px; pointer-events:none; }
   </style>
 
   <!-- ════ TOOLBAR ════════════════════════════════════════════════════ -->
@@ -392,7 +453,39 @@ export function openNotebook({ state, saveData }) {
       </div>
 
       <div id="nbCanvasWrap" style="display:none;">
-        <canvas id="nbCanvas"></canvas>
+        <!-- Wrapper that sizes to match the canvas, text boxes live inside here -->
+        <div id="nbCanvasLayer" style="position:relative;flex-shrink:0;">
+          <canvas id="nbCanvas"></canvas>
+          <!-- Text boxes inserted here by JS -->
+        </div>
+      </div>
+
+      <!-- Floating text style toolbar (shown when a text box is selected) -->
+      <div id="nbTextStyleBar">
+        <select class="nb-ts-select" id="nbTsFontFamily">
+          <option value="-apple-system,sans-serif">System</option>
+          <option value="Georgia,serif">Georgia</option>
+          <option value="'Times New Roman',serif">Times New Roman</option>
+          <option value="'Courier New',monospace">Courier New</option>
+          <option value="Arial,sans-serif">Arial</option>
+          <option value="Verdana,sans-serif">Verdana</option>
+          <option value="'Trebuchet MS',sans-serif">Trebuchet</option>
+        </select>
+        <select class="nb-ts-select" id="nbTsFontSize">
+          <option value="10">10</option><option value="12">12</option>
+          <option value="14" selected>14</option><option value="16">16</option>
+          <option value="18">18</option><option value="20">20</option>
+          <option value="24">24</option><option value="28">28</option>
+          <option value="32">32</option><option value="36">36</option>
+          <option value="48">48</option>
+        </select>
+        <button class="nb-ts-btn" id="nbTsBold" title="Bold"><b>B</b></button>
+        <button class="nb-ts-btn" id="nbTsItalic" title="Italic"><i>I</i></button>
+        <div class="nb-ts-color" id="nbTsColorSwatch" title="Text colour"></div>
+        <input type="color" id="nbTsColorPicker" value="#1a1a2e" />
+        <div class="nb-div"></div>
+        <button class="nb-ts-btn" id="nbTsDuplicate" title="Duplicate">⧉</button>
+        <button class="nb-ts-btn" id="nbTsDelete" title="Delete text box" style="color:#e74c3c;">✕</button>
       </div>
 
       <!-- Transcription modal -->
@@ -410,8 +503,9 @@ export function openNotebook({ state, saveData }) {
           <div id="nbCorrectionList"></div>
           <button class="nbt" id="nbAddCorrBtn" style="margin-bottom:10px;">＋ Add correction</button>
           <div style="display:flex;gap:7px;flex-wrap:wrap;">
-            <button class="nbt green" id="nbSaveTransBtn">Save ✓</button>
-            <button class="nbt blue"  id="nbRetranscribeBtn">↻ Re-transcribe</button>
+            <button class="nbt green"  id="nbSaveTransBtn">Save ✓</button>
+            <button class="nbt blue"   id="nbRetranscribeBtn">↻ Re-transcribe</button>
+            <button class="nbt" id="nbPasteToPageBtn" style="background:rgba(201,168,76,0.2);border-color:rgba(201,168,76,0.5);color:#C9A84C;">📋 Paste to page</button>
           </div>
         </div>
       </div>
@@ -480,7 +574,18 @@ export function openNotebook({ state, saveData }) {
   const corrList      = $('nbCorrectionList');
   const addCorrBtn    = $('nbAddCorrBtn');
   const saveTransBtn  = $('nbSaveTransBtn');
-  const retransBtn    = $('nbRetranscribeBtn');
+  const retransBtn      = $('nbRetranscribeBtn');
+  const pasteToPageBtn  = $('nbPasteToPageBtn');
+  const canvasLayer     = $('nbCanvasLayer');
+  const textStyleBar    = $('nbTextStyleBar');
+  const tsFontFamily    = $('nbTsFontFamily');
+  const tsFontSize      = $('nbTsFontSize');
+  const tsBold          = $('nbTsBold');
+  const tsItalic        = $('nbTsItalic');
+  const tsColorSwatch   = $('nbTsColorSwatch');
+  const tsColorPicker   = $('nbTsColorPicker');
+  const tsDuplicate     = $('nbTsDuplicate');
+  const tsDelete        = $('nbTsDelete');
 
   /* ══════════════════════════════════════════════════════════════════════
      TOOLBAR COLLAPSE
@@ -583,6 +688,8 @@ export function openNotebook({ state, saveData }) {
     const page = (meta.pages||[]).find(p=>p.id===id);
     if (!page) return;
     strokes   = (pages[id]?.strokes||[]).map(s=>({...s,points:s.points.slice()}));
+    textBoxes = (pages[id]?.textBoxes||[]).map(tb=>({...tb}));
+    selectedTB = null;
     undoStack = []; curStroke = null; dirtyFlag = false;
     pageTitleIn.value = page.title||'';
     emptyState.style.display = 'none';
@@ -603,6 +710,7 @@ export function openNotebook({ state, saveData }) {
       tool:s.tool, color:s.color, width:s.width,
       points:s.points.map(p=>({ x:Math.round(p.x*10)/10, y:Math.round(p.y*10)/10 })),
     }));
+    pages[activePageId].textBoxes = textBoxes.map(tb=>({...tb}));
     persistMeta();
     dirtyFlag = false;
   }
@@ -672,9 +780,15 @@ export function openNotebook({ state, saveData }) {
     canvas.height       = h*dpr;
     canvas.style.width  = w+'px';
     canvas.style.height = h+'px';
+    // Keep the canvasLayer overlay the same size so text boxes stay aligned
+    if (canvasLayer) {
+      canvasLayer.style.width  = w+'px';
+      canvasLayer.style.height = h+'px';
+    }
     ctx.setTransform(dpr*zoomLevel, 0, 0, dpr*zoomLevel, 0, 0);
     drawPaper();
     redrawStrokes();
+    renderAllTextBoxDOMs();
   }
 
   /* ══════════════════════════════════════════════════════════════════════
@@ -1136,6 +1250,255 @@ export function openNotebook({ state, saveData }) {
     pages[activePageId].transcription={ text:transText.value, corrections:corrections.filter(c=>c.original||c.corrected), ts:Date.now() };
     persistMeta(); transStatus.textContent='✓ Saved.';
     setTimeout(()=>transModal.classList.remove('open'),700);
+  });
+
+  /* ══════════════════════════════════════════════════════════════════════
+     TEXT BOX ENGINE
+     Text boxes are HTML divs overlaying the canvas inside #nbCanvasLayer.
+     They are stored as plain objects in textBoxes[] and persisted per page.
+  ══════════════════════════════════════════════════════════════════════ */
+
+  // Default style for new text boxes
+  const TB_DEFAULTS = { font:'-apple-system,sans-serif', size:16, color:'#1a1a2e', bold:false, italic:false };
+
+  function createTextBox(x, y, text='') {
+    const id = uid();
+    const tb = { id, x, y, w:280, h:100, text, ...TB_DEFAULTS };
+    textBoxes.push(tb);
+    dirtyFlag = true;
+    buildTextBoxDOM(tb);
+    selectTextBox(id);
+    return tb;
+  }
+
+  function buildTextBoxDOM(tb) {
+    // Remove existing DOM if present
+    const existing = canvasLayer.querySelector(`[data-tbid="${tb.id}"]`);
+    if (existing) existing.remove();
+
+    const wrap = document.createElement('div');
+    wrap.className = 'nb-textbox-wrap';
+    wrap.dataset.tbid = tb.id;
+    wrap.style.cssText = `position:absolute;left:${tb.x*zoomLevel}px;top:${tb.y*zoomLevel}px;width:${tb.w*zoomLevel}px;height:${tb.h*zoomLevel}px;`;
+
+    const border = document.createElement('div');
+    border.className = 'nb-textbox-border';
+
+    const inner = document.createElement('div');
+    inner.className = 'nb-textbox-inner';
+    inner.contentEditable = 'true';
+    inner.spellcheck = false;
+    inner.style.cssText = applyTbStyle(tb);
+    inner.textContent = tb.text;
+    // Stop pointer events reaching canvas when editing text
+    inner.addEventListener('pointerdown', e => e.stopPropagation());
+    inner.addEventListener('touchstart',  e => e.stopPropagation(), { passive:true });
+    inner.addEventListener('input', () => {
+      tb.text = inner.textContent;
+      dirtyFlag = true;
+    });
+    inner.addEventListener('focus', () => selectTextBox(tb.id));
+
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'nb-textbox-resize';
+    resizeHandle.title = 'Drag to resize';
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'nb-textbox-del';
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('click', e => { e.stopPropagation(); deleteTextBox(tb.id); });
+
+    border.appendChild(inner);
+    wrap.appendChild(border);
+    wrap.appendChild(resizeHandle);
+    wrap.appendChild(delBtn);
+    canvasLayer.appendChild(wrap);
+
+    makeDraggable(wrap, tb);
+    makeResizable(resizeHandle, wrap, tb);
+
+    // Select on tap
+    wrap.addEventListener('pointerdown', e => {
+      if (e.target === resizeHandle || e.target === delBtn) return;
+      selectTextBox(tb.id);
+    });
+  }
+
+  function applyTbStyle(tb) {
+    return [
+      `font-family:${tb.font}`,
+      `font-size:${tb.size}px`,
+      `color:${tb.color}`,
+      `font-weight:${tb.bold?'bold':'normal'}`,
+      `font-style:${tb.italic?'italic':'normal'}`,
+    ].join(';');
+  }
+
+  function applyStyleToSelectedTB() {
+    if (!selectedTB) return;
+    const tb = textBoxes.find(t=>t.id===selectedTB);
+    if (!tb) return;
+    const wrap = canvasLayer.querySelector(`[data-tbid="${tb.id}"]`);
+    const inner = wrap?.querySelector('.nb-textbox-inner');
+    if (inner) inner.style.cssText = applyTbStyle(tb);
+    dirtyFlag = true;
+  }
+
+  function selectTextBox(id) {
+    // Deselect previous
+    if (selectedTB) {
+      const prev = canvasLayer.querySelector(`[data-tbid="${selectedTB}"]`);
+      prev?.classList.remove('selected');
+    }
+    selectedTB = id;
+    if (id) {
+      const wrap = canvasLayer.querySelector(`[data-tbid="${id}"]`);
+      wrap?.classList.add('selected');
+      const tb = textBoxes.find(t=>t.id===id);
+      if (tb) syncStyleBar(tb);
+      positionStyleBar(wrap);
+      textStyleBar.classList.add('visible');
+    } else {
+      textStyleBar.classList.remove('visible');
+    }
+  }
+
+  function deleteTextBox(id) {
+    textBoxes = textBoxes.filter(t=>t.id!==id);
+    canvasLayer.querySelector(`[data-tbid="${id}"]`)?.remove();
+    if (selectedTB===id) { selectedTB=null; textStyleBar.classList.remove('visible'); }
+    dirtyFlag = true;
+  }
+
+  function renderAllTextBoxDOMs() {
+    // Clear existing DOM text boxes then rebuild
+    canvasLayer.querySelectorAll('.nb-textbox-wrap').forEach(el=>el.remove());
+    textBoxes.forEach(tb => buildTextBoxDOM(tb));
+  }
+
+  // Deselect when clicking canvas background
+  canvasLayer.addEventListener('pointerdown', e => {
+    if (e.target === canvas || e.target === canvasLayer) {
+      selectTextBox(null);
+    }
+  });
+
+  /* ── Style bar sync ────────────────────────────────────────────── */
+  function syncStyleBar(tb) {
+    tsFontFamily.value   = tb.font;
+    tsFontSize.value     = String(tb.size);
+    tsBold.classList.toggle('active',   tb.bold);
+    tsItalic.classList.toggle('active', tb.italic);
+    tsColorSwatch.style.background = tb.color;
+    tsColorPicker.value = tb.color.startsWith('#') ? tb.color : '#1a1a2e';
+  }
+
+  function positionStyleBar(wrap) {
+    if (!wrap) return;
+    const wr = wrap.getBoundingClientRect();
+    const mr = canvasLayer.getBoundingClientRect();
+    let top  = wr.top - mr.top - 50;
+    let left = wr.left - mr.left;
+    if (top < 4) top = wr.bottom - mr.top + 6;
+    textStyleBar.style.top  = Math.max(4, top)+'px';
+    textStyleBar.style.left = Math.max(4, left)+'px';
+  }
+
+  /* ── Style bar events ──────────────────────────────────────────── */
+  function withSelectedTB(fn) {
+    const tb = textBoxes.find(t=>t.id===selectedTB);
+    if (tb) { fn(tb); applyStyleToSelectedTB(); }
+  }
+
+  tsFontFamily.addEventListener('change', () => withSelectedTB(tb => tb.font = tsFontFamily.value));
+  tsFontSize.addEventListener('change', () => withSelectedTB(tb => { tb.size = parseInt(tsFontSize.value); }));
+  tsBold.addEventListener('click',   () => withSelectedTB(tb => { tb.bold   = !tb.bold;   tsBold.classList.toggle('active',tb.bold); }));
+  tsItalic.addEventListener('click', () => withSelectedTB(tb => { tb.italic = !tb.italic; tsItalic.classList.toggle('active',tb.italic); }));
+
+  tsColorSwatch.addEventListener('click', () => tsColorPicker.click());
+  tsColorPicker.addEventListener('input', () => {
+    tsColorSwatch.style.background = tsColorPicker.value;
+    withSelectedTB(tb => tb.color = tsColorPicker.value);
+  });
+
+  tsDuplicate.addEventListener('click', () => {
+    const tb = textBoxes.find(t=>t.id===selectedTB);
+    if (!tb) return;
+    const newTb = { ...tb, id:uid(), x:tb.x+20, y:tb.y+20 };
+    textBoxes.push(newTb);
+    dirtyFlag = true;
+    buildTextBoxDOM(newTb);
+    selectTextBox(newTb.id);
+  });
+
+  tsDelete.addEventListener('click', () => { if (selectedTB) deleteTextBox(selectedTB); });
+
+  /* ── Drag ──────────────────────────────────────────────────────── */
+  function makeDraggable(wrap, tb) {
+    let startX, startY, startTbX, startTbY, dragging=false;
+
+    wrap.addEventListener('pointerdown', e => {
+      if (e.target.classList.contains('nb-textbox-resize')) return;
+      if (e.target.classList.contains('nb-textbox-inner'))  return;
+      if (e.target.classList.contains('nb-textbox-del'))    return;
+      dragging=true; wrap.setPointerCapture(e.pointerId);
+      startX=e.clientX; startY=e.clientY;
+      startTbX=tb.x; startTbY=tb.y;
+      e.stopPropagation();
+    }, { passive:false });
+
+    wrap.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      const dx=(e.clientX-startX)/zoomLevel;
+      const dy=(e.clientY-startY)/zoomLevel;
+      tb.x = Math.max(0, startTbX+dx);
+      tb.y = Math.max(0, startTbY+dy);
+      wrap.style.left = (tb.x*zoomLevel)+'px';
+      wrap.style.top  = (tb.y*zoomLevel)+'px';
+      if (selectedTB===tb.id) positionStyleBar(wrap);
+      dirtyFlag=true;
+    });
+
+    wrap.addEventListener('pointerup',     () => { dragging=false; });
+    wrap.addEventListener('pointercancel', () => { dragging=false; });
+  }
+
+  /* ── Resize ─────────────────────────────────────────────────────── */
+  function makeResizable(handle, wrap, tb) {
+    let startX, startY, startW, startH, resizing=false;
+
+    handle.addEventListener('pointerdown', e => {
+      resizing=true; handle.setPointerCapture(e.pointerId);
+      startX=e.clientX; startY=e.clientY;
+      startW=tb.w; startH=tb.h;
+      e.stopPropagation(); e.preventDefault();
+    }, { passive:false });
+
+    handle.addEventListener('pointermove', e => {
+      if (!resizing) return;
+      const dx=(e.clientX-startX)/zoomLevel;
+      const dy=(e.clientY-startY)/zoomLevel;
+      tb.w = Math.max(80, startW+dx);
+      tb.h = Math.max(32, startH+dy);
+      wrap.style.width  = (tb.w*zoomLevel)+'px';
+      wrap.style.height = (tb.h*zoomLevel)+'px';
+      dirtyFlag=true;
+    });
+
+    handle.addEventListener('pointerup',     () => { resizing=false; });
+    handle.addEventListener('pointercancel', () => { resizing=false; });
+  }
+
+  /* ── Paste-to-page button ───────────────────────────────────────── */
+  pasteToPageBtn.addEventListener('click', () => {
+    if (!activePageId) return;
+    const text = transText.value.trim();
+    if (!text) { transStatus.textContent = '⚠ No text to paste.'; return; }
+    // Place near top-left (after margin), visible at current scroll
+    const startX = (MARGIN_LEFT / zoomLevel) + 20;
+    const startY = LINE_SPACING * 2 + 10;
+    createTextBox(startX, startY, text);
+    transModal.classList.remove('open');
   });
 
   /* ══════════════════════════════════════════════════════════════════════
