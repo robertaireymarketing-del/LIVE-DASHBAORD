@@ -14,6 +14,7 @@
    CONSTANTS
 ══════════════════════════════════════════════════════════════════════════ */
 const LINE_SPACING = 36;
+const GRID_SPACING = 28;   // squared/graph paper cell size
 const MARGIN_LEFT  = 60;
 const PAPER_BG     = '#fdfcf7';
 const LINE_COLOR   = '#c8d8e8';
@@ -23,6 +24,13 @@ const ERASER_W     = 36;
 const PAGE_ROWS    = 45;
 const AUTOSAVE_MS  = 30_000;
 const API_ENDPOINT = '/.netlify/functions/anthropic-proxy';
+
+const PAPER_STYLES = [
+  { id:'lined',  label:'Lined',  icon:'☰' },
+  { id:'plain',  label:'Plain',  icon:'▭' },
+  { id:'squared',label:'Squared',icon:'▦' },
+  { id:'dotted', label:'Dotted', icon:'⠿' },
+];
 
 const QUICK_COLORS = [
   '#1a1a2e','#e74c3c','#e67e22','#2ecc71',
@@ -53,9 +61,11 @@ export function openNotebook({ state, saveData }) {
   let undoStack    = [];
   let curStroke    = null;
   let dirtyFlag    = false;
+  let paperStyle   = 'lined';  // 'lined' | 'plain' | 'squared' | 'dotted' — per page
 
   let textBoxes   = [];   // { id, x, y, w, h, rotation, text, font, size, color, bold, italic }
   let selectedTB  = null; // id of selected text box
+  let selectedShape = null; // id of selected shape stroke
 
   let tool      = 'pen';
   let penColor  = INK_DEFAULT;
@@ -480,22 +490,90 @@ export function openNotebook({ state, saveData }) {
       box-shadow:0 4px 20px rgba(0,0,0,0.5);
       width:200px;
     }
+    #nbShapePicker, #nbShapePicker * { color:#fff !important; }
     #nbShapePicker.visible { display:flex; }
     #nbShapeGrid { display:grid; grid-template-columns:repeat(5,1fr); gap:5px; }
     .nb-shape-opt {
       background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15);
       border-radius:7px; padding:7px 0; cursor:pointer;
       display:flex; align-items:center; justify-content:center;
-      color:#fff; font-size:17px;
+      color:#fff !important; font-size:17px;
     }
-    .nb-shape-opt.active { background:#C9A84C; border-color:#C9A84C; color:#0d0d1a; }
+    .nb-shape-opt.active { background:#C9A84C; border-color:#C9A84C; color:#0d0d1a !important; }
     .nb-shape-row { display:flex; align-items:center; gap:6px; }
-    .nb-shape-label { font-size:10px; font-weight:700; color:rgba(255,255,255,0.5); letter-spacing:0.3px; }
+    .nb-shape-label { font-size:10px; font-weight:700; color:rgba(255,255,255,0.5) !important; letter-spacing:0.3px; }
     #nbShapeFillToggle {
       flex:1; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15);
-      color:#fff; border-radius:7px; padding:6px 0; font:700 11px inherit; cursor:pointer;
+      color:#fff !important; border-radius:7px; padding:6px 0; font:700 11px inherit; cursor:pointer;
     }
-    #nbShapeFillToggle.active { background:#C9A84C; border-color:#C9A84C; color:#0d0d1a; }
+    #nbShapeFillToggle.active { background:#C9A84C; border-color:#C9A84C; color:#0d0d1a !important; }
+
+    /* ── Paper style picker popover ── */
+    #nbPaperPicker {
+      position:absolute; z-index:31; top:54px; left:8px;
+      display:none; flex-direction:column; gap:8px;
+      background:#0d0d1a; border:1px solid rgba(255,255,255,0.15);
+      border-radius:10px; padding:10px;
+      box-shadow:0 4px 20px rgba(0,0,0,0.5);
+      width:200px;
+    }
+    #nbPaperPicker, #nbPaperPicker * { color:#fff !important; }
+    #nbPaperPicker.visible { display:flex; }
+    #nbPaperGrid { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
+    .nb-paper-opt {
+      background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15);
+      border-radius:7px; padding:8px 4px; cursor:pointer;
+      display:flex; flex-direction:column; align-items:center; gap:3px;
+      color:#fff !important; font-size:16px;
+    }
+    .nb-paper-opt span.nb-paper-name { font-size:10px; font-weight:700; }
+    .nb-paper-opt.active { background:#C9A84C; border-color:#C9A84C; color:#0d0d1a !important; }
+  </style>
+
+  <style>
+    /* ── Shape selection overlay — sits over a committed shape, lets you
+       drag to move and grab corner handles to resize ── */
+    .nb-shape-wrap {
+      position:absolute; box-sizing:border-box;
+      border:1.5px dashed rgba(201,168,76,0.55);
+      border-radius:2px;
+      touch-action:none; cursor:move;
+    }
+    .nb-shape-wrap.selected { border-color:#C9A84C; border-width:2px; }
+    .nb-shape-handle {
+      position:absolute; width:32px; height:32px; margin:-16px;
+      display:flex; align-items:center; justify-content:center;
+      touch-action:none;
+    }
+    .nb-shape-handle::after {
+      content:''; display:block; width:14px; height:14px;
+      background:#C9A84C; border:2px solid #0d0d1a; border-radius:50%;
+    }
+    .nb-shape-handle.nw { top:0; left:0; cursor:nwse-resize; }
+    .nb-shape-handle.ne { top:0; left:100%; cursor:nesw-resize; }
+    .nb-shape-handle.sw { top:100%; left:0; cursor:nesw-resize; }
+    .nb-shape-handle.se { top:100%; left:100%; cursor:nwse-resize; }
+    .nb-shape-del {
+      position:absolute; top:-34px; right:-4px;
+      width:28px; height:28px; border-radius:50%;
+      background:#e74c3c; border:2px solid rgba(255,255,255,0.8);
+      color:#fff; font-size:13px; font-weight:900;
+      display:flex; align-items:center; justify-content:center;
+      line-height:1; padding:0; cursor:pointer;
+      touch-action:manipulation;
+    }
+
+    /* ── Floating shape style toolbar (shown when a shape is selected) ── */
+    #nbShapeStyleBar {
+      position:absolute; z-index:30;
+      display:none; align-items:center; gap:5px; flex-wrap:wrap;
+      background:#0d0d1a; border:1px solid rgba(255,255,255,0.15);
+      border-radius:10px; padding:6px 8px;
+      box-shadow:0 4px 20px rgba(0,0,0,0.5);
+    }
+    #nbShapeStyleBar, #nbShapeStyleBar * { color:#fff !important; }
+    #nbShapeStyleBar.visible { display:flex; }
+    #nbShapeStyleBar .nb-ts-btn.active { background:#C9A84C; border-color:#C9A84C; color:#0d0d1a !important; }
   </style>
 
   <!-- ════ TOOLBAR ════════════════════════════════════════════════════ -->
@@ -535,6 +613,10 @@ export function openNotebook({ state, saveData }) {
         <input type="range" id="nbZoomSlider" min="50" max="300" value="100" step="5" />
         <span id="nbZoomLabel">100%</span>
       </div>
+      <div class="nb-div"></div>
+
+      <!-- Paper style -->
+      <button class="nbt" id="nbPaperBtn" title="Change paper style">☰ Paper</button>
       <div class="nb-div"></div>
 
       <!-- Actions -->
@@ -595,6 +677,12 @@ export function openNotebook({ state, saveData }) {
         </div>
       </div>
 
+      <!-- Paper style picker (shown when Paper button is tapped) -->
+      <div id="nbPaperPicker">
+        <div class="nb-shape-label">PAPER STYLE</div>
+        <div id="nbPaperGrid"></div>
+      </div>
+
       <!-- Shape picker (shown when Shape tool is active) -->
       <div id="nbShapePicker">
         <div class="nb-shape-label">SHAPE</div>
@@ -608,6 +696,17 @@ export function openNotebook({ state, saveData }) {
         <div class="nb-shape-row">
           <button id="nbShapeFillToggle">◻ Outline</button>
         </div>
+      </div>
+
+      <!-- Floating shape style toolbar (shown when a shape is selected) -->
+      <div id="nbShapeStyleBar">
+        <div class="nb-ts-color" id="nbSsColorSwatch" title="Shape colour"></div>
+        <input type="color" id="nbSsColorPicker" value="#1a1a2e" />
+        <input type="range" id="nbSsWidthSlider" min="1" max="20" value="2.5" step="0.1" style="width:60px;" title="Line thickness" />
+        <button class="nb-ts-btn" id="nbSsFillToggle">◻ Outline</button>
+        <div class="nb-div"></div>
+        <button class="nb-ts-btn" id="nbSsDuplicate" title="Duplicate">⧉</button>
+        <button class="nb-ts-btn" id="nbSsDelete" title="Delete shape" style="color:#e74c3c;">✕</button>
       </div>
 
       <!-- Floating text style toolbar (shown when a text box is selected) -->
@@ -748,6 +847,18 @@ export function openNotebook({ state, saveData }) {
   const shapeGrid         = $('nbShapeGrid');
   const shapeFillToggle   = $('nbShapeFillToggle');
 
+  const shapeStyleBar     = $('nbShapeStyleBar');
+  const ssColorSwatch     = $('nbSsColorSwatch');
+  const ssColorPicker     = $('nbSsColorPicker');
+  const ssWidthSlider     = $('nbSsWidthSlider');
+  const ssFillToggle      = $('nbSsFillToggle');
+  const ssDuplicate       = $('nbSsDuplicate');
+  const ssDelete          = $('nbSsDelete');
+
+  const paperBtn    = $('nbPaperBtn');
+  const paperPicker = $('nbPaperPicker');
+  const paperGrid   = $('nbPaperGrid');
+
   /* ══════════════════════════════════════════════════════════════════════
      TOOLBAR COLLAPSE
   ══════════════════════════════════════════════════════════════════════ */
@@ -856,15 +967,19 @@ export function openNotebook({ state, saveData }) {
     activePageId = id;
     const page = (meta.pages||[]).find(p=>p.id===id);
     if (!page) return;
-    strokes   = (pages[id]?.strokes||[]).map(s=>({...s, points:s.points?s.points.slice():undefined}));
+    strokes   = (pages[id]?.strokes||[]).map(s=>({...s, points:s.points?s.points.slice():undefined, id:s.tool==='shape'?(s.id||uid()):s.id}));
     textBoxes = (pages[id]?.textBoxes||[]).map(tb=>({...tb}));
+    paperStyle = pages[id]?.paperStyle || 'lined';
     selectedTB = null;
+    selectedShape = null;
+    curShapePreview = null;
     undoStack = []; curStroke = null; dirtyFlag = false;
     pageTitleIn.value = page.title||'';
     emptyState.style.display = 'none';
     canvasWrap.style.display = 'flex';
     sizeCanvas();
     renderSidebar(searchBox.value);
+    syncPaperStyleUI();
     if (isNew) setTimeout(()=>pageTitleIn.focus(), 120);
   }
 
@@ -878,7 +993,7 @@ export function openNotebook({ state, saveData }) {
     pages[activePageId].strokes = strokes.map(s => {
       if (s.tool==='shape') {
         return {
-          tool:'shape', kind:s.kind, filled:s.filled, color:s.color, width:s.width,
+          id:s.id||uid(), tool:'shape', kind:s.kind, filled:s.filled, color:s.color, width:s.width,
           x0:Math.round(s.x0*10)/10, y0:Math.round(s.y0*10)/10,
           x1:Math.round(s.x1*10)/10, y1:Math.round(s.y1*10)/10,
         };
@@ -889,6 +1004,7 @@ export function openNotebook({ state, saveData }) {
       };
     });
     pages[activePageId].textBoxes = textBoxes.map(tb=>({...tb}));
+    pages[activePageId].paperStyle = paperStyle;
     persistMeta();
     dirtyFlag = false;
   }
@@ -972,6 +1088,7 @@ export function openNotebook({ state, saveData }) {
     } else {
       renderAllTextBoxDOMs();
     }
+    reposSelectedShapeOverlay();
   }
 
   /* ══════════════════════════════════════════════════════════════════════
@@ -1008,6 +1125,51 @@ export function openNotebook({ state, saveData }) {
   /* ══════════════════════════════════════════════════════════════════════
      PAPER DRAWING
   ══════════════════════════════════════════════════════════════════════ */
+  function drawPaperOnContext(c, w, h, scale, style) {
+    c.save();
+    c.fillStyle = PAPER_BG;
+    c.fillRect(0,0,w,h);
+
+    if (style==='lined') {
+      c.strokeStyle = LINE_COLOR;
+      c.lineWidth   = 1;
+      for (let row=2; row<=PAGE_ROWS; row++) {
+        const y = row*LINE_SPACING*scale;
+        c.beginPath(); c.moveTo(0,y); c.lineTo(w,y); c.stroke();
+      }
+      c.strokeStyle = MARGIN_COLOR;
+      c.lineWidth   = 1.5;
+      const mx = MARGIN_LEFT*scale;
+      c.beginPath(); c.moveTo(mx,0); c.lineTo(mx,h); c.stroke();
+
+      c.fillStyle = '#ccc';
+      for (let row=1; row<=PAGE_ROWS; row+=2) {
+        const y = row*LINE_SPACING*scale;
+        c.beginPath(); c.arc(14*scale, y, 5*scale, 0, Math.PI*2); c.fill();
+      }
+    } else if (style==='squared') {
+      c.strokeStyle = LINE_COLOR;
+      c.lineWidth   = 1;
+      for (let y=GRID_SPACING*scale; y<h; y+=GRID_SPACING*scale) {
+        c.beginPath(); c.moveTo(0,y); c.lineTo(w,y); c.stroke();
+      }
+      for (let x=GRID_SPACING*scale; x<w; x+=GRID_SPACING*scale) {
+        c.beginPath(); c.moveTo(x,0); c.lineTo(x,h); c.stroke();
+      }
+    } else if (style==='dotted') {
+      c.fillStyle = '#c0c8d8';
+      const r = 1.3*scale;
+      for (let y=GRID_SPACING*scale; y<h; y+=GRID_SPACING*scale) {
+        for (let x=GRID_SPACING*scale; x<w; x+=GRID_SPACING*scale) {
+          c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill();
+        }
+      }
+    }
+    // 'plain' — background only, no lines/dots/margin
+
+    c.restore();
+  }
+
   function drawPaper() {
     const dpr   = window.devicePixelRatio||1;
     const scale = dpr*zoomLevel;
@@ -1016,27 +1178,7 @@ export function openNotebook({ state, saveData }) {
 
     ctx.save();
     ctx.setTransform(1,0,0,1,0,0);
-    ctx.fillStyle = PAPER_BG;
-    ctx.fillRect(0,0,pw,ph);
-
-    ctx.strokeStyle = LINE_COLOR;
-    ctx.lineWidth   = 1;
-    for (let row=2; row<=PAGE_ROWS; row++) {
-      const y = row*LINE_SPACING*scale;
-      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(pw,y); ctx.stroke();
-    }
-
-    ctx.strokeStyle = MARGIN_COLOR;
-    ctx.lineWidth   = 1.5;
-    const mx = MARGIN_LEFT*scale;
-    ctx.beginPath(); ctx.moveTo(mx,0); ctx.lineTo(mx,ph); ctx.stroke();
-
-    ctx.fillStyle = '#ccc';
-    for (let row=1; row<=PAGE_ROWS; row+=2) {
-      const y = row*LINE_SPACING*scale;
-      ctx.beginPath(); ctx.arc(14*scale, y, 5*scale, 0, Math.PI*2); ctx.fill();
-    }
-
+    drawPaperOnContext(ctx, pw, ph, scale, paperStyle);
     ctx.restore();
     ctx.setTransform(dpr*zoomLevel, 0, 0, dpr*zoomLevel, 0, 0);
   }
@@ -1056,8 +1198,13 @@ export function openNotebook({ state, saveData }) {
     c.lineCap='round'; c.lineJoin='round';
 
     if (s.tool==='eraser') {
-      c.globalCompositeOperation='destination-out';
-      c.strokeStyle='rgba(0,0,0,1)';
+      // Paint directly with the paper's background colour so erasing reveals
+      // paper, not a transparent hole through to the dark app chrome behind
+      // the canvas. This matches how erasers behave in real notebooks / most
+      // drawing apps — the patch underneath is cleared back to blank paper,
+      // including any ruled lines/grid/dots it passes over.
+      c.globalCompositeOperation='source-over';
+      c.strokeStyle=PAPER_BG;
       c.lineWidth=s.width;
       smoothPath(c,s.points);
     } else if (s.tool==='highlighter') {
@@ -1236,6 +1383,13 @@ export function openNotebook({ state, saveData }) {
     if (!activePageId || isPinching) return;
     if (!isDrawPointer(e)) { e.preventDefault(); return; } // palm rejection
     if (tool==='pan' || tool==='select') return; // pan/select mode: let canvasWrap scroll, no drawing
+    if (tool==='pen' || tool==='highlighter') {
+      // Tapping directly on an existing shape selects it for editing instead
+      // of drawing a stroke on top of it.
+      const pos = canvasPos(e.clientX, e.clientY);
+      const hit = hitTestShape(pos);
+      if (hit) { e.preventDefault(); selectShape(hit.id); return; }
+    }
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
     if (tool==='shape') { startShape(canvasPos(e.clientX, e.clientY)); return; }
@@ -1302,7 +1456,7 @@ export function openNotebook({ state, saveData }) {
     undoStack.push(snapshotStrokes());
     if (undoStack.length>60) undoStack.shift();
     curShapePreview = {
-      tool:'shape', kind:shapeKind, filled:shapeFilled,
+      id:uid(), tool:'shape', kind:shapeKind, filled:shapeFilled,
       color:penColor, width:strokeW,
       x0:pos.x, y0:pos.y, x1:pos.x, y1:pos.y,
     };
@@ -1324,9 +1478,294 @@ export function openNotebook({ state, saveData }) {
     // Only commit if the shape has a meaningful size (avoid accidental taps)
     if (Math.abs(s.x1-s.x0) > 3 || Math.abs(s.y1-s.y0) > 3) {
       strokes.push(s);
+      redrawStrokes();
+      selectShape(s.id);
+    } else {
+      redrawStrokes();
     }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     SHAPE SELECTION ENGINE
+     Shapes live as bitmap-rendered entries in strokes[], but once selected
+     they get an HTML overlay (.nb-shape-wrap) positioned over their bounding
+     box inside #nbCanvasLayer — same pattern as text boxes — so you can drag
+     to move and grab corner handles to resize. The overlay is rebuilt from
+     the shape's stored coordinates each time and removed on deselect.
+  ══════════════════════════════════════════════════════════════════════ */
+  function findShape(id) { return strokes.find(s => s.tool==='shape' && s.id===id); }
+
+  // Distance from point p to segment a-b
+  function distToSegment(p, a, b) {
+    const dx=b.x-a.x, dy=b.y-a.y;
+    const lenSq = dx*dx+dy*dy;
+    let t = lenSq>0 ? ((p.x-a.x)*dx+(p.y-a.y)*dy)/lenSq : 0;
+    t = Math.max(0, Math.min(1, t));
+    const cx=a.x+t*dx, cy=a.y+t*dy;
+    return Math.hypot(p.x-cx, p.y-cy);
+  }
+
+  // Hit-test in logical canvas coordinates. Filled shapes hit anywhere inside
+  // their bounds; outline shapes only hit near the actual stroke line, so you
+  // can still draw normally inside an unfilled circle/rectangle.
+  function hitTestShape(pos) {
+    const PAD = 14; // generous touch tolerance, in logical px
+    for (let i=strokes.length-1; i>=0; i--) {
+      const s = strokes[i];
+      if (s.tool!=='shape') continue;
+      const x0=Math.min(s.x0,s.x1), x1=Math.max(s.x0,s.x1);
+      const y0=Math.min(s.y0,s.y1), y1=Math.max(s.y0,s.y1);
+      if (s.kind==='line') {
+        if (distToSegment(pos, {x:s.x0,y:s.y0}, {x:s.x1,y:s.y1}) <= PAD) return s;
+        continue;
+      }
+      const inBounds = pos.x>=x0-PAD && pos.x<=x1+PAD && pos.y>=y0-PAD && pos.y<=y1+PAD;
+      if (!inBounds) continue;
+      if (s.filled) return s; // anywhere inside the bounding box counts
+      // Outline-only: must be near an edge
+      const w=x1-x0, h=y1-y0;
+      if (s.kind==='circle') {
+        const cx=(x0+x1)/2, cy=(y0+y1)/2, rx=w/2||1, ry=h/2||1;
+        const nx=(pos.x-cx)/rx, ny=(pos.y-cy)/ry;
+        const edgeDist = Math.abs(Math.hypot(nx,ny)-1) * Math.min(rx,ry);
+        if (edgeDist <= PAD) return s;
+      } else if (s.kind==='triangle') {
+        const pts = [{x:(x0+x1)/2,y:y0},{x:x1,y:y1},{x:x0,y:y1}];
+        for (let j=0;j<3;j++) if (distToSegment(pos, pts[j], pts[(j+1)%3]) <= PAD) return s;
+      } else {
+        // rect/square — near any of the 4 edges
+        const corners = [{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}];
+        for (let j=0;j<4;j++) if (distToSegment(pos, corners[j], corners[(j+1)%4]) <= PAD) return s;
+      }
+    }
+    return null;
+  }
+
+  function buildShapeOverlay(s) {
+    canvasLayer.querySelector(`[data-shapeid="${s.id}"]`)?.remove();
+    const wrap = document.createElement('div');
+    wrap.className = 'nb-shape-wrap';
+    wrap.dataset.shapeid = s.id;
+    setShapeWrapGeometry(wrap, s);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'nb-shape-del';
+    delBtn.innerHTML = '✕';
+    delBtn.addEventListener('pointerdown', e => e.stopPropagation());
+    delBtn.addEventListener('click', e => { e.stopPropagation(); deleteShape(s.id); });
+    wrap.appendChild(delBtn);
+
+    ['nw','ne','sw','se'].forEach(corner => {
+      const h = document.createElement('div');
+      h.className = `nb-shape-handle ${corner}`;
+      wrap.appendChild(h);
+      makeShapeCornerResizable(h, wrap, s, corner);
+    });
+
+    canvasLayer.appendChild(wrap);
+    makeShapeDraggable(wrap, s);
+    return wrap;
+  }
+
+  function setShapeWrapGeometry(wrap, s) {
+    const x0=Math.min(s.x0,s.x1), x1=Math.max(s.x0,s.x1);
+    const y0=Math.min(s.y0,s.y1), y1=Math.max(s.y0,s.y1);
+    wrap.style.left   = (x0*zoomLevel)+'px';
+    wrap.style.top    = (y0*zoomLevel)+'px';
+    wrap.style.width  = Math.max(8,(x1-x0)*zoomLevel)+'px';
+    wrap.style.height = Math.max(8,(y1-y0)*zoomLevel)+'px';
+  }
+
+  function positionShapeStyleBar(wrap) {
+    if (!wrap) return;
+    const wr = wrap.getBoundingClientRect();
+    const mr = canvasLayer.getBoundingClientRect();
+    let top  = wr.top - mr.top - 50;
+    let left = wr.left - mr.left;
+    if (top < 4) top = wr.bottom - mr.top + 6;
+    shapeStyleBar.style.top  = Math.max(4, top)+'px';
+    shapeStyleBar.style.left = Math.max(4, left)+'px';
+  }
+
+  function syncShapeStyleBar(s) {
+    ssColorSwatch.style.background = s.color;
+    ssColorPicker.value = s.color.startsWith('#') ? s.color : '#1a1a2e';
+    ssWidthSlider.value = s.width;
+    ssFillToggle.textContent = s.filled ? '◼ Filled' : '◻ Outline';
+    ssFillToggle.classList.toggle('active', s.filled);
+  }
+
+  function selectShape(id) {
+    if (selectedShape) {
+      canvasLayer.querySelector(`[data-shapeid="${selectedShape}"]`)?.classList.remove('selected');
+    }
+    selectedShape = id;
+    if (id) {
+      if (selectedTB) selectTextBox(null); // mutual exclusion with text box selection
+      const s = findShape(id);
+      if (!s) { selectedShape=null; return; }
+      tool = 'select';
+      [penBtn,penBtn2,hiBtn,hiBtn2,eraserBtn,eraserBtn2,shapeBtn,shapeBtn2,panBtn,panBtn2]
+        .forEach(b=>b&&b.classList.remove('active'));
+      shapePicker.classList.remove('visible');
+      paperPicker.classList.remove('visible');
+      let wrap = canvasLayer.querySelector(`[data-shapeid="${id}"]`);
+      if (!wrap) wrap = buildShapeOverlay(s);
+      wrap.classList.add('selected');
+      syncShapeStyleBar(s);
+      positionShapeStyleBar(wrap);
+      shapeStyleBar.classList.add('visible');
+    } else {
+      canvasLayer.querySelectorAll('.nb-shape-wrap').forEach(el=>el.remove());
+      shapeStyleBar.classList.remove('visible');
+    }
+  }
+
+  function deleteShape(id) {
+    strokes = strokes.filter(s => !(s.tool==='shape' && s.id===id));
+    canvasLayer.querySelector(`[data-shapeid="${id}"]`)?.remove();
+    if (selectedShape===id) { selectedShape=null; shapeStyleBar.classList.remove('visible'); }
+    dirtyFlag = true;
     redrawStrokes();
   }
+
+  function reposSelectedShapeOverlay() {
+    if (!selectedShape) return;
+    const s = findShape(selectedShape);
+    const wrap = canvasLayer.querySelector(`[data-shapeid="${selectedShape}"]`);
+    if (s && wrap) setShapeWrapGeometry(wrap, s);
+  }
+
+  /* ── Drag — move the whole shape ──────────────────────────────── */
+  function makeShapeDraggable(wrap, s) {
+    let startX, startY, sx0, sy0, sx1, sy1, dragging=false;
+
+    function begin(clientX, clientY) {
+      dragging=true; startX=clientX; startY=clientY;
+      sx0=s.x0; sy0=s.y0; sx1=s.x1; sy1=s.y1;
+    }
+    function move(clientX, clientY) {
+      if (!dragging) return;
+      const dx=(clientX-startX)/zoomLevel, dy=(clientY-startY)/zoomLevel;
+      s.x0=sx0+dx; s.y0=sy0+dy; s.x1=sx1+dx; s.y1=sy1+dy;
+      setShapeWrapGeometry(wrap, s);
+      positionShapeStyleBar(wrap);
+      dirtyFlag=true;
+      redrawStrokes();
+    }
+
+    wrap.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1 || e.target.closest('.nb-shape-handle,.nb-shape-del')) return;
+      begin(e.touches[0].clientX, e.touches[0].clientY);
+      e.stopPropagation(); e.preventDefault();
+    }, { passive:false });
+    wrap.addEventListener('touchmove', e => {
+      if (!dragging || e.touches.length !== 1) return;
+      move(e.touches[0].clientX, e.touches[0].clientY);
+      e.stopPropagation(); e.preventDefault();
+    }, { passive:false });
+    wrap.addEventListener('touchend',    () => { dragging=false; }, { passive:true });
+    wrap.addEventListener('touchcancel', () => { dragging=false; }, { passive:true });
+
+    wrap.addEventListener('pointerdown', e => {
+      if (e.pointerType==='touch' || e.target.closest('.nb-shape-handle,.nb-shape-del')) return;
+      wrap.setPointerCapture(e.pointerId);
+      begin(e.clientX, e.clientY);
+      e.stopPropagation();
+    });
+    wrap.addEventListener('pointermove', e => {
+      if (e.pointerType==='touch') return;
+      move(e.clientX, e.clientY);
+    });
+    wrap.addEventListener('pointerup',     () => { dragging=false; });
+    wrap.addEventListener('pointercancel', () => { dragging=false; });
+  }
+
+  /* ── Corner resize — drags one corner, keeping the opposite corner fixed ── */
+  function makeShapeCornerResizable(handle, wrap, s, corner) {
+    let startX, startY, sx0, sy0, sx1, sy1, resizing=false;
+
+    function begin(clientX, clientY) {
+      resizing=true; startX=clientX; startY=clientY;
+      sx0=s.x0; sy0=s.y0; sx1=s.x1; sy1=s.y1;
+    }
+    function move(clientX, clientY) {
+      if (!resizing) return;
+      const dx=(clientX-startX)/zoomLevel, dy=(clientY-startY)/zoomLevel;
+      // Work in normalized (min/max) space, then move the edge matching this corner
+      let x0=Math.min(sx0,sx1), x1=Math.max(sx0,sx1);
+      let y0=Math.min(sy0,sy1), y1=Math.max(sy0,sy1);
+      if (corner.includes('w')) x0 += dx; else x1 += dx;
+      if (corner.includes('n')) y0 += dy; else y1 += dy;
+      // Keep a minimum size so the shape never inverts/collapses
+      if (x1-x0 < 8) { if (corner.includes('w')) x0=x1-8; else x1=x0+8; }
+      if (y1-y0 < 8) { if (corner.includes('n')) y0=y1-8; else y1=y0+8; }
+      s.x0=x0; s.y0=y0; s.x1=x1; s.y1=y1;
+      setShapeWrapGeometry(wrap, s);
+      positionShapeStyleBar(wrap);
+      dirtyFlag=true;
+      redrawStrokes();
+    }
+
+    handle.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) return;
+      begin(e.touches[0].clientX, e.touches[0].clientY);
+      e.stopPropagation(); e.preventDefault();
+    }, { passive:false });
+    handle.addEventListener('touchmove', e => {
+      if (!resizing || e.touches.length !== 1) return;
+      move(e.touches[0].clientX, e.touches[0].clientY);
+      e.stopPropagation(); e.preventDefault();
+    }, { passive:false });
+    handle.addEventListener('touchend',    () => { resizing=false; }, { passive:true });
+    handle.addEventListener('touchcancel', () => { resizing=false; }, { passive:true });
+
+    handle.addEventListener('pointerdown', e => {
+      if (e.pointerType==='touch') return;
+      handle.setPointerCapture(e.pointerId);
+      begin(e.clientX, e.clientY);
+      e.stopPropagation(); e.preventDefault();
+    }, { passive:false });
+    handle.addEventListener('pointermove', e => {
+      if (e.pointerType==='touch') return;
+      move(e.clientX, e.clientY);
+    });
+    handle.addEventListener('pointerup',     () => { resizing=false; });
+    handle.addEventListener('pointercancel', () => { resizing=false; });
+  }
+
+  /* ── Shape style bar events ───────────────────────────────────── */
+  function withSelectedShape(fn) {
+    if (!selectedShape) return;
+    const s = findShape(selectedShape);
+    if (!s) return;
+    fn(s);
+    dirtyFlag = true;
+    redrawStrokes();
+  }
+
+  ssColorSwatch.addEventListener('click', () => ssColorPicker.click());
+  ssColorPicker.addEventListener('input', () => {
+    ssColorSwatch.style.background = ssColorPicker.value;
+    withSelectedShape(s => s.color = ssColorPicker.value);
+  });
+  ssWidthSlider.addEventListener('input', () => withSelectedShape(s => s.width = parseFloat(ssWidthSlider.value)));
+  ssFillToggle.addEventListener('click', () => withSelectedShape(s => {
+    s.filled = !s.filled;
+    ssFillToggle.textContent = s.filled ? '◼ Filled' : '◻ Outline';
+    ssFillToggle.classList.toggle('active', s.filled);
+  }));
+  ssDuplicate.addEventListener('click', () => {
+    if (!selectedShape) return;
+    const s = findShape(selectedShape);
+    if (!s) return;
+    const ns = { ...s, id:uid(), x0:s.x0+20, y0:s.y0+20, x1:s.x1+20, y1:s.y1+20 };
+    strokes.push(ns);
+    dirtyFlag = true;
+    redrawStrokes();
+    selectShape(ns.id);
+  });
+  ssDelete.addEventListener('click', () => { if (selectedShape) deleteShape(selectedShape); });
 
   /* ══════════════════════════════════════════════════════════════════════
      TOOL BUTTONS
@@ -1340,8 +1779,9 @@ export function openNotebook({ state, saveData }) {
     [panBtn,panBtn2].forEach(b=>b&&b.classList.toggle('active',t==='pan'));
     canvas.style.cursor = t==='eraser'?'cell':t==='pan'?'grab':t==='shape'?'crosshair':'crosshair';
     shapePicker.classList.toggle('visible', t==='shape');
-    // Selecting any drawing tool deselects any active text box
-    if (t!=='select') selectTextBox(null);
+    paperPicker.classList.remove('visible');
+    // Selecting any drawing tool deselects any active text box / shape
+    if (t!=='select') { selectTextBox(null); selectShape(null); }
   }
 
   penBtn.addEventListener('click',    ()=>setTool('pen'));
@@ -1372,6 +1812,31 @@ export function openNotebook({ state, saveData }) {
   });
   syncShapeFillToggle();
 
+  /* ── Paper style picker popover ───────────────────────────────────── */
+  PAPER_STYLES.forEach(ps => {
+    const opt = document.createElement('div');
+    opt.className = 'nb-paper-opt' + (ps.id===paperStyle ? ' active' : '');
+    opt.dataset.paper = ps.id;
+    opt.innerHTML = `<span>${ps.icon}</span><span class="nb-paper-name">${ps.label}</span>`;
+    opt.addEventListener('click', () => {
+      paperStyle = ps.id;
+      dirtyFlag = true;
+      syncPaperStyleUI();
+      sizeCanvas();
+      paperPicker.classList.remove('visible');
+    });
+    paperGrid.appendChild(opt);
+  });
+
+  function syncPaperStyleUI() {
+    paperGrid.querySelectorAll('.nb-paper-opt').forEach(o => o.classList.toggle('active', o.dataset.paper===paperStyle));
+  }
+
+  paperBtn.addEventListener('click', () => {
+    paperPicker.classList.toggle('visible');
+    shapePicker.classList.remove('visible');
+  });
+
   /* ── Add Text Box button — drops a box at the current visible centre ── */
   function addTextBoxAtCenter() {
     if (!activePageId) { alert('Open a page first.'); return; }
@@ -1388,11 +1853,18 @@ export function openNotebook({ state, saveData }) {
   addTextBtn2.addEventListener('click', addTextBoxAtCenter);
 
   undoBtn.addEventListener('click', ()=>{
-    if (undoStack.length) { strokes=undoStack.pop(); dirtyFlag=true; redrawStrokes(); }
+    if (undoStack.length) {
+      strokes=undoStack.pop(); dirtyFlag=true;
+      if (selectedShape && !findShape(selectedShape)) selectShape(null);
+      redrawStrokes();
+      reposSelectedShapeOverlay();
+    }
   });
   clearBtn.addEventListener('click', ()=>{
     if (!strokes.length||!confirm('Clear all ink on this page?')) return;
-    undoStack.push(strokes.slice()); strokes=[]; dirtyFlag=true; redrawStrokes();
+    undoStack.push(strokes.slice()); strokes=[]; dirtyFlag=true;
+    selectShape(null);
+    redrawStrokes();
   });
 
   /* ══════════════════════════════════════════════════════════════════════
@@ -1537,25 +2009,15 @@ export function openNotebook({ state, saveData }) {
     off.width  = EXPORT_W;
     off.height = exportH;
     const oc = off.getContext('2d');
+
+    // Paper background — drawn at full export resolution to match drawPaper's scaling approach
+    drawPaperOnContext(oc, EXPORT_W, exportH, scale, paperStyle);
+
+    // Strokes (drawn in logical coordinate space, so scale the context first)
+    oc.save();
     oc.scale(scale, scale);
-
-    // Paper background
-    oc.fillStyle = PAPER_BG;
-    oc.fillRect(0, 0, bw, bh);
-
-    // Ruled lines
-    oc.strokeStyle = LINE_COLOR; oc.lineWidth = 0.8;
-    for (let row = 2; row <= PAGE_ROWS; row++) {
-      const y = row * LINE_SPACING;
-      oc.beginPath(); oc.moveTo(0, y); oc.lineTo(bw, y); oc.stroke();
-    }
-
-    // Margin line
-    oc.strokeStyle = MARGIN_COLOR; oc.lineWidth = 1.5;
-    oc.beginPath(); oc.moveTo(MARGIN_LEFT, 0); oc.lineTo(MARGIN_LEFT, bh); oc.stroke();
-
-    // Strokes
     strokes.forEach(s => renderStroke(oc, s));
+    oc.restore();
 
     // Export as JPEG at 85% quality — much smaller than PNG for this use case
     return new Promise(res => {
@@ -1733,6 +2195,7 @@ export function openNotebook({ state, saveData }) {
     }
     selectedTB = id;
     if (id) {
+      if (selectedShape) selectShape(null); // mutual exclusion with shape selection
       // Switch to 'select' mode directly (not via setTool, to avoid re-triggering
       // selectTextBox(null) recursively) so canvas pointer events don't draw ink
       // while a text box is active.
@@ -1740,6 +2203,7 @@ export function openNotebook({ state, saveData }) {
       [penBtn,penBtn2,hiBtn,hiBtn2,eraserBtn,eraserBtn2,shapeBtn,shapeBtn2,panBtn,panBtn2]
         .forEach(b=>b&&b.classList.remove('active'));
       shapePicker.classList.remove('visible');
+      paperPicker.classList.remove('visible');
       const wrap = canvasLayer.querySelector(`[data-tbid="${id}"]`);
       wrap?.classList.add('selected');
       const tb = textBoxes.find(t=>t.id===id);
@@ -1771,10 +2235,18 @@ export function openNotebook({ state, saveData }) {
     });
   }
 
-  // Deselect when clicking canvas background
+  // Deselect when tapping empty canvas background (shape selection is handled
+  // earlier, in the canvas pointerdown handler, which stops propagation via
+  // preventDefault when it hits a shape — but pointerdown still bubbles, so we
+  // guard here by re-checking hitTestShape to avoid immediately deselecting).
   canvasLayer.addEventListener('pointerdown', e => {
     if (e.target === canvas || e.target === canvasLayer) {
+      if ((tool==='pen' || tool==='highlighter') && activePageId) {
+        const pos = canvasPos(e.clientX, e.clientY);
+        if (hitTestShape(pos)) return; // already handled by canvas pointerdown above
+      }
       selectTextBox(null);
+      selectShape(null);
     }
   });
 
