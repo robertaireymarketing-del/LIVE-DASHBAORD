@@ -56,6 +56,25 @@ export function openNotebook({ state, saveData }) {
   const meta  = state.data.notebookMeta;
   const pages = state.data.notebookPages;
 
+  // MIGRATION: older notebooks predate the `order` field (pages were just
+  // sorted by updatedAt desc in the sidebar). Backfill `order` once, per
+  // folder group, preserving that same visual order so nothing jumps around
+  // the first time this loads.
+  (function migratePageOrder() {
+    meta.pages = meta.pages||[];
+    const needsMigration = meta.pages.some(p => p.order===undefined);
+    if (!needsMigration) return;
+    const groups = {};
+    meta.pages.forEach(p => {
+      const key = p.folderId||'__unfiled__';
+      (groups[key] = groups[key]||[]).push(p);
+    });
+    Object.values(groups).forEach(group => {
+      group.sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0));
+      group.forEach((p,i) => { p.order = i; });
+    });
+  })();
+
   let activePageId = null;
   let strokes      = [];
   let undoStack    = [];
@@ -228,6 +247,8 @@ export function openNotebook({ state, saveData }) {
       flex:1; overflow:scroll; -webkit-overflow-scrolling:touch;
       display:flex; justify-content:flex-start; align-items:flex-start;
       padding:20px; background:#2a2a3a;
+      position:relative;
+      perspective:1800px;
       /* touch-action managed by JS */
     }
     #nbCanvas {
@@ -238,6 +259,60 @@ export function openNotebook({ state, saveData }) {
       cursor:crosshair;
       will-change:transform;
     }
+
+    /* ── PAGE-TURN STAGE ──────────────────────────────────────────────
+       #nbPageStage holds the live, interactive page (real canvas + real
+       text boxes) and is what physically turns. transform-origin flips
+       between the left/right edge depending on swipe direction so it
+       folds like a real page rather than spinning on its center. */
+    #nbPageStage {
+      display:flex; flex-shrink:0;
+      transform-style:preserve-3d;
+      transition:none; /* JS drives transform directly while dragging */
+      position:relative;
+    }
+    #nbPageStage.nb-turning {
+      transition:transform 0.32s cubic-bezier(.2,.7,.3,1), box-shadow 0.32s ease;
+    }
+    /* Soft shading overlay that sweeps across the page as it folds, to sell
+       the illusion of a curling page catching the light — purely cosmetic,
+       sits above the canvas but ignores pointer events */
+    #nbPageStage::after {
+      content:''; position:absolute; inset:0; pointer-events:none;
+      background:linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 100%);
+      opacity:0; transition:opacity 0.32s ease;
+      border-radius:3px;
+    }
+    #nbPageStage.nb-turn-fwd::after  { background:linear-gradient(90deg, rgba(0,0,0,0) 55%, rgba(0,0,0,0.35) 100%); opacity:1; }
+    #nbPageStage.nb-turn-back::after { background:linear-gradient(270deg,rgba(0,0,0,0) 55%, rgba(0,0,0,0.35) 100%); opacity:1; }
+
+    /* Incoming page preview — a lightweight static snapshot of the page being
+       swiped TO, positioned behind the turning page so it's revealed as the
+       fold opens. Not interactive; the real canvas takes over once the turn
+       completes and loadPage() runs. */
+    #nbPageStageIncoming {
+      position:absolute; top:20px; left:20px;
+      display:none;
+      background:#fdfcf7; border-radius:3px;
+      box-shadow:0 6px 32px rgba(0,0,0,0.5);
+      pointer-events:none;
+      overflow:hidden;
+    }
+    #nbPageStageIncoming img { display:block; width:100%; height:100%; }
+
+    /* Edge swipe-hint arrows — quiet affordance, only visible briefly on
+       hover/touch-near-edge via JS toggling .nb-show */
+    .nb-swipe-hint {
+      position:absolute; top:50%; transform:translateY(-50%);
+      width:34px; height:34px; border-radius:50%;
+      background:rgba(0,0,0,0.35); color:rgba(255,255,255,0.55);
+      display:flex; align-items:center; justify-content:center;
+      font-size:18px; font-weight:900; pointer-events:none;
+      opacity:0; transition:opacity 0.2s ease; z-index:20;
+    }
+    .nb-swipe-hint-left  { left:8px; }
+    .nb-swipe-hint-right { right:8px; }
+    .nb-swipe-hint.nb-show { opacity:1; }
 
     /* ══ SIDEBAR — all text hardcoded white so light-mode body styles can't override ══ */
 
@@ -310,6 +385,7 @@ export function openNotebook({ state, saveData }) {
       padding:7px 9px; border-radius:9px; margin-bottom:2px;
       background:rgba(255,255,255,0.05) !important;
       border:1px solid rgba(255,255,255,0.06) !important;
+      border-top:2px solid transparent; border-bottom:2px solid transparent;
       cursor:pointer; transition:background 0.1s;
     }
     .nb-page-row:hover  { background:rgba(255,255,255,0.10) !important; }
@@ -321,6 +397,31 @@ export function openNotebook({ state, saveData }) {
     .nb-page-del   { background:none !important; border:none !important; color:rgba(255,255,255,0.3) !important; cursor:pointer; font-size:12px; padding:2px 4px; border-radius:3px; display:none; }
     .nb-page-row:hover .nb-page-del { display:block; }
     .nb-page-del:hover { background:rgba(231,76,60,0.25) !important; color:#ff6b6b !important; }
+
+    /* Drag handle — always visible (subtle) so the drag affordance is
+       discoverable on touch, where there's no hover state to reveal it */
+    .nb-page-handle {
+      flex-shrink:0; color:rgba(255,255,255,0.28) !important;
+      font-size:13px; cursor:grab; touch-action:none;
+      padding:2px 1px; margin-left:-2px;
+    }
+    .nb-page-handle:active { cursor:grabbing; color:rgba(255,255,255,0.6) !important; }
+
+    /* Drop-target indicators while dragging */
+    .nb-page-row.nb-drop-above  { border-top-color:#C9A84C !important; }
+    .nb-page-row.nb-drop-below  { border-bottom-color:#C9A84C !important; }
+    .nb-folder-row.nb-drop-into { background:rgba(201,168,76,0.28) !important; outline:1px dashed rgba(201,168,76,0.7); }
+    #nbSideList.nb-drop-into { outline:1px dashed rgba(201,168,76,0.5); outline-offset:-4px; border-radius:8px; }
+    .nb-page-row-dragging { opacity:0.35; }
+
+    /* Floating ghost row that follows the pointer while dragging */
+    .nb-page-row-ghost {
+      position:fixed; z-index:99999; pointer-events:none;
+      opacity:0.92; transform:rotate(-1.5deg) scale(1.03);
+      box-shadow:0 10px 28px rgba(0,0,0,0.5) !important;
+      background:#2f2f42 !important;
+    }
+    .nb-page-row-ghost .nb-page-del { display:none !important; }
 
     /* "No pages" empty message inside sidebar */
     #nbSideList > div { color:#ffffff !important; }
@@ -671,11 +772,20 @@ export function openNotebook({ state, saveData }) {
       </div>
 
       <div id="nbCanvasWrap" style="display:none;">
-        <!-- Wrapper that sizes to match the canvas, text boxes live inside here -->
-        <div id="nbCanvasLayer" style="position:relative;flex-shrink:0;">
-          <canvas id="nbCanvas"></canvas>
-          <!-- Text boxes inserted here by JS -->
+        <!-- Perspective stage — the page-turn animation transforms THIS, leaving
+             nbCanvasLayer's own sizing (used by sizeCanvas/text boxes) untouched.
+             nbCanvasWrap itself keeps handling scroll/pan/zoom exactly as before. -->
+        <div id="nbPageStage">
+          <!-- Wrapper that sizes to match the canvas, text boxes live inside here -->
+          <div id="nbCanvasLayer" style="position:relative;flex-shrink:0;">
+            <canvas id="nbCanvas"></canvas>
+            <!-- Text boxes inserted here by JS -->
+          </div>
         </div>
+        <!-- Incoming-page layer, used only during the turn animation -->
+        <div id="nbPageStageIncoming"></div>
+        <div class="nb-swipe-hint nb-swipe-hint-left"  id="nbSwipeHintPrev">‹</div>
+        <div class="nb-swipe-hint nb-swipe-hint-right" id="nbSwipeHintNext">›</div>
       </div>
 
       <!-- Paper style picker (shown when Paper button is tapped) -->
@@ -785,6 +895,10 @@ export function openNotebook({ state, saveData }) {
   const emptyState    = $('nbEmptyState');
   const emptyNewBtn   = $('nbEmptyNewBtn');
   const canvasWrap    = $('nbCanvasWrap');
+  const pageStage     = $('nbPageStage');
+  const pageIncoming  = $('nbPageStageIncoming');
+  const swipeHintPrev = $('nbSwipeHintPrev');
+  const swipeHintNext = $('nbSwipeHintNext');
   const canvas        = $('nbCanvas');
   const ctx           = canvas.getContext('2d');
   const pageTitleIn   = $('nbPageTitle');
@@ -890,6 +1004,24 @@ export function openNotebook({ state, saveData }) {
   /* ══════════════════════════════════════════════════════════════════════
      SIDEBAR RENDER
   ══════════════════════════════════════════════════════════════════════ */
+  function pagesInGroup(folderId) {
+    return (meta.pages||[])
+      .filter(p => (p.folderId||null)===(folderId||null))
+      .sort((a,b) => (a.order||0)-(b.order||0));
+  }
+
+  // The full notebook sequence — folders in their array order, each folder's
+  // pages in `order`, then unfiled pages in `order`. This mirrors the
+  // sidebar's visual structure exactly and is NOT affected by search filter,
+  // so swiping always walks the real notebook regardless of what's typed in
+  // the search box. This is the single source of truth for swipe next/prev.
+  function notebookSequence() {
+    const seq = [];
+    (meta.folders||[]).forEach(folder => { pagesInGroup(folder.id).forEach(p => seq.push(p.id)); });
+    pagesInGroup(null).forEach(p => seq.push(p.id));
+    return seq;
+  }
+
   function renderSidebar(filter='') {
     const fl = filter.toLowerCase().trim();
     let html = '';
@@ -903,17 +1035,14 @@ export function openNotebook({ state, saveData }) {
           <button class="nb-folder-action-btn" data-delete-folder="${folder.id}" style="color:rgba(231,76,60,0.7);">✕</button>
         </div>
       </div>`;
-      (meta.pages||[])
-        .filter(p => p.folderId===folder.id && matchFilter(p,fl))
-        .sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0))
+      pagesInGroup(folder.id)
+        .filter(p => matchFilter(p,fl))
         .forEach(p => { html += pageRowHtml(p,true); });
     });
 
-    const unfiled = (meta.pages||[])
-      .filter(p => !p.folderId && matchFilter(p,fl))
-      .sort((a,b) => (b.updatedAt||0)-(a.updatedAt||0));
+    const unfiled = pagesInGroup(null).filter(p => matchFilter(p,fl));
     if (unfiled.length && (meta.folders||[]).length)
-      html += `<div style="font-size:10px;font-weight:900;color:rgba(255,255,255,0.2);letter-spacing:1.5px;text-transform:uppercase;padding:9px 7px 3px;">Unfiled</div>`;
+      html += `<div class="nb-unfiled-label" style="font-size:10px;font-weight:900;color:rgba(255,255,255,0.2);letter-spacing:1.5px;text-transform:uppercase;padding:9px 7px 3px;">Unfiled</div>`;
     unfiled.forEach(p => { html += pageRowHtml(p,false); });
 
     if (!html) html = `<div style="padding:18px;text-align:center;font-size:11px;color:rgba(255,255,255,0.3);">No pages yet.</div>`;
@@ -921,8 +1050,9 @@ export function openNotebook({ state, saveData }) {
     sideList.innerHTML = html;
 
     sideList.querySelectorAll('.nb-page-row').forEach(el => {
-      el.addEventListener('click', () => loadPage(el.dataset.pageId));
+      el.addEventListener('click', e => { if (dragState) return; loadPage(el.dataset.pageId); });
       el.querySelector('.nb-page-del').addEventListener('click', e => { e.stopPropagation(); deletePage(el.dataset.pageId); });
+      el.querySelector('.nb-page-handle').addEventListener('pointerdown', e => startPageDrag(e, el));
     });
     sideList.querySelectorAll('[data-rename-folder]').forEach(btn =>
       btn.addEventListener('click', e => { e.stopPropagation(); renameFolder(btn.dataset.renameFolder); }));
@@ -939,7 +1069,7 @@ export function openNotebook({ state, saveData }) {
 
   function pageRowHtml(page, indented) {
     return `<div class="nb-page-row" data-page-id="${page.id}" style="${indented?'padding-left:20px;':''}">
-      <span class="nb-page-icon">📄</span>
+      <span class="nb-page-handle" title="Drag to reorder / move to folder">⠿</span><span class="nb-page-icon">📄</span>
       <div class="nb-page-info">
         <div class="nb-page-title">${page.title||'Untitled'}</div>
         <div class="nb-page-date">${fmtDate(page.dateKey||todayISO())}</div>
@@ -948,20 +1078,164 @@ export function openNotebook({ state, saveData }) {
     </div>`;
   }
 
+  /* ── DRAG-TO-REORDER / DRAG-TO-REFILE ──────────────────────────────────
+     Dragging a page row's handle lets you drop it:
+       - onto another page row → reorders within that row's group (folder or
+         unfiled), inserting before/after based on drop position
+       - onto a folder header → refiles into that folder, appended at the end
+       - onto the "Unfiled" label / empty space below the list → unfiles it
+     This directly rewrites `folderId`/`order`, which is also what drives
+     swipe sequence — so reordering here IS reordering the notebook. */
+  let dragState = null; // { pageId, ghostEl, lastTargetEl }
+
+  function startPageDrag(e, rowEl) {
+    e.preventDefault();
+    e.stopPropagation();
+    const pageId = rowEl.dataset.pageId;
+    const rect = rowEl.getBoundingClientRect();
+    const ghost = rowEl.cloneNode(true);
+    ghost.classList.add('nb-page-row-ghost');
+    ghost.style.width = rect.width+'px';
+    document.body.appendChild(ghost);
+    rowEl.classList.add('nb-page-row-dragging');
+
+    dragState = {
+      pageId, ghostEl: ghost, rowEl,
+      offsetX: e.clientX-rect.left, offsetY: e.clientY-rect.top,
+      lastTargetEl: null, lastTargetPos: null,
+    };
+    positionGhost(e.clientX, e.clientY);
+
+    const move = ev => onPageDragMove(ev);
+    const up   = ev => endPageDrag(ev, move, up);
+    window.addEventListener('pointermove', move, { passive:false });
+    window.addEventListener('pointerup', up, { passive:false });
+    window.addEventListener('pointercancel', up, { passive:false });
+  }
+
+  function positionGhost(clientX, clientY) {
+    if (!dragState) return;
+    dragState.ghostEl.style.left = (clientX-dragState.offsetX)+'px';
+    dragState.ghostEl.style.top  = (clientY-dragState.offsetY)+'px';
+  }
+
+  const SIDEBAR_SCROLL_EDGE = 36;
+  function autoScrollSidebar(clientY) {
+    const r = sideList.getBoundingClientRect();
+    if (clientY < r.top+SIDEBAR_SCROLL_EDGE)        sideList.scrollTop -= 10;
+    else if (clientY > r.bottom-SIDEBAR_SCROLL_EDGE) sideList.scrollTop += 10;
+  }
+
+  function onPageDragMove(e) {
+    if (!dragState) return;
+    e.preventDefault();
+    positionGhost(e.clientX, e.clientY);
+    autoScrollSidebar(e.clientY);
+
+    // Clear previous highlight
+    if (dragState.lastTargetEl) dragState.lastTargetEl.classList.remove('nb-drop-above','nb-drop-below','nb-drop-into');
+    dragState.lastTargetEl = null; dragState.lastTargetPos = null;
+
+    dragState.ghostEl.style.visibility = 'hidden';
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    dragState.ghostEl.style.visibility = 'visible';
+    if (!under) return;
+
+    const folderRow = under.closest('.nb-folder-row');
+    if (folderRow) {
+      folderRow.classList.add('nb-drop-into');
+      dragState.lastTargetEl = folderRow; dragState.lastTargetPos = 'into-folder';
+      return;
+    }
+    const pageRow = under.closest('.nb-page-row');
+    if (pageRow && pageRow.dataset.pageId !== dragState.pageId) {
+      const r = pageRow.getBoundingClientRect();
+      const above = (e.clientY - r.top) < r.height/2;
+      pageRow.classList.add(above ? 'nb-drop-above' : 'nb-drop-below');
+      dragState.lastTargetEl = pageRow; dragState.lastTargetPos = above ? 'above' : 'below';
+      return;
+    }
+    // Dropping on the "Unfiled" section label, or empty space in the
+    // sidebar list below all rows, unfiles the page.
+    const unfiledLabel = under.closest('.nb-unfiled-label');
+    if (unfiledLabel || under===sideList) {
+      sideList.classList.add('nb-drop-into');
+      dragState.lastTargetEl = sideList; dragState.lastTargetPos = 'unfile';
+    }
+  }
+
+  function endPageDrag(e, moveHandler, upHandler) {
+    window.removeEventListener('pointermove', moveHandler);
+    window.removeEventListener('pointerup', upHandler);
+    window.removeEventListener('pointercancel', upHandler);
+    if (!dragState) return;
+    const { pageId, ghostEl, rowEl, lastTargetEl, lastTargetPos } = dragState;
+    if (lastTargetEl) lastTargetEl.classList.remove('nb-drop-above','nb-drop-below','nb-drop-into');
+    ghostEl.remove();
+    rowEl && rowEl.classList.remove('nb-page-row-dragging');
+    dragState = null;
+
+    const page = (meta.pages||[]).find(p=>p.id===pageId);
+    if (!page || !lastTargetEl) return;
+
+    if (lastTargetPos === 'into-folder') {
+      const folderId = lastTargetEl.dataset.folderId;
+      page.folderId = folderId;
+      page.order = nextOrderInGroup(folderId);
+    } else if (lastTargetPos === 'unfile') {
+      page.folderId = null;
+      page.order = nextOrderInGroup(null);
+    } else {
+      const targetId = lastTargetEl.dataset.pageId;
+      const target = (meta.pages||[]).find(p=>p.id===targetId);
+      if (!target) return;
+      page.folderId = target.folderId||null;
+      reorderRelativeTo(page, target, lastTargetPos==='above');
+    }
+    page.updatedAt = Date.now();
+    persistMeta();
+    renderSidebar(searchBox.value);
+  }
+
+  // Insert `page` immediately before/after `target` within target's group,
+  // renumbering that group's order field to keep it clean (0,1,2,...).
+  function reorderRelativeTo(page, target, before) {
+    const group = pagesInGroup(target.folderId).filter(p => p.id!==page.id);
+    const idx = group.findIndex(p => p.id===target.id);
+    const insertAt = before ? idx : idx+1;
+    group.splice(insertAt, 0, page);
+    group.forEach((p,i) => { p.order = i; });
+  }
+
   searchBox.addEventListener('input', () => renderSidebar(searchBox.value));
 
   /* ══════════════════════════════════════════════════════════════════════
      PAGE MANAGEMENT
+     Pages carry a manual `order` (float) that drives BOTH sidebar position
+     and swipe-between-pages sequence — dragging a row in the sidebar is the
+     single source of truth for "where is this page in the notebook".
   ══════════════════════════════════════════════════════════════════════ */
+  function nextOrderInGroup(folderId) {
+    const siblings = (meta.pages||[]).filter(p => (p.folderId||null)===(folderId||null));
+    if (!siblings.length) return 0;
+    return Math.max(...siblings.map(p => p.order||0)) + 1;
+  }
+
   function newPage(folderId=null) {
     saveCurrentPage();
     const id=uid(), now=Date.now();
     meta.pages = meta.pages||[];
-    meta.pages.unshift({ id, dateKey:todayISO(), title:'', folderId, createdAt:now, updatedAt:now });
+    meta.pages.push({ id, dateKey:todayISO(), title:'', folderId, order:nextOrderInGroup(folderId), createdAt:now, updatedAt:now });
     pages[id] = { strokes:[], transcription:null };
     persistMeta();
     loadPage(id, true);
   }
+
+  // Set true only while finishSwipe is actively staging its own unfold-in
+  // animation immediately after calling loadPage — lets loadPage's defensive
+  // reset below stay on for every other caller (sidebar click, new page)
+  // without it clobbering the swipe animation's own transform handoff.
+  let suppressStageReset = false;
 
   function loadPage(id, isNew=false) {
     saveCurrentPage();
@@ -978,6 +1252,14 @@ export function openNotebook({ state, saveData }) {
     pageTitleIn.value = page.title||'';
     emptyState.style.display = 'none';
     canvasWrap.style.display = 'flex';
+    // Always land flat — guards against any stale mid-turn transform if a
+    // page load happens via a path other than the swipe gesture's own
+    // animation cleanup (e.g. tapping a sidebar row while mid-swipe-spring).
+    if (pageStage && !suppressStageReset) {
+      pageStage.classList.remove('nb-turning','nb-turn-fwd','nb-turn-back');
+      pageStage.style.transform = '';
+    }
+    if (pageIncoming && !suppressStageReset) pageIncoming.style.display = 'none';
     sizeCanvas();
     renderSidebar(searchBox.value);
     syncPaperStyleUI();
@@ -1434,6 +1716,10 @@ export function openNotebook({ state, saveData }) {
     // touch points entirely instead of starting a pinch / killing the stroke.
     if (curStroke || curShapePreview) return;
     if (e.touches.length===2) {
+      // If an edge-swipe page-turn was in progress, a second finger joining
+      // hands off to pinch/pan instead — cancel the swipe cleanly (springs
+      // the page back flat) so it doesn't get stuck mid-fold.
+      if (swipeState) { finishSwipe(false); }
       // Two-finger pinch + pan start
       e.preventDefault();
       isPinching = true;
@@ -1501,6 +1787,154 @@ export function openNotebook({ state, saveData }) {
   }, { passive:false });
   canvas.addEventListener('pointerup',     () => { isOneFingerPanning=false; });
   canvas.addEventListener('pointercancel', () => { isOneFingerPanning=false; });
+
+  /* ══════════════════════════════════════════════════════════════════════
+     SWIPE-TO-TURN-PAGE
+     A one-finger (or Pencil) drag starting near the LEFT or RIGHT edge of
+     the visible page turns to the previous/next page in notebookSequence().
+     Edge-anchored so it can never collide with: drawing (pen mode reserves
+     drag-on-the-page-body), one-finger pan (also page-body), or pinch/pan
+     (two-finger). It works in any tool, like a real notebook page corner.
+  ══════════════════════════════════════════════════════════════════════ */
+  const SWIPE_EDGE_ZONE   = 46;   // px from page edge that "grabs" the corner
+  const SWIPE_COMMIT_DIST = 70;   // px of horizontal drag to commit the turn
+  const SWIPE_COMMIT_VEL  = 0.45; // px/ms — a fast flick commits even if short
+
+  let swipeState = null; // { pointerId, edge:'left'|'right', startX, startT, lastX, lastT, pageW }
+
+  function pageEdgeHit(e) {
+    // TOUCH ONLY: pen and mouse pointers near the edge should draw or click
+    // as normal, never turn the page. (Without this, the only thing
+    // preventing a Pencil-down at the margin from accidentally triggering a
+    // swipe was DOM bubble order — canvas's own pointerdown listener happens
+    // to run first and captures pen/mouse for drawing — which is fragile to
+    // rely on implicitly. Being explicit here removes that dependency.)
+    if (e.pointerType!=='touch') return null;
+    if (!activePageId) return null;
+    if (isPinching || curStroke || curShapePreview || isOneFingerPanning) return null;
+    if (dragState) return null; // a sidebar page-row drag is in progress
+    const rect = canvas.getBoundingClientRect();
+    if (e.clientY < rect.top || e.clientY > rect.bottom) return null;
+    if (e.clientX >= rect.left && e.clientX <= rect.left+SWIPE_EDGE_ZONE) return 'left';
+    if (e.clientX <= rect.right && e.clientX >= rect.right-SWIPE_EDGE_ZONE) return 'right';
+    return null;
+  }
+
+  function notebookNeighbors() {
+    const seq = notebookSequence();
+    const idx = seq.indexOf(activePageId);
+    return {
+      seq, idx,
+      prevId: idx>0 ? seq[idx-1] : null,
+      nextId: (idx>=0 && idx<seq.length-1) ? seq[idx+1] : null,
+    };
+  }
+
+  function showSwipeHints() {
+    const { prevId, nextId } = notebookNeighbors();
+    swipeHintPrev.classList.toggle('nb-show', !!prevId);
+    swipeHintNext.classList.toggle('nb-show', !!nextId);
+  }
+  function hideSwipeHints() {
+    swipeHintPrev.classList.remove('nb-show');
+    swipeHintNext.classList.remove('nb-show');
+  }
+
+  canvasWrap.addEventListener('pointerdown', e => {
+    const edge = pageEdgeHit(e);
+    if (!edge) return;
+    const { prevId, nextId } = notebookNeighbors();
+    const wantsPage = edge==='left' ? prevId : nextId;
+    if (!wantsPage) return; // already at the first/last page — nothing to turn to
+    e.preventDefault();
+    canvasWrap.setPointerCapture(e.pointerId);
+    const rect = canvas.getBoundingClientRect();
+    swipeState = {
+      pointerId:e.pointerId, edge, targetId:wantsPage,
+      startX:e.clientX, startT:performance.now(),
+      lastX:e.clientX, lastT:performance.now(),
+      pageW:rect.width,
+    };
+    pageStage.style.transformOrigin = edge==='left' ? '0% 50%' : '100% 50%';
+    pageIncoming.style.display = 'block';
+    pageIncoming.style.width  = rect.width+'px';
+    pageIncoming.style.height = rect.height+'px';
+    showSwipeHints();
+  }, { passive:false });
+
+  canvasWrap.addEventListener('pointermove', e => {
+    if (!swipeState || e.pointerId!==swipeState.pointerId) return;
+    e.preventDefault();
+    swipeState.lastX = e.clientX; swipeState.lastT = performance.now();
+    const dx = e.clientX - swipeState.startX;
+    // Only ever fold in the direction that reveals the target page —
+    // dragging the wrong way just resists (tiny rotation) rather than doing
+    // nothing, so it still feels physically grabbed.
+    const towardTarget = swipeState.edge==='left' ? Math.max(0,dx) : Math.min(0,dx);
+    const progress = Math.min(1, Math.abs(towardTarget)/swipeState.pageW);
+    const angle = (swipeState.edge==='left' ? 1 : -1) * progress * 130; // degrees
+    pageStage.style.transform = `rotateY(${angle}deg)`;
+    pageStage.classList.toggle('nb-turn-fwd',  swipeState.edge==='right' && progress>0.02);
+    pageStage.classList.toggle('nb-turn-back', swipeState.edge==='left'  && progress>0.02);
+  }, { passive:false });
+
+  function resetSwipeStage() {
+    pageStage.classList.remove('nb-turning','nb-turn-fwd','nb-turn-back');
+    pageStage.style.transform = '';
+    pageIncoming.style.display = 'none';
+    hideSwipeHints();
+  }
+
+  function finishSwipe(commit) {
+    if (!swipeState) return;
+    const { edge, targetId } = swipeState;
+    const dt = Math.max(1, swipeState.lastT - swipeState.startT);
+    const dist = Math.abs(swipeState.lastX - swipeState.startX);
+    const vel = dist/dt;
+    const shouldCommit = commit && (dist>=SWIPE_COMMIT_DIST || vel>=SWIPE_COMMIT_VEL);
+    swipeState = null;
+
+    pageStage.classList.add('nb-turning');
+    if (shouldCommit) {
+      const fullAngle = edge==='left' ? 140 : -140;
+      pageStage.style.transform = `rotateY(${fullAngle}deg)`;
+      setTimeout(() => {
+        // Swap content while the page is folded away (face-on, invisible
+        // edge-on at ~90°+) — then immediately stage it at the OPPOSITE
+        // angle, pre-transition, so the next step can animate it unfolding
+        // back to flat. This is the actual "page turn" payoff: the new page
+        // visibly opens into view rather than just popping in.
+        suppressStageReset = true;
+        loadPage(targetId);
+        suppressStageReset = false;
+        pageStage.classList.remove('nb-turning'); // no transition for this jump
+        pageStage.style.transform = `rotateY(${-fullAngle}deg)`;
+        pageIncoming.style.display = 'none';
+        hideSwipeHints();
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            pageStage.classList.add('nb-turning');
+            pageStage.style.transform = 'rotateY(0deg)';
+            setTimeout(() => pageStage.classList.remove('nb-turning','nb-turn-fwd','nb-turn-back'), 340);
+          });
+        });
+      }, 320);
+    } else {
+      // Didn't pass the threshold — spring back to flat.
+      pageStage.style.transform = 'rotateY(0deg)';
+      setTimeout(resetSwipeStage, 320);
+    }
+  }
+
+  canvasWrap.addEventListener('pointerup', e => {
+    if (!swipeState || e.pointerId!==swipeState.pointerId) return;
+    e.preventDefault();
+    finishSwipe(true);
+  }, { passive:false });
+  canvasWrap.addEventListener('pointercancel', e => {
+    if (!swipeState || e.pointerId!==swipeState.pointerId) return;
+    finishSwipe(false);
+  });
 
   /* ══════════════════════════════════════════════════════════════════════
      DRAWING — Pointer Events on canvas
