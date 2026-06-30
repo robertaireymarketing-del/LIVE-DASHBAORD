@@ -1517,6 +1517,10 @@ export function openNotebook({ state, saveData }) {
     return e.pointerType==='pen' || e.pointerType==='mouse';
   }
 
+  // How far (logical px) the pointer may move and still count as a "tap"
+  // for tap-to-select, rather than a deliberate stroke.
+  const TAP_MOVE_THRESHOLD = 4;
+
   canvas.addEventListener('pointerdown', e => {
     if (!activePageId || isPinching) return;
     // PALM GUARD: if a Pencil stroke or shape-drag is already in progress,
@@ -1527,17 +1531,12 @@ export function openNotebook({ state, saveData }) {
     // the Pencil and make the line look like it glitches.
     if (curStroke || curShapePreview) { if (!isDrawPointer(e)) e.preventDefault(); return; }
     if (tool==='select') return; // a text box or shape is already selected — let its own handlers run
-    if (tool==='pan' || tool==='pen' || tool==='highlighter') {
-      // Tapping directly on an existing shape or ink stroke selects it for
-      // editing. In Select (hand) mode this is the primary action; in
-      // pen/highlighter mode it's a convenience so you don't draw over
-      // something you meant to grab. Works for finger taps too (not just the
-      // Pencil) since tapping-to-select is the normal touch gesture.
+    if (tool==='pan') {
+      // Tap-to-select still applies in hand mode since there's no drawing
+      // to protect there — only a deliberate tap can land here.
       const pos = canvasPos(e.clientX, e.clientY);
       const hit = hitTestShape(pos);
       if (hit) { e.preventDefault(); selectShape(hit.id); return; }
-    }
-    if (tool==='pan') {
       // No hit — start a manual one-finger pan (touch-action:none means the
       // browser won't scroll natively, so we drive canvasWrap's scroll here).
       beginOneFingerPan(e);
@@ -1546,6 +1545,14 @@ export function openNotebook({ state, saveData }) {
     if (!isDrawPointer(e)) { e.preventDefault(); return; } // palm rejection (drawing only)
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
+    // NOTE: we no longer hit-test-and-select on pointerdown for pen/highlighter.
+    // Handwriting routinely starts a new stroke right next to (or touching)
+    // ink from a moment ago, and the old "tap to select" hit-test would treat
+    // that as grabbing the existing stroke and silently swallow the new one
+    // (looked like "every other stroke" failing to draw). Instead we always
+    // start the stroke here, and pointerup below decides — based on how far
+    // it actually moved — whether this was a tiny tap (select) or a real
+    // stroke (commit the ink).
     if (tool==='shape') { startShape(canvasPos(e.clientX, e.clientY), e.pointerId); return; }
     startStroke(canvasPos(e.clientX, e.clientY), e.pointerId);
   }, { passive:false });
@@ -1621,10 +1628,36 @@ export function openNotebook({ state, saveData }) {
     renderStroke(ctx, curStroke);
   }
 
+  function strokeTravelDistance(pts) {
+    let d = 0;
+    for (let i=1;i<pts.length;i++) {
+      const dx=pts[i].x-pts[i-1].x, dy=pts[i].y-pts[i-1].y;
+      d += Math.hypot(dx,dy);
+    }
+    return d;
+  }
+
   function endStroke() {
     if (!curStroke) return;
-    if (curStroke.points.length>1) strokes.push(curStroke);
+    const s = curStroke;
     curStroke = null;
+    // Decide tap-to-select vs. a real stroke AFTER the fact, based on how far
+    // it actually traveled. This replaces the old pointerdown hit-test, which
+    // fired before any movement happened and would silently swallow new
+    // strokes that merely started near existing ink (handwriting constantly
+    // does this) — that was the "every other stroke missing" bug.
+    const traveled = strokeTravelDistance(s.points);
+    if (traveled < TAP_MOVE_THRESHOLD && (s.tool==='pen' || s.tool==='highlighter')) {
+      // It was a tap, not a stroke — undo the speculative undo-snapshot we
+      // pushed in startStroke (nothing was actually drawn) and, if the tap
+      // landed on existing ink/shape, select it.
+      undoStack.pop();
+      const hit = hitTestShape(s.points[0]);
+      if (hit) selectShape(hit.id);
+      redrawStrokes();
+      return;
+    }
+    if (s.points.length>1) strokes.push(s);
     redrawStrokes();
   }
 
