@@ -1488,15 +1488,17 @@ export function openNotebook({ state, saveData }) {
 
   canvas.addEventListener('pointerdown', e => {
     if (!activePageId || isPinching) return;
-    if (!isDrawPointer(e)) { e.preventDefault(); return; } // palm rejection
     if (tool==='pan' || tool==='select') return; // pan/select mode: let canvasWrap scroll, no drawing
     if (tool==='pen' || tool==='highlighter') {
       // Tapping directly on an existing shape selects it for editing instead
-      // of drawing a stroke on top of it.
+      // of drawing a stroke on top of it. This must work for finger taps too
+      // (not just the Pencil) since tapping-to-select is the normal touch
+      // gesture — only actual drawing should be palm-rejected to touch.
       const pos = canvasPos(e.clientX, e.clientY);
       const hit = hitTestShape(pos);
       if (hit) { e.preventDefault(); selectShape(hit.id); return; }
     }
+    if (!isDrawPointer(e)) { e.preventDefault(); return; } // palm rejection (drawing only)
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
     if (tool==='shape') { startShape(canvasPos(e.clientX, e.clientY)); return; }
