@@ -1425,12 +1425,18 @@ export function openNotebook({ state, saveData }) {
   canvasWrap.style.touchAction = 'none';
 
   canvasWrap.addEventListener('touchstart', e => {
+    // PALM GUARD: while the Pencil is actively drawing (curStroke/curShapePreview
+    // is live), a resting palm can register as a second 'touchstart' and make
+    // e.touches.length hit 2. We must NOT treat that as a pinch gesture — that
+    // would abort the in-progress stroke and feel like the line "glitching out"
+    // mid-write. A deliberate two-finger pinch can't happen while the Pencil
+    // tip is actually down, so if a stroke/shape is active we ignore extra
+    // touch points entirely instead of starting a pinch / killing the stroke.
+    if (curStroke || curShapePreview) return;
     if (e.touches.length===2) {
       // Two-finger pinch + pan start
       e.preventDefault();
       isPinching = true;
-      if (curStroke) { curStroke=null; redrawStrokes(); } // abort any stroke
-      if (curShapePreview) { curShapePreview=null; redrawStrokes(); } // abort any shape
       isOneFingerPanning = false; // hand off to two-finger pinch/pan instead
       pinchDist0 = getTouchDist(e.touches[0], e.touches[1]);
       pinchZoom0 = zoomLevel;
@@ -1513,6 +1519,13 @@ export function openNotebook({ state, saveData }) {
 
   canvas.addEventListener('pointerdown', e => {
     if (!activePageId || isPinching) return;
+    // PALM GUARD: if a Pencil stroke or shape-drag is already in progress,
+    // any *other* pointer that lands (a resting palm reported as pointerType
+    // 'touch') must be fully ignored — it should never hit-test a shape,
+    // select something, or otherwise touch state. Without this, a palm
+    // landing mid-stroke could yank the current selection out from under
+    // the Pencil and make the line look like it glitches.
+    if (curStroke || curShapePreview) { if (!isDrawPointer(e)) e.preventDefault(); return; }
     if (tool==='select') return; // a text box or shape is already selected — let its own handlers run
     if (tool==='pan' || tool==='pen' || tool==='highlighter') {
       // Tapping directly on an existing shape or ink stroke selects it for
@@ -1533,27 +1546,48 @@ export function openNotebook({ state, saveData }) {
     if (!isDrawPointer(e)) { e.preventDefault(); return; } // palm rejection (drawing only)
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
-    if (tool==='shape') { startShape(canvasPos(e.clientX, e.clientY)); return; }
-    startStroke(canvasPos(e.clientX, e.clientY));
+    if (tool==='shape') { startShape(canvasPos(e.clientX, e.clientY), e.pointerId); return; }
+    startStroke(canvasPos(e.clientX, e.clientY), e.pointerId);
   }, { passive:false });
 
   canvas.addEventListener('pointermove', e => {
     if (isPinching) return;
+    if (curShapePreview) {
+      if (e.pointerId!==curShapePreview.pointerId) return; // ignore other pointers (palm) mid-shape
+      e.preventDefault(); continueShape(canvasPos(e.clientX, e.clientY)); return;
+    }
+    if (curStroke) {
+      if (e.pointerId!==curStroke.pointerId) return; // ignore other pointers (palm) mid-stroke
+      e.preventDefault();
+      // Use coalesced events so we capture every sample the Pencil produced
+      // since the last frame, not just the single throttled pointermove —
+      // this is what makes fast strokes render smoothly instead of jagged.
+      const events = (typeof e.getCoalescedEvents==='function') ? e.getCoalescedEvents() : null;
+      if (events && events.length) {
+        for (const ev of events) continueStroke(canvasPos(ev.clientX, ev.clientY));
+      } else {
+        continueStroke(canvasPos(e.clientX, e.clientY));
+      }
+      renderCurStroke();
+      return;
+    }
     if (!isDrawPointer(e)) { e.preventDefault(); return; }
-    if (curShapePreview) { e.preventDefault(); continueShape(canvasPos(e.clientX, e.clientY)); return; }
-    if (!curStroke) return;
-    e.preventDefault();
-    continueStroke(canvasPos(e.clientX, e.clientY));
   }, { passive:false });
 
   canvas.addEventListener('pointerup', e => {
-    if (curShapePreview) { e.preventDefault(); endShape(); return; }
-    if (curStroke) { e.preventDefault(); endStroke(); }
+    if (curShapePreview) {
+      if (e.pointerId!==curShapePreview.pointerId) return; // a palm lifting shouldn't end the shape
+      e.preventDefault(); endShape(); return;
+    }
+    if (curStroke) {
+      if (e.pointerId!==curStroke.pointerId) return; // a palm lifting shouldn't end the stroke
+      e.preventDefault(); endStroke();
+    }
   }, { passive:false });
 
-  canvas.addEventListener('pointercancel', () => {
-    if (curShapePreview) { curShapePreview=null; redrawStrokes(); }
-    if (curStroke) { curStroke=null; redrawStrokes(); }
+  canvas.addEventListener('pointercancel', e => {
+    if (curShapePreview && e.pointerId===curShapePreview.pointerId) { curShapePreview=null; redrawStrokes(); }
+    if (curStroke && e.pointerId===curStroke.pointerId) { curStroke=null; redrawStrokes(); }
   });
 
   /* ══════════════════════════════════════════════════════════════════════
@@ -1563,7 +1597,7 @@ export function openNotebook({ state, saveData }) {
     return strokes.map(s => s.points ? {...s, points:s.points.slice()} : {...s});
   }
 
-  function startStroke(pos) {
+  function startStroke(pos, pointerId) {
     undoStack.push(snapshotStrokes());
     if (undoStack.length>60) undoStack.shift();
     curStroke = {
@@ -1571,6 +1605,7 @@ export function openNotebook({ state, saveData }) {
       color: tool==='highlighter' ? '#FFEB3B' : penColor,
       width: tool==='eraser' ? ERASER_W : tool==='highlighter' ? strokeW*5 : strokeW,
       points:[pos],
+      pointerId,
     };
     dirtyFlag = true;
   }
@@ -1578,6 +1613,10 @@ export function openNotebook({ state, saveData }) {
   function continueStroke(pos) {
     if (!curStroke) return;
     curStroke.points.push(pos);
+  }
+
+  function renderCurStroke() {
+    if (!curStroke) return;
     redrawStrokes();
     renderStroke(ctx, curStroke);
   }
@@ -1593,13 +1632,14 @@ export function openNotebook({ state, saveData }) {
      SHAPE LIFECYCLE — drag corner-to-corner, committed as a stroke
      with tool:'shape' so it persists/undoes/erases like ink.
   ══════════════════════════════════════════════════════════════════════ */
-  function startShape(pos) {
+  function startShape(pos, pointerId) {
     undoStack.push(snapshotStrokes());
     if (undoStack.length>60) undoStack.shift();
     curShapePreview = {
       id:uid(), tool:'shape', kind:shapeKind, filled:shapeFilled,
       color:penColor, width:strokeW,
       x0:pos.x, y0:pos.y, x1:pos.x, y1:pos.y,
+      pointerId,
     };
     dirtyFlag = true;
   }
