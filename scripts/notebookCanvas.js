@@ -1183,6 +1183,117 @@ export function openNotebook({ state, saveData }) {
     ctx.setTransform(dpr*zoomLevel, 0, 0, dpr*zoomLevel, 0, 0);
   }
 
+  // Draws just the paper's line/grid/dot art (no background fill) in LOGICAL
+  // (unscaled) coordinates — i.e. the same coordinate space strokes use. Used
+  // to redraw ruling under an eraser stroke after the ink there is wiped, so
+  // erasing reveals blank-but-ruled paper instead of removing the lines too.
+  // `bounds`, if given, restricts which rows/columns/dots are iterated to
+  // those overlapping {minX,minY,maxX,maxY} — keeps the small eraser patch
+  // canvas cheap instead of looping the whole page on every redraw.
+  function drawPaperLinesLogical(c, bw, bh, style, bounds) {
+    const minX = bounds ? Math.max(0, bounds.minX) : 0;
+    const maxX = bounds ? Math.min(bw, bounds.maxX) : bw;
+    const minY = bounds ? Math.max(0, bounds.minY) : 0;
+    const maxY = bounds ? Math.min(bh, bounds.maxY) : bh;
+
+    if (style==='lined') {
+      c.strokeStyle = LINE_COLOR;
+      c.lineWidth   = 1;
+      const rowLo = Math.max(2, Math.floor(minY/LINE_SPACING));
+      const rowHi = Math.min(PAGE_ROWS, Math.ceil(maxY/LINE_SPACING));
+      for (let row=rowLo; row<=rowHi; row++) {
+        const y = row*LINE_SPACING;
+        c.beginPath(); c.moveTo(minX,y); c.lineTo(maxX,y); c.stroke();
+      }
+      if (MARGIN_LEFT>=minX-2 && MARGIN_LEFT<=maxX+2) {
+        c.strokeStyle = MARGIN_COLOR;
+        c.lineWidth   = 1.5;
+        c.beginPath(); c.moveTo(MARGIN_LEFT,minY); c.lineTo(MARGIN_LEFT,maxY); c.stroke();
+      }
+      c.fillStyle = '#ccc';
+      const dotLo = Math.max(1, Math.floor(minY/LINE_SPACING));
+      const dotHi = Math.min(PAGE_ROWS, Math.ceil(maxY/LINE_SPACING));
+      for (let row=dotLo; row<=dotHi; row+=2) {
+        if (14<minX-6 || 14>maxX+6) continue;
+        const y = row*LINE_SPACING;
+        c.beginPath(); c.arc(14, y, 5, 0, Math.PI*2); c.fill();
+      }
+    } else if (style==='squared') {
+      c.strokeStyle = LINE_COLOR;
+      c.lineWidth   = 1;
+      const yLo = Math.max(GRID_SPACING, Math.floor(minY/GRID_SPACING)*GRID_SPACING);
+      for (let y=yLo; y<=maxY; y+=GRID_SPACING) {
+        c.beginPath(); c.moveTo(minX,y); c.lineTo(maxX,y); c.stroke();
+      }
+      const xLo = Math.max(GRID_SPACING, Math.floor(minX/GRID_SPACING)*GRID_SPACING);
+      for (let x=xLo; x<=maxX; x+=GRID_SPACING) {
+        c.beginPath(); c.moveTo(x,minY); c.lineTo(x,maxY); c.stroke();
+      }
+    } else if (style==='dotted') {
+      c.fillStyle = '#c0c8d8';
+      const yLo = Math.max(GRID_SPACING, Math.floor(minY/GRID_SPACING)*GRID_SPACING);
+      const xLo = Math.max(GRID_SPACING, Math.floor(minX/GRID_SPACING)*GRID_SPACING);
+      for (let y=yLo; y<=maxY; y+=GRID_SPACING) {
+        for (let x=xLo; x<=maxX; x+=GRID_SPACING) {
+          c.beginPath(); c.arc(x,y,1.3,0,Math.PI*2); c.fill();
+        }
+      }
+    }
+    // 'plain' — nothing to redraw beyond the background
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     ERASER — reveals paper (including ruling) rather than cutting a
+     transparent hole through to the app's dark background.
+     Technique: build a small offscreen "patch" canvas covering the eraser
+     stroke's bounding box, paint paper background + ruling into it, then use
+     destination-in compositing with the actual stroke shape to mask the
+     patch down to just the round-capped stroke silhouette. That patch is
+     then drawn onto the real canvas with source-over, so only the area the
+     eraser actually swept through gets replaced — and what's revealed is
+     blank ruled paper, not a flat colour wipe.
+  ══════════════════════════════════════════════════════════════════════ */
+  function eraseWithPaperPatch(c, s) {
+    const pad = (s.width||ERASER_W)/2 + 2;
+    let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+    s.points.forEach(p => {
+      if (p.x<minX) minX=p.x; if (p.x>maxX) maxX=p.x;
+      if (p.y<minY) minY=p.y; if (p.y>maxY) maxY=p.y;
+    });
+    minX-=pad; minY-=pad; maxX+=pad; maxY+=pad;
+    const pw = Math.max(1, Math.ceil(maxX-minX));
+    const ph = Math.max(1, Math.ceil(maxY-minY));
+    if (!isFinite(pw) || !isFinite(ph) || pw>4000 || ph>4000) return; // sanity guard
+
+    const patch = document.createElement('canvas');
+    patch.width = pw; patch.height = ph;
+    const pc = patch.getContext('2d');
+
+    // 1) Paint paper background + ruling, offset into the patch's local space
+    pc.save();
+    pc.translate(-minX, -minY);
+    pc.fillStyle = PAPER_BG;
+    pc.fillRect(minX, minY, pw, ph);
+    drawPaperLinesLogical(pc, getBaseWidth(), LINE_SPACING*PAGE_ROWS+LINE_SPACING, paperStyle, {minX,minY,maxX,maxY});
+    pc.restore();
+
+    // 2) Mask the patch down to just the stroke's round-capped silhouette
+    pc.save();
+    pc.translate(-minX, -minY);
+    pc.globalCompositeOperation = 'destination-in';
+    pc.strokeStyle = '#000';
+    pc.lineWidth = s.width;
+    pc.lineCap = 'round'; pc.lineJoin = 'round';
+    smoothPath(pc, s.points);
+    pc.restore();
+
+    // 3) Stamp the masked patch onto the real canvas at its logical position
+    c.save();
+    c.globalCompositeOperation = 'source-over';
+    c.drawImage(patch, minX, minY, pw, ph);
+    c.restore();
+  }
+
   /* ══════════════════════════════════════════════════════════════════════
      STROKE RENDERING — uniform width, no pressure
   ══════════════════════════════════════════════════════════════════════ */
@@ -1194,20 +1305,16 @@ export function openNotebook({ state, saveData }) {
   function renderStroke(c,s) {
     if (s.tool==='shape') { renderShape(c,s); return; }
     if (!s.points||s.points.length<2) return;
+
+    if (s.tool==='eraser') {
+      eraseWithPaperPatch(c, s);
+      return;
+    }
+
     c.save();
     c.lineCap='round'; c.lineJoin='round';
 
-    if (s.tool==='eraser') {
-      // Paint directly with the paper's background colour so erasing reveals
-      // paper, not a transparent hole through to the dark app chrome behind
-      // the canvas. This matches how erasers behave in real notebooks / most
-      // drawing apps — the patch underneath is cleared back to blank paper,
-      // including any ruled lines/grid/dots it passes over.
-      c.globalCompositeOperation='source-over';
-      c.strokeStyle=PAPER_BG;
-      c.lineWidth=s.width;
-      smoothPath(c,s.points);
-    } else if (s.tool==='highlighter') {
+    if (s.tool==='highlighter') {
       c.globalAlpha=0.38;
       c.strokeStyle=s.color||'#FFEB3B';
       c.lineWidth=s.width||22;
@@ -1618,6 +1725,7 @@ export function openNotebook({ state, saveData }) {
     } else {
       canvasLayer.querySelectorAll('.nb-shape-wrap').forEach(el=>el.remove());
       shapeStyleBar.classList.remove('visible');
+      restoreDrawingToolIfIdle();
     }
   }
 
@@ -1782,6 +1890,23 @@ export function openNotebook({ state, saveData }) {
     paperPicker.classList.remove('visible');
     // Selecting any drawing tool deselects any active text box / shape
     if (t!=='select') { selectTextBox(null); selectShape(null); }
+  }
+
+  // Called from selectTextBox(null)/selectShape(null) when deselecting. If
+  // nothing else is selected, drops out of 'select' mode back to the pen so
+  // canvas taps resume working (selecting a shape/text box forces tool to
+  // 'select' to block drawing while editing — without this, deselecting left
+  // the canvas stuck ignoring all pointer input, including taps meant to
+  // reselect a shape). Sets state directly rather than calling setTool() to
+  // avoid recursing back into selectTextBox(null)/selectShape(null).
+  function restoreDrawingToolIfIdle() {
+    if (selectedTB || selectedShape) return; // mid mutual-exclusion handoff
+    if (tool!=='select') return;
+    tool = 'pen';
+    [penBtn,penBtn2].forEach(b=>b&&b.classList.toggle('active',true));
+    [hiBtn,hiBtn2,eraserBtn,eraserBtn2,shapeBtn,shapeBtn2,panBtn,panBtn2]
+      .forEach(b=>b&&b.classList.remove('active'));
+    canvas.style.cursor = 'crosshair';
   }
 
   penBtn.addEventListener('click',    ()=>setTool('pen'));
@@ -2212,6 +2337,7 @@ export function openNotebook({ state, saveData }) {
       textStyleBar.classList.add('visible');
     } else {
       textStyleBar.classList.remove('visible');
+      restoreDrawingToolIfIdle();
     }
   }
 
