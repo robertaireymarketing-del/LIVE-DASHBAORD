@@ -68,6 +68,7 @@ export function openNotebook({ state, saveData }) {
   let selectedShape = null; // id of selected shape stroke
 
   let tool      = 'pen';
+  let toolBeforeSelect = 'pen'; // restored when deselecting a shape/text box
   let penColor  = INK_DEFAULT;
   let strokeW   = 2.5;
   let zoomLevel = 1.0;
@@ -592,7 +593,7 @@ export function openNotebook({ state, saveData }) {
       <button class="nbt"        id="nbEraserBtn">⌫ Erase</button>
       <button class="nbt"        id="nbShapeBtn">▱ Shape</button>
       <button class="nbt"        id="nbAddTextBtn">🆃 Text Box</button>
-      <button class="nbt"        id="nbPanBtn" title="Pan mode — use one finger to scroll">✋</button>
+      <button class="nbt"        id="nbPanBtn" title="Select tool — tap any stroke or shape to move/resize/delete it, or drag empty space to scroll">✋</button>
       <div class="nb-div"></div>
 
       <!-- Colours -->
@@ -967,7 +968,7 @@ export function openNotebook({ state, saveData }) {
     activePageId = id;
     const page = (meta.pages||[]).find(p=>p.id===id);
     if (!page) return;
-    strokes   = (pages[id]?.strokes||[]).map(s=>({...s, points:s.points?s.points.slice():undefined, id:s.tool==='shape'?(s.id||uid()):s.id}));
+    strokes   = (pages[id]?.strokes||[]).map(s=>({...s, points:s.points?s.points.slice():undefined, id:s.id||uid()}));
     textBoxes = (pages[id]?.textBoxes||[]).map(tb=>({...tb}));
     paperStyle = pages[id]?.paperStyle || 'lined';
     selectedTB = null;
@@ -999,7 +1000,7 @@ export function openNotebook({ state, saveData }) {
         };
       }
       return {
-        tool:s.tool, color:s.color, width:s.width,
+        id:s.id||uid(), tool:s.tool, color:s.color, width:s.width,
         points:s.points.map(p=>({ x:Math.round(p.x*10)/10, y:Math.round(p.y*10)/10 })),
       };
     });
@@ -1430,6 +1431,7 @@ export function openNotebook({ state, saveData }) {
       isPinching = true;
       if (curStroke) { curStroke=null; redrawStrokes(); } // abort any stroke
       if (curShapePreview) { curShapePreview=null; redrawStrokes(); } // abort any shape
+      isOneFingerPanning = false; // hand off to two-finger pinch/pan instead
       pinchDist0 = getTouchDist(e.touches[0], e.touches[1]);
       pinchZoom0 = zoomLevel;
       const mid  = getTouchMid(e.touches[0], e.touches[1]);
@@ -1471,6 +1473,29 @@ export function openNotebook({ state, saveData }) {
     if (e.touches.length<2) isPinching = false;
   }, { passive:true });
 
+  /* ── One-finger pan (Select/hand tool) ────────────────────────────
+     touch-action:none on canvas/canvasWrap means the browser never scrolls
+     natively, so when the hand tool is active and a drag starts on empty
+     canvas (no shape/ink hit), we drive canvasWrap's scroll manually here. */
+  let panFingerStartX=0, panFingerStartY=0, panFingerStartScrollX=0, panFingerStartScrollY=0, isOneFingerPanning=false;
+
+  function beginOneFingerPan(e) {
+    isOneFingerPanning = true;
+    panFingerStartX = e.clientX; panFingerStartY = e.clientY;
+    panFingerStartScrollX = canvasWrap.scrollLeft;
+    panFingerStartScrollY = canvasWrap.scrollTop;
+    if (e.pointerType!=='touch') canvas.setPointerCapture(e.pointerId);
+  }
+
+  canvas.addEventListener('pointermove', e => {
+    if (!isOneFingerPanning) return;
+    e.preventDefault();
+    canvasWrap.scrollLeft = panFingerStartScrollX - (e.clientX-panFingerStartX);
+    canvasWrap.scrollTop  = panFingerStartScrollY - (e.clientY-panFingerStartY);
+  }, { passive:false });
+  canvas.addEventListener('pointerup',     () => { isOneFingerPanning=false; });
+  canvas.addEventListener('pointercancel', () => { isOneFingerPanning=false; });
+
   /* ══════════════════════════════════════════════════════════════════════
      DRAWING — Pointer Events on canvas
      PALM REJECTION: only accept pointerType='pen' (Apple Pencil)
@@ -1488,15 +1513,22 @@ export function openNotebook({ state, saveData }) {
 
   canvas.addEventListener('pointerdown', e => {
     if (!activePageId || isPinching) return;
-    if (tool==='pan' || tool==='select') return; // pan/select mode: let canvasWrap scroll, no drawing
-    if (tool==='pen' || tool==='highlighter') {
-      // Tapping directly on an existing shape selects it for editing instead
-      // of drawing a stroke on top of it. This must work for finger taps too
-      // (not just the Pencil) since tapping-to-select is the normal touch
-      // gesture — only actual drawing should be palm-rejected to touch.
+    if (tool==='select') return; // a text box or shape is already selected — let its own handlers run
+    if (tool==='pan' || tool==='pen' || tool==='highlighter') {
+      // Tapping directly on an existing shape or ink stroke selects it for
+      // editing. In Select (hand) mode this is the primary action; in
+      // pen/highlighter mode it's a convenience so you don't draw over
+      // something you meant to grab. Works for finger taps too (not just the
+      // Pencil) since tapping-to-select is the normal touch gesture.
       const pos = canvasPos(e.clientX, e.clientY);
       const hit = hitTestShape(pos);
       if (hit) { e.preventDefault(); selectShape(hit.id); return; }
+    }
+    if (tool==='pan') {
+      // No hit — start a manual one-finger pan (touch-action:none means the
+      // browser won't scroll natively, so we drive canvasWrap's scroll here).
+      beginOneFingerPan(e);
+      return;
     }
     if (!isDrawPointer(e)) { e.preventDefault(); return; } // palm rejection (drawing only)
     e.preventDefault();
@@ -1535,7 +1567,7 @@ export function openNotebook({ state, saveData }) {
     undoStack.push(snapshotStrokes());
     if (undoStack.length>60) undoStack.shift();
     curStroke = {
-      tool,
+      id:uid(), tool,
       color: tool==='highlighter' ? '#FFEB3B' : penColor,
       width: tool==='eraser' ? ERASER_W : tool==='highlighter' ? strokeW*5 : strokeW,
       points:[pos],
@@ -1595,14 +1627,15 @@ export function openNotebook({ state, saveData }) {
   }
 
   /* ══════════════════════════════════════════════════════════════════════
-     SHAPE SELECTION ENGINE
-     Shapes live as bitmap-rendered entries in strokes[], but once selected
-     they get an HTML overlay (.nb-shape-wrap) positioned over their bounding
-     box inside #nbCanvasLayer — same pattern as text boxes — so you can drag
-     to move and grab corner handles to resize. The overlay is rebuilt from
-     the shape's stored coordinates each time and removed on deselect.
+     STROKE SELECTION ENGINE (Select tool — the hand button)
+     Both shapes and ink strokes (pen/highlighter) live as bitmap-rendered
+     entries in strokes[]. Once selected (by tapping with the Select tool
+     active) they get an HTML overlay (.nb-shape-wrap) positioned over their
+     bounding box inside #nbCanvasLayer — same pattern as text boxes — so you
+     can drag to move and grab corner handles to resize. Ink strokes resize
+     by scaling all their points proportionally around the box origin.
   ══════════════════════════════════════════════════════════════════════ */
-  function findShape(id) { return strokes.find(s => s.tool==='shape' && s.id===id); }
+  function findShape(id) { return strokes.find(s => s.id===id); }
 
   // Distance from point p to segment a-b
   function distToSegment(p, a, b) {
@@ -1614,14 +1647,30 @@ export function openNotebook({ state, saveData }) {
     return Math.hypot(p.x-cx, p.y-cy);
   }
 
-  // Hit-test in logical canvas coordinates. Filled shapes hit anywhere inside
-  // their bounds; outline shapes only hit near the actual stroke line, so you
-  // can still draw normally inside an unfilled circle/rectangle.
+  // Bounding box of an ink stroke's points, in logical coordinates
+  function inkBounds(s) {
+    let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+    s.points.forEach(p => { if(p.x<x0)x0=p.x; if(p.x>x1)x1=p.x; if(p.y<y0)y0=p.y; if(p.y>y1)y1=p.y; });
+    return {x0,y0,x1,y1};
+  }
+
+  // Hit-test in logical canvas coordinates against shapes AND ink strokes.
+  // Filled shapes hit anywhere inside their bounds; outline shapes and ink
+  // strokes only hit near the actual line, with generous touch tolerance.
   function hitTestShape(pos) {
     const PAD = 14; // generous touch tolerance, in logical px
     for (let i=strokes.length-1; i>=0; i--) {
       const s = strokes[i];
-      if (s.tool!=='shape') continue;
+      if (s.tool==='eraser') continue; // eraser strokes aren't selectable objects
+      if (s.tool!=='shape') {
+        // Ink stroke (pen / highlighter) — hit near any segment of its path
+        if (!s.points || s.points.length<2) continue;
+        const halfW = (s.width||strokeW)/2;
+        for (let j=0;j<s.points.length-1;j++) {
+          if (distToSegment(pos, s.points[j], s.points[j+1]) <= PAD+halfW) return s;
+        }
+        continue;
+      }
       const x0=Math.min(s.x0,s.x1), x1=Math.max(s.x0,s.x1);
       const y0=Math.min(s.y0,s.y1), y1=Math.max(s.y0,s.y1);
       if (s.kind==='line') {
@@ -1676,9 +1725,19 @@ export function openNotebook({ state, saveData }) {
     return wrap;
   }
 
+  // Returns {x0,y0,x1,y1} bounding box in logical coords for either a shape
+  // (x0/y0/x1/y1 fields) or an ink stroke (points[] array).
+  function strokeBoundsOf(s) {
+    if (s.tool==='shape') {
+      return { x0:Math.min(s.x0,s.x1), x1:Math.max(s.x0,s.x1), y0:Math.min(s.y0,s.y1), y1:Math.max(s.y0,s.y1) };
+    }
+    const b = inkBounds(s);
+    const pad = (s.width||strokeW)/2; // include stroke thickness so the box fully encloses the ink
+    return { x0:b.x0-pad, x1:b.x1+pad, y0:b.y0-pad, y1:b.y1+pad };
+  }
+
   function setShapeWrapGeometry(wrap, s) {
-    const x0=Math.min(s.x0,s.x1), x1=Math.max(s.x0,s.x1);
-    const y0=Math.min(s.y0,s.y1), y1=Math.max(s.y0,s.y1);
+    const { x0, x1, y0, y1 } = strokeBoundsOf(s);
     wrap.style.left   = (x0*zoomLevel)+'px';
     wrap.style.top    = (y0*zoomLevel)+'px';
     wrap.style.width  = Math.max(8,(x1-x0)*zoomLevel)+'px';
@@ -1700,8 +1759,11 @@ export function openNotebook({ state, saveData }) {
     ssColorSwatch.style.background = s.color;
     ssColorPicker.value = s.color.startsWith('#') ? s.color : '#1a1a2e';
     ssWidthSlider.value = s.width;
-    ssFillToggle.textContent = s.filled ? '◼ Filled' : '◻ Outline';
-    ssFillToggle.classList.toggle('active', s.filled);
+    ssFillToggle.style.display = s.tool==='shape' ? '' : 'none';
+    if (s.tool==='shape') {
+      ssFillToggle.textContent = s.filled ? '◼ Filled' : '◻ Outline';
+      ssFillToggle.classList.toggle('active', s.filled);
+    }
   }
 
   function selectShape(id) {
@@ -1713,6 +1775,7 @@ export function openNotebook({ state, saveData }) {
       if (selectedTB) selectTextBox(null); // mutual exclusion with text box selection
       const s = findShape(id);
       if (!s) { selectedShape=null; return; }
+      if (tool!=='select') toolBeforeSelect = tool;
       tool = 'select';
       [penBtn,penBtn2,hiBtn,hiBtn2,eraserBtn,eraserBtn2,shapeBtn,shapeBtn2,panBtn,panBtn2]
         .forEach(b=>b&&b.classList.remove('active'));
@@ -1732,7 +1795,7 @@ export function openNotebook({ state, saveData }) {
   }
 
   function deleteShape(id) {
-    strokes = strokes.filter(s => !(s.tool==='shape' && s.id===id));
+    strokes = strokes.filter(s => s.id!==id);
     canvasLayer.querySelector(`[data-shapeid="${id}"]`)?.remove();
     if (selectedShape===id) { selectedShape=null; shapeStyleBar.classList.remove('visible'); }
     dirtyFlag = true;
@@ -1748,16 +1811,23 @@ export function openNotebook({ state, saveData }) {
 
   /* ── Drag — move the whole shape ──────────────────────────────── */
   function makeShapeDraggable(wrap, s) {
-    let startX, startY, sx0, sy0, sx1, sy1, dragging=false;
+    let startX, startY, snapStart, dragging=false;
 
     function begin(clientX, clientY) {
       dragging=true; startX=clientX; startY=clientY;
-      sx0=s.x0; sy0=s.y0; sx1=s.x1; sy1=s.y1;
+      snapStart = s.tool==='shape'
+        ? { x0:s.x0, y0:s.y0, x1:s.x1, y1:s.y1 }
+        : { points: s.points.map(p=>({x:p.x,y:p.y})) };
     }
     function move(clientX, clientY) {
       if (!dragging) return;
       const dx=(clientX-startX)/zoomLevel, dy=(clientY-startY)/zoomLevel;
-      s.x0=sx0+dx; s.y0=sy0+dy; s.x1=sx1+dx; s.y1=sy1+dy;
+      if (s.tool==='shape') {
+        s.x0=snapStart.x0+dx; s.y0=snapStart.y0+dy;
+        s.x1=snapStart.x1+dx; s.y1=snapStart.y1+dy;
+      } else {
+        s.points = snapStart.points.map(p => ({ x:p.x+dx, y:p.y+dy }));
+      }
       setShapeWrapGeometry(wrap, s);
       positionShapeStyleBar(wrap);
       dirtyFlag=true;
@@ -1793,24 +1863,36 @@ export function openNotebook({ state, saveData }) {
 
   /* ── Corner resize — drags one corner, keeping the opposite corner fixed ── */
   function makeShapeCornerResizable(handle, wrap, s, corner) {
-    let startX, startY, sx0, sy0, sx1, sy1, resizing=false;
+    let startX, startY, startBounds, startPoints, resizing=false;
 
     function begin(clientX, clientY) {
       resizing=true; startX=clientX; startY=clientY;
-      sx0=s.x0; sy0=s.y0; sx1=s.x1; sy1=s.y1;
+      startBounds = strokeBoundsOf(s);
+      if (s.tool!=='shape') startPoints = s.points.map(p=>({x:p.x,y:p.y}));
     }
     function move(clientX, clientY) {
       if (!resizing) return;
       const dx=(clientX-startX)/zoomLevel, dy=(clientY-startY)/zoomLevel;
-      // Work in normalized (min/max) space, then move the edge matching this corner
-      let x0=Math.min(sx0,sx1), x1=Math.max(sx0,sx1);
-      let y0=Math.min(sy0,sy1), y1=Math.max(sy0,sy1);
+      let { x0, y0, x1, y1 } = startBounds;
       if (corner.includes('w')) x0 += dx; else x1 += dx;
       if (corner.includes('n')) y0 += dy; else y1 += dy;
-      // Keep a minimum size so the shape never inverts/collapses
+      // Keep a minimum size so the box never inverts/collapses
       if (x1-x0 < 8) { if (corner.includes('w')) x0=x1-8; else x1=x0+8; }
       if (y1-y0 < 8) { if (corner.includes('n')) y0=y1-8; else y1=y0+8; }
-      s.x0=x0; s.y0=y0; s.x1=x1; s.y1=y1;
+
+      if (s.tool==='shape') {
+        s.x0=x0; s.y0=y0; s.x1=x1; s.y1=y1;
+      } else {
+        // Scale every point proportionally from the old bounding box into the
+        // new one, so the stroke's shape is preserved while it resizes.
+        const ow = startBounds.x1-startBounds.x0 || 1;
+        const oh = startBounds.y1-startBounds.y0 || 1;
+        const nw = x1-x0, nh = y1-y0;
+        s.points = startPoints.map(p => ({
+          x: x0 + (p.x-startBounds.x0)/ow * nw,
+          y: y0 + (p.y-startBounds.y0)/oh * nh,
+        }));
+      }
       setShapeWrapGeometry(wrap, s);
       positionShapeStyleBar(wrap);
       dirtyFlag=true;
@@ -1861,6 +1943,7 @@ export function openNotebook({ state, saveData }) {
   });
   ssWidthSlider.addEventListener('input', () => withSelectedShape(s => s.width = parseFloat(ssWidthSlider.value)));
   ssFillToggle.addEventListener('click', () => withSelectedShape(s => {
+    if (s.tool!=='shape') return;
     s.filled = !s.filled;
     ssFillToggle.textContent = s.filled ? '◼ Filled' : '◻ Outline';
     ssFillToggle.classList.toggle('active', s.filled);
@@ -1869,7 +1952,9 @@ export function openNotebook({ state, saveData }) {
     if (!selectedShape) return;
     const s = findShape(selectedShape);
     if (!s) return;
-    const ns = { ...s, id:uid(), x0:s.x0+20, y0:s.y0+20, x1:s.x1+20, y1:s.y1+20 };
+    const ns = s.tool==='shape'
+      ? { ...s, id:uid(), x0:s.x0+20, y0:s.y0+20, x1:s.x1+20, y1:s.y1+20 }
+      : { ...s, id:uid(), points:s.points.map(p=>({x:p.x+20,y:p.y+20})) };
     strokes.push(ns);
     dirtyFlag = true;
     redrawStrokes();
@@ -1904,11 +1989,7 @@ export function openNotebook({ state, saveData }) {
   function restoreDrawingToolIfIdle() {
     if (selectedTB || selectedShape) return; // mid mutual-exclusion handoff
     if (tool!=='select') return;
-    tool = 'pen';
-    [penBtn,penBtn2].forEach(b=>b&&b.classList.toggle('active',true));
-    [hiBtn,hiBtn2,eraserBtn,eraserBtn2,shapeBtn,shapeBtn2,panBtn,panBtn2]
-      .forEach(b=>b&&b.classList.remove('active'));
-    canvas.style.cursor = 'crosshair';
+    setTool(toolBeforeSelect || 'pen');
   }
 
   penBtn.addEventListener('click',    ()=>setTool('pen'));
@@ -2326,6 +2407,7 @@ export function openNotebook({ state, saveData }) {
       // Switch to 'select' mode directly (not via setTool, to avoid re-triggering
       // selectTextBox(null) recursively) so canvas pointer events don't draw ink
       // while a text box is active.
+      if (tool!=='select') toolBeforeSelect = tool;
       tool = 'select';
       [penBtn,penBtn2,hiBtn,hiBtn2,eraserBtn,eraserBtn2,shapeBtn,shapeBtn2,panBtn,panBtn2]
         .forEach(b=>b&&b.classList.remove('active'));
@@ -2369,7 +2451,7 @@ export function openNotebook({ state, saveData }) {
   // guard here by re-checking hitTestShape to avoid immediately deselecting).
   canvasLayer.addEventListener('pointerdown', e => {
     if (e.target === canvas || e.target === canvasLayer) {
-      if ((tool==='pen' || tool==='highlighter') && activePageId) {
+      if ((tool==='pen' || tool==='highlighter' || tool==='pan') && activePageId) {
         const pos = canvasPos(e.clientX, e.clientY);
         if (hitTestShape(pos)) return; // already handled by canvas pointerdown above
       }
