@@ -1566,7 +1566,7 @@ export function openNotebook({ state, saveData }) {
     }, 10);
   }
 
-
+  pageTitleIn.addEventListener('blur',()=>{
     if (!activePageId) return;
     const page=(meta.pages||[]).find(p=>p.id===activePageId);
     if (page) { page.title=pageTitleIn.value.trim()||todayISO(); persistMeta(); }
