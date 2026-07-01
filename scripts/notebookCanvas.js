@@ -1648,7 +1648,7 @@ export function openNotebook({ state, saveData }) {
   /* ══════════════════════════════════════════════════════════════════════
      PAPER DRAWING
   ══════════════════════════════════════════════════════════════════════ */
-  function drawPaperOnContext(c, w, h, scale, style) {
+  function drawPaperOnContext(c, w, h, scale, style, pageNum) {
     c.save();
     c.fillStyle = PAPER_BG;
     c.fillRect(0,0,w,h);
@@ -1690,6 +1690,16 @@ export function openNotebook({ state, saveData }) {
     }
     // 'plain' — background only, no lines/dots/margin
 
+    // Page number watermark in top-right, drawn in pixel space (scale already applied)
+    if (pageNum) {
+      const fontSize = Math.round(13 * scale);
+      c.font = `400 ${fontSize}px -apple-system, "Helvetica Neue", sans-serif`;
+      c.fillStyle = 'rgba(160,170,185,0.55)';
+      c.textAlign = 'right';
+      c.textBaseline = 'top';
+      c.fillText(pageNum, w - 18*scale, 14*scale);
+    }
+
     c.restore();
   }
 
@@ -1699,9 +1709,11 @@ export function openNotebook({ state, saveData }) {
     const pw    = canvas.width;
     const ph    = canvas.height;
 
+    const pageNum = activePageId ? (notebookSequence().indexOf(activePageId) + 1) : 0;
+
     ctx.save();
     ctx.setTransform(1,0,0,1,0,0);
-    drawPaperOnContext(ctx, pw, ph, scale, paperStyle);
+    drawPaperOnContext(ctx, pw, ph, scale, paperStyle, pageNum || undefined);
     ctx.restore();
     ctx.setTransform(dpr*zoomLevel, 0, 0, dpr*zoomLevel, 0, 0);
   }
@@ -2132,6 +2144,9 @@ export function openNotebook({ state, saveData }) {
       // like a real lined (or squared/dotted/plain) page being revealed,
       // not just a blank white rectangle.
       const targetPaperStyle = isNewPage ? paperStyle : (pages[targetId]?.paperStyle || 'lined');
+      const targetPageNum = isNewPage
+        ? notebookSequence().length + 1
+        : notebookSequence().indexOf(targetId) + 1;
       const pw = Math.round(swipeState.pageW);
       const ph = Math.round(parseFloat(pageIncoming.style.height));
       const dpr = Math.min(window.devicePixelRatio||1, 2); // cap at 2x for speed
@@ -2139,7 +2154,7 @@ export function openNotebook({ state, saveData }) {
       oc.width = pw * dpr; oc.height = ph * dpr;
       const oc2 = oc.getContext('2d');
       oc2.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawPaperOnContext(oc2, pw, ph, 1, targetPaperStyle);
+      drawPaperOnContext(oc2, pw, ph, 1, targetPaperStyle, targetPageNum);
       pageIncoming.style.backgroundImage = `url(${oc.toDataURL()})`;
       pageIncoming.style.backgroundSize  = '100% 100%';
       pageIncoming.style.backgroundColor = PAPER_BG;
