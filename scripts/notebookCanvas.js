@@ -248,7 +248,6 @@ export function openNotebook({ state, saveData }) {
       display:flex; justify-content:flex-start; align-items:flex-start;
       padding:20px; background:#2a2a3a;
       position:relative;
-      perspective:1800px;
       /* touch-action managed by JS */
     }
     #nbCanvas {
@@ -260,78 +259,64 @@ export function openNotebook({ state, saveData }) {
     }
 
     /* ── PAGE-TURN STAGE ──────────────────────────────────────────────
-       #nbPageStage holds the live, interactive page (real canvas + real
-       text boxes) and is what physically turns. transform-origin flips
-       between the left/right edge depending on swipe direction so it
-       folds like a real page rather than spinning on its center. */
+       Two-layer slide animation. The live canvas (#nbPageStage) slides OUT,
+       the incoming page div (#nbPageStageIncoming) slides IN behind it.
+       Both use only translateX — cheapest possible GPU composite, no
+       rasterization, no 3D matrix math. The "page turn" feel comes from
+       the offset timing, the shadow edge, and the easing curve.        */
     #nbPageStage {
-      display:flex; flex-shrink:0;
-      transform-style:preserve-3d;
-      transition:none; /* JS drives transform directly while dragging */
-      position:relative;
-      /* Paper stack on the right — layered box-shadows simulate page edges
-         peeking out, like the fore-edge of a real bound notebook. Each layer
-         is slightly darker and offset further right to give depth. */
+      display: flex; flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+      will-change: transform;
+      /* Paper stack on the right — layered box-shadows simulate page edges */
       box-shadow:
-        /* page edges — creamy white slivers getting progressively darker */
         2px 0 0 0px #f0ede4,
         3px 0 0 1px #e8e4d8,
         5px 0 0 2px #ddd8cb,
         7px 0 0 3px #d4cfbf,
         9px 0 0 4px #cbc5b4,
         11px 0 0 5px #c0baa8,
-        /* the main page drop shadow (replaces the old canvas box-shadow) */
         0 6px 32px rgba(0,0,0,0.5);
     }
-    /* Spine line on the left edge — a narrow dark strip like a book binding */
+    /* Spine shadow on left edge */
     #nbPageStage::before {
       content:''; position:absolute; inset:0; pointer-events:none;
-      border-left:3px solid rgba(0,0,0,0.18);
-      border-radius:3px;
-      z-index:1;
+      border-left: 3px solid rgba(0,0,0,0.18);
+      border-radius: 3px; z-index: 1;
     }
-    #nbPageStage.nb-turning {
-      transition:transform 0.32s cubic-bezier(.2,.7,.3,1), box-shadow 0.32s ease;
-    }
-    /* Soft shading overlay that sweeps across the page as it folds, to sell
-       the illusion of a curling page catching the light — purely cosmetic,
-       sits above the canvas but ignores pointer events */
+    /* Shadow that sweeps across the page as it slides away, reinforcing
+       the direction of travel. Pointer-events none so it never blocks input. */
     #nbPageStage::after {
       content:''; position:absolute; inset:0; pointer-events:none;
-      background:linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 100%);
-      opacity:0; transition:opacity 0.32s ease;
-      border-radius:3px;
+      opacity:0; border-radius:3px;
+      background: linear-gradient(90deg, transparent 60%, rgba(0,0,0,0.22) 100%);
     }
-    #nbPageStage.nb-turn-fwd::after  { background:linear-gradient(90deg, rgba(0,0,0,0) 55%, rgba(0,0,0,0.35) 100%); opacity:1; }
-    #nbPageStage.nb-turn-back::after { background:linear-gradient(270deg,rgba(0,0,0,0) 55%, rgba(0,0,0,0.35) 100%); opacity:1; }
 
-    /* Incoming page preview — a lightweight static snapshot of the page being
-       swiped TO, positioned behind the turning page so it's revealed as the
-       fold opens. Not interactive; the real canvas takes over once the turn
-       completes and loadPage() runs. */
+    /* Incoming page — sits BEHIND the outgoing page in the stacking context.
+       Slides in from the opposite direction, slightly slower (lag = depth). */
     #nbPageStageIncoming {
-      position:absolute; top:20px; left:20px;
-      display:none;
-      background:#fdfcf7; border-radius:3px;
-      box-shadow:0 6px 32px rgba(0,0,0,0.5);
-      pointer-events:none;
-      overflow:hidden;
+      position: absolute; top: 20px; left: 20px;
+      display: none;
+      will-change: transform;
+      background: #fdfcf7; border-radius: 3px;
+      box-shadow: 0 6px 32px rgba(0,0,0,0.5);
+      pointer-events: none; overflow: hidden;
+      z-index: 0;
     }
-    #nbPageStageIncoming img { display:block; width:100%; height:100%; }
 
-    /* Edge swipe-hint arrows — quiet affordance, only visible briefly on
-       hover/touch-near-edge via JS toggling .nb-show */
+    /* Edge swipe-hint arrows */
     .nb-swipe-hint {
-      position:absolute; top:50%; transform:translateY(-50%);
-      width:34px; height:34px; border-radius:50%;
-      background:rgba(0,0,0,0.35); color:rgba(255,255,255,0.55);
-      display:flex; align-items:center; justify-content:center;
-      font-size:18px; font-weight:900; pointer-events:none;
-      opacity:0; transition:opacity 0.2s ease; z-index:20;
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 34px; height: 34px; border-radius: 50%;
+      background: rgba(0,0,0,0.35); color: rgba(255,255,255,0.55);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 900; pointer-events: none;
+      opacity: 0; transition: opacity 0.2s ease; z-index: 20;
     }
-    .nb-swipe-hint-left  { left:8px; }
-    .nb-swipe-hint-right { right:8px; }
-    .nb-swipe-hint.nb-show { opacity:1; }
+    .nb-swipe-hint-left  { left: 8px; }
+    .nb-swipe-hint-right { right: 8px; }
+    .nb-swipe-hint.nb-show { opacity: 1; }
 
     /* ══ SIDEBAR — all text hardcoded white so light-mode body styles can't override ══ */
 
@@ -1271,14 +1256,19 @@ export function openNotebook({ state, saveData }) {
     pageTitleIn.value = page.title||'';
     emptyState.style.display = 'none';
     canvasWrap.style.display = 'flex';
-    // Always land flat — guards against any stale mid-turn transform if a
-    // page load happens via a path other than the swipe gesture's own
-    // animation cleanup (e.g. tapping a sidebar row while mid-swipe-spring).
+    // Always land flat — guards against any stale mid-swipe transform if a
+    // page load happens via a path other than the swipe gesture's own cleanup
+    // (e.g. tapping a sidebar row while a swipe spring is in progress).
     if (pageStage && !suppressStageReset) {
-      pageStage.classList.remove('nb-turning','nb-turn-fwd','nb-turn-back');
-      pageStage.style.transform = '';
+      pageStage.style.transition = '';
+      pageStage.style.transform  = '';
     }
-    if (pageIncoming && !suppressStageReset) pageIncoming.style.display = 'none';
+    if (pageIncoming && !suppressStageReset) {
+      pageIncoming.style.display    = 'none';
+      pageIncoming.style.transform  = '';
+      pageIncoming.style.transition = '';
+    }
+    if (pageStage?._shadowEl && !suppressStageReset) pageStage._shadowEl.style.opacity = 0;
     sizeCanvas();
     renderSidebar(searchBox.value);
     syncPaperStyleUI();
@@ -1889,72 +1879,153 @@ export function openNotebook({ state, saveData }) {
       swipeState.edge = edge;
       swipeState.targetId = targetId; // null if isNewPage — finishSwipe handles it
       swipeState.isNewPage = isNewPage;
+      swipeState.currentX = e.clientX;
+      swipeState.rafPending = false;
       // Capture the pointer so we keep getting events even if the finger
       // slides off the canvas edge mid-swipe.
       try { canvas.setPointerCapture(e.pointerId); } catch(_) {}
-      pageStage.style.transformOrigin = edge === 'right' ? '100% 50%' : '0% 50%';
+      // Shadow overlay on outgoing page — gradient points toward the direction
+      // of travel so it darkens the leading (leaving) edge
+      ensureShadowEl();
+      const grad = edge === 'right'
+        ? 'linear-gradient(90deg, transparent 50%, rgba(0,0,0,0.3) 100%)'
+        : 'linear-gradient(270deg, transparent 50%, rgba(0,0,0,0.3) 100%)';
+      pageStage._shadowEl.style.background = grad;
+      pageStage._shadowEl.style.opacity = 0;
+      pageStage.style.transition = 'none';
+      pageIncoming.style.transition = 'none';
       pageIncoming.style.display = 'block';
       pageIncoming.style.width  = swipeState.pageW + 'px';
       pageIncoming.style.height = canvas.getBoundingClientRect().height + 'px';
+      // Start incoming page from its parallax-offset rest position
+      const incomingStart = edge === 'right' ? swipeState.pageW * 0.28 : -swipeState.pageW * 0.28;
+      pageIncoming.style.transform = `translateX(${incomingStart}px)`;
       showSwipeHints();
     }
 
-    // Locked into swipe — track finger and rotate the page
+    // Locked into swipe — track finger position; rAF drives the actual DOM write
     e.preventDefault();
-    const travel = e.clientX - swipeState.startX;
-    const towardTarget = swipeState.edge === 'right' ? Math.min(0, travel) : Math.max(0, travel);
-    const progress = Math.min(1, Math.abs(towardTarget) / swipeState.pageW);
-    const sign = swipeState.edge === 'right' ? -1 : 1;
-    pageStage.style.transform = `rotateY(${sign * progress * 130}deg)`;
-    pageStage.classList.toggle('nb-turn-fwd',  swipeState.edge === 'right' && progress > 0.02);
-    pageStage.classList.toggle('nb-turn-back', swipeState.edge === 'left'  && progress > 0.02);
+    swipeState.currentX = e.clientX;
+    if (!swipeState.rafPending) {
+      swipeState.rafPending = true;
+      requestAnimationFrame(updateSwipeFrame);
+    }
   }, { passive: false });
 
+  function updateSwipeFrame() {
+    if (!swipeState?.locked) return;
+    swipeState.rafPending = false;
+    const travel = swipeState.currentX - swipeState.startX;
+    // Resist dragging the wrong way (feels physical)
+    const raw = swipeState.edge === 'right' ? Math.min(0, travel) : Math.max(0, travel);
+    const px = raw; // negative = outgoing slides left, positive = slides right
+    const progress = Math.min(1, Math.abs(px) / swipeState.pageW);
+
+    // Outgoing page slides fully off
+    pageStage.style.transform = `translateX(${px}px)`;
+    // Shadow darkens proportionally to progress
+    pageStage.style.setProperty('--swipe-shadow', progress);
+    // Incoming page starts 28% behind and catches up (parallax lag)
+    const incomingOffset = swipeState.edge === 'right'
+      ? swipeState.pageW * (1 - progress) * 0.28
+      : -swipeState.pageW * (1 - progress) * 0.28;
+    pageIncoming.style.transform = `translateX(${incomingOffset}px)`;
+    // Fade shadow on outgoing page
+    const shadowOpacity = progress * 0.28;
+    pageStage.style.setProperty('--shadow-opacity', shadowOpacity);
+    if (pageStage._shadowEl) pageStage._shadowEl.style.opacity = shadowOpacity;
+  }
+
   function resetSwipeStage() {
-    pageStage.classList.remove('nb-turning', 'nb-turn-fwd', 'nb-turn-back');
     pageStage.style.transform = '';
+    pageStage.style.transition = '';
+    pageIncoming.style.transform = '';
+    pageIncoming.style.transition = '';
     pageIncoming.style.display = 'none';
+    if (pageStage._shadowEl) pageStage._shadowEl.style.opacity = 0;
     hideSwipeHints();
   }
+
+  // Lazily create a shadow overlay div on pageStage for the slide shadow
+  // (can't use ::after because CSS custom properties don't animate opacity
+  // on pseudo-elements in all WebKit versions)
+  function ensureShadowEl() {
+    if (pageStage._shadowEl) return;
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position:absolute; inset:0; pointer-events:none; border-radius:3px;
+      opacity:0; z-index:10; transition:none;
+    `;
+    // Direction set at swipe-lock time
+    pageStage.appendChild(el);
+    pageStage._shadowEl = el;
+  }
+
+  const EASE_OUT_QUART = 'cubic-bezier(0.25, 1, 0.5, 1)';
+  const EASE_SPRING    = 'cubic-bezier(0.34, 1.4, 0.64, 1)'; // slight overshoot = alive
 
   function finishSwipe(commit) {
     if (!swipeState) return;
     const s = swipeState;
     swipeState = null;
-    if (!s.locked) return; // never got past direction-lock, nothing to do
+    if (!s.locked) return;
 
     const dt   = Math.max(1, s.lastT - s.startT);
     const dist  = Math.abs(s.lastX - s.startX);
     const vel   = dist / dt;
     const shouldCommit = commit && (dist >= SWIPE_COMMIT_DIST || vel >= SWIPE_COMMIT_VEL);
 
-    pageStage.classList.add('nb-turning');
+    // Duration scales with remaining distance — a fast flick that's 80% done
+    // takes much less time to finish than one barely started.
+    const remaining = shouldCommit
+      ? (s.pageW - dist) / s.pageW   // fraction left to travel
+      : dist / s.pageW;               // fraction to spring back
+    const dur = Math.max(160, Math.round(remaining * 380));
+    const durS = dur / 1000;
+    const easing = shouldCommit ? EASE_OUT_QUART : EASE_SPRING;
+
     if (shouldCommit) {
-      const fullAngle = s.edge === 'right' ? -140 : 140;
-      pageStage.style.transform = `rotateY(${fullAngle}deg)`;
+      // Slide outgoing page fully off
+      const offscreen = s.edge === 'right' ? -s.pageW * 1.05 : s.pageW * 1.05;
+      pageStage.style.transition = `transform ${durS}s ${easing}`;
+      pageStage.style.transform  = `translateX(${offscreen}px)`;
+      // Incoming page slides to position 0
+      pageIncoming.style.transition = `transform ${durS}s ${easing}`;
+      pageIncoming.style.transform  = 'translateX(0px)';
+      if (pageStage._shadowEl) {
+        pageStage._shadowEl.style.transition = `opacity ${durS}s ease`;
+        pageStage._shadowEl.style.opacity = 0;
+      }
       setTimeout(() => {
         suppressStageReset = true;
-        if (s.isNewPage) {
-          // newPage() calls loadPage() internally, so the suppressStageReset
-          // flag protects us here the same way it does for a direct loadPage.
-          newPage();
-        } else {
-          loadPage(s.targetId);
-        }
+        if (s.isNewPage) { newPage(); } else { loadPage(s.targetId); }
         suppressStageReset = false;
-        pageStage.classList.remove('nb-turning');
-        pageStage.style.transform = `rotateY(${-fullAngle}deg)`;
+        // New page lands at translateX(0) — slide in from the same side the
+        // old page exited, for a continuous feel
+        const fromSide = s.edge === 'right' ? s.pageW * 0.15 : -s.pageW * 0.15;
+        pageStage.style.transition = 'none';
+        pageStage.style.transform  = `translateX(${fromSide}px)`;
         pageIncoming.style.display = 'none';
+        if (pageStage._shadowEl) pageStage._shadowEl.style.opacity = 0;
         hideSwipeHints();
         requestAnimationFrame(() => requestAnimationFrame(() => {
-          pageStage.classList.add('nb-turning');
-          pageStage.style.transform = 'rotateY(0deg)';
-          setTimeout(() => pageStage.classList.remove('nb-turning', 'nb-turn-fwd', 'nb-turn-back'), 340);
+          pageStage.style.transition = `transform 0.28s ${EASE_SPRING}`;
+          pageStage.style.transform  = 'translateX(0px)';
+          setTimeout(resetSwipeStage, 300);
         }));
-      }, 320);
+      }, dur + 16);
     } else {
-      pageStage.style.transform = 'rotateY(0deg)';
-      setTimeout(resetSwipeStage, 320);
+      // Spring back to rest
+      pageStage.style.transition = `transform ${durS}s ${EASE_SPRING}`;
+      pageStage.style.transform  = 'translateX(0px)';
+      const incomingRest = s.edge === 'right' ? s.pageW * 0.28 : -s.pageW * 0.28;
+      pageIncoming.style.transition = `transform ${durS}s ${EASE_SPRING}`;
+      pageIncoming.style.transform  = `translateX(${incomingRest}px)`;
+      if (pageStage._shadowEl) {
+        pageStage._shadowEl.style.transition = `opacity ${durS}s ease`;
+        pageStage._shadowEl.style.opacity = 0;
+      }
+      setTimeout(resetSwipeStage, dur + 16);
     }
   }
 
