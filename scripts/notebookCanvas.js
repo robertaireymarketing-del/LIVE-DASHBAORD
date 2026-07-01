@@ -326,12 +326,12 @@ export function openNotebook({ state, saveData }) {
     /* Persistent toggle tab — sits on the right edge of the sidebar, always visible */
     #nbSideTab {
       position:absolute; top:50%; transform:translateY(-50%);
-      right:-20px; width:20px; height:48px;
+      right:-28px; width:28px; height:64px;
       background:#0d0d1a; border:1px solid rgba(255,255,255,0.12);
-      border-left:none; border-radius:0 6px 6px 0;
+      border-left:none; border-radius:0 8px 8px 0;
       display:flex; align-items:center; justify-content:center;
       cursor:pointer; z-index:10; flex-shrink:0;
-      font-size:10px; color:#fff !important;
+      font-size:13px; color:#fff !important;
       user-select:none;
     }
     #nbSideTab:hover { background:#1a1a3a; }
@@ -374,7 +374,8 @@ export function openNotebook({ state, saveData }) {
     }
     .nb-folder-row:hover { background:rgba(255,255,255,0.08) !important; }
     .nb-folder-name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#ffffff !important; }
-    .nb-folder-dot  { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+    .nb-folder-dot  { width:9px; height:9px; border-radius:50%; flex-shrink:0; transition:transform 0.15s; }
+    .nb-folder-dot:hover { transform:scale(1.4); }
     .nb-folder-actions { display:none; gap:3px; }
     .nb-folder-row:hover .nb-folder-actions { display:flex; }
     .nb-folder-action-btn {
@@ -394,16 +395,37 @@ export function openNotebook({ state, saveData }) {
     }
     .nb-page-row:hover  { background:rgba(255,255,255,0.10) !important; }
     .nb-page-row.active { background:rgba(201,168,76,0.18) !important; border-color:rgba(201,168,76,0.4) !important; }
-    .nb-page-icon  { font-size:14px; flex-shrink:0; }
     .nb-page-info  { flex:1; min-width:0; }
-    .nb-page-title { font-size:11px; font-weight:700; color:#ffffff !important; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .nb-page-title {
+      font-size:11px; font-weight:700; color:#ffffff !important;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .nb-page-title[contenteditable="true"] {
+      white-space:nowrap; overflow:visible; text-overflow:clip;
+      color:#ffffff !important;
+    }
     .nb-page-date  { font-size:9px; color:rgba(255,255,255,0.5) !important; margin-top:2px; }
-    .nb-page-del   { background:none !important; border:none !important; color:rgba(255,255,255,0.3) !important; cursor:pointer; font-size:12px; padding:2px 4px; border-radius:3px; display:none; }
-    .nb-page-row:hover .nb-page-del { display:block; }
+
+    /* Colour dot — always visible, tappable */
+    .nb-page-colour-dot {
+      flex-shrink:0; cursor:pointer;
+      transition:transform 0.15s;
+    }
+    .nb-page-colour-dot:hover { transform:scale(1.35); }
+
+    /* Rename + delete button group */
+    .nb-page-actions { display:none; gap:2px; align-items:center; }
+    .nb-page-row:hover .nb-page-actions { display:flex; }
+    .nb-page-action-btn {
+      background:none !important; border:none !important;
+      color:rgba(255,255,255,0.35) !important;
+      cursor:pointer; font-size:11px; padding:2px 5px;
+      border-radius:4px; line-height:1;
+    }
+    .nb-page-action-btn:hover { background:rgba(255,255,255,0.12) !important; color:#fff !important; }
     .nb-page-del:hover { background:rgba(231,76,60,0.25) !important; color:#ff6b6b !important; }
 
-    /* Drag handle — always visible (subtle) so the drag affordance is
-       discoverable on touch, where there's no hover state to reveal it */
+    /* Drag handle */
     .nb-page-handle {
       flex-shrink:0; color:rgba(255,255,255,0.28) !important;
       font-size:13px; cursor:grab; touch-action:none;
@@ -411,7 +433,19 @@ export function openNotebook({ state, saveData }) {
     }
     .nb-page-handle:active { cursor:grabbing; color:rgba(255,255,255,0.6) !important; }
 
-    /* Drop-target indicators while dragging */
+    /* Pinned pages — gold left border accent, star always visible */
+    .nb-page-row.nb-page-pinned {
+      border-left-color: rgba(201,168,76,0.55) !important;
+    }
+    .nb-page-row.nb-page-pinned .nb-page-pin {
+      display:block !important;
+      color:#C9A84C !important;
+    }
+    /* Pin star: hidden until hover normally, shown if already pinned */
+    .nb-page-pin { display:none; }
+    .nb-page-row:hover .nb-page-pin { display:block; }
+
+
     .nb-page-row.nb-drop-above  { border-top-color:#C9A84C !important; }
     .nb-page-row.nb-drop-below  { border-bottom-color:#C9A84C !important; }
     .nb-folder-row.nb-drop-into { background:rgba(201,168,76,0.28) !important; outline:1px dashed rgba(201,168,76,0.7); }
@@ -425,7 +459,7 @@ export function openNotebook({ state, saveData }) {
       box-shadow:0 10px 28px rgba(0,0,0,0.5) !important;
       background:#2f2f42 !important;
     }
-    .nb-page-row-ghost .nb-page-del { display:none !important; }
+    .nb-page-row-ghost .nb-page-actions { display:none !important; }
 
     /* "No pages" empty message inside sidebar */
     #nbSideList > div { color:#ffffff !important; }
@@ -1011,7 +1045,11 @@ export function openNotebook({ state, saveData }) {
   function pagesInGroup(folderId) {
     return (meta.pages||[])
       .filter(p => (p.folderId||null)===(folderId||null))
-      .sort((a,b) => (a.order||0)-(b.order||0));
+      .sort((a,b) => {
+        // Pinned pages float to the top within their group
+        if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
+        return (a.order||0) - (b.order||0);
+      });
   }
 
   // The full notebook sequence — folders in their array order, each folder's
@@ -1031,8 +1069,9 @@ export function openNotebook({ state, saveData }) {
     let html = '';
 
     (meta.folders||[]).forEach(folder => {
+      const col = folder.colour || '#C9A84C';
       html += `<div class="nb-folder-row" data-folder-id="${folder.id}">
-        <span class="nb-folder-dot" style="background:${folder.colour||'#C9A84C'};"></span>
+        <span class="nb-folder-dot" data-colour-folder="${folder.id}" title="Set colour" style="background:${col};cursor:pointer;"></span>
         <span class="nb-folder-name">📁 ${folder.name}</span>
         <div class="nb-folder-actions">
           <button class="nb-folder-action-btn" data-rename-folder="${folder.id}">✎</button>
@@ -1057,28 +1096,57 @@ export function openNotebook({ state, saveData }) {
       el.addEventListener('click', e => { if (dragState) return; loadPage(el.dataset.pageId); });
       el.querySelector('.nb-page-del').addEventListener('click', e => { e.stopPropagation(); deletePage(el.dataset.pageId); });
       el.querySelector('.nb-page-handle').addEventListener('pointerdown', e => startPageDrag(e, el));
+      el.querySelector('.nb-page-rename').addEventListener('click', e => { e.stopPropagation(); renamePage(el.dataset.pageId); });
+      el.querySelector('.nb-page-colour-dot').addEventListener('click', e => { e.stopPropagation(); pickPageColour(el.dataset.pageId, e.currentTarget); });
+      el.querySelector('.nb-page-pin').addEventListener('click', e => { e.stopPropagation(); togglePin(el.dataset.pageId); });
     });
     sideList.querySelectorAll('[data-rename-folder]').forEach(btn =>
       btn.addEventListener('click', e => { e.stopPropagation(); renameFolder(btn.dataset.renameFolder); }));
     sideList.querySelectorAll('[data-delete-folder]').forEach(btn =>
       btn.addEventListener('click', e => { e.stopPropagation(); deleteFolder(btn.dataset.deleteFolder); }));
+    sideList.querySelectorAll('[data-colour-folder]').forEach(dot =>
+      dot.addEventListener('click', e => { e.stopPropagation(); pickFolderColour(dot.dataset.colourFolder, dot); }));
 
     if (activePageId) {
       const el = sideList.querySelector(`[data-page-id="${activePageId}"]`);
-      if (el) el.classList.add('active');
+      if (el) {
+        el.classList.add('active');
+        // If the page has a colour, tint the active row's left border with it
+        const page = (meta.pages||[]).find(p=>p.id===activePageId);
+        if (page?.colour) el.style.borderLeftColor = page.colour;
+      }
     }
+    // Apply subtle left tint to all coloured rows (not just active)
+    sideList.querySelectorAll('.nb-page-row').forEach(el => {
+      const page = (meta.pages||[]).find(p=>p.id===el.dataset.pageId);
+      if (page?.colour && el.dataset.pageId !== activePageId) {
+        el.style.borderLeftColor = page.colour + '88'; // 53% opacity tint
+      }
+    });
   }
 
   function matchFilter(p,fl) { return !fl || (p.title||'').toLowerCase().includes(fl) || (p.dateKey||'').includes(fl); }
 
   function pageRowHtml(page, indented) {
-    return `<div class="nb-page-row" data-page-id="${page.id}" style="${indented?'padding-left:20px;':''}">
-      <span class="nb-page-handle" title="Drag to reorder / move to folder">⠿</span><span class="nb-page-icon">📄</span>
+    const col = page.colour || null;
+    const dotStyle = col
+      ? `background:${col};width:8px;height:8px;border-radius:50%;flex-shrink:0;`
+      : `width:8px;height:8px;border-radius:50%;flex-shrink:0;border:1px dashed rgba(255,255,255,0.25);`;
+    const pinIcon  = page.pinned ? '★' : '☆';
+    const pinTitle = page.pinned ? 'Unpin page' : 'Pin to top';
+    const pinStyle = page.pinned ? 'color:#C9A84C !important;' : '';
+    return `<div class="nb-page-row${page.pinned?' nb-page-pinned':''}" data-page-id="${page.id}" style="${indented?'padding-left:20px;':''}">
+      <span class="nb-page-handle" title="Drag to reorder / move to folder">⠿</span>
+      <span class="nb-page-colour-dot" data-colour-page="${page.id}" title="Set colour" style="${dotStyle}"></span>
       <div class="nb-page-info">
         <div class="nb-page-title">${page.title||'Untitled'}</div>
         <div class="nb-page-date">${fmtDate(page.dateKey||todayISO())}</div>
       </div>
-      <button class="nb-page-del">🗑</button>
+      <div class="nb-page-actions">
+        <button class="nb-page-action-btn nb-page-pin" data-pin-page="${page.id}" title="${pinTitle}" style="${pinStyle}">${pinIcon}</button>
+        <button class="nb-page-action-btn nb-page-rename" data-rename-page="${page.id}" title="Rename">✎</button>
+        <button class="nb-page-action-btn nb-page-del" title="Delete">🗑</button>
+      </div>
     </div>`;
   }
 
@@ -1335,7 +1403,170 @@ export function openNotebook({ state, saveData }) {
     persistMeta(); renderSidebar(searchBox.value);
   }
 
-  pageTitleIn.addEventListener('blur',()=>{
+  function togglePin(id) {
+    const page = (meta.pages||[]).find(p=>p.id===id); if (!page) return;
+    page.pinned = !page.pinned;
+    persistMeta(); renderSidebar(searchBox.value);
+  }
+
+  function renamePage(id) {
+    const page = (meta.pages||[]).find(p=>p.id===id); if (!page) return;
+    // Find the title element in the sidebar and make it inline-editable
+    const row = sideList.querySelector(`[data-page-id="${id}"]`); if (!row) return;
+    const titleEl = row.querySelector('.nb-page-title'); if (!titleEl) return;
+    const current = page.title || '';
+    titleEl.contentEditable = 'true';
+    titleEl.textContent = current;
+    titleEl.style.outline = '1px solid rgba(201,168,76,0.6)';
+    titleEl.style.borderRadius = '3px';
+    titleEl.style.padding = '0 2px';
+    titleEl.focus();
+    // Select all text
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(titleEl);
+    sel.removeAllRanges(); sel.addRange(range);
+    function commit() {
+      const newTitle = titleEl.textContent.trim() || todayISO();
+      titleEl.contentEditable = 'false';
+      titleEl.style.outline = '';
+      titleEl.style.borderRadius = '';
+      titleEl.style.padding = '';
+      page.title = newTitle;
+      // Keep toolbar title in sync if this is the open page
+      if (activePageId === id && pageTitleIn) pageTitleIn.value = newTitle;
+      persistMeta(); renderSidebar(searchBox.value);
+    }
+    titleEl.addEventListener('blur', commit, { once: true });
+    titleEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
+      if (e.key === 'Escape') { titleEl.textContent = current; titleEl.blur(); }
+    }, { once: true });
+  }
+
+  // Colour swatches available for page colour-coding
+  const PAGE_COLOURS = [
+    '#e74c3c','#e67e22','#f1c40f','#2ecc71','#1abc9c',
+    '#3498db','#9b59b6','#e91e63','#795548','#607d8b',
+  ];
+  let colourPopover = null;
+
+  function pickPageColour(id, dotEl) {
+    // Close any existing popover
+    if (colourPopover) { colourPopover.remove(); colourPopover = null; }
+    const page = (meta.pages||[]).find(p=>p.id===id); if (!page) return;
+
+    const pop = document.createElement('div');
+    pop.style.cssText = `
+      position:fixed; z-index:99999;
+      background:#1e1e2e; border:1px solid rgba(255,255,255,0.15);
+      border-radius:10px; padding:8px 10px;
+      box-shadow:0 8px 28px rgba(0,0,0,0.55);
+      display:flex; flex-wrap:wrap; gap:7px; width:156px;
+    `;
+    // Position below the dot
+    const r = dotEl.getBoundingClientRect();
+    pop.style.top  = (r.bottom + 6) + 'px';
+    pop.style.left = (r.left - 8)   + 'px';
+
+    PAGE_COLOURS.forEach(col => {
+      const sw = document.createElement('div');
+      sw.style.cssText = `
+        width:20px; height:20px; border-radius:50%; background:${col};
+        cursor:pointer; flex-shrink:0;
+        box-shadow: ${page.colour===col ? '0 0 0 2px #fff, 0 0 0 4px '+col : 'none'};
+        transition: transform 0.1s;
+      `;
+      sw.title = col;
+      sw.addEventListener('click', e => {
+        e.stopPropagation();
+        page.colour = col;
+        persistMeta(); renderSidebar(searchBox.value);
+        pop.remove(); colourPopover = null;
+      });
+      sw.addEventListener('pointerenter', () => { sw.style.transform = 'scale(1.2)'; });
+      sw.addEventListener('pointerleave', () => { sw.style.transform = ''; });
+      pop.appendChild(sw);
+    });
+
+    // Clear option
+    const clear = document.createElement('div');
+    clear.title = 'Remove colour';
+    clear.style.cssText = `
+      width:20px; height:20px; border-radius:50%; cursor:pointer;
+      flex-shrink:0; border:1px dashed rgba(255,255,255,0.35);
+      display:flex; align-items:center; justify-content:center;
+      color:rgba(255,255,255,0.45); font-size:10px;
+      transition: transform 0.1s;
+    `;
+    clear.textContent = '✕';
+    clear.addEventListener('click', e => {
+      e.stopPropagation();
+      delete page.colour;
+      persistMeta(); renderSidebar(searchBox.value);
+      pop.remove(); colourPopover = null;
+    });
+    pop.appendChild(clear);
+
+    document.body.appendChild(pop);
+    colourPopover = pop;
+
+    // Close on outside click
+    setTimeout(() => {
+      document.addEventListener('pointerdown', function close(e) {
+        if (!pop.contains(e.target)) { pop.remove(); colourPopover = null; document.removeEventListener('pointerdown', close); }
+      });
+    }, 10);
+  }
+
+  function pickFolderColour(id, dotEl) {
+    if (colourPopover) { colourPopover.remove(); colourPopover = null; }
+    const folder = (meta.folders||[]).find(f=>f.id===id); if (!folder) return;
+    const current = folder.colour || '#C9A84C';
+
+    const pop = document.createElement('div');
+    pop.style.cssText = `
+      position:fixed; z-index:99999;
+      background:#1e1e2e; border:1px solid rgba(255,255,255,0.15);
+      border-radius:10px; padding:8px 10px;
+      box-shadow:0 8px 28px rgba(0,0,0,0.55);
+      display:flex; flex-wrap:wrap; gap:7px; width:156px;
+    `;
+    const r = dotEl.getBoundingClientRect();
+    pop.style.top  = (r.bottom + 6) + 'px';
+    pop.style.left = (r.left - 8)   + 'px';
+
+    const FOLDER_COLOURS = ['#C9A84C','#e74c3c','#e67e22','#f1c40f','#2ecc71',
+                            '#1abc9c','#3498db','#9b59b6','#e91e63','#607d8b'];
+    FOLDER_COLOURS.forEach(col => {
+      const sw = document.createElement('div');
+      sw.style.cssText = `
+        width:20px; height:20px; border-radius:50%; background:${col};
+        cursor:pointer; flex-shrink:0;
+        box-shadow:${current===col ? '0 0 0 2px #fff, 0 0 0 4px '+col : 'none'};
+        transition:transform 0.1s;
+      `;
+      sw.addEventListener('click', e => {
+        e.stopPropagation();
+        folder.colour = col;
+        persistMeta(); renderSidebar(searchBox.value);
+        pop.remove(); colourPopover = null;
+      });
+      sw.addEventListener('pointerenter', () => { sw.style.transform = 'scale(1.2)'; });
+      sw.addEventListener('pointerleave', () => { sw.style.transform = ''; });
+      pop.appendChild(sw);
+    });
+
+    document.body.appendChild(pop);
+    colourPopover = pop;
+    setTimeout(() => {
+      document.addEventListener('pointerdown', function close(e) {
+        if (!pop.contains(e.target)) { pop.remove(); colourPopover = null; document.removeEventListener('pointerdown', close); }
+      });
+    }, 10);
+  }
+
+
     if (!activePageId) return;
     const page=(meta.pages||[]).find(p=>p.id===activePageId);
     if (page) { page.title=pageTitleIn.value.trim()||todayISO(); persistMeta(); }
@@ -1897,6 +2128,21 @@ export function openNotebook({ state, saveData }) {
       pageIncoming.style.display = 'block';
       pageIncoming.style.width  = swipeState.pageW + 'px';
       pageIncoming.style.height = canvas.getBoundingClientRect().height + 'px';
+      // Render the target page's paper style onto pageIncoming so it looks
+      // like a real lined (or squared/dotted/plain) page being revealed,
+      // not just a blank white rectangle.
+      const targetPaperStyle = isNewPage ? paperStyle : (pages[targetId]?.paperStyle || 'lined');
+      const pw = Math.round(swipeState.pageW);
+      const ph = Math.round(parseFloat(pageIncoming.style.height));
+      const dpr = Math.min(window.devicePixelRatio||1, 2); // cap at 2x for speed
+      const oc = document.createElement('canvas');
+      oc.width = pw * dpr; oc.height = ph * dpr;
+      const oc2 = oc.getContext('2d');
+      oc2.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawPaperOnContext(oc2, pw, ph, 1, targetPaperStyle);
+      pageIncoming.style.backgroundImage = `url(${oc.toDataURL()})`;
+      pageIncoming.style.backgroundSize  = '100% 100%';
+      pageIncoming.style.backgroundColor = PAPER_BG;
       // Start incoming page from its parallax-offset rest position
       const incomingStart = edge === 'right' ? swipeState.pageW * 0.28 : -swipeState.pageW * 0.28;
       pageIncoming.style.transform = `translateX(${incomingStart}px)`;
