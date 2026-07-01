@@ -373,6 +373,18 @@ export function openNotebook({ state, saveData }) {
       color:#ffffff !important; font:700 11px inherit; cursor:pointer; user-select:none;
     }
     .nb-folder-row:hover { background:rgba(255,255,255,0.08) !important; }
+    .nb-folder-chevron {
+      font-size:12px; color:rgba(255,255,255,0.4) !important;
+      flex-shrink:0; width:10px; text-align:center;
+      transition:transform 0.18s ease;
+    }
+    .nb-folder-collapsed .nb-folder-chevron { transform:none; }
+    .nb-folder-count {
+      font-size:9px; font-weight:700;
+      background:rgba(255,255,255,0.12);
+      color:rgba(255,255,255,0.5) !important;
+      border-radius:8px; padding:1px 5px; flex-shrink:0;
+    }
     .nb-folder-name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#ffffff !important; }
     .nb-folder-dot  { width:9px; height:9px; border-radius:50%; flex-shrink:0; transition:transform 0.15s; }
     .nb-folder-dot:hover { transform:scale(1.4); }
@@ -1069,18 +1081,27 @@ export function openNotebook({ state, saveData }) {
     let html = '';
 
     (meta.folders||[]).forEach(folder => {
-      const col = folder.colour || '#C9A84C';
-      html += `<div class="nb-folder-row" data-folder-id="${folder.id}">
+      const col       = folder.colour || '#C9A84C';
+      const collapsed = collapsedFolders.has(folder.id);
+      const chevron   = collapsed ? '›' : '⌄';
+      const pageCount = pagesInGroup(folder.id).length;
+      const countBadge = collapsed && pageCount
+        ? `<span class="nb-folder-count">${pageCount}</span>` : '';
+      html += `<div class="nb-folder-row${collapsed?' nb-folder-collapsed':''}" data-folder-id="${folder.id}">
+        <span class="nb-folder-chevron">${chevron}</span>
         <span class="nb-folder-dot" data-colour-folder="${folder.id}" title="Set colour" style="background:${col};cursor:pointer;"></span>
         <span class="nb-folder-name">📁 ${folder.name}</span>
+        ${countBadge}
         <div class="nb-folder-actions">
           <button class="nb-folder-action-btn" data-rename-folder="${folder.id}">✎</button>
           <button class="nb-folder-action-btn" data-delete-folder="${folder.id}" style="color:rgba(231,76,60,0.7);">✕</button>
         </div>
       </div>`;
-      pagesInGroup(folder.id)
-        .filter(p => matchFilter(p,fl))
-        .forEach(p => { html += pageRowHtml(p,true); });
+      if (!collapsed) {
+        pagesInGroup(folder.id)
+          .filter(p => matchFilter(p,fl))
+          .forEach(p => { html += pageRowHtml(p,true); });
+      }
     });
 
     const unfiled = pagesInGroup(null).filter(p => matchFilter(p,fl));
@@ -1106,6 +1127,16 @@ export function openNotebook({ state, saveData }) {
       btn.addEventListener('click', e => { e.stopPropagation(); deleteFolder(btn.dataset.deleteFolder); }));
     sideList.querySelectorAll('[data-colour-folder]').forEach(dot =>
       dot.addEventListener('click', e => { e.stopPropagation(); pickFolderColour(dot.dataset.colourFolder, dot); }));
+    sideList.querySelectorAll('.nb-folder-row').forEach(row => {
+      row.addEventListener('click', e => {
+        // Don't toggle if clicking an action button or colour dot
+        if (e.target.closest('.nb-folder-actions') || e.target.closest('[data-colour-folder]')) return;
+        const id = row.dataset.folderId;
+        if (collapsedFolders.has(id)) collapsedFolders.delete(id);
+        else collapsedFolders.add(id);
+        renderSidebar(searchBox.value);
+      });
+    });
 
     if (activePageId) {
       const el = sideList.querySelector(`[data-page-id="${activePageId}"]`);
@@ -1159,6 +1190,7 @@ export function openNotebook({ state, saveData }) {
      This directly rewrites `folderId`/`order`, which is also what drives
      swipe sequence — so reordering here IS reordering the notebook. */
   let dragState = null; // { pageId, ghostEl, lastTargetEl }
+  const collapsedFolders = new Set(); // folder ids that are currently collapsed
 
   function startPageDrag(e, rowEl) {
     e.preventDefault();
