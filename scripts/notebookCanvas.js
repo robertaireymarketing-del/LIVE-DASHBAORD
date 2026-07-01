@@ -89,7 +89,7 @@ export function openNotebook({ state, saveData }) {
   let tool      = 'pen';
   let toolBeforeSelect = 'pen'; // restored when deselecting a shape/text box
   let penColor  = INK_DEFAULT;
-  let strokeW   = 2.5;
+  let strokeW   = 1.8;
   let zoomLevel = 1.0;
   let tbCollapsed = false;   // toolbar collapsed state
 
@@ -253,7 +253,6 @@ export function openNotebook({ state, saveData }) {
     }
     #nbCanvas {
       display:block; flex-shrink:0;
-      box-shadow:0 6px 32px rgba(0,0,0,0.5);
       border-radius:3px;
       /* touch-action:none set in JS */
       cursor:crosshair;
@@ -270,6 +269,26 @@ export function openNotebook({ state, saveData }) {
       transform-style:preserve-3d;
       transition:none; /* JS drives transform directly while dragging */
       position:relative;
+      /* Paper stack on the right — layered box-shadows simulate page edges
+         peeking out, like the fore-edge of a real bound notebook. Each layer
+         is slightly darker and offset further right to give depth. */
+      box-shadow:
+        /* page edges — creamy white slivers getting progressively darker */
+        2px 0 0 0px #f0ede4,
+        3px 0 0 1px #e8e4d8,
+        5px 0 0 2px #ddd8cb,
+        7px 0 0 3px #d4cfbf,
+        9px 0 0 4px #cbc5b4,
+        11px 0 0 5px #c0baa8,
+        /* the main page drop shadow (replaces the old canvas box-shadow) */
+        0 6px 32px rgba(0,0,0,0.5);
+    }
+    /* Spine line on the left edge — a narrow dark strip like a book binding */
+    #nbPageStage::before {
+      content:''; position:absolute; inset:0; pointer-events:none;
+      border-left:3px solid rgba(0,0,0,0.18);
+      border-radius:3px;
+      z-index:1;
     }
     #nbPageStage.nb-turning {
       transition:transform 0.32s cubic-bezier(.2,.7,.3,1), box-shadow 0.32s ease;
@@ -704,8 +723,8 @@ export function openNotebook({ state, saveData }) {
       <!-- Size — fixed container so dot resize never causes reflow -->
       <div id="nbSizeGroup">
         <div id="nbSizeDotWrap"><div id="nbSizeDot"></div></div>
-        <input type="range" id="nbSizeSlider" min="1" max="20" value="2.5" step="0.1" />
-        <span id="nbSizeVal">2.5</span>
+        <input type="range" id="nbSizeSlider" min="1" max="20" value="1.8" step="0.1" />
+        <span id="nbSizeVal">1.8</span>
       </div>
       <div class="nb-div"></div>
 
@@ -1860,11 +1879,16 @@ export function openNotebook({ state, saveData }) {
       // Primarily horizontal — lock in as a swipe
       const edge = dx < 0 ? 'right' : 'left'; // dragging left = going forward (right edge)
       const { prevId, nextId } = notebookNeighbors();
-      const targetId = edge === 'right' ? nextId : prevId;
-      if (!targetId) { swipeState = null; return; } // no page in that direction
+      let targetId = edge === 'right' ? nextId : prevId;
+      // Swiping forward past the last page creates a new one — like turning
+      // to a blank page at the end of a real notebook.
+      const isNewPage = (edge === 'right' && !nextId);
+      if (!targetId && !isNewPage) { swipeState = null; return; }
+      if (edge === 'left' && !prevId)  { swipeState = null; return; } // already at start, no back
       swipeState.locked = true;
       swipeState.edge = edge;
-      swipeState.targetId = targetId;
+      swipeState.targetId = targetId; // null if isNewPage — finishSwipe handles it
+      swipeState.isNewPage = isNewPage;
       // Capture the pointer so we keep getting events even if the finger
       // slides off the canvas edge mid-swipe.
       try { canvas.setPointerCapture(e.pointerId); } catch(_) {}
@@ -1910,7 +1934,13 @@ export function openNotebook({ state, saveData }) {
       pageStage.style.transform = `rotateY(${fullAngle}deg)`;
       setTimeout(() => {
         suppressStageReset = true;
-        loadPage(s.targetId);
+        if (s.isNewPage) {
+          // newPage() calls loadPage() internally, so the suppressStageReset
+          // flag protects us here the same way it does for a direct loadPage.
+          newPage();
+        } else {
+          loadPage(s.targetId);
+        }
         suppressStageReset = false;
         pageStage.classList.remove('nb-turning');
         pageStage.style.transform = `rotateY(${-fullAngle}deg)`;
