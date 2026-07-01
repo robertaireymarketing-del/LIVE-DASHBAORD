@@ -1790,43 +1790,27 @@ export function openNotebook({ state, saveData }) {
 
   /* ══════════════════════════════════════════════════════════════════════
      SWIPE-TO-TURN-PAGE
-     A one-finger (or Pencil) drag starting near the LEFT or RIGHT edge of
-     the visible page turns to the previous/next page in notebookSequence().
-     Edge-anchored so it can never collide with: drawing (pen mode reserves
-     drag-on-the-page-body), one-finger pan (also page-body), or pinch/pan
-     (two-finger). It works in any tool, like a real notebook page corner.
+     Touch drag anywhere on the canvas — touch pointers are already fully
+     blocked from drawing (palm rejection), so any horizontal touch drag is
+     unambiguously a page-turn gesture. Direction is determined after a few
+     pixels of movement so accidental vertical scrolls don't trigger it.
+     Works in any tool mode (pen, eraser, pan — doesn't matter, touch never
+     draws). The Pencil is explicitly excluded (always draws/selects).
   ══════════════════════════════════════════════════════════════════════ */
-  const SWIPE_EDGE_ZONE   = 46;   // px from page edge that "grabs" the corner
-  const SWIPE_COMMIT_DIST = 70;   // px of horizontal drag to commit the turn
-  const SWIPE_COMMIT_VEL  = 0.45; // px/ms — a fast flick commits even if short
+  const SWIPE_LOCK_DIST    = 12;   // px before we decide horizontal vs vertical
+  const SWIPE_COMMIT_DIST  = 80;   // px of horizontal drag to commit the turn
+  const SWIPE_COMMIT_VEL   = 0.4;  // px/ms — fast flick commits even if short
 
-  let swipeState = null; // { pointerId, edge:'left'|'right', startX, startT, lastX, lastT, pageW }
-
-  function pageEdgeHit(e) {
-    // TOUCH ONLY: pen and mouse pointers near the edge should draw or click
-    // as normal, never turn the page. (Without this, the only thing
-    // preventing a Pencil-down at the margin from accidentally triggering a
-    // swipe was DOM bubble order — canvas's own pointerdown listener happens
-    // to run first and captures pen/mouse for drawing — which is fragile to
-    // rely on implicitly. Being explicit here removes that dependency.)
-    if (e.pointerType!=='touch') return null;
-    if (!activePageId) return null;
-    if (isPinching || curStroke || curShapePreview || isOneFingerPanning) return null;
-    if (dragState) return null; // a sidebar page-row drag is in progress
-    const rect = canvas.getBoundingClientRect();
-    if (e.clientY < rect.top || e.clientY > rect.bottom) return null;
-    if (e.clientX >= rect.left && e.clientX <= rect.left+SWIPE_EDGE_ZONE) return 'left';
-    if (e.clientX <= rect.right && e.clientX >= rect.right-SWIPE_EDGE_ZONE) return 'right';
-    return null;
-  }
+  let swipeState = null;
+  // { pointerId, startX, startY, startT, lastX, lastT, pageW, edge, targetId, locked }
 
   function notebookNeighbors() {
     const seq = notebookSequence();
     const idx = seq.indexOf(activePageId);
     return {
       seq, idx,
-      prevId: idx>0 ? seq[idx-1] : null,
-      nextId: (idx>=0 && idx<seq.length-1) ? seq[idx+1] : null,
+      prevId: idx > 0 ? seq[idx-1] : null,
+      nextId: (idx >= 0 && idx < seq.length-1) ? seq[idx+1] : null,
     };
   }
 
@@ -1840,46 +1824,70 @@ export function openNotebook({ state, saveData }) {
     swipeHintNext.classList.remove('nb-show');
   }
 
-  canvasWrap.addEventListener('pointerdown', e => {
-    const edge = pageEdgeHit(e);
-    if (!edge) return;
-    const { prevId, nextId } = notebookNeighbors();
-    const wantsPage = edge==='left' ? prevId : nextId;
-    if (!wantsPage) return; // already at the first/last page — nothing to turn to
-    e.preventDefault();
-    canvasWrap.setPointerCapture(e.pointerId);
-    const rect = canvas.getBoundingClientRect();
+  // Listen on the canvas element itself — it's always the touch target,
+  // and we're already blocking touch from drawing there, so no conflict.
+  canvas.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'touch') return; // Pencil/mouse never swipe
+    if (!activePageId || isPinching || dragState) return;
+    if (curStroke || curShapePreview || isOneFingerPanning) return;
+    if (tool === 'pan') return; // pan tool owns finger drag for canvas scrolling
+    // Start tracking; don't commit to swipe yet — wait until we see which
+    // direction the finger is actually moving (SWIPE_LOCK_DIST pixels).
     swipeState = {
-      pointerId:e.pointerId, edge, targetId:wantsPage,
-      startX:e.clientX, startT:performance.now(),
-      lastX:e.clientX, lastT:performance.now(),
-      pageW:rect.width,
+      pointerId: e.pointerId,
+      startX: e.clientX, startY: e.clientY, startT: performance.now(),
+      lastX: e.clientX, lastT: performance.now(),
+      pageW: canvas.getBoundingClientRect().width,
+      locked: false, edge: null, targetId: null,
     };
-    pageStage.style.transformOrigin = edge==='left' ? '0% 50%' : '100% 50%';
-    pageIncoming.style.display = 'block';
-    pageIncoming.style.width  = rect.width+'px';
-    pageIncoming.style.height = rect.height+'px';
-    showSwipeHints();
-  }, { passive:false });
+  }, { passive: true }); // passive: we only preventDefault once direction is locked
 
-  canvasWrap.addEventListener('pointermove', e => {
-    if (!swipeState || e.pointerId!==swipeState.pointerId) return;
-    e.preventDefault();
-    swipeState.lastX = e.clientX; swipeState.lastT = performance.now();
+  canvas.addEventListener('pointermove', e => {
+    if (!swipeState || e.pointerId !== swipeState.pointerId) return;
     const dx = e.clientX - swipeState.startX;
-    // Only ever fold in the direction that reveals the target page —
-    // dragging the wrong way just resists (tiny rotation) rather than doing
-    // nothing, so it still feels physically grabbed.
-    const towardTarget = swipeState.edge==='left' ? Math.max(0,dx) : Math.min(0,dx);
-    const progress = Math.min(1, Math.abs(towardTarget)/swipeState.pageW);
-    const angle = (swipeState.edge==='left' ? 1 : -1) * progress * 130; // degrees
-    pageStage.style.transform = `rotateY(${angle}deg)`;
-    pageStage.classList.toggle('nb-turn-fwd',  swipeState.edge==='right' && progress>0.02);
-    pageStage.classList.toggle('nb-turn-back', swipeState.edge==='left'  && progress>0.02);
-  }, { passive:false });
+    const dy = e.clientY - swipeState.startY;
+    swipeState.lastX = e.clientX;
+    swipeState.lastT = performance.now();
+
+    if (!swipeState.locked) {
+      // Haven't decided direction yet
+      if (Math.abs(dx) < SWIPE_LOCK_DIST && Math.abs(dy) < SWIPE_LOCK_DIST) return;
+      if (Math.abs(dy) > Math.abs(dx)) {
+        // Primarily vertical — this is a scroll gesture, abandon swipe
+        swipeState = null;
+        return;
+      }
+      // Primarily horizontal — lock in as a swipe
+      const edge = dx < 0 ? 'right' : 'left'; // dragging left = going forward (right edge)
+      const { prevId, nextId } = notebookNeighbors();
+      const targetId = edge === 'right' ? nextId : prevId;
+      if (!targetId) { swipeState = null; return; } // no page in that direction
+      swipeState.locked = true;
+      swipeState.edge = edge;
+      swipeState.targetId = targetId;
+      // Capture the pointer so we keep getting events even if the finger
+      // slides off the canvas edge mid-swipe.
+      try { canvas.setPointerCapture(e.pointerId); } catch(_) {}
+      pageStage.style.transformOrigin = edge === 'right' ? '100% 50%' : '0% 50%';
+      pageIncoming.style.display = 'block';
+      pageIncoming.style.width  = swipeState.pageW + 'px';
+      pageIncoming.style.height = canvas.getBoundingClientRect().height + 'px';
+      showSwipeHints();
+    }
+
+    // Locked into swipe — track finger and rotate the page
+    e.preventDefault();
+    const travel = e.clientX - swipeState.startX;
+    const towardTarget = swipeState.edge === 'right' ? Math.min(0, travel) : Math.max(0, travel);
+    const progress = Math.min(1, Math.abs(towardTarget) / swipeState.pageW);
+    const sign = swipeState.edge === 'right' ? -1 : 1;
+    pageStage.style.transform = `rotateY(${sign * progress * 130}deg)`;
+    pageStage.classList.toggle('nb-turn-fwd',  swipeState.edge === 'right' && progress > 0.02);
+    pageStage.classList.toggle('nb-turn-back', swipeState.edge === 'left'  && progress > 0.02);
+  }, { passive: false });
 
   function resetSwipeStage() {
-    pageStage.classList.remove('nb-turning','nb-turn-fwd','nb-turn-back');
+    pageStage.classList.remove('nb-turning', 'nb-turn-fwd', 'nb-turn-back');
     pageStage.style.transform = '';
     pageIncoming.style.display = 'none';
     hideSwipeHints();
@@ -1887,54 +1895,41 @@ export function openNotebook({ state, saveData }) {
 
   function finishSwipe(commit) {
     if (!swipeState) return;
-    const { edge, targetId } = swipeState;
-    const dt = Math.max(1, swipeState.lastT - swipeState.startT);
-    const dist = Math.abs(swipeState.lastX - swipeState.startX);
-    const vel = dist/dt;
-    const shouldCommit = commit && (dist>=SWIPE_COMMIT_DIST || vel>=SWIPE_COMMIT_VEL);
+    const s = swipeState;
     swipeState = null;
+    if (!s.locked) return; // never got past direction-lock, nothing to do
+
+    const dt   = Math.max(1, s.lastT - s.startT);
+    const dist  = Math.abs(s.lastX - s.startX);
+    const vel   = dist / dt;
+    const shouldCommit = commit && (dist >= SWIPE_COMMIT_DIST || vel >= SWIPE_COMMIT_VEL);
 
     pageStage.classList.add('nb-turning');
     if (shouldCommit) {
-      const fullAngle = edge==='left' ? 140 : -140;
+      const fullAngle = s.edge === 'right' ? -140 : 140;
       pageStage.style.transform = `rotateY(${fullAngle}deg)`;
       setTimeout(() => {
-        // Swap content while the page is folded away (face-on, invisible
-        // edge-on at ~90°+) — then immediately stage it at the OPPOSITE
-        // angle, pre-transition, so the next step can animate it unfolding
-        // back to flat. This is the actual "page turn" payoff: the new page
-        // visibly opens into view rather than just popping in.
         suppressStageReset = true;
-        loadPage(targetId);
+        loadPage(s.targetId);
         suppressStageReset = false;
-        pageStage.classList.remove('nb-turning'); // no transition for this jump
+        pageStage.classList.remove('nb-turning');
         pageStage.style.transform = `rotateY(${-fullAngle}deg)`;
         pageIncoming.style.display = 'none';
         hideSwipeHints();
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            pageStage.classList.add('nb-turning');
-            pageStage.style.transform = 'rotateY(0deg)';
-            setTimeout(() => pageStage.classList.remove('nb-turning','nb-turn-fwd','nb-turn-back'), 340);
-          });
-        });
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          pageStage.classList.add('nb-turning');
+          pageStage.style.transform = 'rotateY(0deg)';
+          setTimeout(() => pageStage.classList.remove('nb-turning', 'nb-turn-fwd', 'nb-turn-back'), 340);
+        }));
       }, 320);
     } else {
-      // Didn't pass the threshold — spring back to flat.
       pageStage.style.transform = 'rotateY(0deg)';
       setTimeout(resetSwipeStage, 320);
     }
   }
 
-  canvasWrap.addEventListener('pointerup', e => {
-    if (!swipeState || e.pointerId!==swipeState.pointerId) return;
-    e.preventDefault();
-    finishSwipe(true);
-  }, { passive:false });
-  canvasWrap.addEventListener('pointercancel', e => {
-    if (!swipeState || e.pointerId!==swipeState.pointerId) return;
-    finishSwipe(false);
-  });
+  canvas.addEventListener('pointerup',     e => { if (swipeState?.pointerId === e.pointerId) finishSwipe(true); },  { passive: true });
+  canvas.addEventListener('pointercancel', e => { if (swipeState?.pointerId === e.pointerId) finishSwipe(false); }, { passive: true });
 
   /* ══════════════════════════════════════════════════════════════════════
      DRAWING — Pointer Events on canvas
