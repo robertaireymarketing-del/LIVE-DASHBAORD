@@ -146,13 +146,20 @@ export function renderScenesTab({ state }) {
     .scenes-empty-emoji{font-size:44px;margin-bottom:12px;}
     .scenes-empty-title{font-size:18px;font-weight:900;color:#fff;margin-bottom:6px;}
     .scenes-empty-sub{font-size:13px;color:rgba(255,255,255,0.45);}
-    body.light .scenes-title,body.light .scene-name-input,body.light .scenes-empty-title{color:#111;}
-    body.light .scene-card{background:rgba(0,0,0,0.02);border-color:rgba(0,0,0,0.1);}
-    body.light .scene-row-input{color:#222;border-bottom-color:rgba(0,0,0,0.08);}
+    body.light .scenes-title,body.light .scene-name-input,body.light .scenes-empty-title{color:#1c1c1e;}
+    body.light .scene-card{background:#ffffff;border-color:rgba(0,0,0,0.08);box-shadow:0 1px 3px rgba(0,0,0,0.06);}
+    body.light .scene-name-input:focus{background:rgba(0,0,0,0.04);}
+    body.light .scene-body{border-top-color:rgba(0,0,0,0.08);}
+    body.light .scene-row-input{color:#1c1c1e;border-bottom-color:rgba(0,0,0,0.1);}
+    body.light .scene-row-input::placeholder{color:rgba(0,0,0,0.3);}
+    body.light .scene-row-remove{color:rgba(0,0,0,0.3);}
     body.light .scenes-sub,body.light .scenes-empty-sub,body.light .scene-count{color:rgba(0,0,0,0.45);}
+    body.light .scene-toggle{color:rgba(0,0,0,0.45);}
     body.light .scene-ctrl{background:rgba(0,0,0,0.05);color:rgba(0,0,0,0.6);}
-    body.light .scene-toggle{color:rgba(0,0,0,0.5);}
-    body.light .scene-body{border-top-color:rgba(0,0,0,0.06);}
+    body.light .scene-ctrl.danger{color:#e74c3c;}
+    body.light .scene-addrow{background:rgba(0,0,0,0.03);border-color:rgba(0,0,0,0.2);color:rgba(0,0,0,0.55);}
+    body.light .scene-confirm{color:rgba(0,0,0,0.6);}
+    body.light .scene-confirm-no{background:rgba(0,0,0,0.05);color:rgba(0,0,0,0.6);}
   </style>`;
 
   const header = `
