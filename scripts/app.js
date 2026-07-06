@@ -389,7 +389,7 @@ initDayPlannerActions({ state, saveData, saveDataQuiet, render, getWeekKey, getN
 
 // ── Core window functions ──────────────────────────────────────────────────
 window.handleLogin = async () => { try { await signInWithPopup(auth, provider); } catch (e) { console.error('Login failed:', e); } };
-window.handleLogout = async () => { await signOut(auth); state.user = null; state.data = null; render(); };
+window.handleLogout = async () => { await signOut(auth); try { localStorage.removeItem('tjm_state_cache'); } catch(e) {} state.user = null; state.data = null; render(); };
 window.setTab = (tab) => { state.activeTab = tab; state.selectedEditDate = null; state.moreMenuOpen = false; render(); };
 window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render(); };
 window.toggleObjectivesCollapsed = () => { state.objectivesCollapsed = !state.objectivesCollapsed; render(); };
@@ -857,6 +857,11 @@ window.cancelFrontTaskEdit = () => { state.frontTaskEditing = null; render(); };
 window.state = state;
 onAuthStateChanged(auth, async (user) => {
   state.user = user;
-  if (user) { await loadData(); syncCalendarToDataMonth(); await loadHealthData(); }
-  render();
+  if (!user) { render(); return; }
+  await loadData();          // core data (paints instantly from cache, then fresh)
+  syncCalendarToDataMonth();
+  render();                  // first meaningful paint happens here
+  // Health data only feeds the Health tab — load it in the background so it
+  // never blocks the first screen. It re-renders itself when it arrives.
+  loadHealthData();
 });

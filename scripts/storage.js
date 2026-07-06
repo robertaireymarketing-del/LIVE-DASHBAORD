@@ -41,6 +41,8 @@ export function createStorage({
     } catch (e) {
       console.error('Save failed:', e);
     }
+    // Full-state cache for instant paint on next open
+    try { localStorage.setItem('tjm_state_cache', JSON.stringify(state.data)); } catch(e) {}
     state.saving = false;
     render();
   }
@@ -52,6 +54,7 @@ export function createStorage({
 
     // ── Local backup (belt-and-braces) ──────────────────────
     try {
+      localStorage.setItem('tjm_state_cache', JSON.stringify(state.data));
       localStorage.setItem('tjm_backup_journal', JSON.stringify(state.data.journal || {}));
       localStorage.setItem('tjm_backup_days', JSON.stringify(state.data.days || {}));
       localStorage.setItem('tjm_backup_at', new Date().toISOString());
@@ -67,12 +70,25 @@ export function createStorage({
 
   async function loadData() {
     if (!state.user) return;
+
+    // ── Optimistic paint: show cached data instantly while Firestore loads ──
+    try {
+      const cached = localStorage.getItem('tjm_state_cache');
+      if (cached && !state.data) {
+        state.data = JSON.parse(cached);
+        state.data.days = state.data.days || {};
+        state.days = state.data.days;
+        render(); // paint immediately — fresh data replaces this a moment later
+      }
+    } catch (e) { /* bad/absent cache — ignore, fall through to network */ }
+
     try {
       const docSnap = await getDoc(doc(db, 'users', state.user.uid));
       if (docSnap.exists()) {
         state.data = docSnap.data();
         state.data.days = state.data.days || {};
         state.days = state.data.days;
+        try { localStorage.setItem('tjm_state_cache', JSON.stringify(state.data)); } catch(e) {}
       } else {
         state.data = {
           days: {},
