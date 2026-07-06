@@ -1,12 +1,10 @@
 import { auth, db, provider, signInWithPopup, onAuthStateChanged, signOut, doc, getDoc, setDoc, collection, getDocs, query, orderBy, limit } from './firebase.js';
-import { STOIC_QUOTES, BATCH_COLOURS, RETENTION_SCIENCE, VAULT_STAGES, VAULT_SOURCES, VAULT_CATS, VAULT_STAGE_COLORS, VAULT_CAT_COLORS, VINTED_STAGES } from './constants.js';
+import { STOIC_QUOTES, BATCH_COLOURS, RETENTION_SCIENCE, VAULT_STAGES, VAULT_SOURCES, VAULT_CATS, VAULT_STAGE_COLORS, VAULT_CAT_COLORS } from './constants.js';
 import { renderJournalTab } from './renderJournal.js';
 import { initJournalTab } from './journal.js';
 import { state, defaultSettings } from './state.js';
 import { createStorage } from './storage.js';
 import { createHelpers } from './helpers.js';
-import { createCRMHelpers, initCRMActions } from './crmActions.js';
-import { initProjectActions } from './projectActions.js';
 import { initDayPlannerActions } from './dayPlannerActions.js';
 import { initBatchActions } from './batchActions.js';
 import { initBatchEditorUI } from './batchActions.js';
@@ -14,8 +12,7 @@ import { initPanicButton } from './panicButton.js';
 import { renderTodayTab as renderTodayTabExternal } from './renderTodayTab.js';
 import { renderMarchTab as renderMarchTabExternal } from './renderMarchTab.js';
 import { renderProgressTab as renderProgressTabExternal } from './renderProgressTab.js';
-import { renderCRMTab as renderCRMTabExternal, renderVaultTab as renderVaultTabExternal } from './renderExtras.js';
-import { renderVintedTab as renderVintedTabExternal, renderNottinghamTab as renderNottinghamTabExternal } from './renderProjects.js';
+import { renderVaultTab as renderVaultTabExternal } from './renderExtras.js';
 import { renderFireTab as renderFireTabExternal } from './renderFireTab.js';
 import { renderRoadmapTab as renderRoadmapTabExternal } from './renderRoadmapTab.js';
 import { renderVisionTab as renderVisionTabExternal } from './renderVisionTab.js';
@@ -32,8 +29,8 @@ window.addEventListener('offline', () => { isOnline = false; render(); });
 const {
   getToday, getAllDays, normalizeDateKey, getDayByDate,
   getWeekKey, getNextWeekKey, getTodayDayKey, isSunday,
-  getSettings, getProjectFronts, getTJMBatches, getVintedItems,
-  getNottinghamData, getIdentityLock, getMissionTargets,
+  getSettings, getProjectFronts, getTJMBatches,
+  getIdentityLock, getMissionTargets,
   getDayNumber, getDailyQuote,
   getLatestWeight, getLatestBodyFat, getLatestWeightDate, getLatestBodyFatDate,
   getStartLeanMass, getCurrentLeanMass, getDerivedTargetWeight,
@@ -41,20 +38,6 @@ const {
   getMonthDaysRemaining, getMonthStats, getMonthTargets,
   syncCalendarToDataMonth, getDaysRemaining, vaultTimeAgo,
 } = createHelpers({ state, defaultSettings, STOIC_QUOTES });
-
-const crmHelpers = createCRMHelpers({ state, getToday });
-const {
-  getCRMLeads, getCRMWeekStart, getCRMMonthStart,
-  isLeadOverdue, isLeadDueToday, getOverdueDays, formatFollowUpDate, getCRMComparison,
-  getCRMNeedsAction, getCRMHotLeads,
-  getCRMNewLeadsThisWeek, getCRMNewLeadsLastWeek,
-  getCRMSalesThisWeek, getCRMSalesLastWeek,
-  getCRMRevenueThisWeek, getCRMRevenueLastWeek,
-  getCRMNewLeadsThisMonth, getCRMNewLeadsLastMonth,
-  getCRMSalesThisMonth, getCRMSalesLastMonth,
-  getCRMRevenueThisMonth, getCRMRevenueLastMonth,
-  getDMsSentThisWeek, getDMsSentLastWeek, getDMsSentThisMonth, getDMsSentLastMonth,
-} = crmHelpers;
 
 // ── Storage ────────────────────────────────────────────────────────────────
 const { saveData, saveDataQuiet, loadData, loadHealthData, updateDayField, recalculateMarchStats, updateSettings } = createStorage({
@@ -151,24 +134,14 @@ const renderTabDeps = {
   renderEmbeddedDayPlanner: () => renderEmbeddedDayPlannerExternal(renderModalDeps),
 };
 
-const renderCRMDeps = {
-  state, ...crmHelpers, getTodayData,
-  renderDatePickerModal: () => renderDatePickerModalExternal({ state }),
-  renderSoldModal: () => renderSoldModalExternal({ state }),
-};
-
 const renderVaultDeps = { state, getVaultIdeas, vaultStaleCount, VAULT_STAGES, VAULT_SOURCES, VAULT_CATS, VAULT_STAGE_COLORS, VAULT_CAT_COLORS, vaultTimeAgo };
-const renderProjectsDeps = { state, VINTED_STAGES, getVintedItems, getNottinghamData, getProjectFronts, getWeekKey, isSunday, getNextWeekKey, getTodayDayKey };
 const renderModalDeps = { state, getProjectFronts, getTodayDayKey, BATCH_COLOURS };
 const renderMoreModalDeps = { state, getStreak, RETENTION_SCIENCE, getToday, getSettings, getDayNumber, getMonthTargets };
 
 function renderTodayTab() { return renderTodayTabExternal(renderTabDeps); }
 function renderMarchTab() { return renderMarchTabExternal(renderTabDeps); }
 function renderProgressTab() { return renderProgressTabExternal(renderTabDeps); }
-function renderCRMTab() { return renderCRMTabExternal(renderCRMDeps); }
 function renderVaultTab() { return renderVaultTabExternal(renderVaultDeps); }
-function renderVintedTab() { return renderVintedTabExternal(renderProjectsDeps); }
-function renderNottinghamTab() { return renderNottinghamTabExternal(renderProjectsDeps); }
 function renderFireTab() { return renderFireTabExternal(renderTabDeps); }
 function renderRoadmapTab() { return renderRoadmapTabExternal(); }
 function renderPlannerTab() { return renderWeeklyTabExternal(); }
@@ -182,8 +155,7 @@ function renderChallengeModal() { return renderChallengeModalExternal(renderMore
 
 // ── Bottom nav (6 tabs — permanent on every page) ─────────────────────────
 function renderBottomNav() {
-  const moreActive = state.moreMenuOpen || ['march','vault','crm','vinted','notts','roadmap','fire'].includes(state.activeTab);
-  const crmAlert = getCRMNeedsAction() > 0;
+  const moreActive = state.moreMenuOpen || ['march','vault','roadmap','fire'].includes(state.activeTab);
   return `
   <nav class="bottom-nav-app">
     <button data-tab="today"    class="bottom-nav-app-btn ${state.activeTab==='today'?'active':''}"    onclick="setTab('today')"><span class="nav-icon">🏠</span>Today</button>
@@ -191,7 +163,7 @@ function renderBottomNav() {
     <button data-tab="planner"  class="bottom-nav-app-btn ${state.activeTab==='planner'?'active':''}"  onclick="setTab('planner')"><span class="nav-icon">✏️</span>Planner</button>
     <button data-tab="progress" class="bottom-nav-app-btn ${state.activeTab==='progress'?'active':''}" onclick="setTab('progress')"><span class="nav-icon">❤️</span>Health</button>
     <button data-tab="vision"   class="bottom-nav-app-btn ${state.activeTab==='vision'?'active':''}"   onclick="setTab('vision')"><span class="nav-icon">🗺️</span>Vision</button>
-    <button data-tab="more"     class="bottom-nav-app-btn ${moreActive?'active':''} ${crmAlert?'crm-nav-alert':''}" onclick="toggleMoreMenu()" style="position:relative;"><span class="nav-icon">⋯</span>More${crmAlert?'<span class="crm-nav-dot"></span>':''}</button>
+    <button data-tab="more"     class="bottom-nav-app-btn ${moreActive?'active':''}" onclick="toggleMoreMenu()" style="position:relative;"><span class="nav-icon">⋯</span>More</button>
   </nav>`;
 }
 
@@ -258,10 +230,7 @@ function render() {
     } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">TODAY ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'march' ? renderMarchTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">MAR ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'progress' ? renderProgressTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">BODY ERROR: ' + e.message + '</div>'; }})()}
-    ${(() => { try { return state.activeTab === 'crm' ? renderCRMTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">CRM ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'vault' ? renderVaultTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">IDEAS ERROR: ' + e.message + '</div>'; }})()}
-    ${(() => { try { return state.activeTab === 'vinted' ? renderVintedTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">VINTED ERROR: ' + e.message + '</div>'; }})()}
-    ${(() => { try { return state.activeTab === 'notts' ? renderNottinghamTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">NOTTS ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'journal' ? renderJournalTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">JOURNAL ERROR: '+ e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'fire' ? renderFireTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">FIRE ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'roadmap' ? renderRoadmapTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">ROADMAP ERROR: ' + e.message + '</div>'; }})()}
@@ -272,10 +241,7 @@ function render() {
       <div class="mobile-more-sheet-grid">
         <button class="mobile-more-sheet-btn ${state.activeTab==='march'?'active':''}" onclick="setTab('march');toggleMoreMenu()">${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date().getMonth()]}</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='vault'?'active':''}" onclick="setTab('vault');toggleMoreMenu()">Ideas</button>
-        <button class="mobile-more-sheet-btn ${state.activeTab==='crm'?'active':''} ${getCRMNeedsAction()>0?'crm-sheet-alert':''}" onclick="setTab('crm');toggleMoreMenu()">CRM${getCRMNeedsAction()>0?` <span class="crm-sheet-badge">${getCRMNeedsAction()}</span>`:''}</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='fire'?'active':''}" onclick="setTab('fire');toggleMoreMenu()">🖊️ Fire</button>
-        <button class="mobile-more-sheet-btn ${state.activeTab==='vinted'?'active':''}" onclick="setTab('vinted');toggleMoreMenu()">Vinted</button>
-        <button class="mobile-more-sheet-btn ${state.activeTab==='notts'?'active':''}" onclick="setTab('notts');toggleMoreMenu()">Notts</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='roadmap'?'active':''}" onclick="setTab('roadmap');toggleMoreMenu()">🗺 Map</button>
         <button class="mobile-more-sheet-btn danger" onclick="handleLogout()">Sign Out</button>
       </div>
@@ -288,8 +254,6 @@ function render() {
     ${state.pastDaysOpen ? renderPastDaysModal() : ''}
     ${state.monthTargetsOpen ? renderMonthTargetsModal() : ''}
     ${state.challengeSetupOpen ? renderChallengeModal() : ''}
-    ${state.crmDatePicker ? renderDatePickerModal() : ''}
-    ${state.crmSoldModal ? renderSoldModal() : ''}
     ${state.frontTaskDeleteConfirm ? (() => {
       const { taskText } = state.frontTaskDeleteConfirm;
       return `
@@ -420,9 +384,7 @@ function renderSoldModal() { return renderSoldModalExternal({ state }); }
 // ── Init all action modules ────────────────────────────────────────────────
 initBatchActions({ state, saveData, saveDataQuiet, render });
 initBatchEditorUI({ state, saveData, saveDataQuiet, render, BATCH_COLOURS });
-initCRMActions({ state, saveData, render, getToday, crmHelpers });
 initPanicButton({ state, saveData, render, getStreak, getTodayData, getToday });
-initProjectActions({ state, saveData, render, getVintedItems, getNottinghamData, VINTED_STAGES });
 initDayPlannerActions({ state, saveData, saveDataQuiet, render, getWeekKey, getNextWeekKey, getTodayDayKey, isSunday, getProjectFronts, getMissionTargets, BATCH_COLOURS });
 
 // ── Core window functions ──────────────────────────────────────────────────
