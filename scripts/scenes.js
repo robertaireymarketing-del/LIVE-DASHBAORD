@@ -4,6 +4,10 @@
 // scenes can be renamed, reordered (up/down), and collapsed/expanded.
 
 let confirmDeleteId = null; // module-scoped transient UI state (not persisted)
+let colorPickerId = null;   // which scene's colour picker is open (transient)
+
+// Colour-coding palette
+const SCENE_COLOURS = ['#3B82F6', '#14B8A6', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
 // ── HTML escape for values placed into attributes ──────────────────────────
 function esc(t) {
@@ -36,9 +40,13 @@ export function initSceneActions({ state, saveDataQuiet, render }) {
 
   window.addScene = () => {
     syncFromDOM();
-    getScenes().unshift({ id: 's_' + Date.now(), name: 'New Scene', rows: [''], collapsed: false });
+    getScenes().push({ id: 's_' + Date.now(), name: 'New Scene', rows: [''], collapsed: false, color: null });
     render(); saveDataQuiet();
-    setTimeout(() => { const el = document.querySelector('.scene-name-input'); if (el) { el.focus(); el.select(); } }, 30);
+    setTimeout(() => {
+      const els = document.querySelectorAll('.scene-name-input');
+      const el = els[els.length - 1]; // newest is now last in the list
+      if (el) { el.focus(); el.select(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    }, 30);
   };
 
   window.renameScene = (id, value) => {
@@ -65,11 +73,19 @@ export function initSceneActions({ state, saveDataQuiet, render }) {
     render(); saveDataQuiet();
   };
 
-  window.askDeleteScene    = (id) => { syncFromDOM(); confirmDeleteId = id; render(); };
+  window.askDeleteScene    = (id) => { syncFromDOM(); colorPickerId = null; confirmDeleteId = id; render(); };
   window.cancelDeleteScene = ()   => { confirmDeleteId = null; render(); };
   window.confirmDeleteScene = (id) => {
     state.data.scenes = getScenes().filter(s => s.id !== id);
     confirmDeleteId = null;
+    render(); saveDataQuiet();
+  };
+
+  window.toggleSceneColor = (id) => { syncFromDOM(); confirmDeleteId = null; colorPickerId = (colorPickerId === id ? null : id); render(); };
+  window.setSceneColor = (id, color) => {
+    const s = findScene(id); if (!s) return;
+    s.color = color || null;
+    colorPickerId = null;
     render(); saveDataQuiet();
   };
 
@@ -121,7 +137,8 @@ export function renderScenesTab({ state }) {
     .scenes-list{display:flex;flex-direction:column;gap:12px;}
     .scene-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:16px;overflow:hidden;}
     .scene-header{display:flex;align-items:center;gap:8px;padding:12px;}
-    .scene-toggle{background:none;border:none;color:rgba(255,255,255,0.6);font-size:14px;cursor:pointer;padding:4px 6px;font-family:inherit;flex-shrink:0;}
+    .scene-toggle{background:rgba(255,255,255,0.06);border:none;color:rgba(255,255,255,0.75);font-size:20px;line-height:1;cursor:pointer;width:40px;height:40px;border-radius:11px;font-family:inherit;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+    .scene-toggle:active{background:rgba(255,255,255,0.14);}
     .scene-name-input{flex:1;min-width:0;background:transparent;border:none;color:#fff;font-size:16px;font-weight:800;font-family:inherit;padding:4px 2px;outline:none;}
     .scene-name-input:focus{background:rgba(255,255,255,0.06);border-radius:8px;padding:4px 8px;}
     .scene-count{font-size:11px;font-weight:700;color:rgba(255,255,255,0.35);flex-shrink:0;white-space:nowrap;}
@@ -130,6 +147,13 @@ export function renderScenesTab({ state }) {
     .scene-ctrl:disabled{opacity:0.25;cursor:default;}
     .scene-ctrl.danger{color:#e74c3c;}
     .scene-ctrl:active{background:rgba(255,255,255,0.12);}
+    .scene-color-btn{width:30px;height:30px;border-radius:8px;border:none;background:rgba(255,255,255,0.06);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:inherit;padding:0;}
+    .scene-color-dot{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,0.35);box-sizing:border-box;}
+    .scene-colorbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 12px 12px;}
+    .scene-colorbar-label{font-size:11px;font-weight:800;letter-spacing:0.6px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-right:2px;}
+    .scene-swatch{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;flex-shrink:0;}
+    .scene-swatch.selected{border-color:#fff;box-shadow:0 0 0 2px rgba(0,0,0,0.4);}
+    .scene-swatch.none{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);font-size:12px;display:flex;align-items:center;justify-content:center;}
     .scene-confirm{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:rgba(255,255,255,0.6);}
     .scene-confirm-yes{background:rgba(231,76,60,0.15);border:1px solid rgba(231,76,60,0.5);color:#e74c3c;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}
     .scene-confirm-no{background:rgba(255,255,255,0.06);border:none;color:rgba(255,255,255,0.6);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}
@@ -154,9 +178,14 @@ export function renderScenesTab({ state }) {
     body.light .scene-row-input::placeholder{color:rgba(0,0,0,0.3);}
     body.light .scene-row-remove{color:rgba(0,0,0,0.3);}
     body.light .scenes-sub,body.light .scenes-empty-sub,body.light .scene-count{color:rgba(0,0,0,0.45);}
-    body.light .scene-toggle{color:rgba(0,0,0,0.45);}
+    body.light .scene-toggle{background:rgba(0,0,0,0.05);color:rgba(0,0,0,0.6);}
     body.light .scene-ctrl{background:rgba(0,0,0,0.05);color:rgba(0,0,0,0.6);}
     body.light .scene-ctrl.danger{color:#e74c3c;}
+    body.light .scene-color-btn{background:rgba(0,0,0,0.05);}
+    body.light .scene-color-dot{border-color:rgba(0,0,0,0.3);}
+    body.light .scene-colorbar-label{color:rgba(0,0,0,0.45);}
+    body.light .scene-swatch.selected{border-color:#1c1c1e;box-shadow:0 0 0 2px #fff;}
+    body.light .scene-swatch.none{background:rgba(0,0,0,0.06);color:rgba(0,0,0,0.55);}
     body.light .scene-addrow{background:rgba(0,0,0,0.03);border-color:rgba(0,0,0,0.2);color:rgba(0,0,0,0.55);}
     body.light .scene-confirm{color:rgba(0,0,0,0.6);}
     body.light .scene-confirm-no{background:rgba(0,0,0,0.05);color:rgba(0,0,0,0.6);}
@@ -186,12 +215,14 @@ export function renderScenesTab({ state }) {
     const collapsed = !!s.collapsed;
     const filled = rows.filter(r => r && r.trim()).length;
     const confirming = confirmDeleteId === s.id;
+    const picking = colorPickerId === s.id;
+    const color = s.color || null;
 
     const body = collapsed ? '' : `
       <div class="scene-body">
         ${rows.map((r, ri) => `
           <div class="scene-row">
-            <span class="scene-bullet">•</span>
+            <span class="scene-bullet"${color ? ` style="color:${color}"` : ''}>•</span>
             <input class="scene-row-input" type="text" value="${esc(r)}" placeholder="Write a line..."
               onchange="updateSceneRow('${s.id}',${ri},this.value)"
               onkeydown="sceneRowKeydown('${s.id}',${ri},event)">
@@ -206,12 +237,22 @@ export function renderScenesTab({ state }) {
            <button class="scene-confirm-yes" onclick="confirmDeleteScene('${s.id}')">Delete</button>
            <button class="scene-confirm-no" onclick="cancelDeleteScene()">Cancel</button>
          </div>`
-      : `<button class="scene-ctrl" onclick="moveScene('${s.id}',-1)" ${i === 0 ? 'disabled' : ''} title="Move up">▲</button>
+      : `<button class="scene-color-btn" onclick="toggleSceneColor('${s.id}')" title="Colour code"><span class="scene-color-dot" style="${color ? `background:${color};border-color:${color};` : ''}"></span></button>
+         <button class="scene-ctrl" onclick="moveScene('${s.id}',-1)" ${i === 0 ? 'disabled' : ''} title="Move up">▲</button>
          <button class="scene-ctrl" onclick="moveScene('${s.id}',1)" ${i === scenes.length - 1 ? 'disabled' : ''} title="Move down">▼</button>
          <button class="scene-ctrl danger" onclick="askDeleteScene('${s.id}')" title="Delete scene">🗑</button>`;
 
+    const colorBar = picking ? `
+        <div class="scene-colorbar">
+          <span class="scene-colorbar-label">Colour</span>
+          ${SCENE_COLOURS.map(c => `<button class="scene-swatch${color === c ? ' selected' : ''}" style="background:${c}" onclick="setSceneColor('${s.id}','${c}')" title="${c}"></button>`).join('')}
+          <button class="scene-swatch none" onclick="setSceneColor('${s.id}','')" title="No colour">✕</button>
+        </div>` : '';
+
+    const cardStyle = color ? ` style="box-shadow: inset 4px 0 0 0 ${color}, 0 1px 3px rgba(0,0,0,0.06);"` : '';
+
     return `
-      <div class="scene-card" data-scene="${s.id}">
+      <div class="scene-card" data-scene="${s.id}"${cardStyle}>
         <div class="scene-header">
           <button class="scene-toggle" onclick="toggleSceneCollapse('${s.id}')">${collapsed ? '▸' : '▾'}</button>
           <input class="scene-name-input" type="text" value="${esc(s.name)}" placeholder="Scene name"
@@ -219,6 +260,7 @@ export function renderScenesTab({ state }) {
           ${collapsed ? `<span class="scene-count">${filled} line${filled === 1 ? '' : 's'}</span>` : ''}
           <div class="scene-controls">${controls}</div>
         </div>
+        ${colorBar}
         ${body}
       </div>`;
   }).join('');
