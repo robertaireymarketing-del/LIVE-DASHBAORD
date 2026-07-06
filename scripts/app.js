@@ -16,6 +16,7 @@ import { renderVaultTab as renderVaultTabExternal } from './renderExtras.js';
 import { renderFireTab as renderFireTabExternal } from './renderFireTab.js';
 import { renderRoadmapTab as renderRoadmapTabExternal } from './renderRoadmapTab.js';
 import { renderVisionTab as renderVisionTabExternal } from './renderVisionTab.js';
+import { renderScenesTab as renderScenesTabExternal, initSceneActions } from './scenes.js';
 import { renderWeeklyTab as renderWeeklyTabExternal, initWeeklyTab as initWeeklyTabExternal } from './renderWeeklyTab.js';
 import { renderDayPlannerModal as renderDayPlannerModalExternal, renderEmbeddedDayPlanner as renderEmbeddedDayPlannerExternal, renderTimePickerModal as renderTimePickerModalExternal, renderWeekPlanModal as renderWeekPlanModalExternal, renderDatePickerModal as renderDatePickerModalExternal, renderSoldModal as renderSoldModalExternal } from './renderModals.js';
 import { renderRetentionModal as renderRetentionModalExternal, renderPastDaysModal as renderPastDaysModalExternal, renderMonthTargetsModal as renderMonthTargetsModalExternal, renderChallengeModal as renderChallengeModalExternal } from './renderMoreModals.js';
@@ -145,6 +146,7 @@ function renderVaultTab() { return renderVaultTabExternal(renderVaultDeps); }
 function renderFireTab() { return renderFireTabExternal(renderTabDeps); }
 function renderRoadmapTab() { return renderRoadmapTabExternal(); }
 function renderPlannerTab() { return renderWeeklyTabExternal(); }
+function renderScenesTab() { return renderScenesTabExternal({ state }); }
 function renderDayPlannerModal() { return renderDayPlannerModalExternal(renderModalDeps); }
 function renderTimePickerModal() { return renderTimePickerModalExternal(renderModalDeps); }
 function renderWeekPlanModal() { return renderWeekPlanModalExternal(renderModalDeps); }
@@ -155,14 +157,14 @@ function renderChallengeModal() { return renderChallengeModalExternal(renderMore
 
 // ── Bottom nav (6 tabs — permanent on every page) ─────────────────────────
 function renderBottomNav() {
-  const moreActive = state.moreMenuOpen || ['march','vault','roadmap','fire'].includes(state.activeTab);
+  const moreActive = state.moreMenuOpen || ['march','vault','roadmap','fire','vision'].includes(state.activeTab);
   return `
   <nav class="bottom-nav-app">
     <button data-tab="today"    class="bottom-nav-app-btn ${state.activeTab==='today'?'active':''}"    onclick="setTab('today')"><span class="nav-icon">🏠</span>Today</button>
     <button data-tab="journal"  class="bottom-nav-app-btn ${state.activeTab==='journal'?'active':''}"  onclick="setTab('journal')"><span class="nav-icon">📓</span>Journal</button>
     <button data-tab="planner"  class="bottom-nav-app-btn ${state.activeTab==='planner'?'active':''}"  onclick="setTab('planner')"><span class="nav-icon">✏️</span>Planner</button>
     <button data-tab="progress" class="bottom-nav-app-btn ${state.activeTab==='progress'?'active':''}" onclick="setTab('progress')"><span class="nav-icon">❤️</span>Health</button>
-    <button data-tab="vision"   class="bottom-nav-app-btn ${state.activeTab==='vision'?'active':''}"   onclick="setTab('vision')"><span class="nav-icon">🗺️</span>Vision</button>
+    <button data-tab="scenes"   class="bottom-nav-app-btn ${state.activeTab==='scenes'?'active':''}"   onclick="setTab('scenes')"><span class="nav-icon">🎬</span>Scenes</button>
     <button data-tab="more"     class="bottom-nav-app-btn ${moreActive?'active':''}" onclick="toggleMoreMenu()" style="position:relative;"><span class="nav-icon">⋯</span>More</button>
   </nav>`;
 }
@@ -214,7 +216,7 @@ function render() {
     <div class="day-badge" onclick="openChallengeSetup()" style="cursor:pointer;">DAY ${getDayNumber()}/${getSettings().challengeDays||90}</div>
     </div>
     </div>
-    <button class="panic-trigger" onclick="openPanic()" style="margin-bottom:12px;margin-top:4px;${['today','journal','planner','progress','vision'].includes(state.activeTab) ? 'display:none;' : ''}"><span>🆘</span> PANIC BUTTON</button>
+    <button class="panic-trigger" onclick="openPanic()" style="margin-bottom:12px;margin-top:4px;${['today','journal','planner','progress','scenes'].includes(state.activeTab) ? 'display:none;' : ''}"><span>🆘</span> PANIC BUTTON</button>
     ${(state.activeTab === 'today' || state.activeTab === 'journal') ? `
     <div class="quote-card">
     <div class="quote-icon">✦</div>
@@ -235,6 +237,7 @@ function render() {
     ${(() => { try { return state.activeTab === 'fire' ? renderFireTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">FIRE ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'roadmap' ? renderRoadmapTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">ROADMAP ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'planner' ? renderPlannerTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">PLANNER ERROR: ' + e.message + '</div>'; }})()}
+    ${(() => { try { return state.activeTab === 'scenes' ? renderScenesTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">SCENES ERROR: ' + e.message + '</div>'; }})()}
     ${state.activeTab === 'vision' ? '<div id="tab-vision" style="min-height:100%;"></div>' : ''}
     </div>
     <div class="mobile-more-sheet ${state.moreMenuOpen ? 'open' : ''}">
@@ -243,6 +246,7 @@ function render() {
         <button class="mobile-more-sheet-btn ${state.activeTab==='vault'?'active':''}" onclick="setTab('vault');toggleMoreMenu()">Ideas</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='fire'?'active':''}" onclick="setTab('fire');toggleMoreMenu()">🖊️ Fire</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='roadmap'?'active':''}" onclick="setTab('roadmap');toggleMoreMenu()">🗺 Map</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab==='vision'?'active':''}" onclick="setTab('vision');toggleMoreMenu()">🔭 Vision</button>
         <button class="mobile-more-sheet-btn danger" onclick="handleLogout()">Sign Out</button>
       </div>
     </div>
@@ -386,6 +390,7 @@ initBatchActions({ state, saveData, saveDataQuiet, render });
 initBatchEditorUI({ state, saveData, saveDataQuiet, render, BATCH_COLOURS });
 initPanicButton({ state, saveData, render, getStreak, getTodayData, getToday });
 initDayPlannerActions({ state, saveData, saveDataQuiet, render, getWeekKey, getNextWeekKey, getTodayDayKey, isSunday, getProjectFronts, getMissionTargets, BATCH_COLOURS });
+initSceneActions({ state, saveDataQuiet, render });
 
 // ── Core window functions ──────────────────────────────────────────────────
 window.handleLogin = async () => { try { await signInWithPopup(auth, provider); } catch (e) { console.error('Login failed:', e); } };
