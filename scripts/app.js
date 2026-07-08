@@ -23,8 +23,14 @@ import { renderRetentionModal as renderRetentionModalExternal, renderPastDaysMod
 
 // ── Online/offline tracking ────────────────────────────────────────────────
 let isOnline = navigator.onLine;
-window.addEventListener('online', () => { isOnline = true; render(); });
-window.addEventListener('offline', () => { isOnline = false; render(); });
+// Track connectivity, but NEVER force a full render here —
+// on mobile these fire constantly (Wi-Fi <-> cellular handoffs, signal dips,
+// screen-lock power saving) and each render() tears down the DOM, wiping an
+// in-progress journal entry. Saves already handle offline via try/catch +
+// localStorage, so the offline pill is purely cosmetic and can wait for the
+// next natural render.
+window.addEventListener('online',  () => { isOnline = true;  });
+window.addEventListener('offline', () => { isOnline = false; });
 
 // ── Data helpers (pure getters) ────────────────────────────────────────────
 const {

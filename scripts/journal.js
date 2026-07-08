@@ -653,7 +653,7 @@ export function initJournalTab(deps) {
     }, 1000);
   }
 
-  function saveMorning(){
+  function saveMorning(silent){
     const complete = evaluateMorningCompletion();
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
@@ -665,7 +665,7 @@ export function initJournalTab(deps) {
     setTimeout(()=>morningSavedPill.style.display='none',2500);
     entryStatus.textContent='Saved morning entry for '+fullDate.textContent;
     updateAverageNotes(); updateBestVersionPercent(); updateStreakDisplay(); updateLauncherButtons();
-    if (complete) setTimeout(() => showMorningLaunchOverlay(payload), 400);
+    if (complete && !silent) setTimeout(() => showMorningLaunchOverlay(payload), 400);
   }
 
   function saveEvening(){
@@ -834,6 +834,18 @@ export function initJournalTab(deps) {
   eveningBindings.forEach(([key,valId])=>{ const range=eveningFields[key]; const val=document.getElementById(valId); range.addEventListener('input', ()=>{ val.textContent=range.value; computeEveningScore(); }); });
   Object.values(morningFields).forEach(el=>el.addEventListener('input', evaluateMorningCompletion));
   Object.values(eveningFields).forEach(el=>el.addEventListener('input', evaluateEveningCompletion));
+
+  // ── Debounced autosave ─────────────────────────────────────────────────
+  // Persist as the user types so a stray render() from any source can never
+  // wipe an in-progress entry. saveMorning(true) saves silently (no launch
+  // overlay while still typing). saveEvening has no overlay, so no flag needed.
+  let _mSaveT, _eSaveT;
+  Object.values(morningFields).forEach(el => el.addEventListener('input', () => {
+    clearTimeout(_mSaveT); _mSaveT = setTimeout(() => saveMorning(true), 800);
+  }));
+  Object.values(eveningFields).forEach(el => el.addEventListener('input', () => {
+    clearTimeout(_eSaveT); _eSaveT = setTimeout(() => saveEvening(), 800);
+  }));
 
   document.getElementById('journalCollapseMorningBtn').addEventListener('click', toggleMorning);
   document.getElementById('journalCollapseMorningBtnBottom').addEventListener('click', toggleMorning);
