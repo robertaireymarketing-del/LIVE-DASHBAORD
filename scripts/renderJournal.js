@@ -74,7 +74,6 @@ export function renderJournalTab() {
           <button class="journal-launch-btn" id="journalOpenMorningBtn">Morning Journal<small>Open readiness, identity, mission, and priorities</small></button>
           <button class="journal-launch-btn" id="journalOpenEveningBtn">Evening Reflection<small>Open execution, reflection, and reset for tomorrow</small></button>
         </div>
-        <button class="journal-launch-btn journal-open-launch" id="journalOpenOpenBtn" style="border-left:4px solid rgba(39,174,96,0.6);text-align:left;width:100%;padding:24px 26px;">Open Journal<small>Optional free-write — blank canvas for anything on your mind</small></button>
       </div>
     </div>
 
@@ -134,8 +133,11 @@ export function renderJournalTab() {
           <div class="journal-note">These scores can later calculate weekly and monthly averages.</div>
         </div>
         <div><h2>Most Powerful Self</h2><div class="journal-prompt">What is the most powerful version of myself that I can step into today?</div><textarea class="journal-textarea" id="journal-powerfulSelf" placeholder="The most powerful version of me today is..."></textarea></div>
-        <div><h2>Most Important Action</h2><div class="journal-prompt">What is the single most important action I can take today that will move me closer to my biggest dream?</div><textarea class="journal-textarea" id="journal-mostImportantAction" placeholder="The one action that moves everything forward is..."></textarea></div>
-        <div><h2>Lose &amp; Gain</h2><div class="journal-prompt">What will I lose if I don't show up as my most powerful self today — and what will I gain if I do?</div><textarea class="journal-textarea" id="journal-loseGain" placeholder="If I don't show up fully today I lose... but if I do, I gain..."></textarea></div>
+        <div><h2>3 Most Important Actions</h2><div class="journal-prompt">What are the 3 most important actions I can take today that will move me closer to my biggest dream?</div><div style="display:flex;flex-direction:column;gap:10px;">
+          <textarea class="journal-textarea" id="journal-mostImportantAction1" placeholder="1 — The action that moves everything forward is..."></textarea>
+          <textarea class="journal-textarea" id="journal-mostImportantAction2" placeholder="2 — Next most important action..."></textarea>
+          <textarea class="journal-textarea" id="journal-mostImportantAction3" placeholder="3 — Third most important action..."></textarea>
+        </div></div>
         <div><h2>Unstoppable Evidence</h2><div class="journal-prompt">What evidence will I create today that proves I am unstoppable in achieving my dreams?</div><textarea class="journal-textarea" id="journal-unstoppable" placeholder="By the end of today I will have proven it by..."></textarea></div>
         <div>
           <h2>Today's Priorities</h2>
@@ -177,6 +179,11 @@ export function renderJournalTab() {
         <div><h2>Biggest Learning</h2><div class="journal-prompt">What did I learn today that will make me even more effective tomorrow?</div><textarea class="journal-textarea" id="journal-learned" placeholder="Today taught me that..."></textarea></div>
         <div><h2>Release &amp; Intention</h2><div class="journal-prompt">What can I release from today, and what intention will I set for a powerful tomorrow?</div><textarea class="journal-textarea" id="journal-release" placeholder="I release... and tomorrow I intend to..."></textarea></div>
         <div><h2>Alignment</h2><div class="journal-prompt">How did my actions today align with the person I am becoming and the life I am creating?</div><textarea class="journal-textarea" id="journal-alignment" placeholder="Today I moved toward the man I'm becoming by..."></textarea><div style="font-size:11px;font-weight:700;color:rgba(201,168,76,0.6);letter-spacing:0.3px;margin-top:8px;font-style:italic;">Acknowledge · Extract the lesson · Affirm commitment</div></div>
+        <div><h2>3 Most Important Tasks Tomorrow</h2><div class="journal-prompt">What are my 3 most important tasks tomorrow?</div><div style="display:flex;flex-direction:column;gap:8px;">
+          <input class="journal-input" type="text" id="journal-tomorrowTask1" placeholder="1 — Tomorrow's most important task..." />
+          <input class="journal-input" type="text" id="journal-tomorrowTask2" placeholder="2 — Next most important task..." />
+          <input class="journal-input" type="text" id="journal-tomorrowTask3" placeholder="3 — Third most important task..." />
+        </div></div>
         <div>
           <h2>Gratitude</h2>
           <div class="journal-prompt" style="margin-bottom:12px;">What are you grateful for today? Complete at least one.</div>
@@ -192,29 +199,6 @@ export function renderJournalTab() {
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
           <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.3);text-align:center;letter-spacing:0.5px;">✓ Auto-saves when you collapse</div>
           <button class="journal-toggle-btn" id="journalCollapseEveningBtnBottom">Collapse Evening Reflection</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="journal-card journal-open-card journal-collapsed" id="journalOpenCard">
-      <div class="journal-section-head">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <h2>Open Journal</h2>
-          <span class="journal-status-badge" id="journalOpenCompletionBadge">Optional</span>
-        </div>
-        <div class="journal-section-actions">
-          <span class="journal-saved-pill" id="journalOpenSavedPill">Saved</span>
-          <button class="journal-toggle-btn" id="journalCollapseOpenBtn">Collapse</button>
-        </div>
-      </div>
-      <div class="journal-collapsible-content">
-        <div>
-          <div class="journal-prompt" style="font-size:14px;font-weight:600;opacity:0.7;">Free-write anything — thoughts, ideas, gratitude, problems, stream of consciousness. No structure required.</div>
-          <textarea class="journal-textarea" id="journal-openText" placeholder="Start writing…" style="min-height:160px;resize:none;overflow:hidden;line-height:1.6;"></textarea>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
-          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.3);text-align:center;letter-spacing:0.5px;">✓ Auto-saves when you collapse</div>
-          <button class="journal-toggle-btn" id="journalCollapseOpenBtnBottom">Collapse Open Journal</button>
         </div>
       </div>
     </div>

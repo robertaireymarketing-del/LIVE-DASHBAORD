@@ -1,5 +1,3 @@
-import { openNotebook } from './notebookCanvas.js';
-
 export function initJournalTab(deps) {
 
   const dayName = document.getElementById('journalDayName');
@@ -25,28 +23,24 @@ export function initJournalTab(deps) {
   const eveningBadge = document.getElementById('journalEveningCompletionBadge');
   const eveningSavedPill = document.getElementById('journalEveningSavedPill');
   const eveningScoreValue = document.getElementById('journalEveningScoreValue');
-  const openCard = document.getElementById('journalOpenCard');
-  const openBadge = document.getElementById('journalOpenCompletionBadge');
-  const openSavedPill = document.getElementById('journalOpenSavedPill');
   const openMorningBtn = document.getElementById('journalOpenMorningBtn');
   const openEveningBtn = document.getElementById('journalOpenEveningBtn');
-  const openOpenBtn = document.getElementById('journalOpenOpenBtn');
 
   let currentDate = new Date(((deps.state.journalDate) || deps.getToday()) + 'T12:00:00');
 
   const morningFields = {
     rested: document.getElementById('journal-rested-range'), sharpness: document.getElementById('journal-sharpness-range'), calm: document.getElementById('journal-calm-range'), motivation: document.getElementById('journal-motivation-range'), clarity: document.getElementById('journal-clarity-range'), drive: document.getElementById('journal-drive-range'),
-    powerfulSelf: document.getElementById('journal-powerfulSelf'), mostImportantAction: document.getElementById('journal-mostImportantAction'), loseGain: document.getElementById('journal-loseGain'), unstoppable: document.getElementById('journal-unstoppable')
+    powerfulSelf: document.getElementById('journal-powerfulSelf'), mostImportantAction1: document.getElementById('journal-mostImportantAction1'), mostImportantAction2: document.getElementById('journal-mostImportantAction2'), mostImportantAction3: document.getElementById('journal-mostImportantAction3'), unstoppable: document.getElementById('journal-unstoppable')
   };
   const eveningFields = {
     execution: document.getElementById('journal-execution-range'), discipline: document.getElementById('journal-discipline-range'), dopamine: document.getElementById('journal-dopamine-range'), physical: document.getElementById('journal-physical-range'), builder: document.getElementById('journal-builder-range'), sleepprep: document.getElementById('journal-sleepprep-range'),
     proud: document.getElementById('journal-proud'), learned: document.getElementById('journal-learned'), release: document.getElementById('journal-release'), alignment: document.getElementById('journal-alignment'),
+    tomorrowTask1: document.getElementById('journal-tomorrowTask1'), tomorrowTask2: document.getElementById('journal-tomorrowTask2'), tomorrowTask3: document.getElementById('journal-tomorrowTask3'),
     grateful1: document.getElementById('journal-grateful1'), grateful2: document.getElementById('journal-grateful2'), grateful3: document.getElementById('journal-grateful3'), grateful4: document.getElementById('journal-grateful4'), grateful5: document.getElementById('journal-grateful5'), grateful6: document.getElementById('journal-grateful6')
   };
 
   const morningBindings = [['rested','journal-rested-val'],['sharpness','journal-sharpness-val'],['calm','journal-calm-val'],['motivation','journal-motivation-val'],['clarity','journal-clarity-val'],['drive','journal-drive-val']];
   const eveningBindings = [['execution','journal-execution-val'],['discipline','journal-discipline-val'],['dopamine','journal-dopamine-val'],['physical','journal-physical-val'],['builder','journal-builder-val'],['sleepprep','journal-sleepprep-val']];
-  const openTextField = document.getElementById('journal-openText');
 
   const keyFromDate = d => d.toISOString().split('T')[0];
   const isFilled = v => String(v || '').trim().length > 0;
@@ -433,7 +427,7 @@ export function initJournalTab(deps) {
   }
   function computeMorningScore(){ const total=Number(morningFields.rested.value)+Number(morningFields.sharpness.value)+Number(morningFields.calm.value)+Number(morningFields.motivation.value)+Number(morningFields.clarity.value)+Number(morningFields.drive.value); morningScoreValue.textContent=total; updateBestVersionPercent(); return total; }
   function computeEveningScore(){ const total=Number(eveningFields.execution.value)+Number(eveningFields.discipline.value)+Number(eveningFields.dopamine.value)+Number(eveningFields.physical.value)+Number(eveningFields.builder.value)+Number(eveningFields.sleepprep.value); eveningScoreValue.textContent=total; updateBestVersionPercent(); return total; }
-  function evaluateMorningCompletion(){ const complete=[morningFields.powerfulSelf,morningFields.mostImportantAction,morningFields.loseGain,morningFields.unstoppable].every(el=>isFilled(el.value)); morningCard.classList.toggle('complete-block', complete); morningBadge.textContent=complete?'Complete':'In progress'; morningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
+  function evaluateMorningCompletion(){ const complete=[morningFields.powerfulSelf,morningFields.mostImportantAction1,morningFields.unstoppable].every(el=>isFilled(el.value)); morningCard.classList.toggle('complete-block', complete); morningBadge.textContent=complete?'Complete':'In progress'; morningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
   function evaluateEveningCompletion(){ const textComplete=[eveningFields.proud,eveningFields.learned,eveningFields.release,eveningFields.alignment].every(el=>isFilled(el.value)); const gratitudeComplete=[eveningFields.grateful1,eveningFields.grateful2,eveningFields.grateful3,eveningFields.grateful4,eveningFields.grateful5,eveningFields.grateful6].some(el=>isFilled(el.value)); const complete=textComplete&&gratitudeComplete; eveningCard.classList.toggle('complete-block', complete); eveningBadge.textContent=complete?'Complete':'In progress'; eveningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
 
   // ── Morning Launch Overlay ─────────────────────────────────────────────
@@ -541,7 +535,11 @@ export function initJournalTab(deps) {
     sessionStorage.setItem('launchOverlayShown_' + todayKey, '1');
 
     const quote = STOIC_QUOTES[Math.floor(Math.random() * STOIC_QUOTES.length)];
-    const action = (payload.mostImportantAction || '').trim();
+    const actions = [payload.mostImportantAction1, payload.mostImportantAction2, payload.mostImportantAction3]
+      .map(a => (a || '').trim())
+      .filter(Boolean);
+    // Backward compatibility with older entries that stored a single action
+    if (!actions.length && (payload.mostImportantAction || '').trim()) actions.push(payload.mostImportantAction.trim());
     const dateKey = keyFromDate(currentDate);
     const dayData = deps.state.data?.days?.[dateKey] || {};
     const rawTasks = Array.isArray(dayData.tasks) ? dayData.tasks : [];
@@ -578,11 +576,15 @@ export function initJournalTab(deps) {
           <div style="font-size:14px;color:rgba(255,255,255,0.45);margin-top:10px;">The bed is done. The day begins.</div>
         </div>
 
-        <!-- Most Important Action -->
-        ${action ? `
+        <!-- Most Important Actions -->
+        ${actions.length ? `
         <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:14px;padding:16px 18px;text-align:left;">
-          <div style="font-size:9px;font-weight:900;letter-spacing:2.5px;color:#C9A84C;text-transform:uppercase;margin-bottom:8px;">Most Important Action Today</div>
-          <div style="font-size:16px;font-weight:800;color:#ffffff;line-height:1.4;">"${action}"</div>
+          <div style="font-size:9px;font-weight:900;letter-spacing:2.5px;color:#C9A84C;text-transform:uppercase;margin-bottom:8px;">${actions.length > 1 ? '3 Most Important Actions Today' : 'Most Important Action Today'}</div>
+          ${actions.map((a,i) => `
+            <div style="display:flex;gap:12px;align-items:flex-start;${i>0?'margin-top:10px;padding-top:10px;border-top:1px solid rgba(201,168,76,0.15);':''}">
+              <div style="width:22px;height:22px;flex-shrink:0;border-radius:6px;background:#C9A84C;color:#050A14;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;">${i+1}</div>
+              <div style="font-size:15px;font-weight:800;color:#ffffff;line-height:1.4;padding-top:1px;">${a}</div>
+            </div>`).join('')}
         </div>` : ''}
 
         <!-- Priorities -->
@@ -658,7 +660,7 @@ export function initJournalTab(deps) {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     const existing = getJournalEntry(keyFromDate(currentDate),'morning') || {};
-    const payload={rested:morningFields.rested.value,sharpness:morningFields.sharpness.value,calm:morningFields.calm.value,motivation:morningFields.motivation.value,clarity:morningFields.clarity.value,drive:morningFields.drive.value,powerfulSelf:morningFields.powerfulSelf.value,mostImportantAction:morningFields.mostImportantAction.value,loseGain:morningFields.loseGain.value,unstoppable:morningFields.unstoppable.value,score:computeMorningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
+    const payload={rested:morningFields.rested.value,sharpness:morningFields.sharpness.value,calm:morningFields.calm.value,motivation:morningFields.motivation.value,clarity:morningFields.clarity.value,drive:morningFields.drive.value,powerfulSelf:morningFields.powerfulSelf.value,mostImportantAction1:morningFields.mostImportantAction1.value,mostImportantAction2:morningFields.mostImportantAction2.value,mostImportantAction3:morningFields.mostImportantAction3.value,unstoppable:morningFields.unstoppable.value,score:computeMorningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
     setJournalEntry(keyFromDate(currentDate),'morning',payload);
     morningSavedPill.textContent = `Saved ${timeStr}`;
     morningSavedPill.style.display='inline';
@@ -673,7 +675,7 @@ export function initJournalTab(deps) {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     const existing = getJournalEntry(keyFromDate(currentDate),'evening') || {};
-    const payload={execution:eveningFields.execution.value,discipline:eveningFields.discipline.value,dopamine:eveningFields.dopamine.value,physical:eveningFields.physical.value,builder:eveningFields.builder.value,sleepprep:eveningFields.sleepprep.value,proud:eveningFields.proud.value,learned:eveningFields.learned.value,release:eveningFields.release.value,alignment:eveningFields.alignment.value,grateful1:eveningFields.grateful1.value,grateful2:eveningFields.grateful2.value,grateful3:eveningFields.grateful3.value,grateful4:eveningFields.grateful4.value,grateful5:eveningFields.grateful5.value,grateful6:eveningFields.grateful6.value,score:computeEveningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
+    const payload={execution:eveningFields.execution.value,discipline:eveningFields.discipline.value,dopamine:eveningFields.dopamine.value,physical:eveningFields.physical.value,builder:eveningFields.builder.value,sleepprep:eveningFields.sleepprep.value,proud:eveningFields.proud.value,learned:eveningFields.learned.value,release:eveningFields.release.value,alignment:eveningFields.alignment.value,tomorrowTask1:eveningFields.tomorrowTask1.value,tomorrowTask2:eveningFields.tomorrowTask2.value,tomorrowTask3:eveningFields.tomorrowTask3.value,grateful1:eveningFields.grateful1.value,grateful2:eveningFields.grateful2.value,grateful3:eveningFields.grateful3.value,grateful4:eveningFields.grateful4.value,grateful5:eveningFields.grateful5.value,grateful6:eveningFields.grateful6.value,score:computeEveningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
     setJournalEntry(keyFromDate(currentDate),'evening',payload);
     eveningSavedPill.textContent = `Saved ${timeStr}`;
     eveningSavedPill.style.display='inline';
@@ -682,7 +684,7 @@ export function initJournalTab(deps) {
     updateAverageNotes(); updateBestVersionPercent(); updateStreakDisplay(); updateLauncherButtons();
   }
 
-  function loadMorning(){ const data=getJournalEntry(keyFromDate(currentDate),'morning')||{}; morningFields.rested.value=data.rested??3; morningFields.sharpness.value=data.sharpness??3; morningFields.calm.value=data.calm??3; morningFields.motivation.value=data.motivation??3; morningFields.clarity.value=data.clarity??3; morningFields.drive.value=data.drive??3; morningFields.powerfulSelf.value=data.powerfulSelf??''; morningFields.mostImportantAction.value=data.mostImportantAction??''; morningFields.loseGain.value=data.loseGain??''; morningFields.unstoppable.value=data.unstoppable??''; morningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = morningFields[key].value; }); computeMorningScore(); evaluateMorningCompletion(); renderDayPriorities(); }
+  function loadMorning(){ const data=getJournalEntry(keyFromDate(currentDate),'morning')||{}; morningFields.rested.value=data.rested??3; morningFields.sharpness.value=data.sharpness??3; morningFields.calm.value=data.calm??3; morningFields.motivation.value=data.motivation??3; morningFields.clarity.value=data.clarity??3; morningFields.drive.value=data.drive??3; morningFields.powerfulSelf.value=data.powerfulSelf??''; morningFields.mostImportantAction1.value=data.mostImportantAction1??data.mostImportantAction??''; morningFields.mostImportantAction2.value=data.mostImportantAction2??''; morningFields.mostImportantAction3.value=data.mostImportantAction3??''; morningFields.unstoppable.value=data.unstoppable??''; morningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = morningFields[key].value; }); computeMorningScore(); evaluateMorningCompletion(); renderDayPriorities(); }
 
   function renderDayPriorities() {
     const el = document.getElementById('journalDayPrioritiesDisplay');
@@ -706,91 +708,7 @@ export function initJournalTab(deps) {
     }).join('');
   }
 
-  function loadEvening(){ const data=getJournalEntry(keyFromDate(currentDate),'evening')||{}; eveningFields.execution.value=data.execution??3; eveningFields.discipline.value=data.discipline??3; eveningFields.dopamine.value=data.dopamine??3; eveningFields.physical.value=data.physical??3; eveningFields.builder.value=data.builder??3; eveningFields.sleepprep.value=data.sleepprep??3; eveningFields.proud.value=data.proud??''; eveningFields.learned.value=data.learned??''; eveningFields.release.value=data.release??''; eveningFields.alignment.value=data.alignment??''; eveningFields.grateful1.value=data.grateful1??''; eveningFields.grateful2.value=data.grateful2??''; eveningFields.grateful3.value=data.grateful3??''; eveningFields.grateful4.value=data.grateful4??''; eveningFields.grateful5.value=data.grateful5??''; eveningFields.grateful6.value=data.grateful6??''; eveningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = eveningFields[key].value; }); computeEveningScore(); evaluateEveningCompletion(); }
-
-  // ── Open Journal ───────────────────────────────────────────────────────
-  function autoExpandOpenTextarea() {
-    if (!openTextField) return;
-    openTextField.style.height = 'auto';
-    openTextField.style.height = Math.max(160, openTextField.scrollHeight) + 'px';
-  }
-
-  function evaluateOpenCompletion() {
-    if (!openCard || !openTextField || !openBadge) return false;
-    const hasContent = openTextField.value.trim().length > 0;
-    openCard.classList.toggle('open-complete', hasContent);
-    if (hasContent) {
-      openBadge.textContent = 'Done';
-      openBadge.classList.add('is-complete');
-    } else {
-      openBadge.textContent = 'Optional';
-      openBadge.classList.remove('is-complete');
-    }
-    updateLauncherButtonsOpen();
-    return hasContent;
-  }
-
-  function saveOpen() {
-    if (!openTextField) return;
-    const hasContent = openTextField.value.trim().length > 0;
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-    const existing = getJournalEntry(keyFromDate(currentDate),'open') || {};
-    const payload = { text: openTextField.value, hasContent, savedAt: timeStr, firstSavedAt: existing.firstSavedAt || timeStr };
-    setJournalEntry(keyFromDate(currentDate),'open', payload);
-    if (openSavedPill) {
-      openSavedPill.textContent = `Saved ${timeStr}`;
-      openSavedPill.style.display = 'inline';
-      setTimeout(() => openSavedPill.style.display = 'none', 2500);
-    }
-    evaluateOpenCompletion();
-  }
-
-  function loadOpen() {
-    if (!openTextField) return;
-    const data = getJournalEntry(keyFromDate(currentDate),'open') || {};
-    openTextField.value = data.text || '';
-    setTimeout(autoExpandOpenTextarea, 0);
-    evaluateOpenCompletion();
-  }
-
-  function toggleOpen() {
-    if (!openCard) return;
-    if (openCard.classList.contains('journal-collapsed')) {
-      openCard.classList.remove('journal-collapsed');
-      setTimeout(() => { openCard.scrollIntoView({ behavior:'smooth', block:'start' }); autoExpandOpenTextarea(); }, 30);
-    } else {
-      saveOpen();
-      openCard.classList.add('journal-collapsed');
-    }
-    updateLauncherButtonsOpen();
-  }
-
-  function updateLauncherButtonsOpen() {
-    if (!openOpenBtn || !openCard || !openTextField) return;
-    const hasContent = openTextField.value.trim().length > 0;
-    const isOpen = !openCard.classList.contains('journal-collapsed');
-    openOpenBtn.classList.toggle('launch-complete', hasContent);
-    openOpenBtn.innerHTML = isOpen
-      ? `${hasContent ? '✓ ' : ''}Open Journal — Open<small>Tap to collapse</small>`
-      : `${hasContent ? '✓ ' : ''}Open Journal<small>${hasContent ? 'Written today · tap to review' : 'Optional free-write — blank canvas for anything on your mind'}</small>`;
-  }
-
-  if (openTextField) {
-    openTextField.addEventListener('input', () => { autoExpandOpenTextarea(); evaluateOpenCompletion(); });
-  }
-  if (document.getElementById('journalCollapseOpenBtn')) {
-    document.getElementById('journalCollapseOpenBtn').addEventListener('click', toggleOpen);
-  }
-  if (document.getElementById('journalCollapseOpenBtnBottom')) {
-    document.getElementById('journalCollapseOpenBtnBottom').addEventListener('click', toggleOpen);
-  }
-  if (openOpenBtn) {
-    openOpenBtn.addEventListener('click', () => {
-      // Opens the full-screen notebook with sidebar, folders, AI transcription, zoom, colour palette
-      openNotebook({ state: deps.state, saveData: deps.saveDataQuiet });
-    });
-  }
+  function loadEvening(){ const data=getJournalEntry(keyFromDate(currentDate),'evening')||{}; eveningFields.execution.value=data.execution??3; eveningFields.discipline.value=data.discipline??3; eveningFields.dopamine.value=data.dopamine??3; eveningFields.physical.value=data.physical??3; eveningFields.builder.value=data.builder??3; eveningFields.sleepprep.value=data.sleepprep??3; eveningFields.proud.value=data.proud??''; eveningFields.learned.value=data.learned??''; eveningFields.release.value=data.release??''; eveningFields.alignment.value=data.alignment??''; eveningFields.tomorrowTask1.value=data.tomorrowTask1??''; eveningFields.tomorrowTask2.value=data.tomorrowTask2??''; eveningFields.tomorrowTask3.value=data.tomorrowTask3??''; eveningFields.grateful1.value=data.grateful1??''; eveningFields.grateful2.value=data.grateful2??''; eveningFields.grateful3.value=data.grateful3??''; eveningFields.grateful4.value=data.grateful4??''; eveningFields.grateful5.value=data.grateful5??''; eveningFields.grateful6.value=data.grateful6??''; eveningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = eveningFields[key].value; }); computeEveningScore(); evaluateEveningCompletion(); }
 
   function updateLauncherButtons() {
     const mComplete = morningBadge.classList.contains('is-complete');
@@ -805,7 +723,6 @@ export function initJournalTab(deps) {
     openEveningBtn.innerHTML = eveningOpen
       ? `${eComplete?'✓ ':''}Evening Reflection — Open<small>Tap to collapse</small>`
       : `${eComplete?'✓ ':''}Evening Reflection<small>${eComplete?'Completed · tap to review':'Open execution, reflection, and reset for tomorrow'}</small>`;
-    updateLauncherButtonsOpen();
   }
 
   function toggleMorning(){
@@ -879,7 +796,7 @@ export function initJournalTab(deps) {
     jumpTodayBtn.addEventListener('click', () => {
       currentDate = new Date(deps.getToday() + 'T12:00:00');
       formatDateDisplay(currentDate);
-      loadMorning(); loadEvening(); loadOpen(); updateAverageNotes(); updateBestVersionPercent();
+      loadMorning(); loadEvening(); updateAverageNotes(); updateBestVersionPercent();
       updateStreakDisplay(); updateJournalMonthObjectives(); updateJournalWeekObjectives(); updateWeekMission();
     });
   }
@@ -959,7 +876,7 @@ export function initJournalTab(deps) {
   function navigateDay(delta) {
     currentDate.setDate(currentDate.getDate() + delta);
     formatDateDisplay(currentDate);
-    loadMorning(); loadEvening(); loadOpen(); updateAverageNotes(); updateBestVersionPercent();
+    loadMorning(); loadEvening(); updateAverageNotes(); updateBestVersionPercent();
     updateStreakDisplay(); updateJournalMonthObjectives(); updateJournalWeekObjectives(); updateWeekMission();
     if (window.refreshJournalHabitGrid) window.refreshJournalHabitGrid(keyFromDate(currentDate));
   }
@@ -973,7 +890,7 @@ export function initJournalTab(deps) {
   datePicker.addEventListener('change', e => {
     currentDate = new Date(e.target.value + 'T12:00:00');
     formatDateDisplay(currentDate);
-    loadMorning(); loadEvening(); loadOpen(); updateAverageNotes(); updateBestVersionPercent();
+    loadMorning(); loadEvening(); updateAverageNotes(); updateBestVersionPercent();
     updateStreakDisplay(); updateJournalMonthObjectives(); updateJournalWeekObjectives(); updateWeekMission();
     if (window.refreshJournalHabitGrid) window.refreshJournalHabitGrid(keyFromDate(currentDate));
   });
@@ -1055,11 +972,11 @@ export function initJournalTab(deps) {
       </div>`;
   }
 
-  // Inject calendar container after openCard and render it
-  if (openCard && !document.getElementById('journal-cal-section')) {
+  // Inject calendar container after the evening card and render it
+  if (eveningCard && !document.getElementById('journal-cal-section')) {
     const calDiv = document.createElement('div');
     calDiv.id = 'journal-cal-section';
-    openCard.insertAdjacentElement('afterend', calDiv);
+    eveningCard.insertAdjacentElement('afterend', calDiv);
   }
   // Inject averages container after calendar
   if (!document.getElementById('journal-score-averages')) {
@@ -1128,7 +1045,7 @@ export function initJournalTab(deps) {
 
   formatDateDisplay(currentDate);
   renderStoicPrinciple();
-  loadMorning(); loadEvening(); loadOpen(); updateAverageNotes(); updateBestVersionPercent();
+  loadMorning(); loadEvening(); updateAverageNotes(); updateBestVersionPercent();
   updateStreakDisplay(); updateLauncherButtons();
   updateJournalMonthObjectives(); updateJournalWeekObjectives(); updateWeekMission();
 
