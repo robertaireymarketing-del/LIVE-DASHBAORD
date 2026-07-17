@@ -10,6 +10,7 @@ import { initBatchActions } from './batchActions.js';
 import { initBatchEditorUI } from './batchActions.js';
 import { initPanicButton } from './panicButton.js';
 import { renderTodayTab as renderTodayTabExternal } from './renderTodayTab.js';
+import { renderBricksTab as renderBricksTabExternal, initBricksActions } from './bricks.js';
 import { renderMarchTab as renderMarchTabExternal } from './renderMarchTab.js';
 import { renderProgressTab as renderProgressTabExternal } from './renderProgressTab.js';
 import { renderVaultTab as renderVaultTabExternal } from './renderExtras.js';
@@ -146,6 +147,7 @@ const renderModalDeps = { state, getProjectFronts, getTodayDayKey, BATCH_COLOURS
 const renderMoreModalDeps = { state, getStreak, RETENTION_SCIENCE, getToday, getSettings, getDayNumber, getMonthTargets };
 
 function renderTodayTab() { return renderTodayTabExternal(renderTabDeps); }
+function renderBricksTab() { return renderBricksTabExternal(state); }
 function renderMarchTab() { return renderMarchTabExternal(renderTabDeps); }
 function renderProgressTab() { return renderProgressTabExternal(renderTabDeps); }
 function renderVaultTab() { return renderVaultTabExternal(renderVaultDeps); }
@@ -222,7 +224,7 @@ function render() {
     <div class="day-badge" onclick="openChallengeSetup()" style="cursor:pointer;">DAY ${getDayNumber()}/${getSettings().challengeDays||90}</div>
     </div>
     </div>
-    <button class="panic-trigger" onclick="openPanic()" style="margin-bottom:12px;margin-top:4px;${['today','journal','planner','progress','scenes'].includes(state.activeTab) ? 'display:none;' : ''}"><span>🆘</span> PANIC BUTTON</button>
+    <button class="panic-trigger" onclick="openPanic()" style="margin-bottom:12px;margin-top:4px;${['today','journal','planner','progress','scenes','bricks'].includes(state.activeTab) ? 'display:none;' : ''}"><span>🆘</span> PANIC BUTTON</button>
     ${(state.activeTab === 'today' || state.activeTab === 'journal') ? `
     <div class="quote-card">
     <div class="quote-icon">✦</div>
@@ -244,6 +246,7 @@ function render() {
     ${(() => { try { return state.activeTab === 'roadmap' ? renderRoadmapTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">ROADMAP ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'planner' ? renderPlannerTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">PLANNER ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'scenes' ? renderScenesTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">SCENES ERROR: ' + e.message + '</div>'; }})()}
+    ${(() => { try { return state.activeTab === 'bricks' ? renderBricksTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">BRICKS ERROR: ' + e.message + '</div>'; }})()}
     ${state.activeTab === 'vision' ? '<div id="tab-vision" style="min-height:100%;"></div>' : ''}
     </div>
     <div class="mobile-more-sheet ${state.moreMenuOpen ? 'open' : ''}">
@@ -397,11 +400,12 @@ initBatchEditorUI({ state, saveData, saveDataQuiet, render, BATCH_COLOURS });
 initPanicButton({ state, saveData, render, getStreak, getTodayData, getToday });
 initDayPlannerActions({ state, saveData, saveDataQuiet, render, getWeekKey, getNextWeekKey, getTodayDayKey, isSunday, getProjectFronts, getMissionTargets, BATCH_COLOURS });
 initSceneActions({ state, saveDataQuiet, render });
+initBricksActions({ state, saveData, saveDataQuiet, render });
 
 // ── Core window functions ──────────────────────────────────────────────────
 window.handleLogin = async () => { try { await signInWithPopup(auth, provider); } catch (e) { console.error('Login failed:', e); } };
 window.handleLogout = async () => { await signOut(auth); try { localStorage.removeItem('tjm_state_cache'); } catch(e) {} state.user = null; state.data = null; render(); };
-window.setTab = (tab) => { state.activeTab = tab; state.selectedEditDate = null; state.moreMenuOpen = false; render(); };
+window.setTab = (tab) => { state.activeTab = tab; state.selectedEditDate = null; state.moreMenuOpen = false; if (tab !== 'bricks') state.bricksViewDate = null; render(); };
 window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render(); };
 window.toggleObjectivesCollapsed = () => { state.objectivesCollapsed = !state.objectivesCollapsed; render(); };
 window.toggleBatchesCollapsed    = () => { state.batchesCollapsed    = !state.batchesCollapsed;    render(); };

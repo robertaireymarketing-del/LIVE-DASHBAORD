@@ -1,3 +1,5 @@
+import { renderBricksSection, BRICKS_SECTION_CSS } from './bricks.js';
+
 export function renderTodayTab(deps) {
 
 const { state, BATCH_COLOURS, getTodayData, getIdentityLock, getMissionTargets, getProjectFronts, getTJMBatches, getLatestWeight, getLatestBodyFat, getLatestWeightDate, getLatestBodyFatDate, formatSyncLabel, getSettings, isSunday, getTodayDayKey, getWeekKey, getToday, getMonthStats, getMonthDaysRemaining, getMonthTargets, getDerivedTargetWeight, getCurrentLeanMass, getStartLeanMass, getStreak, renderInputCard, renderEmbeddedDayPlanner } = deps;
@@ -1248,7 +1250,7 @@ ${remindersArchived.length > 0 ? `
 </div>` : ''}`;
 
 // ── ORDER: Due-Today Banner → Habits → Reminders → Today's Fronts → Objectives (collapsible) → Batches (collapsible) ──
-return injectedCSS + dueTodayBanner + frontsSection + remindersSection + objectivesGroupSection + batchesGroupSection + `
+return injectedCSS + BRICKS_SECTION_CSS + renderBricksSection(state) + dueTodayBanner + frontsSection + remindersSection + objectivesGroupSection + batchesGroupSection + `
 <div style="margin-top:16px;margin-bottom:8px;">
 <button onclick="openPastDays()" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:14px;color:rgba(255,255,255,0.5);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;">
 📅 Review Previous Days
