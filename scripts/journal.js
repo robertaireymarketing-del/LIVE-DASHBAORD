@@ -728,10 +728,12 @@ export function initJournalTab(deps) {
   function toggleMorning(){
     if(morningCard.classList.contains('journal-collapsed')) {
       morningCard.classList.remove('journal-collapsed');
+      deps.state.journalMorningOpen = true;
       setTimeout(() => morningCard.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30);
     } else {
       saveMorning();
       morningCard.classList.add('journal-collapsed');
+      deps.state.journalMorningOpen = false;
     }
     updateLauncherButtons();
   }
@@ -739,11 +741,26 @@ export function initJournalTab(deps) {
   function toggleEvening(){
     if(eveningCard.classList.contains('journal-collapsed')) {
       eveningCard.classList.remove('journal-collapsed');
+      deps.state.journalEveningOpen = true;
       setTimeout(() => eveningCard.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30);
     } else {
       saveEvening();
       eveningCard.classList.add('journal-collapsed');
+      deps.state.journalEveningOpen = false;
     }
+    updateLauncherButtons();
+  }
+
+  // ── Restore open/collapsed state after a re-render ───────────────────────
+  // The card's open state used to live only in the DOM (a `journal-collapsed`
+  // class). Any render() rebuilt the tab's HTML and silently collapsed the
+  // card — which looked like the journal "closing itself" a few seconds after
+  // opening. State now lives on `state`, and this re-applies it on every init.
+  function restoreCollapseState() {
+    if (deps.state.journalMorningOpen) morningCard.classList.remove('journal-collapsed');
+    else morningCard.classList.add('journal-collapsed');
+    if (deps.state.journalEveningOpen) eveningCard.classList.remove('journal-collapsed');
+    else eveningCard.classList.add('journal-collapsed');
     updateLauncherButtons();
   }
 
@@ -1048,5 +1065,6 @@ export function initJournalTab(deps) {
   loadMorning(); loadEvening(); updateAverageNotes(); updateBestVersionPercent();
   updateStreakDisplay(); updateLauncherButtons();
   updateJournalMonthObjectives(); updateJournalWeekObjectives(); updateWeekMission();
+  restoreCollapseState();
 
 }

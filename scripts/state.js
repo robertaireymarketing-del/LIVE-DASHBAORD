@@ -77,4 +77,6 @@ export const state = {
   reminderExpanded: null,       // id of expanded checklist reminder
   newReminderType: 'reminder',  // 'reminder' | 'checklist'
   completedTasksOpen: false,    // whether the "What I Got Done" section is expanded
+  journalMorningOpen: false,    // morning card expanded? kept in state so a render() can't collapse it
+  journalEveningOpen: false,    // evening card expanded? kept in state so a render() can't collapse it
 };

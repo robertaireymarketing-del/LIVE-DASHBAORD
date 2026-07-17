@@ -183,7 +183,11 @@ export function createStorage({
       console.error('[HealthSync] Load FAILED:', e);
       console.error('[HealthSync] This is likely a Firestore permissions error or wrong Firebase project. Check your firebase.js config and Firestore rules.');
     }
-    render();
+    // This resolves a second or two AFTER first paint. A render() here tears
+    // down the DOM and blows away scroll position and focus — do not do it
+    // while the user is in the journal. Health data doesn't feed this tab
+    // anyway; the next natural render will pick it up.
+    if (state.activeTab !== 'journal') render();
   }
 
   function recalculateMarchStats() {
