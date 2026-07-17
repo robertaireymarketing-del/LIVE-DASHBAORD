@@ -2,11 +2,19 @@
 // 500 days. One brick a day. Lay it or lose it.
 // Data model:  state.data.bricks = { startDate: 'YYYY-MM-DD', logs: { 'YYYY-MM-DD': {...} } }
 // A brick counts as LAID when that day's log has any activity > 0.
+//
+// NOTE ON COLOURS: app.css contains `body.light p, body.light span, body.light div
+// { color: inherit; }` which has higher specificity than a plain class selector and
+// will repaint white text navy. Every colour here is therefore hardcoded + !important.
 
 const DEFAULT_START = '2026-07-19'; // Sunday 19 July 2026
 const TOTAL_BRICKS  = 500;
+const PER_ROW       = 10;
 
 const METRICS = ['vinted', 'website', 'ebay', 'recorded', 'posted', 'engaged'];
+
+// Daily expected rate — each of these should rise by 1 per day.
+const DAILY_RATE = { listed: 1, recorded: 1, posted: 1, engaged: 1 };
 
 // ── Data helpers ───────────────────────────────────────────────────────────
 function getBricks(state) {
@@ -67,14 +75,14 @@ function fmtDateShort(dateKey) {
 export function getBrickStats(state) {
   const b = getBricks(state);
   const tk = todayKey();
-  const todayIdx = dayIndexOf(b.startDate, tk);        // 0-based
+  const todayIdx = dayIndexOf(b.startDate, tk);         // 0-based
   const started = todayIdx >= 0;
   const brickNo = Math.min(TOTAL_BRICKS, todayIdx + 1); // 1-based, today's brick
 
   let laid = 0, missed = 0, streak = 0;
   const totals = emptyLog();
 
-  const elapsed = started ? Math.min(todayIdx + 1, TOTAL_BRICKS) : 0;
+  const elapsed = started ? Math.min(todayIdx + 1, TOTAL_BRICKS) : 0; // days counted so far, incl. today
   for (let i = 0; i < elapsed; i++) {
     const k = dateKeyFor(b.startDate, i);
     if (isLaid(state, k)) {
@@ -86,20 +94,26 @@ export function getBrickStats(state) {
     }
   }
 
-  // streak counts back from today (today only breaks it if it's been missed AND is over)
+  // Streak counts back from today. Today not being laid *yet* doesn't break it.
   let cursor = todayIdx;
-  if (started && !isLaid(state, tk)) cursor -= 1; // today not laid yet — don't break the streak
+  if (started && !isLaid(state, tk)) cursor -= 1;
   while (cursor >= 0) {
     if (isLaid(state, dateKeyFor(b.startDate, cursor))) { streak++; cursor--; } else break;
   }
 
   return {
-    startDate: b.startDate, todayIdx, started, brickNo, laid, missed, streak, totals,
+    startDate: b.startDate, todayIdx, started, brickNo, laid, missed, streak, totals, elapsed,
     todayLaid: started && isLaid(state, tk),
     remaining: Math.max(0, TOTAL_BRICKS - laid),
     daysToStart: started ? 0 : Math.abs(todayIdx),
     pct: Math.round((laid / TOTAL_BRICKS) * 100),
     listedTotal: totals.vinted + totals.website + totals.ebay,
+    expected: {
+      listed:   elapsed * DAILY_RATE.listed,
+      recorded: elapsed * DAILY_RATE.recorded,
+      posted:   elapsed * DAILY_RATE.posted,
+      engaged:  elapsed * DAILY_RATE.engaged,
+    },
   };
 }
 
@@ -136,24 +150,24 @@ export function renderBricksSection(state) {
 
 export const BRICKS_SECTION_CSS = `<style id="bricks-band-css">
 .bricks-band {
-  background:#000000; border:2px solid #FFFFFF; border-radius:0;
+  background:#000000 !important; border:2px solid #FFFFFF !important; border-radius:0 !important;
   padding:18px 18px 16px; margin-bottom:16px; cursor:pointer;
   width:100%; box-sizing:border-box; -webkit-tap-highlight-color:transparent;
 }
-body.light .bricks-band { border-color:#000000; }
+body.light .bricks-band { border-color:#000000 !important; }
 .bricks-band:active { transform:scale(0.995); }
 .bricks-band-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
-.bricks-band-kicker { font-size:26px; font-weight:900; letter-spacing:-0.5px; color:#FFFFFF; line-height:1; }
-.bricks-band-sub { font-size:10px; font-weight:900; letter-spacing:2.5px; color:#8A8A8A; margin-top:6px; }
+.bricks-band-kicker, body.light .bricks-band-kicker { font-size:26px !important; font-weight:900 !important; letter-spacing:-0.5px; color:#FFFFFF !important; line-height:1; }
+.bricks-band-sub, body.light .bricks-band-sub { font-size:10px !important; font-weight:900 !important; letter-spacing:2.5px; color:#8A8A8A !important; margin-top:6px; }
 .bricks-band-count { display:flex; align-items:baseline; }
-.bricks-band-count-num { font-size:34px; font-weight:900; color:#FFFFFF; line-height:1; letter-spacing:-1px; font-variant-numeric:tabular-nums; }
-.bricks-band-count-den { font-size:13px; font-weight:900; color:#6E6E6E; }
-.bricks-band-bar { height:8px; background:#000000; border:1.5px solid #4A4A4A; margin:14px 0 12px; }
-.bricks-band-bar-fill { height:100%; background:#FFFFFF; }
+.bricks-band-count-num, body.light .bricks-band-count-num { font-size:34px !important; font-weight:900 !important; color:#FFFFFF !important; line-height:1; letter-spacing:-1px; font-variant-numeric:tabular-nums; }
+.bricks-band-count-den, body.light .bricks-band-count-den { font-size:13px !important; font-weight:900 !important; color:#6E6E6E !important; }
+.bricks-band-bar { height:8px; background:#000000 !important; border:1.5px solid #4A4A4A !important; margin:14px 0 12px; }
+.bricks-band-bar-fill { height:100%; background:#FFFFFF !important; }
 .bricks-band-bottom { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.bricks-band-status { font-size:10px; font-weight:900; letter-spacing:1.6px; color:#8A8A8A; }
-.bricks-band-status.is-open { color:#FFFFFF; }
-.bricks-band-cta { font-size:10px; font-weight:900; letter-spacing:1.6px; color:#000000; background:#FFFFFF; padding:5px 10px; }
+.bricks-band-status, body.light .bricks-band-status { font-size:10px !important; font-weight:900 !important; letter-spacing:1.6px; color:#8A8A8A !important; }
+.bricks-band-status.is-open, body.light .bricks-band-status.is-open { color:#FFFFFF !important; }
+.bricks-band-cta, body.light .bricks-band-cta { font-size:10px !important; font-weight:900 !important; letter-spacing:1.6px; color:#000000 !important; background:#FFFFFF !important; padding:5px 10px; }
 </style>`;
 
 // ── FULL PAGE ──────────────────────────────────────────────────────────────
@@ -161,9 +175,10 @@ export function renderBricksTab(state) {
   const b = getBricks(state);
   const s = getBrickStats(state);
   const tk = todayKey();
+  const light = state.theme === 'light';
 
   // Which day are we editing? Defaults to today (or day 1 if not started).
-  let viewKey = state.bricksViewDate || (s.started ? tk : b.startDate);
+  const viewKey = state.bricksViewDate || (s.started ? tk : b.startDate);
   const viewIdx = dayIndexOf(b.startDate, viewKey);
   const log = getLog(state, viewKey);
   const viewTotal = logTotal(log);
@@ -179,21 +194,49 @@ export function renderBricksTab(state) {
     </div>
   </div>`;
 
-  // ── Wall ─────────────────────────────────────────────────────────────────
+  // ── Wall — built from the ground up. Row 0 (bricks 1-10) sits at the bottom.
+  // The container is column-reverse, so DOM order ascending = visual bottom-up,
+  // and the default scroll position lands on the foundation.
+  const rowCount = Math.ceil(TOTAL_BRICKS / PER_ROW);
   let wall = '';
-  for (let i = 0; i < TOTAL_BRICKS; i++) {
-    const k = dateKeyFor(b.startDate, i);
-    let cls = 'brx-brick';
-    if (isLaid(state, k)) cls += ' is-laid';
-    else if (k < tk) cls += ' is-missed';
-    else if (k === tk) cls += ' is-today';
-    if (k === viewKey) cls += ' is-view';
-    wall += `<button class="${cls}" onclick="brickSelect('${k}')" title="Brick ${i + 1} — ${fmtDateShort(k)}"></button>`;
+  for (let r = 0; r < rowCount; r++) {
+    let row = '';
+    for (let c = 0; c < PER_ROW; c++) {
+      const i = r * PER_ROW + c;
+      if (i >= TOTAL_BRICKS) break;
+      const k = dateKeyFor(b.startDate, i);
+      let cls = 'brx-brick';
+      if (isLaid(state, k)) cls += ' is-laid';
+      else if (k < tk) cls += ' is-missed';
+      else if (k === tk) cls += ' is-today';
+      if (k === viewKey) cls += ' is-view';
+      row += `<button class="${cls}" onclick="brickSelect('${k}')" title="Brick ${i + 1} &mdash; ${fmtDateShort(k)}">${i + 1}</button>`;
+    }
+    wall += `<div class="brx-row">${row}</div>`;
   }
+
+  // ── Totals vs expected ───────────────────────────────────────────────────
+  const totalBox = (val, label, exp) => {
+    const diff = val - exp;
+    const fill = exp > 0 ? Math.min(100, Math.round((val / exp) * 100)) : (val > 0 ? 100 : 0);
+    const chip = diff < 0
+      ? `<span class="brx-chip is-behind">&minus;${Math.abs(diff)} BEHIND</span>`
+      : `<span class="brx-chip">${diff > 0 ? '+' + diff + ' AHEAD' : 'ON PACE'}</span>`;
+    return `
+    <div class="brx-total ${diff < 0 ? 'is-behind' : ''}">
+      <div class="brx-total-num">${val}</div>
+      <div class="brx-total-lbl">${label}</div>
+      <div class="brx-total-bar"><div class="brx-total-bar-fill" style="width:${fill}%;"></div></div>
+      <div class="brx-total-foot"><span class="brx-total-exp">${exp} EXPECTED</span>${chip}</div>
+    </div>`;
+  };
+
+  const plainBox = (val, label) => `
+    <div class="brx-mini"><div class="brx-mini-num">${val}</div><div class="brx-mini-lbl">${label}</div></div>`;
 
   return `
 ${BRICKS_PAGE_CSS}
-<div class="brx-page">
+<div class="brx-page ${light ? 'is-light' : ''}">
 
   <div class="brx-head">
     <button class="brx-back" onclick="setTab('today')">&larr; BACK</button>
@@ -248,7 +291,8 @@ ${BRICKS_PAGE_CSS}
   </div>
 
   <div class="brx-block">
-    <div class="brx-block-title" style="margin-bottom:14px;">THE WALL</div>
+    <div class="brx-block-title" style="margin-bottom:6px;">THE WALL</div>
+    <div class="brx-block-date" style="margin-bottom:14px;">GROUND UP &mdash; BRICK 001 BOTTOM LEFT</div>
     <div class="brx-wall">${wall}</div>
     <div class="brx-legend">
       <span><i class="brx-key is-laid"></i>LAID</span>
@@ -259,15 +303,19 @@ ${BRICKS_PAGE_CSS}
   </div>
 
   <div class="brx-block">
-    <div class="brx-block-title" style="margin-bottom:14px;">TOTALS TO DATE</div>
+    <div class="brx-block-title" style="margin-bottom:6px;">TOTALS TO DATE</div>
+    <div class="brx-block-date" style="margin-bottom:14px;">EXPECTED &mdash; 1 PER DAY, ${s.elapsed} DAY${s.elapsed === 1 ? '' : 'S'} ELAPSED</div>
     <div class="brx-totals">
-      <div class="brx-total"><span>${s.listedTotal}</span>ITEMS LISTED</div>
-      <div class="brx-total"><span>${s.totals.vinted}</span>VINTED</div>
-      <div class="brx-total"><span>${s.totals.website}</span>WEBSITE</div>
-      <div class="brx-total"><span>${s.totals.ebay}</span>EBAY</div>
-      <div class="brx-total"><span>${s.totals.recorded}</span>VIDEOS RECORDED</div>
-      <div class="brx-total"><span>${s.totals.posted}</span>VIDEOS POSTED</div>
-      <div class="brx-total"><span>${s.totals.engaged}</span>CUSTOMERS ENGAGED</div>
+      ${totalBox(s.listedTotal, 'ITEMS LISTED', s.expected.listed)}
+      ${totalBox(s.totals.recorded, 'VIDEOS RECORDED', s.expected.recorded)}
+      ${totalBox(s.totals.posted, 'VIDEOS POSTED', s.expected.posted)}
+      ${totalBox(s.totals.engaged, 'CUSTOMERS ENGAGED', s.expected.engaged)}
+    </div>
+    <div class="brx-group-label" style="margin-top:18px;">LISTINGS BY PLATFORM</div>
+    <div class="brx-minis">
+      ${plainBox(s.totals.vinted, 'VINTED')}
+      ${plainBox(s.totals.website, 'WEBSITE')}
+      ${plainBox(s.totals.ebay, 'EBAY')}
     </div>
   </div>
 
@@ -284,69 +332,136 @@ ${BRICKS_PAGE_CSS}
 }
 
 const BRICKS_PAGE_CSS = `<style id="bricks-page-css">
-.brx-page { --ink:#FFFFFF; --paper:#000000; --mute:#8A8A8A; --line:#4A4A4A; padding-bottom:90px; }
-body.light .brx-page { --ink:#000000; --paper:#FFFFFF; --mute:#5A5A5A; --line:#BDBDBD; }
+/* Every colour hardcoded + !important — app.css light-mode rules
+   (body.light div/span/p { color: inherit }) outrank plain class selectors. */
+.brx-page { padding-bottom:90px; }
 
 .brx-head { display:flex; align-items:center; gap:14px; margin-bottom:18px; }
-.brx-back { background:transparent; border:2px solid var(--ink); color:var(--ink); font-family:inherit; font-size:10px; font-weight:900; letter-spacing:1.5px; padding:7px 11px; cursor:pointer; border-radius:0; }
-.brx-head-title { font-size:12px; font-weight:900; letter-spacing:3px; color:var(--mute); }
+.brx-back { background:transparent !important; border:2px solid #FFFFFF !important; color:#FFFFFF !important; font-family:inherit; font-size:10px !important; font-weight:900 !important; letter-spacing:1.5px; padding:7px 11px; cursor:pointer; border-radius:0 !important; }
+.brx-page.is-light .brx-back { border-color:#000000 !important; color:#000000 !important; }
+.brx-head-title { font-size:12px !important; font-weight:900 !important; letter-spacing:3px; color:#8A8A8A !important; }
+.brx-page.is-light .brx-head-title { color:#5A5A5A !important; }
 
-.brx-hero { background:#000000; border:2px solid var(--ink); padding:24px 20px; margin-bottom:12px; }
-body.light .brx-hero { border-color:#000000; }
-.brx-hero-num { font-size:76px; font-weight:900; color:#FFFFFF; line-height:0.9; letter-spacing:-4px; font-variant-numeric:tabular-nums; }
-.brx-hero-den { font-size:10px; font-weight:900; letter-spacing:3px; color:#8A8A8A; margin-top:10px; }
-.brx-hero-bar { height:10px; background:#000000; border:1.5px solid #4A4A4A; margin:16px 0 10px; }
-.brx-hero-bar-fill { height:100%; background:#FFFFFF; }
-.brx-hero-meta { font-size:10px; font-weight:900; letter-spacing:1.8px; color:#8A8A8A; }
+/* Hero — always black block, always white type, both themes */
+.brx-hero { background:#000000 !important; border:2px solid #FFFFFF !important; padding:24px 20px; margin-bottom:12px; }
+.brx-page.is-light .brx-hero { border-color:#000000 !important; }
+.brx-hero-num { font-size:76px !important; font-weight:900 !important; color:#FFFFFF !important; line-height:0.9; letter-spacing:-4px; font-variant-numeric:tabular-nums; }
+.brx-hero-den { font-size:10px !important; font-weight:900 !important; letter-spacing:3px; color:#8A8A8A !important; margin-top:10px; }
+.brx-hero-bar { height:10px; background:#000000 !important; border:1.5px solid #4A4A4A !important; margin:16px 0 10px; }
+.brx-hero-bar-fill { height:100%; background:#FFFFFF !important; }
+.brx-hero-meta { font-size:10px !important; font-weight:900 !important; letter-spacing:1.8px; color:#8A8A8A !important; }
 
 .brx-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
-.brx-stat { border:2px solid var(--ink); padding:14px 10px; text-align:center; }
-.brx-stat-num { font-size:26px; font-weight:900; color:var(--ink); line-height:1; font-variant-numeric:tabular-nums; }
-.brx-stat-lbl { font-size:9px; font-weight:900; letter-spacing:1.8px; color:var(--mute); margin-top:7px; }
+.brx-stat { border:2px solid #FFFFFF !important; padding:14px 10px; text-align:center; }
+.brx-stat-num { font-size:26px !important; font-weight:900 !important; color:#FFFFFF !important; line-height:1; font-variant-numeric:tabular-nums; }
+.brx-stat-lbl { font-size:9px !important; font-weight:900 !important; letter-spacing:1.8px; color:#8A8A8A !important; margin-top:7px; }
+.brx-page.is-light .brx-stat { border-color:#000000 !important; }
+.brx-page.is-light .brx-stat-num { color:#000000 !important; }
+.brx-page.is-light .brx-stat-lbl { color:#5A5A5A !important; }
 
-.brx-block { border:2px solid var(--ink); padding:18px 16px; margin-bottom:12px; }
-.brx-block-head { border-bottom:2px solid var(--ink); padding-bottom:12px; margin-bottom:16px; }
-.brx-block-title { font-size:15px; font-weight:900; letter-spacing:1.5px; color:var(--ink); }
-.brx-block-date { font-size:10px; font-weight:900; letter-spacing:1.5px; color:var(--mute); margin-top:5px; text-transform:uppercase; }
+.brx-block { border:2px solid #FFFFFF !important; padding:18px 16px; margin-bottom:12px; }
+.brx-block-head { border-bottom:2px solid #FFFFFF !important; padding-bottom:12px; margin-bottom:16px; }
+.brx-block-title { font-size:15px !important; font-weight:900 !important; letter-spacing:1.5px; color:#FFFFFF !important; }
+.brx-block-date { font-size:10px !important; font-weight:900 !important; letter-spacing:1.5px; color:#8A8A8A !important; margin-top:5px; text-transform:uppercase; }
+.brx-page.is-light .brx-block { border-color:#000000 !important; }
+.brx-page.is-light .brx-block-head { border-bottom-color:#000000 !important; }
+.brx-page.is-light .brx-block-title { color:#000000 !important; }
+.brx-page.is-light .brx-block-date { color:#5A5A5A !important; }
 
-.brx-group-label { font-size:9px; font-weight:900; letter-spacing:2.5px; color:var(--mute); margin:16px 0 8px; }
-.brx-group-label:first-of-type { margin-top:0; }
+.brx-group-label { font-size:9px !important; font-weight:900 !important; letter-spacing:2.5px; color:#8A8A8A !important; margin:16px 0 8px; }
+.brx-page.is-light .brx-group-label { color:#5A5A5A !important; }
 .brx-counter-grid { display:flex; flex-direction:column; gap:8px; }
-.brx-counter { display:flex; align-items:center; justify-content:space-between; gap:12px; border:1.5px solid var(--line); padding:9px 9px 9px 13px; }
-.brx-counter-label { font-size:11px; font-weight:900; letter-spacing:1.2px; color:var(--ink); }
+.brx-counter { display:flex; align-items:center; justify-content:space-between; gap:12px; border:1.5px solid #4A4A4A !important; padding:9px 9px 9px 13px; }
+.brx-page.is-light .brx-counter { border-color:#BDBDBD !important; }
+.brx-counter-label { font-size:11px !important; font-weight:900 !important; letter-spacing:1.2px; color:#FFFFFF !important; }
+.brx-page.is-light .brx-counter-label { color:#000000 !important; }
 .brx-counter-ctrl { display:flex; align-items:center; gap:0; flex-shrink:0; }
-.brx-step { width:38px; height:38px; background:var(--paper); border:2px solid var(--ink); color:var(--ink); font-family:inherit; font-size:18px; font-weight:900; cursor:pointer; border-radius:0; line-height:1; display:flex; align-items:center; justify-content:center; }
-.brx-step:active { background:var(--ink); color:var(--paper); }
+.brx-step { width:38px; height:38px; background:#000000 !important; border:2px solid #FFFFFF !important; color:#FFFFFF !important; font-family:inherit; font-size:18px !important; font-weight:900 !important; cursor:pointer; border-radius:0 !important; line-height:1; display:flex; align-items:center; justify-content:center; }
+.brx-step:active { background:#FFFFFF !important; color:#000000 !important; }
 .brx-step:disabled { opacity:0.25; cursor:default; }
-.brx-counter-val { min-width:46px; text-align:center; font-size:19px; font-weight:900; color:var(--ink); font-variant-numeric:tabular-nums; }
+.brx-page.is-light .brx-step { background:#FFFFFF !important; border-color:#000000 !important; color:#000000 !important; }
+.brx-page.is-light .brx-step:active { background:#000000 !important; color:#FFFFFF !important; }
+.brx-counter-val { min-width:46px; text-align:center; font-size:19px !important; font-weight:900 !important; color:#FFFFFF !important; font-variant-numeric:tabular-nums; }
+.brx-page.is-light .brx-counter-val { color:#000000 !important; }
 
-.brx-verdict { margin-top:18px; border:2px solid var(--line); padding:13px; text-align:center; font-size:11px; font-weight:900; letter-spacing:1.5px; color:var(--mute); }
-.brx-verdict.is-laid { background:var(--ink); border-color:var(--ink); color:var(--paper); }
-.brx-clear { width:100%; margin-top:8px; background:transparent; border:none; color:var(--mute); font-family:inherit; font-size:11px; font-weight:700; padding:8px; cursor:pointer; text-decoration:underline; }
-.brx-locked { text-align:center; padding:26px 0; font-size:11px; font-weight:900; letter-spacing:1.5px; color:var(--mute); }
+.brx-verdict { margin-top:18px; border:2px solid #4A4A4A !important; padding:13px; text-align:center; font-size:11px !important; font-weight:900 !important; letter-spacing:1.5px; color:#8A8A8A !important; }
+.brx-verdict.is-laid { background:#FFFFFF !important; border-color:#FFFFFF !important; color:#000000 !important; }
+.brx-page.is-light .brx-verdict { border-color:#BDBDBD !important; color:#5A5A5A !important; }
+.brx-page.is-light .brx-verdict.is-laid { background:#000000 !important; border-color:#000000 !important; color:#FFFFFF !important; }
+.brx-clear { width:100%; margin-top:8px; background:transparent !important; border:none; color:#8A8A8A !important; font-family:inherit; font-size:11px !important; font-weight:700 !important; padding:8px; cursor:pointer; text-decoration:underline; }
+.brx-page.is-light .brx-clear { color:#5A5A5A !important; }
+.brx-locked { text-align:center; padding:26px 0; font-size:11px !important; font-weight:900 !important; letter-spacing:1.5px; color:#8A8A8A !important; }
+.brx-page.is-light .brx-locked { color:#5A5A5A !important; }
 
-.brx-wall { display:grid; grid-template-columns:repeat(10,1fr); gap:3px; max-height:300px; overflow-y:auto; padding:2px; }
-.brx-brick { height:15px; padding:0; border:1.5px solid var(--line); background:transparent; cursor:pointer; border-radius:0; }
-.brx-brick.is-laid { background:var(--ink); border-color:var(--ink); }
-.brx-brick.is-missed { background:transparent; border-color:var(--line); border-style:dotted; opacity:0.45; }
-.brx-brick.is-today { border-color:var(--ink); border-width:2.5px; }
-.brx-brick.is-view { outline:2px solid var(--ink); outline-offset:2px; }
-.brx-legend { display:flex; flex-wrap:wrap; gap:14px; margin-top:14px; font-size:9px; font-weight:900; letter-spacing:1.2px; color:var(--mute); }
-.brx-legend span { display:flex; align-items:center; gap:6px; }
-.brx-key { width:14px; height:9px; border:1.5px solid var(--line); display:inline-block; }
-.brx-key.is-laid { background:var(--ink); border-color:var(--ink); }
-.brx-key.is-today { border-color:var(--ink); border-width:2px; }
-.brx-key.is-missed { border-style:dotted; opacity:0.45; }
+/* ── The Wall — column-reverse means DOM order ascending renders bottom-up,
+      and the default scroll position sits on the foundation. ── */
+.brx-wall { display:flex; flex-direction:column-reverse; gap:3px; max-height:340px; overflow-y:auto; padding:2px; }
+.brx-row { display:grid; grid-template-columns:repeat(10,1fr); gap:3px; flex-shrink:0; }
+.brx-brick {
+  height:19px; padding:0; border:1.5px solid #4A4A4A !important; background:transparent !important;
+  color:#6E6E6E !important; font-family:inherit; font-size:8px !important; font-weight:900 !important;
+  cursor:pointer; border-radius:0 !important; font-variant-numeric:tabular-nums;
+  display:flex; align-items:center; justify-content:center; overflow:hidden;
+}
+.brx-brick.is-laid { background:#FFFFFF !important; border-color:#FFFFFF !important; color:#000000 !important; }
+.brx-brick.is-missed { background:transparent !important; border-color:#3A3A3A !important; border-style:dotted !important; color:#3A3A3A !important; }
+.brx-brick.is-today { border-color:#FFFFFF !important; border-width:2.5px !important; color:#FFFFFF !important; }
+.brx-brick.is-view { outline:2px solid #FFFFFF !important; outline-offset:2px; }
+.brx-page.is-light .brx-brick { border-color:#BDBDBD !important; color:#9A9A9A !important; }
+.brx-page.is-light .brx-brick.is-laid { background:#000000 !important; border-color:#000000 !important; color:#FFFFFF !important; }
+.brx-page.is-light .brx-brick.is-missed { border-color:#D5D5D5 !important; color:#C5C5C5 !important; }
+.brx-page.is-light .brx-brick.is-today { border-color:#000000 !important; color:#000000 !important; }
+.brx-page.is-light .brx-brick.is-view { outline-color:#000000 !important; }
 
+.brx-legend { display:flex; flex-wrap:wrap; gap:14px; margin-top:14px; font-size:9px !important; font-weight:900 !important; letter-spacing:1.2px; color:#8A8A8A !important; }
+.brx-legend span { display:flex; align-items:center; gap:6px; color:#8A8A8A !important; }
+.brx-key { width:14px; height:9px; border:1.5px solid #4A4A4A !important; display:inline-block; }
+.brx-key.is-laid { background:#FFFFFF !important; border-color:#FFFFFF !important; }
+.brx-key.is-today { border-color:#FFFFFF !important; border-width:2px !important; }
+.brx-key.is-missed { border-style:dotted !important; border-color:#3A3A3A !important; }
+.brx-page.is-light .brx-legend, .brx-page.is-light .brx-legend span { color:#5A5A5A !important; }
+.brx-page.is-light .brx-key { border-color:#BDBDBD !important; }
+.brx-page.is-light .brx-key.is-laid { background:#000000 !important; border-color:#000000 !important; }
+.brx-page.is-light .brx-key.is-today { border-color:#000000 !important; }
+.brx-page.is-light .brx-key.is-missed { border-color:#D5D5D5 !important; }
+
+/* ── Totals vs expected ── */
 .brx-totals { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
-.brx-total { border:1.5px solid var(--line); padding:12px 10px; font-size:9px; font-weight:900; letter-spacing:1.3px; color:var(--mute); }
-.brx-total span { display:block; font-size:24px; font-weight:900; color:var(--ink); letter-spacing:-0.5px; margin-bottom:5px; font-variant-numeric:tabular-nums; }
-.brx-total:first-child { grid-column:1 / -1; }
+.brx-total { border:1.5px solid #4A4A4A !important; padding:12px 10px; }
+.brx-total.is-behind { border-color:#FFFFFF !important; border-width:2px !important; }
+.brx-total-num { font-size:26px !important; font-weight:900 !important; color:#FFFFFF !important; letter-spacing:-0.5px; line-height:1; font-variant-numeric:tabular-nums; }
+.brx-total-lbl { font-size:9px !important; font-weight:900 !important; letter-spacing:1.3px; color:#8A8A8A !important; margin-top:6px; }
+.brx-total-bar { height:5px; background:transparent !important; border:1px solid #4A4A4A !important; margin:9px 0 7px; }
+.brx-total-bar-fill { height:100%; background:#FFFFFF !important; }
+.brx-total-foot { display:flex; flex-direction:column; gap:5px; align-items:flex-start; }
+.brx-total-exp { font-size:8px !important; font-weight:900 !important; letter-spacing:1px; color:#6E6E6E !important; }
+.brx-chip { font-size:8px !important; font-weight:900 !important; letter-spacing:1px; color:#FFFFFF !important; border:1.5px solid #FFFFFF !important; padding:3px 6px; }
+.brx-chip.is-behind { background:#FFFFFF !important; color:#000000 !important; border-color:#FFFFFF !important; }
+.brx-page.is-light .brx-total { border-color:#BDBDBD !important; }
+.brx-page.is-light .brx-total.is-behind { border-color:#000000 !important; }
+.brx-page.is-light .brx-total-num { color:#000000 !important; }
+.brx-page.is-light .brx-total-lbl { color:#5A5A5A !important; }
+.brx-page.is-light .brx-total-bar { border-color:#BDBDBD !important; }
+.brx-page.is-light .brx-total-bar-fill { background:#000000 !important; }
+.brx-page.is-light .brx-total-exp { color:#7A7A7A !important; }
+.brx-page.is-light .brx-chip { color:#000000 !important; border-color:#000000 !important; }
+.brx-page.is-light .brx-chip.is-behind { background:#000000 !important; color:#FFFFFF !important; }
+
+.brx-minis { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.brx-mini { border:1.5px solid #4A4A4A !important; padding:11px 8px; text-align:center; }
+.brx-mini-num { font-size:20px !important; font-weight:900 !important; color:#FFFFFF !important; line-height:1; font-variant-numeric:tabular-nums; }
+.brx-mini-lbl { font-size:8px !important; font-weight:900 !important; letter-spacing:1.2px; color:#8A8A8A !important; margin-top:5px; }
+.brx-page.is-light .brx-mini { border-color:#BDBDBD !important; }
+.brx-page.is-light .brx-mini-num { color:#000000 !important; }
+.brx-page.is-light .brx-mini-lbl { color:#5A5A5A !important; }
 
 .brx-start-row { display:flex; gap:8px; }
-.brx-date-input { flex:1; background:var(--paper); border:2px solid var(--ink); color:var(--ink); font-family:inherit; font-size:14px; font-weight:800; padding:11px; border-radius:0; }
-.brx-reset { background:var(--paper); border:2px solid var(--ink); color:var(--ink); font-family:inherit; font-size:10px; font-weight:900; letter-spacing:1.2px; padding:11px 14px; cursor:pointer; border-radius:0; }
-.brx-start-note { font-size:10px; font-weight:800; color:var(--mute); margin-top:10px; letter-spacing:0.5px; }
+.brx-date-input { flex:1; background:#000000 !important; border:2px solid #FFFFFF !important; color:#FFFFFF !important; font-family:inherit; font-size:14px !important; font-weight:800 !important; padding:11px; border-radius:0 !important; }
+.brx-reset { background:#000000 !important; border:2px solid #FFFFFF !important; color:#FFFFFF !important; font-family:inherit; font-size:10px !important; font-weight:900 !important; letter-spacing:1.2px; padding:11px 14px; cursor:pointer; border-radius:0 !important; }
+.brx-start-note { font-size:10px !important; font-weight:800 !important; color:#8A8A8A !important; margin-top:10px; letter-spacing:0.5px; }
+.brx-page.is-light .brx-date-input { background:#FFFFFF !important; border-color:#000000 !important; color:#000000 !important; }
+.brx-page.is-light .brx-reset { background:#FFFFFF !important; border-color:#000000 !important; color:#000000 !important; }
+.brx-page.is-light .brx-start-note { color:#5A5A5A !important; }
 </style>`;
 
 // ── ACTIONS ────────────────────────────────────────────────────────────────
