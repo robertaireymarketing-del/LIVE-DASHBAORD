@@ -1,7 +1,11 @@
 // ── 500 BRICKS ─────────────────────────────────────────────────────────────
 // 500 days. One brick a day. Lay it or lose it.
 // Data model:  state.data.bricks = { startDate: 'YYYY-MM-DD', logs: { 'YYYY-MM-DD': {...} } }
-// A brick counts as LAID when that day's log has any activity > 0.
+//
+// A brick counts as LAID when that day scores >= 2 POINTS.
+// Points = the core needle-movers only: items listed (vinted+website+ebay)
+//          + videos recorded + videos posted + customers engaged.
+// BONUS (emails sent, live minutes) is tracked + totalled but does NOT score points.
 //
 // NOTE ON COLOURS: app.css contains `body.light p, body.light span, body.light div
 // { color: inherit; }` which has higher specificity than a plain class selector and
@@ -10,11 +14,19 @@
 const DEFAULT_START = '2026-07-19'; // Sunday 19 July 2026
 const TOTAL_BRICKS  = 500;
 const PER_ROW       = 10;
+const POINTS_PER_DAY = 2;           // minimum points to lay a brick
+const GOLD = '#C9A84C';
 
+// Point-scoring metrics (the core tasks).
 const METRICS = ['vinted', 'website', 'ebay', 'recorded', 'posted', 'engaged'];
+// Bonus metrics — tracked + totalled, but never counted toward the daily 2 points.
+const BONUS   = ['emails', 'live'];
+const ALL_FIELDS = [...METRICS, ...BONUS];
 
-// Daily expected rate — each of these should rise by 1 per day.
-const DAILY_RATE = { listed: 1, recorded: 1, posted: 1, engaged: 1 };
+// Daily expected rate — the two accountability targets that rise by 1 per day.
+const DAILY_RATE = { listed: 1, posted: 1 };
+
+const MONTHS_SHORT = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
 // ── Data helpers ───────────────────────────────────────────────────────────
 function getBricks(state) {
@@ -26,7 +38,7 @@ function getBricks(state) {
 }
 
 function emptyLog() {
-  return { vinted: 0, website: 0, ebay: 0, recorded: 0, posted: 0, engaged: 0 };
+  return { vinted: 0, website: 0, ebay: 0, recorded: 0, posted: 0, engaged: 0, emails: 0, live: 0 };
 }
 
 function getLog(state, dateKey) {
@@ -34,15 +46,18 @@ function getLog(state, dateKey) {
   return { ...emptyLog(), ...(b.logs[dateKey] || {}) };
 }
 
-function logTotal(log) {
+// Points = core metrics only. Bonus fields are excluded on purpose.
+function pointsTotal(log) {
   return METRICS.reduce((sum, m) => sum + (Number(log[m]) || 0), 0);
 }
 
 function isLaid(state, dateKey) {
   const b = getBricks(state);
   const log = b.logs[dateKey];
-  return !!log && logTotal(log) > 0;
+  return !!log && pointsTotal(log) >= POINTS_PER_DAY;
 }
+
+function pad2(n) { return String(n).padStart(2, '0'); }
 
 function dateKeyFor(startDate, index) { // index is 0-based
   const d = new Date(startDate + 'T12:00:00');
@@ -59,6 +74,16 @@ function dayIndexOf(startDate, dateKey) { // 0-based; negative if before start
   const a = new Date(startDate + 'T12:00:00');
   const b = new Date(dateKey + 'T12:00:00');
   return Math.round((b - a) / 86400000);
+}
+
+// Monday-start week bounds for a date. Returns { mon, sun } as YYYY-MM-DD.
+function weekBounds(dateKey) {
+  const d = new Date(dateKey + 'T12:00:00');
+  const dow = (d.getDay() + 6) % 7; // Mon=0 .. Sun=6
+  const mon = new Date(d); mon.setDate(d.getDate() - dow);
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const f = x => `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
+  return { mon: f(mon), sun: f(sun) };
 }
 
 function fmtDate(dateKey) {
@@ -83,15 +108,15 @@ export function getBrickStats(state) {
   const totals = emptyLog();
 
   const elapsed = started ? Math.min(todayIdx + 1, TOTAL_BRICKS) : 0; // days counted so far, incl. today
+
+  // Accumulate EVERY day's log (not just laid days) — a day with 1 point still
+  // contributes to the running totals and to the deficit you must make up.
   for (let i = 0; i < elapsed; i++) {
     const k = dateKeyFor(b.startDate, i);
-    if (isLaid(state, k)) {
-      laid++;
-      const log = getLog(state, k);
-      METRICS.forEach(m => { totals[m] += Number(log[m]) || 0; });
-    } else if (k !== tk) {
-      missed++;
-    }
+    const log = getLog(state, k);
+    ALL_FIELDS.forEach(m => { totals[m] += Number(log[m]) || 0; });
+    if (isLaid(state, k)) laid++;
+    else if (k !== tk) missed++;
   }
 
   // Streak counts back from today. Today not being laid *yet* doesn't break it.
@@ -101,18 +126,22 @@ export function getBrickStats(state) {
     if (isLaid(state, dateKeyFor(b.startDate, cursor))) { streak++; cursor--; } else break;
   }
 
+  const listedTotal = totals.vinted + totals.website + totals.ebay;
+  // Total points = every core metric summed. Guaranteed to match the parts.
+  const totalPoints = listedTotal + totals.recorded + totals.posted + totals.engaged;
+
   return {
     startDate: b.startDate, todayIdx, started, brickNo, laid, missed, streak, totals, elapsed,
     todayLaid: started && isLaid(state, tk),
     remaining: Math.max(0, TOTAL_BRICKS - laid),
     daysToStart: started ? 0 : Math.abs(todayIdx),
     pct: Math.round((laid / TOTAL_BRICKS) * 100),
-    listedTotal: totals.vinted + totals.website + totals.ebay,
+    listedTotal,
+    totalPoints,
     expected: {
-      listed:   elapsed * DAILY_RATE.listed,
-      recorded: elapsed * DAILY_RATE.recorded,
-      posted:   elapsed * DAILY_RATE.posted,
-      engaged:  elapsed * DAILY_RATE.engaged,
+      points: elapsed * POINTS_PER_DAY,
+      listed: elapsed * DAILY_RATE.listed,
+      posted: elapsed * DAILY_RATE.posted,
     },
   };
 }
@@ -181,49 +210,85 @@ export function renderBricksTab(state) {
   const viewKey = state.bricksViewDate || (s.started ? tk : b.startDate);
   const viewIdx = dayIndexOf(b.startDate, viewKey);
   const log = getLog(state, viewKey);
-  const viewTotal = logTotal(log);
+  const viewPoints = pointsTotal(log);
   const isFuture = viewKey > tk;
 
-  const counter = (field, label) => `
+  const counter = (field, label, step = 1) => `
   <div class="brx-counter">
     <div class="brx-counter-label">${label}</div>
     <div class="brx-counter-ctrl">
-      <button class="brx-step" onclick="brickStep('${field}',-1)" ${isFuture ? 'disabled' : ''}>&minus;</button>
+      <button class="brx-step" onclick="brickStep('${field}',${-step})" ${isFuture ? 'disabled' : ''}>&minus;</button>
       <div class="brx-counter-val">${log[field] || 0}</div>
-      <button class="brx-step" onclick="brickStep('${field}',1)" ${isFuture ? 'disabled' : ''}>+</button>
+      <button class="brx-step" onclick="brickStep('${field}',${step})" ${isFuture ? 'disabled' : ''}>+</button>
     </div>
   </div>`;
 
-  // ── Wall — built from the ground up. Row 0 (bricks 1-10) sits at the bottom.
-  // The container is column-reverse, so DOM order ascending = visual bottom-up,
-  // and the default scroll position lands on the foundation.
-  const rowCount = Math.ceil(TOTAL_BRICKS / PER_ROW);
+  // ── The Wall — a calendar. Earliest month at top, each row is a Monday→Sunday
+  // week, each calendar month is its own outlined block. Gold = a day you still
+  // owe from a week that has already closed.
+  const startD = new Date(b.startDate + 'T12:00:00');
+  const lastD  = new Date(dateKeyFor(b.startDate, TOTAL_BRICKS - 1) + 'T12:00:00');
+  let mCur = new Date(startD.getFullYear(), startD.getMonth(), 1, 12);
+  const mEnd = new Date(lastD.getFullYear(), lastD.getMonth(), 1, 12);
+
   let wall = '';
-  for (let r = 0; r < rowCount; r++) {
-    let row = '';
-    for (let c = 0; c < PER_ROW; c++) {
-      const i = r * PER_ROW + c;
-      if (i >= TOTAL_BRICKS) break;
-      const k = dateKeyFor(b.startDate, i);
-      let cls = 'brx-brick';
-      if (isLaid(state, k)) cls += ' is-laid';
-      else if (k < tk) cls += ' is-missed';
-      else if (k === tk) cls += ' is-today';
-      if (k === viewKey) cls += ' is-view';
-      row += `<button class="${cls}" onclick="brickSelect('${k}')" title="Brick ${i + 1} &mdash; ${fmtDateShort(k)}">${i + 1}</button>`;
+  while (mCur <= mEnd) {
+    const y = mCur.getFullYear(), m = mCur.getMonth();
+    const dim = new Date(y, m + 1, 0).getDate();
+    const firstDow = (new Date(y, m, 1, 12).getDay() + 6) % 7; // Mon=0
+    let cells = '';
+    let monthReal = 0, monthLaid = 0;
+
+    for (let i = 0; i < firstDow; i++) cells += `<div class="cal-cell is-empty"></div>`;
+
+    for (let day = 1; day <= dim; day++) {
+      const dk = `${y}-${pad2(m + 1)}-${pad2(day)}`;
+      const idx = dayIndexOf(b.startDate, dk);
+      if (idx < 0 || idx >= TOTAL_BRICKS) { cells += `<div class="cal-cell is-empty"></div>`; continue; }
+      monthReal++;
+      const laid = isLaid(state, dk);
+      if (laid) monthLaid++;
+      const wb = weekBounds(dk);
+      const weekPast = wb.sun < tk;
+      const weekNow  = wb.mon <= tk && tk <= wb.sun;
+
+      let cls = 'cal-cell';
+      if (laid) cls += ' is-laid';
+      else if (dk < tk) cls += ' is-missed';
+      else if (dk === tk) cls += ' is-today';
+      if (weekPast) cls += ' is-weekpast';
+      else if (weekNow) cls += ' is-weeknow';
+      if (dk === viewKey) cls += ' is-view';
+
+      cells += `<button class="${cls}" onclick="brickSelect('${dk}')" title="Brick ${idx + 1} &mdash; ${fmtDateShort(dk)}">${idx + 1}</button>`;
     }
-    wall += `<div class="brx-row">${row}</div>`;
+
+    const totalCells = firstDow + dim;
+    const trail = (7 - (totalCells % 7)) % 7;
+    for (let i = 0; i < trail; i++) cells += `<div class="cal-cell is-empty"></div>`;
+
+    wall += `
+      <div class="cal-month">
+        <div class="cal-month-head"><span>${MONTHS_SHORT[m]} ${y}</span><span class="cal-month-count">${monthLaid}/${monthReal}</span></div>
+        <div class="cal-dow"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+        <div class="cal-grid">${cells}</div>
+      </div>`;
+
+    mCur.setMonth(mCur.getMonth() + 1);
   }
 
   // ── Totals vs expected ───────────────────────────────────────────────────
-  const totalBox = (val, label, exp) => {
+  const totalBox = (val, label, exp, hero = false) => {
     const diff = val - exp;
     const fill = exp > 0 ? Math.min(100, Math.round((val / exp) * 100)) : (val > 0 ? 100 : 0);
-    const chip = diff < 0
-      ? `<span class="brx-chip is-behind">&minus;${Math.abs(diff)} BEHIND</span>`
-      : `<span class="brx-chip">${diff > 0 ? '+' + diff + ' AHEAD' : 'ON PACE'}</span>`;
+    let chip;
+    if (diff < 0) {
+      chip = `<span class="brx-chip is-behind">${hero ? 'MAKE UP ' + Math.abs(diff) : '&minus;' + Math.abs(diff) + ' BEHIND'}</span>`;
+    } else {
+      chip = `<span class="brx-chip">${diff > 0 ? '+' + diff + ' AHEAD' : 'ON PACE'}</span>`;
+    }
     return `
-    <div class="brx-total ${diff < 0 ? 'is-behind' : ''}">
+    <div class="brx-total ${hero ? 'is-hero' : ''} ${diff < 0 ? 'is-behind' : ''}">
       <div class="brx-total-num">${val}</div>
       <div class="brx-total-lbl">${label}</div>
       <div class="brx-total-bar"><div class="brx-total-bar-fill" style="width:${fill}%;"></div></div>
@@ -263,7 +328,7 @@ ${BRICKS_PAGE_CSS}
     </div>
 
     ${isFuture ? `<div class="brx-locked">THIS BRICK IS NOT YOURS YET.</div>` : `
-    <div class="brx-group-label">ITEMS LISTED</div>
+    <div class="brx-group-label">ITEMS LISTED &mdash; PICK PLATFORM</div>
     <div class="brx-counter-grid">
       ${counter('vinted', 'VINTED')}
       ${counter('website', 'WEBSITE')}
@@ -281,36 +346,52 @@ ${BRICKS_PAGE_CSS}
       ${counter('engaged', 'CUSTOMERS ENGAGED')}
     </div>
 
-    <div class="brx-verdict ${viewTotal > 0 ? 'is-laid' : ''}">
-      ${viewTotal > 0
-        ? `&#9632;&nbsp; BRICK LAID &mdash; ${viewTotal} ACTION${viewTotal === 1 ? '' : 'S'}`
-        : `&#9633;&nbsp; NOTHING LOGGED. NO BRICK.`}
+    <div class="brx-group-label">BONUS &mdash; DOESN&rsquo;T SCORE POINTS</div>
+    <div class="brx-counter-grid">
+      ${counter('emails', 'SALES EMAILS')}
+      ${counter('live', 'LIVE MINUTES', 5)}
     </div>
-    ${viewTotal > 0 ? `<button class="brx-clear" onclick="brickClearDay()">Clear this day</button>` : ''}
+
+    <div class="brx-verdict ${viewPoints >= POINTS_PER_DAY ? 'is-laid' : ''}">
+      ${viewPoints >= POINTS_PER_DAY
+        ? `&#9632;&nbsp; BRICK LAID &mdash; ${viewPoints} POINT${viewPoints === 1 ? '' : 'S'}`
+        : `&#9633;&nbsp; ${viewPoints}/${POINTS_PER_DAY} POINTS &mdash; ${POINTS_PER_DAY - viewPoints} MORE TO LAY THIS BRICK`}
+    </div>
+    ${viewPoints > 0 || (log.emails || 0) > 0 || (log.live || 0) > 0 ? `<button class="brx-clear" onclick="brickClearDay()">Clear this day</button>` : ''}
     `}
   </div>
 
   <div class="brx-block">
     <div class="brx-block-title" style="margin-bottom:6px;">THE WALL</div>
-    <div class="brx-block-date" style="margin-bottom:14px;">GROUND UP &mdash; BRICK 001 BOTTOM LEFT</div>
-    <div class="brx-wall">${wall}</div>
+    <div class="brx-block-date" style="margin-bottom:14px;">MON &rarr; SUN &middot; ONE BOX PER MONTH &middot; GOLD = OWED</div>
+    <div class="cal-wall">${wall}</div>
     <div class="brx-legend">
-      <span><i class="brx-key is-laid"></i>LAID</span>
-      <span><i class="brx-key is-today"></i>TODAY</span>
-      <span><i class="brx-key is-missed"></i>MISSED</span>
-      <span><i class="brx-key"></i>AHEAD</span>
+      <span><i class="cal-key is-laid"></i>LAID</span>
+      <span><i class="cal-key is-today"></i>TODAY</span>
+      <span><i class="cal-key is-owed"></i>OWED</span>
+      <span><i class="cal-key"></i>AHEAD</span>
     </div>
   </div>
 
   <div class="brx-block">
     <div class="brx-block-title" style="margin-bottom:6px;">TOTALS TO DATE</div>
-    <div class="brx-block-date" style="margin-bottom:14px;">EXPECTED &mdash; 1 PER DAY, ${s.elapsed} DAY${s.elapsed === 1 ? '' : 'S'} ELAPSED</div>
+    <div class="brx-block-date" style="margin-bottom:14px;">TARGET &mdash; 2 POINTS/DAY &middot; ${s.elapsed} DAY${s.elapsed === 1 ? '' : 'S'} ELAPSED</div>
     <div class="brx-totals">
-      ${totalBox(s.listedTotal, 'ITEMS LISTED', s.expected.listed)}
-      ${totalBox(s.totals.recorded, 'VIDEOS RECORDED', s.expected.recorded)}
-      ${totalBox(s.totals.posted, 'VIDEOS POSTED', s.expected.posted)}
-      ${totalBox(s.totals.engaged, 'CUSTOMERS ENGAGED', s.expected.engaged)}
+      ${totalBox(s.totalPoints, 'TOTAL POINTS', s.expected.points, true)}
     </div>
+    <div class="brx-totals" style="margin-top:8px;">
+      ${totalBox(s.listedTotal, 'ITEMS LISTED', s.expected.listed)}
+      ${totalBox(s.totals.posted, 'VIDEOS POSTED', s.expected.posted)}
+    </div>
+
+    <div class="brx-group-label" style="margin-top:18px;">ALSO TRACKED</div>
+    <div class="brx-minis cols2">
+      ${plainBox(s.totals.recorded, 'VIDEOS RECORDED')}
+      ${plainBox(s.totals.engaged, 'CUSTOMERS ENGAGED')}
+      ${plainBox(s.totals.emails, 'SALES EMAILS')}
+      ${plainBox(s.totals.live, 'LIVE MINUTES')}
+    </div>
+
     <div class="brx-group-label" style="margin-top:18px;">LISTINGS BY PLATFORM</div>
     <div class="brx-minis">
       ${plainBox(s.totals.vinted, 'VINTED')}
@@ -370,6 +451,7 @@ const BRICKS_PAGE_CSS = `<style id="bricks-page-css">
 
 .brx-group-label { font-size:9px !important; font-weight:900 !important; letter-spacing:2.5px; color:#8A8A8A !important; margin:16px 0 8px; }
 .brx-page.is-light .brx-group-label { color:#5A5A5A !important; }
+
 .brx-counter-grid { display:flex; flex-direction:column; gap:8px; }
 .brx-counter { display:flex; align-items:center; justify-content:space-between; gap:12px; border:1.5px solid #4A4A4A !important; padding:9px 9px 9px 13px; }
 .brx-page.is-light .brx-counter { border-color:#BDBDBD !important; }
@@ -393,41 +475,59 @@ const BRICKS_PAGE_CSS = `<style id="bricks-page-css">
 .brx-locked { text-align:center; padding:26px 0; font-size:11px !important; font-weight:900 !important; letter-spacing:1.5px; color:#8A8A8A !important; }
 .brx-page.is-light .brx-locked { color:#5A5A5A !important; }
 
-/* ── The Wall — column-reverse means DOM order ascending renders bottom-up,
-      and the default scroll position sits on the foundation. ── */
-.brx-wall { display:flex; flex-direction:column-reverse; gap:3px; max-height:340px; overflow-y:auto; padding:2px; }
-.brx-row { display:grid; grid-template-columns:repeat(10,1fr); gap:3px; flex-shrink:0; }
-.brx-brick {
-  height:19px; padding:0; border:1.5px solid #4A4A4A !important; background:transparent !important;
+/* ── The Wall — calendar. Month blocks, Monday→Sunday rows. ── */
+.cal-wall { display:flex; flex-direction:column; gap:12px; max-height:440px; overflow-y:auto; padding:2px; }
+.cal-month { border:2px solid #FFFFFF !important; padding:11px 11px 12px; }
+.brx-page.is-light .cal-month { border-color:#000000 !important; }
+.cal-month-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:9px; }
+.cal-month-head span:first-child { font-size:12px !important; font-weight:900 !important; letter-spacing:1.6px; color:#FFFFFF !important; }
+.brx-page.is-light .cal-month-head span:first-child { color:#000000 !important; }
+.cal-month-count { font-size:10px !important; font-weight:900 !important; letter-spacing:1px; color:#8A8A8A !important; font-variant-numeric:tabular-nums; }
+.brx-page.is-light .cal-month-count { color:#5A5A5A !important; }
+.cal-dow { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-bottom:4px; }
+.cal-dow span { text-align:center; font-size:8px !important; font-weight:900 !important; letter-spacing:0.5px; color:#6E6E6E !important; }
+.brx-page.is-light .cal-dow span { color:#9A9A9A !important; }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+.cal-cell {
+  height:26px; padding:0; border:1.5px solid #4A4A4A !important; background:transparent !important;
   color:#6E6E6E !important; font-family:inherit; font-size:8px !important; font-weight:900 !important;
   cursor:pointer; border-radius:0 !important; font-variant-numeric:tabular-nums;
   display:flex; align-items:center; justify-content:center; overflow:hidden;
 }
-.brx-brick.is-laid { background:#FFFFFF !important; border-color:#FFFFFF !important; color:#000000 !important; }
-.brx-brick.is-missed { background:transparent !important; border-color:#3A3A3A !important; border-style:dotted !important; color:#3A3A3A !important; }
-.brx-brick.is-today { border-color:#FFFFFF !important; border-width:2.5px !important; color:#FFFFFF !important; }
-.brx-brick.is-view { outline:2px solid #FFFFFF !important; outline-offset:2px; }
-.brx-page.is-light .brx-brick { border-color:#BDBDBD !important; color:#9A9A9A !important; }
-.brx-page.is-light .brx-brick.is-laid { background:#000000 !important; border-color:#000000 !important; color:#FFFFFF !important; }
-.brx-page.is-light .brx-brick.is-missed { border-color:#D5D5D5 !important; color:#C5C5C5 !important; }
-.brx-page.is-light .brx-brick.is-today { border-color:#000000 !important; color:#000000 !important; }
-.brx-page.is-light .brx-brick.is-view { outline-color:#000000 !important; }
+.cal-cell.is-empty { border-color:transparent !important; background:transparent !important; cursor:default; }
+.cal-cell.is-laid { background:#FFFFFF !important; border-color:#FFFFFF !important; color:#000000 !important; }
+.cal-cell.is-missed { background:transparent !important; border-color:#3A3A3A !important; border-style:dotted !important; color:#3A3A3A !important; }
+.cal-cell.is-today { border-color:#FFFFFF !important; border-width:2.5px !important; color:#FFFFFF !important; }
+/* Week has closed: unlaid days you still owe glow gold; laid days keep a gold ring. */
+.cal-cell.is-weekpast.is-missed { border-color:${GOLD} !important; color:${GOLD} !important; }
+.cal-cell.is-weekpast.is-laid { box-shadow:inset 0 0 0 1.5px ${GOLD}; }
+.cal-cell.is-weeknow:not(.is-laid):not(.is-today) { border-color:#7A6A34 !important; }
+.cal-cell.is-view { outline:2px solid #FFFFFF !important; outline-offset:2px; }
+.brx-page.is-light .cal-cell { border-color:#BDBDBD !important; color:#9A9A9A !important; }
+.brx-page.is-light .cal-cell.is-empty { border-color:transparent !important; }
+.brx-page.is-light .cal-cell.is-laid { background:#000000 !important; border-color:#000000 !important; color:#FFFFFF !important; }
+.brx-page.is-light .cal-cell.is-missed { border-color:#D5D5D5 !important; color:#C5C5C5 !important; }
+.brx-page.is-light .cal-cell.is-today { border-color:#000000 !important; color:#000000 !important; }
+.brx-page.is-light .cal-cell.is-weekpast.is-missed { border-color:${GOLD} !important; color:#A9842A !important; }
+.brx-page.is-light .cal-cell.is-view { outline-color:#000000 !important; }
 
 .brx-legend { display:flex; flex-wrap:wrap; gap:14px; margin-top:14px; font-size:9px !important; font-weight:900 !important; letter-spacing:1.2px; color:#8A8A8A !important; }
 .brx-legend span { display:flex; align-items:center; gap:6px; color:#8A8A8A !important; }
-.brx-key { width:14px; height:9px; border:1.5px solid #4A4A4A !important; display:inline-block; }
-.brx-key.is-laid { background:#FFFFFF !important; border-color:#FFFFFF !important; }
-.brx-key.is-today { border-color:#FFFFFF !important; border-width:2px !important; }
-.brx-key.is-missed { border-style:dotted !important; border-color:#3A3A3A !important; }
+.cal-key { width:14px; height:11px; border:1.5px solid #4A4A4A !important; display:inline-block; box-sizing:border-box; }
+.cal-key.is-laid { background:#FFFFFF !important; border-color:#FFFFFF !important; }
+.cal-key.is-today { border-color:#FFFFFF !important; border-width:2px !important; }
+.cal-key.is-owed { border-color:${GOLD} !important; border-style:dotted !important; }
 .brx-page.is-light .brx-legend, .brx-page.is-light .brx-legend span { color:#5A5A5A !important; }
-.brx-page.is-light .brx-key { border-color:#BDBDBD !important; }
-.brx-page.is-light .brx-key.is-laid { background:#000000 !important; border-color:#000000 !important; }
-.brx-page.is-light .brx-key.is-today { border-color:#000000 !important; }
-.brx-page.is-light .brx-key.is-missed { border-color:#D5D5D5 !important; }
+.brx-page.is-light .cal-key { border-color:#BDBDBD !important; }
+.brx-page.is-light .cal-key.is-laid { background:#000000 !important; border-color:#000000 !important; }
+.brx-page.is-light .cal-key.is-today { border-color:#000000 !important; }
+.brx-page.is-light .cal-key.is-owed { border-color:${GOLD} !important; }
 
 /* ── Totals vs expected ── */
 .brx-totals { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
 .brx-total { border:1.5px solid #4A4A4A !important; padding:12px 10px; }
+.brx-total.is-hero { grid-column:1 / -1; }
+.brx-total.is-hero .brx-total-num { font-size:34px !important; }
 .brx-total.is-behind { border-color:#FFFFFF !important; border-width:2px !important; }
 .brx-total-num { font-size:26px !important; font-weight:900 !important; color:#FFFFFF !important; letter-spacing:-0.5px; line-height:1; font-variant-numeric:tabular-nums; }
 .brx-total-lbl { font-size:9px !important; font-weight:900 !important; letter-spacing:1.3px; color:#8A8A8A !important; margin-top:6px; }
@@ -448,6 +548,7 @@ const BRICKS_PAGE_CSS = `<style id="bricks-page-css">
 .brx-page.is-light .brx-chip.is-behind { background:#000000 !important; color:#FFFFFF !important; }
 
 .brx-minis { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.brx-minis.cols2 { grid-template-columns:repeat(2,1fr); }
 .brx-mini { border:1.5px solid #4A4A4A !important; padding:11px 8px; text-align:center; }
 .brx-mini-num { font-size:20px !important; font-weight:900 !important; color:#FFFFFF !important; line-height:1; font-variant-numeric:tabular-nums; }
 .brx-mini-lbl { font-size:8px !important; font-weight:900 !important; letter-spacing:1.2px; color:#8A8A8A !important; margin-top:5px; }
@@ -478,7 +579,7 @@ export function initBricksActions({ state, saveData, saveDataQuiet, render }) {
   };
 
   window.brickStep = (field, delta) => {
-    if (!METRICS.includes(field)) return;
+    if (!ALL_FIELDS.includes(field)) return;
     const b = getBricks(state);
     const key = currentViewKey();
     if (key > todayKey()) return;
