@@ -655,6 +655,40 @@ export function initJournalTab(deps) {
     }, 1000);
   }
 
+  // ── "Saved" pill: fade instead of display-toggle ────────────────────────
+  // Toggling display:none <-> inline every autosave added/removed the pill from
+  // the header's flex row, reflowing everything below it while you typed — the
+  // juddering. The pill now permanently occupies the layout and only fades its
+  // opacity, so nothing moves.
+  [morningSavedPill, eveningSavedPill].forEach(p => {
+    if (!p) return;
+    p.style.display = 'inline-block';
+    p.style.opacity = '0';
+    p.style.transition = 'opacity .2s ease';
+    p.style.pointerEvents = 'none';
+  });
+  function flashSavedPill(pill, timeStr) {
+    if (!pill) return;
+    pill.textContent = `Saved ${timeStr}`;
+    pill.style.opacity = '1';
+    clearTimeout(pill._fadeT);
+    pill._fadeT = setTimeout(() => { pill.style.opacity = '0'; }, 2500);
+  }
+
+  // ── Bind a listener at most once per element ─────────────────────────────
+  // If this tab is re-initialised over the same DOM (e.g. after a data sync),
+  // re-running the binding block used to stack a second listener on every
+  // button. A single collapse tap then toggled twice and cancelled itself out —
+  // that's why Collapse "did nothing" once entries were saved. Keyed by name so
+  // an element can still carry several distinct listeners of the same type.
+  function bindOnce(el, type, key, handler) {
+    if (!el) return;
+    el._jb = el._jb || {};
+    if (el._jb[key]) return;
+    el._jb[key] = true;
+    el.addEventListener(type, handler);
+  }
+
   function saveMorning(silent){
     const complete = evaluateMorningCompletion();
     const now = new Date();
@@ -662,26 +696,29 @@ export function initJournalTab(deps) {
     const existing = getJournalEntry(keyFromDate(currentDate),'morning') || {};
     const payload={rested:morningFields.rested.value,sharpness:morningFields.sharpness.value,calm:morningFields.calm.value,motivation:morningFields.motivation.value,clarity:morningFields.clarity.value,drive:morningFields.drive.value,powerfulSelf:morningFields.powerfulSelf.value,mostImportantAction1:morningFields.mostImportantAction1.value,mostImportantAction2:morningFields.mostImportantAction2.value,mostImportantAction3:morningFields.mostImportantAction3.value,unstoppable:morningFields.unstoppable.value,score:computeMorningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
     setJournalEntry(keyFromDate(currentDate),'morning',payload);
-    morningSavedPill.textContent = `Saved ${timeStr}`;
-    morningSavedPill.style.display='inline';
-    setTimeout(()=>morningSavedPill.style.display='none',2500);
-    entryStatus.textContent='Saved morning entry for '+fullDate.textContent;
-    updateAverageNotes(); updateBestVersionPercent(); updateStreakDisplay(); updateLauncherButtons();
+    flashSavedPill(morningSavedPill, timeStr);
+    // Header recomputations reflow layout above the fields, so on a silent
+    // (typing) autosave we skip them — that churn was the juddering. They run
+    // on a deliberate save (collapse / launcher), where the card is closing anyway.
+    if (!silent) {
+      entryStatus.textContent='Saved morning entry for '+fullDate.textContent;
+      updateAverageNotes(); updateBestVersionPercent(); updateStreakDisplay(); updateLauncherButtons();
+    }
     if (complete && !silent) setTimeout(() => showMorningLaunchOverlay(payload), 400);
   }
 
-  function saveEvening(){
+  function saveEvening(silent){
     const complete = evaluateEveningCompletion();
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     const existing = getJournalEntry(keyFromDate(currentDate),'evening') || {};
     const payload={execution:eveningFields.execution.value,discipline:eveningFields.discipline.value,dopamine:eveningFields.dopamine.value,physical:eveningFields.physical.value,builder:eveningFields.builder.value,sleepprep:eveningFields.sleepprep.value,proud:eveningFields.proud.value,learned:eveningFields.learned.value,release:eveningFields.release.value,alignment:eveningFields.alignment.value,tomorrowTask1:eveningFields.tomorrowTask1.value,tomorrowTask2:eveningFields.tomorrowTask2.value,tomorrowTask3:eveningFields.tomorrowTask3.value,grateful1:eveningFields.grateful1.value,grateful2:eveningFields.grateful2.value,grateful3:eveningFields.grateful3.value,grateful4:eveningFields.grateful4.value,grateful5:eveningFields.grateful5.value,grateful6:eveningFields.grateful6.value,score:computeEveningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
     setJournalEntry(keyFromDate(currentDate),'evening',payload);
-    eveningSavedPill.textContent = `Saved ${timeStr}`;
-    eveningSavedPill.style.display='inline';
-    setTimeout(()=>eveningSavedPill.style.display='none',2500);
-    entryStatus.textContent='Saved evening entry for '+fullDate.textContent;
-    updateAverageNotes(); updateBestVersionPercent(); updateStreakDisplay(); updateLauncherButtons();
+    flashSavedPill(eveningSavedPill, timeStr);
+    if (!silent) {
+      entryStatus.textContent='Saved evening entry for '+fullDate.textContent;
+      updateAverageNotes(); updateBestVersionPercent(); updateStreakDisplay(); updateLauncherButtons();
+    }
   }
 
   function loadMorning(){ const data=getJournalEntry(keyFromDate(currentDate),'morning')||{}; morningFields.rested.value=data.rested??3; morningFields.sharpness.value=data.sharpness??3; morningFields.calm.value=data.calm??3; morningFields.motivation.value=data.motivation??3; morningFields.clarity.value=data.clarity??3; morningFields.drive.value=data.drive??3; morningFields.powerfulSelf.value=data.powerfulSelf??''; morningFields.mostImportantAction1.value=data.mostImportantAction1??data.mostImportantAction??''; morningFields.mostImportantAction2.value=data.mostImportantAction2??''; morningFields.mostImportantAction3.value=data.mostImportantAction3??''; morningFields.unstoppable.value=data.unstoppable??''; morningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = morningFields[key].value; }); computeMorningScore(); evaluateMorningCompletion(); renderDayPriorities(); }
@@ -717,12 +754,16 @@ export function initJournalTab(deps) {
     openEveningBtn.classList.toggle('launch-complete', eComplete);
     const morningOpen = !morningCard.classList.contains('journal-collapsed');
     const eveningOpen = !eveningCard.classList.contains('journal-collapsed');
-    openMorningBtn.innerHTML = morningOpen
+    const mHtml = morningOpen
       ? `${mComplete?'✓ ':''}Morning Journal — Open<small>Tap to collapse</small>`
       : `${mComplete?'✓ ':''}Morning Journal<small>${mComplete?'Completed · tap to review':'Open readiness, identity, mission, and priorities'}</small>`;
-    openEveningBtn.innerHTML = eveningOpen
+    const eHtml = eveningOpen
       ? `${eComplete?'✓ ':''}Evening Reflection — Open<small>Tap to collapse</small>`
       : `${eComplete?'✓ ':''}Evening Reflection<small>${eComplete?'Completed · tap to review':'Open execution, reflection, and reset for tomorrow'}</small>`;
+    // Only touch the DOM when the text actually changes — evaluate() runs on
+    // every keystroke, and repainting these each time added to the judder.
+    if (openMorningBtn.innerHTML !== mHtml) openMorningBtn.innerHTML = mHtml;
+    if (openEveningBtn.innerHTML !== eHtml) openEveningBtn.innerHTML = eHtml;
   }
 
   function toggleMorning(){
@@ -764,33 +805,33 @@ export function initJournalTab(deps) {
     updateLauncherButtons();
   }
 
-  morningBindings.forEach(([key,valId])=>{ const range=morningFields[key]; const val=document.getElementById(valId); range.addEventListener('input', ()=>{ val.textContent=range.value; computeMorningScore(); }); });
-  eveningBindings.forEach(([key,valId])=>{ const range=eveningFields[key]; const val=document.getElementById(valId); range.addEventListener('input', ()=>{ val.textContent=range.value; computeEveningScore(); }); });
-  Object.values(morningFields).forEach(el=>el.addEventListener('input', evaluateMorningCompletion));
-  Object.values(eveningFields).forEach(el=>el.addEventListener('input', evaluateEveningCompletion));
+  morningBindings.forEach(([key,valId])=>{ const range=morningFields[key]; const val=document.getElementById(valId); bindOnce(range,'input','rangeval',()=>{ val.textContent=range.value; computeMorningScore(); }); });
+  eveningBindings.forEach(([key,valId])=>{ const range=eveningFields[key]; const val=document.getElementById(valId); bindOnce(range,'input','rangeval',()=>{ val.textContent=range.value; computeEveningScore(); }); });
+  Object.values(morningFields).forEach(el=>bindOnce(el,'input','evalcomplete',evaluateMorningCompletion));
+  Object.values(eveningFields).forEach(el=>bindOnce(el,'input','evalcomplete',evaluateEveningCompletion));
 
   // ── Debounced autosave ─────────────────────────────────────────────────
   // Persist as the user types so a stray render() from any source can never
-  // wipe an in-progress entry. saveMorning(true) saves silently (no launch
-  // overlay while still typing). saveEvening has no overlay, so no flag needed.
+  // wipe an in-progress entry. Both save silently here (true) — no launch
+  // overlay and no header reflow while you're still typing.
   let _mSaveT, _eSaveT;
-  Object.values(morningFields).forEach(el => el.addEventListener('input', () => {
+  Object.values(morningFields).forEach(el => bindOnce(el,'input','autosave',() => {
     clearTimeout(_mSaveT); _mSaveT = setTimeout(() => saveMorning(true), 800);
   }));
-  Object.values(eveningFields).forEach(el => el.addEventListener('input', () => {
-    clearTimeout(_eSaveT); _eSaveT = setTimeout(() => saveEvening(), 800);
+  Object.values(eveningFields).forEach(el => bindOnce(el,'input','autosave',() => {
+    clearTimeout(_eSaveT); _eSaveT = setTimeout(() => saveEvening(true), 800);
   }));
 
-  document.getElementById('journalCollapseMorningBtn').addEventListener('click', toggleMorning);
-  document.getElementById('journalCollapseMorningBtnBottom').addEventListener('click', toggleMorning);
-  document.getElementById('journalCollapseEveningBtn').addEventListener('click', toggleEvening);
-  document.getElementById('journalCollapseEveningBtnBottom').addEventListener('click', toggleEvening);
+  bindOnce(document.getElementById('journalCollapseMorningBtn'),'click','collapse',toggleMorning);
+  bindOnce(document.getElementById('journalCollapseMorningBtnBottom'),'click','collapse',toggleMorning);
+  bindOnce(document.getElementById('journalCollapseEveningBtn'),'click','collapse',toggleEvening);
+  bindOnce(document.getElementById('journalCollapseEveningBtnBottom'),'click','collapse',toggleEvening);
 
-  openMorningBtn.addEventListener('click', () => {
+  bindOnce(openMorningBtn,'click','launch',() => {
     if (morningCard.classList.contains('journal-collapsed')) { toggleMorning(); }
     else { saveMorning(); toggleMorning(); }
   });
-  openEveningBtn.addEventListener('click', () => {
+  bindOnce(openEveningBtn,'click','launch',() => {
     if (eveningCard.classList.contains('journal-collapsed')) { toggleEvening(); }
     else { saveEvening(); toggleEvening(); }
   });
