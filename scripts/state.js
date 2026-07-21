@@ -15,6 +15,11 @@ export const state = {
   data: null,
   activeTab: 'today',
   saving: false,
+  // ── Clarity (thinking tool) ──
+  clarityView: 'today',                        // today | browse | history
+  clarityQuestionId: null,                     // null → today's rotating question
+  clarityBrowseCat: null,                      // selected category in Browse
+  clarityDraft: { answer: '', decision: '' },  // render-safe in-progress writing
   healthData: [],
   showSettings: false,
   selectedEditDate: null,
