@@ -176,11 +176,21 @@ exports.handler = async function(event){
 
   const transcript = Array.isArray(payload.transcript) ? payload.transcript.slice(-MAX_TRANSCRIPT) : [];
   if(!transcript.length) return respond(400, {error:'Empty transcript'});
-  const messages = transcript.map(function(m){
+  let messages = transcript.map(function(m){
     return { role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content||'').slice(0, MAX_CHARS) };
   }).filter(function(m){ return m.content.trim().length; });
   if(!messages.length) return respond(400, {error:'Empty transcript'});
   if(messages[0].role !== 'user') messages.unshift({role:'user', content:'(continuing)'});
+
+  // The Messages API requires roles to alternate — merge any consecutive pair.
+  const alternating = [];
+  for(let i=0;i<messages.length;i++){
+    const last = alternating[alternating.length-1];
+    if(last && last.role === messages[i].role) last.content += '\n\n' + messages[i].content;
+    else alternating.push({ role: messages[i].role, content: messages[i].content });
+  }
+  messages = alternating;
+
   if(messages[messages.length-1].role === 'assistant') messages.push({role:'user', content: wantSummary ? 'Please wrap up now.' : 'Continue.'});
 
   const excerpts = (Array.isArray(payload.excerpts) ? payload.excerpts : []).slice(0, MAX_EXCERPTS).map(function(x){
@@ -197,15 +207,17 @@ exports.handler = async function(event){
       body: JSON.stringify({
         model: model,
         max_tokens: wantSummary ? 700 : 320,
-        temperature: 0.7,
         system: system,
         messages: messages
       })
     });
 
     if(!r.ok){
-      const detail = await r.text();
-      return respond(502, {error:'Anthropic API error ('+r.status+')', detail: detail.slice(0,400)});
+      const raw = await r.text();
+      let msg = raw;
+      try { const j = JSON.parse(raw); if(j && j.error && j.error.message) msg = j.error.message; } catch(e){}
+      console.error('[clarity-coach] upstream ' + r.status + ': ' + raw.slice(0,500));
+      return respond(502, {error:'Anthropic '+r.status+': '+String(msg).slice(0,300), detail: raw.slice(0,400)});
     }
 
     const data = await r.json();
