@@ -20,6 +20,17 @@ export const state = {
   clarityQuestionId: null,                     // null → today's rotating question
   clarityBrowseCat: null,                      // selected category in Browse
   clarityDraft: { answer: '', decision: '' },  // render-safe in-progress writing
+  clarityCoach: {                              // AI deep-dive session (never persisted mid-flight)
+    active: false,
+    messages: [],        // [{ role:'user'|'assistant', content, observation?, mode?, ts }]
+    loading: false,
+    error: null,
+    draft: '',           // in-progress reply to the coach
+    summary: null,       // { whatISaid, whatIRealised, pattern, decision, remember }
+    readyToWrap: false,
+    usedPrevious: false,
+    lastOp: null         // for Retry after a failed call
+  },
   healthData: [],
   showSettings: false,
   selectedEditDate: null,

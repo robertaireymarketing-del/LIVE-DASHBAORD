@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <title>TJM Challenge Dashboard</title>
 <link href="manifest.json" rel="manifest"/>
 <meta content="#0a0a0a" name="theme-color"/>
@@ -13,6 +13,14 @@
 <script src="scripts/service-worker-init.js"></script>
 <link href="apple-touch-icon.png" rel="apple-touch-icon"/>
 <link href="styles/app.css" rel="stylesheet"/>
+<!-- iPhone safe areas: with apple-mobile-web-app-capable + black-translucent the
+     page runs under the status bar, so pad the app shell by the inset. Needs
+     viewport-fit=cover above for env() to return a real value. -->
+<style>
+  #app { padding-top: env(safe-area-inset-top, 0px); }
+  .bottom-nav-app { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .content { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+</style>
 </head>
 <body>
 <div id="app">
