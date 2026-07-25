@@ -119,6 +119,8 @@ function buildSystem(category, question, excerpts, control, wantSummary){
   }
   if(control && CONTROLS[control]) s += '\n\n' + CONTROLS[control];
 
+  const jsonRule = '\n\nCRITICAL: Reply with the raw JSON object only. Your first character must be { and your last character must be }. No prose, no explanation, no markdown, no code fences before or after.';
+
   if(wantSummary){
     s += '\n\nProduce the final summary now. Respond with ONLY a JSON object, no markdown, no code fences, in exactly this shape:\n'
       + '{"whatISaid":"concise summary of their situation in their own language","whatIRealised":"the central insight uncovered","pattern":"short pattern observation, or null if the evidence does not support one","decision":"I will ...","remember":"one short sentence capturing the lesson"}\n'
@@ -128,6 +130,7 @@ function buildSystem(category, question, excerpts, control, wantSummary){
       + '{"observation":"optional one-sentence reflection on what they said, or null","question":"your single follow-up question","readyToWrap":false,"reasonForWrap":null}\n'
       + 'Set readyToWrap to true only when the reflection has reached a real insight and a decision is within reach.';
   }
+  s += jsonRule;
   return s;
 }
 
@@ -253,9 +256,7 @@ exports.handler = async function(event){
         model: model,
         max_tokens: wantSummary ? 1024 : 600,
         system: system,
-        // Prefill the reply with "{" so the model can only continue valid JSON —
-        // no prose, no code fences. We stitch the "{" back on below.
-        messages: messages.concat([{ role:'assistant', content:'{' }])
+        messages: messages
       })
     });
 
@@ -270,9 +271,7 @@ exports.handler = async function(event){
     const data = await r.json();
     const stopReason = data.stop_reason || null;
     const text = (data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('\n');
-    // Reattach the "{" prefill unless the model already emitted a full object.
-    const candidate = stripFences(text).charAt(0) === '{' ? text : ('{' + text);
-    const parsed = parseLoose(candidate);
+    const parsed = parseLoose(text);
     if(!parsed){
       console.error('[clarity-coach] parse failed. stop_reason=' + stopReason + ' text=' + String(text).slice(0,500));
       return respond(502, {
@@ -280,7 +279,7 @@ exports.handler = async function(event){
           ? 'The coach reply was cut short. Try again.'
           : 'Could not parse the coach response. Try again.',
         stop_reason: stopReason,
-        raw: String(candidate).slice(0,400)
+        raw: String(text).slice(0,400)
       });
     }
 
