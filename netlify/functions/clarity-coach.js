@@ -131,15 +131,60 @@ function buildSystem(category, question, excerpts, control, wantSummary){
   return s;
 }
 
-function clean(str){
-  return String(str==null?'':str).replace(/```json/gi,'').replace(/```/g,'').trim();
+function stripFences(str){
+  return String(str==null?'':str)
+    .replace(/^\uFEFF/, '')          // stray BOM
+    .replace(/```json/gi, '')
+    .replace(/```/g, '')
+    .trim();
 }
 
-function extractJSON(text){
-  const t = clean(text);
-  try { return JSON.parse(t); } catch(e){}
-  const a = t.indexOf('{'), b = t.lastIndexOf('}');
-  if(a>=0 && b>a){ try { return JSON.parse(t.slice(a,b+1)); } catch(e){} }
+// Scan for the first balanced { ... } starting at `start`, respecting string
+// literals and escapes so a brace inside a string never fools us. Returns the
+// closing index when complete, plus the open-string / open-brace state so a
+// truncated tail can be repaired.
+function scanObject(t, start){
+  let depth = 0, inStr = false, esc = false;
+  for(let i = start; i < t.length; i++){
+    const ch = t[i];
+    if(inStr){
+      if(esc) esc = false;
+      else if(ch === '\\') esc = true;
+      else if(ch === '"') inStr = false;
+      continue;
+    }
+    if(ch === '"'){ inStr = true; continue; }
+    if(ch === '{') depth++;
+    else if(ch === '}'){ depth--; if(depth === 0) return { end:i, complete:true, inStr:false, depth:0 }; }
+  }
+  return { end:t.length-1, complete:false, inStr, depth };
+}
+
+// Close an object that got cut off by max_tokens: drop a dangling escape,
+// close an open string, strip a trailing comma, then add the missing braces.
+function repairTruncated(fragment, inStr, depth){
+  let s = fragment.replace(/\\$/, '');
+  if(inStr) s += '"';
+  s = s.replace(/,\s*$/, '');
+  for(let i = 0; i < (depth || 1); i++) s += '}';
+  return s;
+}
+
+function parseLoose(text){
+  const t = stripFences(text);
+  if(!t) return null;
+  try { return JSON.parse(t); } catch(e){}          // 1) clean parse
+  const a = t.indexOf('{');
+  if(a < 0) return null;
+  const scan = scanObject(t, a);
+  if(scan.complete){                                 // 2) first balanced object
+    try { return JSON.parse(t.slice(a, scan.end + 1)); } catch(e){}
+  }
+  try {                                              // 3) repair a truncated tail
+    return JSON.parse(repairTruncated(t.slice(a), scan.inStr, scan.depth));
+  } catch(e){}
+  const b = t.lastIndexOf('}');                      // 4) last-ditch outer slice
+  if(b > a){ try { return JSON.parse(t.slice(a, b + 1)); } catch(e){} }
   return null;
 }
 
@@ -206,9 +251,11 @@ exports.handler = async function(event){
       headers:{ 'Content-Type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01' },
       body: JSON.stringify({
         model: model,
-        max_tokens: wantSummary ? 700 : 320,
+        max_tokens: wantSummary ? 1024 : 600,
         system: system,
-        messages: messages
+        // Prefill the reply with "{" so the model can only continue valid JSON —
+        // no prose, no code fences. We stitch the "{" back on below.
+        messages: messages.concat([{ role:'assistant', content:'{' }])
       })
     });
 
@@ -221,9 +268,21 @@ exports.handler = async function(event){
     }
 
     const data = await r.json();
+    const stopReason = data.stop_reason || null;
     const text = (data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('\n');
-    const parsed = extractJSON(text);
-    if(!parsed) return respond(502, {error:'Could not parse the coach response. Try again.', raw:String(text).slice(0,300)});
+    // Reattach the "{" prefill unless the model already emitted a full object.
+    const candidate = stripFences(text).charAt(0) === '{' ? text : ('{' + text);
+    const parsed = parseLoose(candidate);
+    if(!parsed){
+      console.error('[clarity-coach] parse failed. stop_reason=' + stopReason + ' text=' + String(text).slice(0,500));
+      return respond(502, {
+        error: stopReason === 'max_tokens'
+          ? 'The coach reply was cut short. Try again.'
+          : 'Could not parse the coach response. Try again.',
+        stop_reason: stopReason,
+        raw: String(candidate).slice(0,400)
+      });
+    }
 
     if(wantSummary){
       const out = {
