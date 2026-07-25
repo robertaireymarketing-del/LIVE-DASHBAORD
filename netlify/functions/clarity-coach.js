@@ -173,22 +173,91 @@ function repairTruncated(fragment, inStr, depth){
   return s;
 }
 
+// Escape raw control characters that appear *inside* string literals (a real
+// newline in a value is the single most common thing that breaks otherwise-
+// valid model JSON), and strip trailing commas.
+function sanitizeJson(t){
+  let out = '', inStr = false, esc = false;
+  for(let i = 0; i < t.length; i++){
+    const ch = t[i], code = t.charCodeAt(i);
+    if(inStr){
+      if(esc){ out += ch; esc = false; continue; }
+      if(ch === '\\'){ out += ch; esc = true; continue; }
+      if(ch === '"'){ out += ch; inStr = false; continue; }
+      if(code < 0x20){
+        out += (ch === '\n') ? '\\n' : (ch === '\r') ? '\\r' : (ch === '\t') ? '\\t'
+             : '\\u' + code.toString(16).padStart(4, '0');
+        continue;
+      }
+      out += ch; continue;
+    }
+    if(ch === '"'){ inStr = true; }
+    out += ch;
+  }
+  return out.replace(/,(\s*[}\]])/g, '$1');   // drop trailing commas
+}
+
+function tryParse(s){ try { return JSON.parse(s); } catch(e){ return undefined; } }
+
 function parseLoose(text){
   const t = stripFences(text);
   if(!t) return null;
-  try { return JSON.parse(t); } catch(e){}          // 1) clean parse
+  let r;
+  r = tryParse(t);               if(r !== undefined) return r;   // 1) clean parse
+  r = tryParse(sanitizeJson(t)); if(r !== undefined) return r;   //    + sanitised
   const a = t.indexOf('{');
   if(a < 0) return null;
   const scan = scanObject(t, a);
-  if(scan.complete){                                 // 2) first balanced object
-    try { return JSON.parse(t.slice(a, scan.end + 1)); } catch(e){}
+  if(scan.complete){                                             // 2) first balanced object
+    const slice = t.slice(a, scan.end + 1);
+    r = tryParse(slice);               if(r !== undefined) return r;
+    r = tryParse(sanitizeJson(slice)); if(r !== undefined) return r;
   }
-  try {                                              // 3) repair a truncated tail
-    return JSON.parse(repairTruncated(t.slice(a), scan.inStr, scan.depth));
-  } catch(e){}
-  const b = t.lastIndexOf('}');                      // 4) last-ditch outer slice
-  if(b > a){ try { return JSON.parse(t.slice(a, b + 1)); } catch(e){} }
+  const repaired = repairTruncated(t.slice(a), scan.inStr, scan.depth);
+  r = tryParse(repaired);               if(r !== undefined) return r;   // 3) repair truncation
+  r = tryParse(sanitizeJson(repaired)); if(r !== undefined) return r;
+  const b = t.lastIndexOf('}');                                  // 4) last-ditch outer slice
+  if(b > a){
+    r = tryParse(t.slice(a, b + 1));               if(r !== undefined) return r;
+    r = tryParse(sanitizeJson(t.slice(a, b + 1))); if(r !== undefined) return r;
+  }
   return null;
+}
+
+// Schema-aware salvage: pull individual fields straight out of the text even
+// when the JSON as a whole won't parse. As long as the field we need is a
+// well-formed quoted string, we recover it regardless of other breakage.
+function jsonField(t, key){
+  const m = t.match(new RegExp('"' + key + '"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"'));
+  if(!m) return null;
+  return tryParse('"' + m[1] + '"') ?? m[1];
+}
+function jsonBool(t, key){
+  const m = t.match(new RegExp('"' + key + '"\\s*:\\s*(true|false)'));
+  return m ? (m[1] === 'true') : null;
+}
+function salvage(text, wantSummary){
+  const t = stripFences(text);
+  if(wantSummary){
+    const decision = jsonField(t, 'decision');
+    const whatIRealised = jsonField(t, 'whatIRealised');
+    if(!decision && !whatIRealised) return null;
+    return {
+      whatISaid:     jsonField(t, 'whatISaid') || '',
+      whatIRealised: whatIRealised || '',
+      pattern:       jsonField(t, 'pattern'),
+      decision:      decision || '',
+      remember:      jsonField(t, 'remember') || ''
+    };
+  }
+  const question = jsonField(t, 'question');
+  if(!question) return null;
+  return {
+    observation:   jsonField(t, 'observation'),
+    question:      question,
+    readyToWrap:   jsonBool(t, 'readyToWrap') === true,
+    reasonForWrap: jsonField(t, 'reasonForWrap')
+  };
 }
 
 function respond(status, obj){
@@ -271,7 +340,8 @@ exports.handler = async function(event){
     const data = await r.json();
     const stopReason = data.stop_reason || null;
     const text = (data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('\n');
-    const parsed = parseLoose(text);
+    let parsed = parseLoose(text);
+    if(!parsed) parsed = salvage(text, wantSummary);   // last-resort field extraction
     if(!parsed){
       console.error('[clarity-coach] parse failed. stop_reason=' + stopReason + ' text=' + String(text).slice(0,500));
       return respond(502, {
