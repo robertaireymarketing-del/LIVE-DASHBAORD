@@ -119,18 +119,22 @@ function buildSystem(category, question, excerpts, control, wantSummary){
   }
   if(control && CONTROLS[control]) s += '\n\n' + CONTROLS[control];
 
-  const jsonRule = '\n\nCRITICAL: Reply with the raw JSON object only. Your first character must be { and your last character must be }. No prose, no explanation, no markdown, no code fences before or after.';
-
   if(wantSummary){
-    s += '\n\nProduce the final summary now. Respond with ONLY a JSON object, no markdown, no code fences, in exactly this shape:\n'
-      + '{"whatISaid":"concise summary of their situation in their own language","whatIRealised":"the central insight uncovered","pattern":"short pattern observation, or null if the evidence does not support one","decision":"I will ...","remember":"one short sentence capturing the lesson"}\n'
-      + 'The decision must be within their control, specific, realistic, observable, connected to the insight, and ideally attached to a time, place or trigger. It must begin with "I will".';
+    s += '\n\nProduce the final summary now. Reply in EXACTLY this format and nothing else. '
+      + 'Put each label at the very start of its own line, in capitals, followed by a colon. A value may run onto more lines until the next label.\n\n'
+      + 'WHAT_I_SAID: a concise summary of their situation in their own language\n'
+      + 'WHAT_I_REALISED: the central insight uncovered\n'
+      + 'PATTERN: a short pattern observation, or the single word none if the evidence does not support one\n'
+      + 'DECISION: I will ...\n'
+      + 'REMEMBER: one short sentence capturing the lesson\n\n'
+      + 'The DECISION must be within their control, specific, realistic, observable, connected to the insight, ideally attached to a time, place or trigger, and must begin with "I will". '
+      + 'Do not write anything before WHAT_I_SAID or after the REMEMBER line. Do not use JSON, markdown, asterisks, bullet points or code fences.';
   } else {
-    s += '\n\nRespond with ONLY a JSON object, no markdown, no code fences, in exactly this shape:\n'
-      + '{"observation":"optional one-sentence reflection on what they said, or null","question":"your single follow-up question","readyToWrap":false,"reasonForWrap":null}\n'
-      + 'Set readyToWrap to true only when the reflection has reached a real insight and a decision is within reach.';
+    s += '\n\nReply in EXACTLY this format and nothing else. Put each label at the very start of its own line, in capitals, followed by a colon:\n\n'
+      + 'OBSERVATION: one short sentence reflecting what they just said, or the single word none\n'
+      + 'QUESTION: your single follow-up question\n\n'
+      + 'Ask ONE question only. Do not write anything before OBSERVATION or after the question. Do not use JSON, markdown, asterisks or code fences.';
   }
-  s += jsonRule;
   return s;
 }
 
@@ -260,6 +264,60 @@ function salvage(text, wantSummary){
   };
 }
 
+// ── Labelled-format parser (primary; far more robust than JSON) ────
+// The model is asked to reply as  LABEL: value  lines. There are no quotes or
+// braces to escape, so newlines/quotes/braces inside a value can't break it.
+const COACH_LABELS   = [{key:'observation',label:'OBSERVATION'},{key:'question',label:'QUESTION'}];
+const SUMMARY_LABELS = [{key:'whatISaid',label:'WHAT_I_SAID'},{key:'whatIRealised',label:'WHAT_I_REALISED'},{key:'pattern',label:'PATTERN'},{key:'decision',label:'DECISION'},{key:'remember',label:'REMEMBER'}];
+
+function escapeRe(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+function parseLabeled(text, labels){
+  // strip defensive markdown (bold/backticks/heading marks) the model shouldn't add
+  const t = String(text==null?'':text)
+    .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    .replace(/\*\*/g, '').replace(/`/g, '')
+    .replace(/^#{1,6}[ \t]*/gm, '');
+  const alt = labels.map(function(l){ return escapeRe(l.label); }).join('|');
+  const out = {};
+  for(let i = 0; i < labels.length; i++){
+    const l = labels[i];
+    const re = new RegExp('(?:^|\\n)[ \\t]*' + escapeRe(l.label) + '[ \\t]*:[ \\t]*([\\s\\S]*?)(?=\\n[ \\t]*(?:' + alt + ')[ \\t]*:|$)', 'i');
+    const m = t.match(re);
+    out[l.key] = m ? m[1].trim() : '';
+  }
+  return out;
+}
+
+// Returns the same shapes the handler already expects, or null if unusable.
+function parseReply(text, wantSummary){
+  if(wantSummary){
+    const lab = parseLabeled(text, SUMMARY_LABELS);
+    if((lab.decision && lab.decision.trim()) || (lab.whatIRealised && lab.whatIRealised.trim())){
+      return {
+        whatISaid:     lab.whatISaid || '',
+        whatIRealised: lab.whatIRealised || '',
+        pattern:       (lab.pattern && !/^none\.?$/i.test(lab.pattern.trim())) ? lab.pattern : null,
+        decision:      lab.decision || '',
+        remember:      lab.remember || ''
+      };
+    }
+    const j = parseLoose(text) || salvage(text, true);   // JSON fallback
+    if(j) return { whatISaid:j.whatISaid||'', whatIRealised:j.whatIRealised||'', pattern:j.pattern||null, decision:j.decision||'', remember:j.remember||'' };
+    return null;
+  }
+  const lab = parseLabeled(text, COACH_LABELS);
+  let question = (lab.question || '').trim();
+  let observation = (lab.observation || '').trim();
+  if(!question){                                          // JSON fallback
+    const j = parseLoose(text) || salvage(text, false);
+    if(j){ question = String(j.question||'').trim(); observation = j.observation ? String(j.observation).trim() : ''; }
+  }
+  if(!question) return null;
+  if(/^none\.?$/i.test(observation)) observation = '';
+  return { observation: observation || null, question: question, readyToWrap: false, reasonForWrap: null };
+}
+
 function respond(status, obj){
   return {
     statusCode: status,
@@ -340,8 +398,7 @@ exports.handler = async function(event){
     const data = await r.json();
     const stopReason = data.stop_reason || null;
     const text = (data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('\n');
-    let parsed = parseLoose(text);
-    if(!parsed) parsed = salvage(text, wantSummary);   // last-resort field extraction
+    let parsed = parseReply(text, wantSummary);   // labelled format first, JSON fallback inside
     if(!parsed){
       console.error('[clarity-coach] parse failed. stop_reason=' + stopReason + ' text=' + String(text).slice(0,500));
       return respond(502, {
