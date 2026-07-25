@@ -513,7 +513,7 @@ function ensureWorking(state, q){
     id: newId(),
     questionId: q.id, questionText: q.text, category: q.cat,
     answer: '', decision: '',
-    replyDraft: '', active: false,
+    replyDraft: '', active: false, showSummary: false,
     session: { messages: [], summary: null, usedPrevious: false },
     ts: Date.now(), updatedAt: Date.now()
   };
@@ -584,6 +584,11 @@ const CLARITY_CSS_X = `
 .clarity-page .cl-saved.saving{ color:rgba(255,255,255,0.4); }
 .clarity-page .cl-saved.saving::before{ background:rgba(255,255,255,0.4); }
 .clarity-page .cl-saved:empty{ display:none; }
+
+/* ── Resume an unfinished session ── */
+.clarity-page .cl-tagai.unfinished{ color:#E0A73C;border-color:rgba(224,167,60,0.5);background:rgba(224,167,60,0.08); }
+.clarity-page .cl-elink.cont{ color:#C9A84C;font-weight:800; }
+.clarity-page .cl-elink.cont::before{ content:"↻ "; }
 `;
 
 // ── Today card → two big buttons ──────────────────────────────────
@@ -653,11 +658,16 @@ function entryHTML(e){
       </div></div>`;
   }
   const hasSession = !!(e.session && (e.session.messages||[]).length);
+  const finished  = !!(e.session && e.session.summary);
+  const tag = hasSession ? (finished
+      ? '<span class="cl-tagai">Deep dive</span>'
+      : '<span class="cl-tagai unfinished">Unfinished</span>') : '';
   return `<div class="cl-entry" data-entry="${esc(id)}">
-      <div class="cl-edate">${esc(fmtDate(e.ts))}${hasSession?'<span class="cl-tagai">Deep dive</span>':''}</div>
+      <div class="cl-edate">${esc(fmtDate(e.ts))}${tag}</div>
       <div class="cl-eans ${e.answer?'':'empty'}">${e.answer?esc(e.answer):'(no notes)'}</div>
       ${e.decision?`<div class="cl-edec"><span class="cl-mk">&rarr;</span><span>${esc(e.decision)}</span></div>`:''}
       <div class="cl-erow">
+        ${hasSession?`<button class="cl-elink cont" onclick="clarityResume('${esc(id)}')">${finished?'Continue':'Resume session'}</button>`:''}
         <button class="cl-elink" onclick="clarityEditEntry('${esc(id)}')">Edit</button>
         <button class="cl-elink del" onclick="clarityDeleteEntry('${esc(id)}')">Delete</button>
         ${hasSession?`<button class="cl-elink ses" onclick="clarityToggleSession('${esc(id)}')">${_openSession===id?'Hide session':'View session'}</button>`:''}
@@ -697,8 +707,10 @@ function coachHTML(state){
       <div class="cl-erow"><button class="cl-esave" onclick="clarityRetry()">Retry</button>
       <button class="cl-elink" onclick="clarityDismissError()">Dismiss</button></div></div>` : '';
 
-  // once a summary exists, the conversation is finished — THIS is where the decision is asked
-  if(sess.summary){
+  // once a summary exists AND we've just wrapped up, show the reflection panel —
+  // THIS is where the decision is asked. On a resumed session showSummary is
+  // false, so we drop back into the question controls to keep digging.
+  if(sess.summary && w.showSummary){
     const s = sess.summary;
     return `<div class="cl-coach">
       ${msgs}
@@ -950,6 +962,40 @@ export function initClarityTab(deps){
   };
   window.clarityToggleSession = function(id){ _openSession = (_openSession===id) ? null : id; clarityRefresh(); };
 
+  // Reopen a past deep-dive as the live working draft and carry on digging.
+  // The entry is lifted out of entries[] into `working` (same id, so it folds
+  // back into place on leave). showSummary=false drops you into the question
+  // controls even if the session had already been wrapped up.
+  window.clarityResume = function(id){
+    const cl = state.data && state.data.clarity;
+    if(!cl || !Array.isArray(cl.entries)) return;
+    const e = cl.entries.find(function(x){ return x.id===id; });
+    if(!e || !(e.session && (e.session.messages||[]).length)) return;
+    leaveThink();                                          // commit/prune whatever's in progress
+    cl.entries = cl.entries.filter(function(x){ return x.id!==id; });
+    const sess = e.session || { messages:[], summary:null, usedPrevious:false };
+    cl.working = {
+      id: e.id,
+      questionId: e.questionId, questionText: e.questionText, category: e.category,
+      answer: e.answer || '', decision: e.decision || '',
+      replyDraft: '', active: true, showSummary: false,
+      session: {
+        messages: (sess.messages||[]).slice(),
+        summary: sess.summary || null,
+        usedPrevious: !!sess.usedPrevious
+      },
+      ts: e.ts || Date.now(), updatedAt: Date.now()
+    };
+    _openSession = null; _editingId = null; _deleteId = null;
+    state.clarityQuestionId = e.questionId;
+    state.clarityBrowseCat = null;
+    state.clarityView = 'today';
+    state.activeTab = 'clarity';
+    ui(state).error = null;
+    if(typeof saveDataQuiet==='function') saveDataQuiet();
+    render();
+  };
+
   // ── the coach ──
   async function runCoach(control){
     const w = working(state); if(!w) return;
@@ -986,6 +1032,7 @@ export function initClarityTab(deps){
         whatISaid: s.whatISaid||'', whatIRealised: s.whatIRealised||'',
         pattern: s.pattern||null, decision: s.decision||'', remember: s.remember||''
       };
+      w.showSummary = true;
       if(s.decision && !(w.decision||'').trim()) w.decision = s.decision;   // seed the entry's decision
       w.updatedAt = Date.now();
       if(typeof saveDataQuiet==='function') saveDataQuiet();
