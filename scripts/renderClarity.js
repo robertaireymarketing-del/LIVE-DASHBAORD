@@ -303,29 +303,6 @@ const QUESTIONS = [
 ];
 const CATS = QUESTIONS.reduce((a,q)=>{ if(a.indexOf(q.cat)<0)a.push(q.cat); return a; }, []);
 
-// ── module-level UI state (transient, not persisted) ──────────────
-let _editingId = null;      // entry being inline-edited
-let _deleteId  = null;      // entry awaiting delete confirmation
-let _openSession = null;    // entry id whose saved session is expanded
-
-// ── helpers ───────────────────────────────────────────────────────
-function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
-function qById(id){ for(let i=0;i<QUESTIONS.length;i++) if(QUESTIONS[i].id===id) return QUESTIONS[i]; return null; }
-function todaysQuestion(){ const day=Math.floor(Date.now()/864e5); return QUESTIONS[day % QUESTIONS.length]; }
-function currentQuestion(state){ return qById(state.clarityQuestionId) || todaysQuestion(); }
-function getEntries(state){ return (state.data && state.data.clarity && state.data.clarity.entries) || []; }
-function entriesFor(state, qid){ return getEntries(state).filter(function(e){ return e.questionId===qid; }).sort(function(a,b){ return (b.ts||0)-(a.ts||0); }); }
-function fmtDate(ts){ return new Date(ts||Date.now()).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}); }
-function coach(state){
-  if(!state.clarityCoach) state.clarityCoach = { active:false, messages:[], loading:false, error:null, draft:'', summary:null, readyToWrap:false, usedPrevious:false };
-  return state.clarityCoach;
-}
-function usePrevious(state){
-  const s = state.data && state.data.clarity && state.data.clarity.settings;
-  return s ? s.usePrevious !== false : true;   // default on
-}
-
-// ── styles (hardcoded navy + gold; identical light/dark) ──────────
 const CLARITY_CSS = `
 .clarity-surface{ font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif; }
 .clarity-surface *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -475,25 +452,164 @@ const CLARITY_CSS = `
 }
 `;
 
-// ── Today card ────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// Below: Business/Personal buckets, the two-button home card, live
+// autosave (no Save button), and the deep-dive flow with the decision
+// moved to the very end. The AI-coach client half, the question bank,
+// and the base CSS above are unchanged.
+// ═══════════════════════════════════════════════════════════════
+
+// ── Business / Personal split ─────────────────────────────────────
+const PERSONAL_SET = new Set(['Self','Discipline','Habits','Execution']);
+function bucketOf(cat){ return PERSONAL_SET.has(cat) ? 'personal' : 'business'; }
+function catsInBucket(bucket){ return CATS.filter(function(c){ return bucketOf(c)===bucket; }); }
+function questionsInBucket(bucket){ return QUESTIONS.filter(function(q){ return bucketOf(q.cat)===bucket; }); }
+function todaysQuestionFor(bucket){
+  const pool = questionsInBucket(bucket);
+  const day = Math.floor(Date.now()/864e5);
+  return pool[day % pool.length];
+}
+const BUCKET_LABEL = { business:'Business', personal:'Personal' };
+
+// ── module-level UI state (transient, not persisted) ──────────────
+let _editingId = null;      // committed entry being inline-edited
+let _deleteId  = null;      // committed entry awaiting delete confirmation
+let _openSession = null;    // committed entry id whose saved session is expanded
+
+// ── small helpers ─────────────────────────────────────────────────
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+function qById(id){ for(let i=0;i<QUESTIONS.length;i++) if(QUESTIONS[i].id===id) return QUESTIONS[i]; return null; }
+function todaysQuestion(){ return todaysQuestionFor('business'); }
+function currentQuestion(state){ return qById(state.clarityQuestionId) || todaysQuestion(); }
+function getEntries(state){ return (state.data && state.data.clarity && state.data.clarity.entries) || []; }
+function entriesFor(state, qid){ return getEntries(state).filter(function(e){ return e.questionId===qid; }).sort(function(a,b){ return (b.ts||0)-(a.ts||0); }); }
+function fmtDate(ts){ return new Date(ts||Date.now()).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}); }
+function usePrevious(state){
+  const s = state.data && state.data.clarity && state.data.clarity.settings;
+  return s ? s.usePrevious !== false : true;   // default on
+}
+function ui(state){ return state.clarityUI || (state.clarityUI = { loading:false, error:null, lastOp:null }); }
+
+// ── working (in-progress) entry ───────────────────────────────────
+// A single live draft lives at state.data.clarity.working and is
+// autosaved to Firestore as the user types. It is NOT in entries[]
+// until it's committed (on leaving the screen), which keeps history
+// clean and avoids empty rows. Nothing is ever lost — the working
+// object itself is persisted on every keystroke.
+function clroot(state){
+  state.data = state.data || {};
+  state.data.clarity = state.data.clarity || { entries: [] };
+  state.data.clarity.entries = state.data.clarity.entries || [];
+  return state.data.clarity;
+}
+function working(state){ return (state.data && state.data.clarity && state.data.clarity.working) || null; }
+function newId(){ return 'cl'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36); }
+function ensureWorking(state, q){
+  const cl = clroot(state);
+  let w = cl.working;
+  if(w && w.questionId === q.id) return w;
+  if(w) commitWorking(state);            // switching questions commits/prunes the old one
+  w = {
+    id: newId(),
+    questionId: q.id, questionText: q.text, category: q.cat,
+    answer: '', decision: '',
+    replyDraft: '', active: false,
+    session: { messages: [], summary: null, usedPrevious: false },
+    ts: Date.now(), updatedAt: Date.now()
+  };
+  cl.working = w;
+  return w;
+}
+function workingHasContent(w){
+  return !!(w && ((w.answer && w.answer.trim()) || (w.decision && w.decision.trim()) ||
+    (w.session && w.session.messages && w.session.messages.length)));
+}
+// Fold the working draft into entries[] (or discard it if empty).
+function commitWorking(state){
+  const cl = state.data && state.data.clarity;
+  if(!cl || !cl.working) return false;
+  const w = cl.working;
+  cl.working = null;
+  if(!workingHasContent(w)) return false;   // empty scratch — throw it away
+  const entry = {
+    id: w.id,
+    questionId: w.questionId, questionText: w.questionText, category: w.category,
+    answer: (w.answer||'').trim(), decision: (w.decision||'').trim(),
+    ts: w.ts || Date.now(), editedAt: Date.now()
+  };
+  if(w.session && ((w.session.messages && w.session.messages.length) || w.session.summary)){
+    entry.session = {
+      messages: (w.session.messages||[]).slice(),
+      summary: w.session.summary || null,
+      usedPrevious: !!w.session.usedPrevious,
+      completedAt: Date.now()
+    };
+  }
+  cl.entries = cl.entries || [];
+  const i = cl.entries.findIndex(function(e){ return e.id===entry.id; });
+  if(i>=0) cl.entries[i] = entry; else cl.entries.unshift(entry);
+  return true;
+}
+
+// ── extra CSS (buckets, two-button card, chooser, saved chip) ─────
+const CLARITY_CSS_X = `
+/* ── Home two-button card ── */
+.clarity-surface .cl-home-eyebrow{ margin:2px 2px 12px; }
+.clarity-surface .cl-home-grid{ display:flex;flex-direction:column;gap:12px;margin-bottom:16px; }
+.clarity-surface .cl-home-btn{
+  display:block;width:100%;text-align:left;cursor:pointer;
+  background:#0A1628;border:1px solid rgba(201,168,76,0.22);border-left:4px solid #C9A84C;
+  border-radius:14px;padding:18px 20px;font-family:inherit;
+  transition:transform .12s ease,border-color .2s ease;
+}
+.clarity-surface .cl-home-btn:active{ transform:scale(.99); }
+.clarity-surface .cl-home-btn.personal{ border-left-color:rgba(255,255,255,0.55); }
+.clarity-surface .cl-home-label{ display:block;font-size:10px;letter-spacing:.2em;text-transform:uppercase;font-weight:900;color:#C9A84C;margin-bottom:10px; }
+.clarity-surface .cl-home-btn.personal .cl-home-label{ color:rgba(255,255,255,0.72); }
+.clarity-surface .cl-home-q{ display:block;color:#fff;font-size:18px;font-weight:600;line-height:1.36;letter-spacing:-.01em;margin-bottom:12px; }
+.clarity-surface .cl-home-cta{ display:block;font-size:12px;font-weight:800;letter-spacing:.06em;color:#C9A84C; }
+.clarity-surface .cl-home-btn.personal .cl-home-cta{ color:rgba(255,255,255,0.7); }
+
+/* ── In-page chooser (Clarity › Today) ── */
+.clarity-page .cl-chooser .cl-home-grid{ margin-top:14px; }
+
+/* ── Browse groups ── */
+.clarity-page .cl-bgroup{ margin-top:22px; }
+.clarity-page .cl-bgroup-h{ font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#C9A84C;font-weight:900;padding:0 0 4px; }
+.clarity-page .cl-bgroup.personal .cl-bgroup-h{ color:rgba(255,255,255,0.6); }
+
+/* ── Live "saved" chip ── */
+.clarity-page .cl-saved{ font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:rgba(201,168,76,0.85);transition:opacity .3s;display:inline-flex;align-items:center;gap:7px; }
+.clarity-page .cl-saved::before{ content:"";width:6px;height:6px;border-radius:50%;background:#C9A84C;display:inline-block; }
+.clarity-page .cl-saved.saving{ color:rgba(255,255,255,0.4); }
+.clarity-page .cl-saved.saving::before{ background:rgba(255,255,255,0.4); }
+.clarity-page .cl-saved:empty{ display:none; }
+`;
+
+// ── Today card → two big buttons ──────────────────────────────────
 export function renderClarityCard(state){
-  const q = todaysQuestion();
+  const b = todaysQuestionFor('business');
+  const p = todaysQuestionFor('personal');
   return `
   <div class="clarity-surface">
-    <style>${CLARITY_CSS}</style>
-    <div class="clarity-card" onclick="setTab('clarity')">
-      <div class="cl-card-top">
-        <span class="cl-eyebrow">Clarity</span>
-        <span class="cl-card-cat">${esc(q.cat)}</span>
-      </div>
-      <div class="cl-card-q">${esc(q.text)}</div>
-      <div class="cl-card-edge"></div>
-      <div class="cl-card-cta">Think it through &rarr;</div>
+    <style>${CLARITY_CSS}${CLARITY_CSS_X}</style>
+    <div class="cl-home-eyebrow"><span class="cl-eyebrow">Clarity</span></div>
+    <div class="cl-home-grid">
+      <button class="cl-home-btn business" onclick="clarityStartToday('business')">
+        <span class="cl-home-label">Business</span>
+        <span class="cl-home-q">${esc(b.text)}</span>
+        <span class="cl-home-cta">Think it through &rarr;</span>
+      </button>
+      <button class="cl-home-btn personal" onclick="clarityStartToday('personal')">
+        <span class="cl-home-label">Personal</span>
+        <span class="cl-home-q">${esc(p.text)}</span>
+        <span class="cl-home-cta">Think it through &rarr;</span>
+      </button>
     </div>
   </div>`;
 }
 
-// ── Saved session viewer ──────────────────────────────────────────
+// ── Saved session viewer (committed entries) ──────────────────────
 function sessionHTML(e){
   const s = e.session; if(!s) return '';
   const msgs = (s.messages||[]).map(function(m){
@@ -515,7 +631,7 @@ function sessionHTML(e){
   </div>`;
 }
 
-// ── One entry ─────────────────────────────────────────────────────
+// ── One committed entry ───────────────────────────────────────────
 function entryHTML(e){
   const id = e.id;
   if(_deleteId === id){
@@ -530,7 +646,7 @@ function entryHTML(e){
     return `<div class="cl-entry editing" data-entry="${esc(id)}">
       <div class="cl-edate">${esc(fmtDate(e.ts))}</div>
       <textarea class="cl-eedit-ans" id="cl-eans-${esc(id)}" placeholder="Your thinking…">${esc(e.answer||'')}</textarea>
-      <input class="cl-eedit-dec" id="cl-edec-${esc(id)}" value="${esc(e.decision||'')}" placeholder="I will…" />
+      <input class="cl-eedit-dec" id="cl-edec-${esc(id)}" value="${esc(e.decision||'')}" placeholder="I will… (optional)" />
       <div class="cl-erow">
         <button class="cl-esave" onclick="claritySaveEdit('${esc(id)}')">Save</button>
         <button class="cl-elink" onclick="clarityCancelEdit('${esc(id)}')">Cancel</button>
@@ -556,32 +672,34 @@ function historyListHTML(state, qid){
 }
 function historyFeedInner(state){
   const all = getEntries(state).slice().sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
-  if(!all.length) return `<div class="cl-empty">Nothing yet. Open today's question and make your first decision.</div>`;
+  if(!all.length) return `<div class="cl-empty">Nothing yet. Open today's question and make your first note.</div>`;
   return all.map(function(e){
     return `<div class="cl-fq" onclick="clarityOpen('${esc(e.questionId)}')"><span class="cl-eyebrow">${esc((e.category||'').toString())}</span>${esc(e.questionText||'')}</div>${entryHTML(e)}`;
   }).join('');
 }
 
-// ── Coach panel ───────────────────────────────────────────────────
+// ── Coach panel (reads the live working entry) ────────────────────
 function coachHTML(state){
-  const c = coach(state);
-  if(!c.active) return '';
-  const msgs = c.messages.map(function(m){
+  const w = working(state);
+  const u = ui(state);
+  if(!w || !w.active) return '';
+  const sess = w.session || (w.session = { messages:[], summary:null, usedPrevious:false });
+  const msgs = (sess.messages||[]).map(function(m){
     if(m.role==='assistant'){
       return `<div class="cl-msg coach">${m.observation?`<div class="cl-obs">${esc(m.observation)}</div>`:''}<div class="cl-cq">${esc(m.content)}</div></div>`;
     }
     return `<div class="cl-msg me"><div class="cl-mytext">${esc(m.content)}</div></div>`;
   }).join('');
 
-  const loading = c.loading ? `<div class="cl-thinking"><span class="cl-dot"></span><span class="cl-dot"></span><span class="cl-dot"></span> Thinking…</div>` : '';
-  const err = c.error ? `<div class="cl-err"><b>Couldn't reach the coach</b>${esc(c.error)}
-      <div class="cl-safe">Nothing you've written has been lost. Retry, or carry on and save without AI.</div>
+  const loading = u.loading ? `<div class="cl-thinking"><span class="cl-dot"></span><span class="cl-dot"></span><span class="cl-dot"></span> Thinking…</div>` : '';
+  const err = u.error ? `<div class="cl-err"><b>Couldn't reach the coach</b>${esc(u.error)}
+      <div class="cl-safe">Nothing you've written has been lost — it's already saved. Retry, or wrap up.</div>
       <div class="cl-erow"><button class="cl-esave" onclick="clarityRetry()">Retry</button>
       <button class="cl-elink" onclick="clarityDismissError()">Dismiss</button></div></div>` : '';
 
-  // once a summary exists, the conversation is finished
-  if(c.summary){
-    const s = c.summary;
+  // once a summary exists, the conversation is finished — THIS is where the decision is asked
+  if(sess.summary){
+    const s = sess.summary;
     return `<div class="cl-coach">
       ${msgs}
       <div class="cl-sum">
@@ -591,69 +709,103 @@ function coachHTML(state){
         <div class="cl-field"><label>The pattern</label><textarea id="cl-s-pat" rows="2" placeholder="${s.pattern?'':'No pattern claimed — not enough history yet.'}">${esc(s.pattern||'')}</textarea></div>
         <div class="cl-field decision"><label>My decision</label><input id="cl-s-dec" value="${esc(s.decision||'')}" placeholder="I will…" /></div>
         <div class="cl-field"><label>Remember</label><input id="cl-s-rem" value="${esc(s.remember||'')}" /></div>
-        <div class="cl-erow">
-          <button class="cl-esave" onclick="claritySaveReflection()">Save reflection</button>
-          <button class="cl-elink" onclick="clarityDiscardCoach()">Discard session</button>
+        <div class="cl-saverow" style="margin-top:4px;">
+          <span class="cl-saved" id="cl-saved-sum">Saved</span>
+        </div>
+        <div class="cl-erow" style="margin-top:14px;">
+          <button class="cl-esave" onclick="clarityDone()">Done</button>
+          <button class="cl-elink del" onclick="clarityDiscard()">Discard session</button>
         </div>
       </div></div>`;
   }
 
-  const busy = c.loading ? 'disabled' : '';
+  const busy = u.loading ? 'disabled' : '';
   return `<div class="cl-coach">
     <div class="cl-coach-head">
       <span class="cl-eyebrow">Deep dive</span>
-      ${c.usedPrevious?`<span class="cl-mem"><b>◆</b> Using your previous entries</span>`:''}
+      ${sess.usedPrevious?`<span class="cl-mem"><b>◆</b> Using your previous entries</span>`:''}
     </div>
     ${msgs}
     ${loading}
     ${err}
-    ${c.messages.length && !c.loading ? `<textarea class="cl-reply" id="cl-reply" placeholder="Answer honestly…">${esc(c.draft||'')}</textarea>` : ''}
+    ${sess.messages.length && !u.loading ? `<textarea class="cl-reply" id="cl-reply" placeholder="Answer honestly…">${esc(w.replyDraft||'')}</textarea>` : ''}
     <div class="cl-ctrls">
-      ${c.messages.length && !c.loading ? `<button class="cl-ctrl send" onclick="clarityReply()">Send</button>` : ''}
+      ${sess.messages.length && !u.loading ? `<button class="cl-ctrl send" onclick="clarityReply()">Send</button>` : ''}
       <button class="cl-ctrl" ${busy} onclick="clarityControl('deeper')">Go Deeper</button>
       <button class="cl-ctrl" ${busy} onclick="clarityControl('challenge')">Challenge Me</button>
       <button class="cl-ctrl" ${busy} onclick="clarityControl('pattern')">Find the Pattern</button>
-      <button class="cl-ctrl wrap" ${busy} onclick="clarityControl('wrap')">Wrap Up</button>
+      <button class="cl-ctrl wrap" ${busy} onclick="clarityControl('wrap')">Wrap Up &amp; decide</button>
     </div>
-    <div class="cl-erow"><button class="cl-elink" onclick="clarityDiscardCoach()">End session</button></div>
+    <div class="cl-erow"><button class="cl-elink" onclick="clarityDone()">End &amp; save</button></div>
   </div>`;
 }
 
 // ── Views ─────────────────────────────────────────────────────────
+function chooserHTML(state){
+  const b = todaysQuestionFor('business');
+  const p = todaysQuestionFor('personal');
+  return `<div class="cl-chooser">
+    <div class="cl-sechead"><h2>Today</h2><p>Pick where to point your thinking.</p></div>
+    <div class="cl-home-grid">
+      <button class="cl-home-btn business" onclick="clarityStartToday('business')">
+        <span class="cl-home-label">Business</span>
+        <span class="cl-home-q">${esc(b.text)}</span>
+        <span class="cl-home-cta">Think it through &rarr;</span>
+      </button>
+      <button class="cl-home-btn personal" onclick="clarityStartToday('personal')">
+        <span class="cl-home-label">Personal</span>
+        <span class="cl-home-q">${esc(p.text)}</span>
+        <span class="cl-home-cta">Think it through &rarr;</span>
+      </button>
+    </div>
+  </div>`;
+}
+
 function thinkView(state){
   const q = currentQuestion(state);
-  const c = coach(state);
+  const w = working(state);
+  const hasDeep = !!(w && w.active);
+  const answerVal = w ? (w.answer||'') : '';
   const es = entriesFor(state, q.id);
   const label = es.length ? `Previous entries (${es.length})` : 'Previous entries';
+  const savedTxt = (answerVal.trim() || (w && workingHasContent(w))) ? 'Saved' : '';
   return `
     <div class="cl-think">
-      <div class="cl-cat cl-eyebrow">${esc(q.cat)}</div>
+      <button class="cl-back" onclick="clarityDone()"><span class="cl-ar">←</span> Today</button>
+      <div class="cl-cat cl-eyebrow">${esc(q.cat)} · ${esc(BUCKET_LABEL[bucketOf(q.cat)])}</div>
       <h1 class="cl-q">${esc(q.text)}</h1>
       <div class="cl-edge" id="cl-edge"></div>
-      <textarea class="cl-answer" id="cl-answer" placeholder="Think it through…"></textarea>
-      <div class="cl-decwrap">
-        <span class="cl-eyebrow">Decision</span>
-        <input class="cl-decision" id="cl-decision" placeholder="I will…" />
-      </div>
+      <textarea class="cl-answer" id="cl-answer" placeholder="Think it through…">${esc(answerVal)}</textarea>
       <div class="cl-saverow">
-        <button class="cl-save" id="cl-save" disabled>Save</button>
-        ${!c.active?`<button class="cl-dig" id="cl-dig" disabled>Dig deeper</button>`:''}
-        <span class="cl-hint" id="cl-hint">Finish with a decision</span>
-        <span class="cl-flash" id="cl-flash">Saved · back to work</span>
+        ${!hasDeep?`<button class="cl-dig" id="cl-dig" ${answerVal.trim().length<3?'disabled':''}>Dig deeper</button>`:''}
+        <span class="cl-saved" id="cl-saved">${savedTxt}</span>
       </div>
       ${coachHTML(state)}
       <button class="cl-htoggle" id="cl-htoggle"><span class="cl-caret">▸</span><span id="cl-hlabel">${label}</span></button>
       <div class="cl-hlist" id="cl-hlist">${historyListHTML(state, q.id)}</div>
     </div>`;
 }
+
+function todayView(state){
+  if(!state.clarityQuestionId) return chooserHTML(state);
+  return thinkView(state);
+}
+
 function browseView(state){
   if(!state.clarityBrowseCat){
-    const rows = CATS.map(function(cat){
-      const n = QUESTIONS.filter(function(q){return q.cat===cat;}).length;
-      return `<div class="cl-catrow" onclick="clarityBrowse('${esc(cat)}')"><span class="cl-catname">${esc(cat)}</span><span class="cl-catcount">${n}</span></div>`;
-    }).join('');
+    const groupHTML = function(bucket){
+      const cats = catsInBucket(bucket);
+      if(!cats.length) return '';
+      const rows = cats.map(function(cat){
+        const n = QUESTIONS.filter(function(q){return q.cat===cat;}).length;
+        return `<div class="cl-catrow" onclick="clarityBrowse('${esc(cat)}')"><span class="cl-catname">${esc(cat)}</span><span class="cl-catcount">${n}</span></div>`;
+      }).join('');
+      return `<div class="cl-bgroup ${bucket}"><div class="cl-bgroup-h">${esc(BUCKET_LABEL[bucket])}</div>${rows}</div>`;
+    };
     const on = usePrevious(state);
-    return `<div class="cl-sechead"><h2>Browse</h2><p>Pick a category, then a question. Your thinking stays hidden until you ask for it.</p></div>${rows}
+    return `<div class="cl-sechead"><h2>Browse</h2><p>Pick a category, then a question. Your thinking stays hidden until you ask for it.</p></div>
+      ${groupHTML('business')}
+      ${groupHTML('personal')}
       <div class="cl-toggle">
         <div><div class="cl-tlabel">Use previous entries to improve coaching</div>
         <div class="cl-tsub">When on, a few relevant past entries are shared with the coach so it can spot genuine patterns. When off, each session starts fresh.</div></div>
@@ -665,8 +817,9 @@ function browseView(state){
     const n = entriesFor(state, q.id).length;
     return `<div class="cl-qrow" onclick="clarityOpen('${esc(q.id)}')"><span class="cl-qtext">${esc(q.text)}</span>${n?`<span class="cl-qbadge">${n}</span>`:''}</div>`;
   }).join('');
-  return `<div class="cl-sechead"><h2>${esc(cat)}</h2></div><button class="cl-back" onclick="clarityBrowseBack()"><span class="cl-ar">←</span> All categories</button>${rows}`;
+  return `<div class="cl-sechead"><h2>${esc(cat)} <span style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.4);">· ${esc(BUCKET_LABEL[bucketOf(cat)])}</span></h2></div><button class="cl-back" onclick="clarityBrowseBack()"><span class="cl-ar">←</span> All categories</button>${rows}`;
 }
+
 function historyView(state){
   return `<div class="cl-sechead"><h2>History</h2><p>Everything you've decided, newest first. Tap Edit, Delete, or View session.</p></div><div id="cl-histfeed">${historyFeedInner(state)}</div>`;
 }
@@ -678,10 +831,10 @@ export function renderClarityTab({ state }){
   let body = '';
   if(view==='browse') body = browseView(state);
   else if(view==='history') body = historyView(state);
-  else body = thinkView(state);
+  else body = todayView(state);
   return `
   <div class="clarity-surface">
-    <style>${CLARITY_CSS}</style>
+    <style>${CLARITY_CSS}${CLARITY_CSS_X}</style>
     <div class="clarity-page">
       <div class="cl-tabs">
         <button class="cl-tab ${view==='today'?'active':''}" onclick="clarityNav('today')">Today</button>
@@ -697,27 +850,16 @@ export function renderClarityTab({ state }){
 // ── Init / events (re-run after every render) ─────────────────────
 export function initClarityTab(deps){
   const { state, saveDataQuiet, render } = deps;
-  const c = coach(state);
 
-  function resetDraft(){ state.clarityDraft = { answer:'', decision:'' }; }
-  function resetCoach(){
-    state.clarityCoach = { active:false, messages:[], loading:false, error:null, draft:'', summary:null, readyToWrap:false, usedPrevious:false, lastOp:null };
-  }
-  // capture anything typed before a re-render wipes the DOM
-  function capture(){
-    const r = document.getElementById('cl-reply'); if(r) c.draft = r.value;
-    const a = document.getElementById('cl-answer'); const d = document.getElementById('cl-decision');
-    const dr = state.clarityDraft || (state.clarityDraft={answer:'',decision:''});
-    if(a) dr.answer = a.value; if(d) dr.decision = d.value;
-  }
+  function leaveThink(){ commitWorking(state); if(typeof saveDataQuiet==='function') saveDataQuiet(); }
   function excerptsFor(q){
     if(!usePrevious(state)) return [];
-    const dr = state.clarityDraft || {};
-    const text = [dr.answer||''].concat(c.messages.map(function(m){return m.content;})).join(' ');
+    const w = working(state);
+    const text = w ? [w.answer||''].concat((w.session.messages||[]).map(function(m){return m.content;})).join(' ') : '';
     return pickRelevantEntries(getEntries(state), q.id, q.cat, text, 4);
   }
 
-  // rebuild entry lists in place (keeps writing + scroll)
+  // rebuild committed lists in place (keeps writing + scroll)
   function clarityRefresh(){
     const list = document.getElementById('cl-hlist');
     if(list){
@@ -734,35 +876,56 @@ export function initClarityTab(deps){
     if(feed) feed.innerHTML = historyFeedInner(state);
   }
 
+  // open a question (from home card / chooser / browse / random)
+  function applyOpen(it){
+    leaveThink();                                  // commit whatever was in progress
+    if(it.today) state.clarityQuestionId = todaysQuestionFor(it.today).id;
+    else if(it.qid) state.clarityQuestionId = it.qid;
+    else if(it.random){
+      const cur = state.clarityQuestionId;
+      let q; do { q = QUESTIONS[Math.floor(Math.random()*QUESTIONS.length)]; } while(q.id===cur && QUESTIONS.length>1);
+      state.clarityQuestionId = q.id;
+    }
+    state.clarityView = 'today';
+    state.clarityBrowseCat = null;
+    ui(state).error = null;
+    render();
+  }
+
   // ── navigation ──
   window.clarityNav = function(v){
-    capture();
-    if(v==='today'){ state.clarityQuestionId=null; resetDraft(); resetCoach(); }
-    if(v!=='browse'){ state.clarityBrowseCat=null; }
-    state.clarityView=v; render();
+    leaveThink();
+    if(v==='today'){ state.clarityQuestionId = null; }
+    if(v!=='browse'){ state.clarityBrowseCat = null; }
+    ui(state).error = null;
+    state.clarityView = v; render();
   };
-  window.clarityRandom = function(){
-    const cur = currentQuestion(state).id;
-    let q; do{ q=QUESTIONS[Math.floor(Math.random()*QUESTIONS.length)]; }while(q.id===cur && QUESTIONS.length>1);
-    state.clarityQuestionId=q.id; state.clarityView='today'; resetDraft(); resetCoach(); render();
+  window.clarityRandom = function(){ applyOpen({ random:true }); };
+  window.clarityBrowse = function(cat){ state.clarityBrowseCat = cat; render(); };
+  window.clarityBrowseBack = function(){ state.clarityBrowseCat = null; render(); };
+  window.clarityOpen = function(qid){ applyOpen({ qid: qid }); };
+  window.clarityDone = function(){ leaveThink(); state.clarityView='today'; state.clarityQuestionId=null; render(); };
+  window.clarityDiscard = function(){
+    const cl = state.data && state.data.clarity;
+    if(cl) cl.working = null;
+    ui(state).error = null;
+    if(typeof saveDataQuiet==='function') saveDataQuiet();
+    state.clarityView='today'; state.clarityQuestionId=null; render();
   };
-  window.clarityBrowse = function(cat){ state.clarityBrowseCat=cat; render(); };
-  window.clarityBrowseBack = function(){ state.clarityBrowseCat=null; render(); };
-  window.clarityOpen = function(qid){ state.clarityQuestionId=qid; state.clarityView='today'; resetDraft(); resetCoach(); render(); };
   window.clarityToggleHistory = function(){
     const list=document.getElementById('cl-hlist'), tog=document.getElementById('cl-htoggle');
     if(!list||!tog) return;
     const open=list.classList.toggle('open'); tog.classList.toggle('open', open);
   };
   window.clarityTogglePrevious = function(){
-    state.data.clarity = state.data.clarity || { entries: [] };
-    state.data.clarity.settings = state.data.clarity.settings || {};
-    state.data.clarity.settings.usePrevious = !usePrevious(state);
+    const cl = clroot(state);
+    cl.settings = cl.settings || {};
+    cl.settings.usePrevious = !usePrevious(state);
     if(typeof saveDataQuiet==='function') saveDataQuiet();
     render();
   };
 
-  // ── entry edit / delete / session ──
+  // ── committed-entry edit / delete / session ──
   window.clarityEditEntry = function(id){ _editingId=id; _deleteId=null; clarityRefresh();
     const t=document.getElementById('cl-eans-'+id); if(t) t.focus();
   };
@@ -770,11 +933,9 @@ export function initClarityTab(deps){
   window.claritySaveEdit = function(id){
     const ansEl=document.getElementById('cl-eans-'+id);
     const decEl=document.getElementById('cl-edec-'+id);
-    const decision=(decEl&&decEl.value.trim())||'';
-    if(!decision){ if(decEl){ decEl.style.borderColor='rgba(231,76,60,0.9)'; decEl.focus(); } return; }
     const entries=getEntries(state);
     const e=entries.find(function(x){return x.id===id;});
-    if(e){ e.answer=(ansEl&&ansEl.value.trim())||''; e.decision=decision; e.editedAt=Date.now(); }
+    if(e){ e.answer=(ansEl&&ansEl.value.trim())||''; e.decision=(decEl&&decEl.value.trim())||''; e.editedAt=Date.now(); }
     if(typeof saveDataQuiet==='function') saveDataQuiet();
     _editingId=null; clarityRefresh();
   };
@@ -791,149 +952,173 @@ export function initClarityTab(deps){
 
   // ── the coach ──
   async function runCoach(control){
+    const w = working(state); if(!w) return;
     const q = currentQuestion(state);
-    c.loading = true; c.error = null; c.lastOp = { type:'coach', control: control||null };
+    const u = ui(state);
+    u.loading = true; u.error = null; u.lastOp = { type:'coach', control: control||null };
     render();
     try {
       const r = await askCoach({
         category: q.cat, question: q.text,
-        messages: c.messages, control: control || null,
+        messages: w.session.messages, control: control || null,
         excerpts: excerptsFor(q)
       });
-      c.messages.push({ role:'assistant', content:r.question, observation:r.observation, mode:control||null, ts:Date.now() });
-      c.readyToWrap = r.readyToWrap;
+      w.session.messages.push({ role:'assistant', content:r.question, observation:r.observation, mode:control||null, ts:Date.now() });
+      w.updatedAt = Date.now();
+      if(typeof saveDataQuiet==='function') saveDataQuiet();
     } catch(err){
-      c.error = (err && err.message) ? err.message : 'Something went wrong.';
+      u.error = (err && err.message) ? err.message : 'Something went wrong.';
     }
-    c.loading = false; render();
+    u.loading = false; render();
   }
   async function runSummary(){
+    const w = working(state); if(!w) return;
     const q = currentQuestion(state);
-    c.loading = true; c.error = null; c.lastOp = { type:'summary' };
+    const u = ui(state);
+    u.loading = true; u.error = null; u.lastOp = { type:'summary' };
     render();
     try {
-      c.summary = await askSummary({
+      const s = await askSummary({
         category: q.cat, question: q.text,
-        messages: c.messages, excerpts: excerptsFor(q)
+        messages: w.session.messages, excerpts: excerptsFor(q)
       });
+      w.session.summary = {
+        whatISaid: s.whatISaid||'', whatIRealised: s.whatIRealised||'',
+        pattern: s.pattern||null, decision: s.decision||'', remember: s.remember||''
+      };
+      if(s.decision && !(w.decision||'').trim()) w.decision = s.decision;   // seed the entry's decision
+      w.updatedAt = Date.now();
+      if(typeof saveDataQuiet==='function') saveDataQuiet();
     } catch(err){
-      c.error = (err && err.message) ? err.message : 'Something went wrong.';
+      u.error = (err && err.message) ? err.message : 'Something went wrong.';
     }
-    c.loading = false; render();
+    u.loading = false; render();
   }
 
   window.clarityDigDeeper = function(){
-    capture();
-    const dr = state.clarityDraft || {};
-    const opening = (dr.answer||'').trim();
-    if(!opening) return;
     const q = currentQuestion(state);
-    c.active = true; c.summary = null; c.error = null; c.draft='';
-    c.messages = [{ role:'user', content: opening, ts:Date.now() }];
-    c.usedPrevious = excerptsFor(q).length > 0;
+    const w = ensureWorking(state, q);
+    const opening = (w.answer||'').trim();
+    if(opening.length < 3) return;
+    w.active = true;
+    w.session = w.session || { messages:[], summary:null, usedPrevious:false };
+    if(!w.session.messages.length){
+      w.session.messages = [{ role:'user', content: opening, ts:Date.now() }];
+    }
+    w.session.usedPrevious = excerptsFor(q).length > 0;
+    ui(state).error = null;
+    if(typeof saveDataQuiet==='function') saveDataQuiet();
     runCoach(null);
   };
   window.clarityReply = function(){
-    capture();
-    const text = (c.draft||'').trim();
-    if(!text || c.loading) return;
-    c.messages.push({ role:'user', content:text, ts:Date.now() });
-    c.draft = '';
+    const w = working(state); if(!w) return;
+    const u = ui(state); if(u.loading) return;
+    const el = document.getElementById('cl-reply');
+    const text = ((el ? el.value : w.replyDraft) || '').trim();
+    if(!text) return;
+    w.session.messages.push({ role:'user', content:text, ts:Date.now() });
+    w.replyDraft = ''; w.updatedAt = Date.now();
+    if(typeof saveDataQuiet==='function') saveDataQuiet();
     runCoach(null);
   };
   window.clarityControl = function(mode){
-    if(c.loading) return;
-    capture();
-    const text = (c.draft||'').trim();
-    if(text){ c.messages.push({ role:'user', content:text, ts:Date.now() }); c.draft=''; }
+    const w = working(state); if(!w) return;
+    const u = ui(state); if(u.loading) return;
+    const el = document.getElementById('cl-reply');
+    const text = ((el ? el.value : '') || '').trim();
+    if(text){ w.session.messages.push({ role:'user', content:text, ts:Date.now() }); w.replyDraft=''; if(typeof saveDataQuiet==='function') saveDataQuiet(); }
     if(mode==='wrap') runSummary(); else runCoach(mode);
   };
   window.clarityRetry = function(){
-    if(!c.lastOp) { c.error=null; render(); return; }
-    if(c.lastOp.type==='summary') runSummary(); else runCoach(c.lastOp.control);
+    const u = ui(state);
+    if(!u.lastOp){ u.error=null; render(); return; }
+    if(u.lastOp.type==='summary') runSummary(); else runCoach(u.lastOp.control);
   };
-  window.clarityDismissError = function(){ c.error=null; render(); };
-  window.clarityDiscardCoach = function(){ capture(); resetCoach(); render(); };
+  window.clarityDismissError = function(){ ui(state).error=null; render(); };
 
-  window.claritySaveReflection = function(){
-    const g = function(id){ const el=document.getElementById(id); return el ? el.value.trim() : ''; };
-    const decision = g('cl-s-dec');
-    if(!decision){ const el=document.getElementById('cl-s-dec'); if(el){ el.style.borderColor='rgba(231,76,60,0.9)'; el.focus(); } return; }
-    const q = currentQuestion(state);
-    const opening = (c.messages[0] && c.messages[0].content) || (state.clarityDraft && state.clarityDraft.answer) || '';
-    state.data.clarity = state.data.clarity || { entries: [] };
-    state.data.clarity.entries = state.data.clarity.entries || [];
-    state.data.clarity.entries.push({
-      id: 'cl'+Date.now().toString(36),
-      questionId: q.id, questionText: q.text, category: q.cat,
-      answer: opening, decision: decision, ts: Date.now(),
-      session: {
-        messages: c.messages.slice(),
-        summary: { whatISaid:g('cl-s-said'), whatIRealised:g('cl-s-real'), pattern:g('cl-s-pat')||null, decision:decision, remember:g('cl-s-rem') },
-        usedPrevious: !!c.usedPrevious,
-        completedAt: Date.now()
-      }
-    });
-    if(typeof saveDataQuiet==='function') saveDataQuiet();
-    resetCoach(); resetDraft(); render();
-  };
+  // ── consume home-card / chooser intent ──
+  if(typeof window!=='undefined' && window.__clarityIntent){
+    const it = window.__clarityIntent; window.__clarityIntent = null;
+    applyOpen(it);
+    return;   // render() above re-runs init with a clean slate
+  }
 
-  // ── think-view wiring ──
+  // ── commit any stray working draft when we're not on its screen ──
+  (function reconcile(){
+    const w = working(state);
+    if(!w) return;
+    const onIt = ((state.clarityView||'today')==='today' && state.clarityQuestionId===w.questionId && state.activeTab==='clarity');
+    if(!onIt){ commitWorking(state); if(typeof saveDataQuiet==='function') saveDataQuiet(); }
+  })();
+
+  // ── bind the think-view / summary DOM (live autosave) ──
   if((state.clarityView||'today')!=='today') return;
-  const ans=document.getElementById('cl-answer');
-  const dec=document.getElementById('cl-decision');
-  const save=document.getElementById('cl-save');
-  const hint=document.getElementById('cl-hint');
-  const tog=document.getElementById('cl-htoggle');
-  const dig=document.getElementById('cl-dig');
-  const reply=document.getElementById('cl-reply');
+  if(!state.clarityQuestionId) return;   // chooser is showing — nothing to bind
 
-  if(reply){ reply.oninput = function(){ c.draft = reply.value; }; }
-  if(!ans||!dec||!save) return;
+  const ansEl   = document.getElementById('cl-answer');
+  const digEl   = document.getElementById('cl-dig');
+  const togEl   = document.getElementById('cl-htoggle');
+  const replyEl = document.getElementById('cl-reply');
+  const savedEl = document.getElementById('cl-saved');
 
   function autogrow(t){ if(!t)return; t.style.height='auto'; t.style.height=t.scrollHeight+'px'; }
-  function updateSave(){
-    const has = dec.value.trim().length>0;
-    save.disabled = !has;
-    if(hint) hint.style.display = has ? 'none' : 'inline';
-    if(dig) dig.disabled = ans.value.trim().length < 3;
+  let _t = null;
+  function markSaving(el){ if(el){ el.textContent='Saving…'; el.classList.add('saving'); } }
+  function markSaved(el){ if(el){ el.textContent='Saved'; el.classList.remove('saving'); } }
+  // debounced live save — never re-renders, so focus + scroll are untouched
+  function liveSave(indicator){
+    if(_t) clearTimeout(_t);
+    markSaving(indicator);
+    _t = setTimeout(function(){
+      _t = null;
+      if(typeof saveDataQuiet==='function') saveDataQuiet();
+      markSaved(indicator);
+    }, 600);
   }
 
-  const draft = state.clarityDraft || (state.clarityDraft={answer:'',decision:''});
-  ans.value = draft.answer || '';
-  dec.value = draft.decision || '';
-  autogrow(ans);
-  updateSave();
-
-  ans.oninput = function(){ draft.answer = ans.value; autogrow(ans); updateSave(); };
-  dec.oninput = function(){ draft.decision = dec.value; updateSave(); };
-  dec.onkeydown = function(e){ if(e.key==='Enter'){ e.preventDefault(); if(!save.disabled) doSave(); } };
-  if(tog) tog.onclick = window.clarityToggleHistory;
-  if(dig) dig.onclick = window.clarityDigDeeper;
-
-  function doSave(){
-    const decision = dec.value.trim(); if(!decision) return;
-    const q = currentQuestion(state);
-    state.data.clarity = state.data.clarity || { entries: [] };
-    state.data.clarity.entries = state.data.clarity.entries || [];
-    state.data.clarity.entries.push({
-      id: 'cl'+Date.now().toString(36),
-      questionId: q.id, questionText: q.text, category: q.cat,
-      answer: ans.value.trim(), decision: decision, ts: Date.now()
-    });
-    if(typeof saveDataQuiet==='function') saveDataQuiet();
-
-    const edge=document.getElementById('cl-edge');
-    if(edge){ edge.classList.remove('hone'); void edge.offsetWidth; edge.classList.add('hone'); }
-    const flash=document.getElementById('cl-flash');
-    if(flash){ flash.classList.add('show'); setTimeout(function(){ if(flash) flash.classList.remove('show'); }, 2600); }
-
-    ans.value=''; dec.value=''; draft.answer=''; draft.decision=''; autogrow(ans); updateSave();
-    const list=document.getElementById('cl-hlist'), lbl=document.getElementById('cl-hlabel');
-    if(list){ list.classList.remove('open'); list.innerHTML = historyListHTML(state, q.id); }
-    if(tog) tog.classList.remove('open');
-    if(lbl){ const n=entriesFor(state, q.id).length; lbl.textContent = n ? 'Previous entries ('+n+')' : 'Previous entries'; }
+  if(ansEl){
+    autogrow(ansEl);
+    ansEl.oninput = function(){
+      const q = currentQuestion(state);
+      const w = ensureWorking(state, q);
+      w.answer = ansEl.value; w.updatedAt = Date.now();
+      autogrow(ansEl);
+      if(digEl) digEl.disabled = ansEl.value.trim().length < 3;
+      liveSave(savedEl);
+    };
+  }
+  if(digEl)   digEl.onclick   = window.clarityDigDeeper;
+  if(togEl)   togEl.onclick   = window.clarityToggleHistory;
+  if(replyEl){
+    replyEl.oninput = function(){
+      const w = working(state); if(!w) return;
+      w.replyDraft = replyEl.value; w.updatedAt = Date.now();
+      liveSave(null);
+    };
   }
 
-  save.onclick = doSave;
+  // summary fields (the decision lives here — the very end)
+  const sumEl = document.getElementById('cl-saved-sum');
+  const bindSum = function(id, apply){
+    const el = document.getElementById(id); if(!el) return;
+    el.oninput = function(){
+      const w = working(state); if(!w) return;
+      w.session.summary = w.session.summary || {};
+      apply(w, el.value); w.updatedAt = Date.now();
+      liveSave(sumEl);
+    };
+  };
+  bindSum('cl-s-said', function(w,v){ w.session.summary.whatISaid = v; });
+  bindSum('cl-s-real', function(w,v){ w.session.summary.whatIRealised = v; });
+  bindSum('cl-s-pat',  function(w,v){ w.session.summary.pattern = v; });
+  bindSum('cl-s-rem',  function(w,v){ w.session.summary.remember = v; });
+  bindSum('cl-s-dec',  function(w,v){ w.session.summary.decision = v; w.decision = v; });
+}
+
+// ── module-scope global so the home card works before the tab inits ─
+if(typeof window!=='undefined'){
+  window.clarityStartToday = function(bucket){
+    window.__clarityIntent = { today: (bucket==='personal' ? 'personal' : 'business') };
+    if(typeof window.setTab==='function') window.setTab('clarity');
+  };
 }
