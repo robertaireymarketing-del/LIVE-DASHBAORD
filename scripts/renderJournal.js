@@ -126,19 +126,14 @@ export function renderJournalTab() {
           ${[
             ['Rested','rested'],['Mental Sharpness','sharpness'],['Calmness','calm'],['Motivation','motivation'],['Goal Clarity','clarity'],['Sex Drive','drive']
           ].map(([label,key]) => `
-          <div class="journal-score-row"><div class="journal-score-top"><span>${label}</span><span class="journal-score-value" id="journal-${key}-val">3</span></div><div class="journal-range-wrap"><div class="journal-range-ticks"><span></span><span></span><span></span><span></span><span></span><span></span></div><input class="journal-range" type="range" min="0" max="5" step="1" value="3" id="journal-${key}-range"></div></div>
+          <div class="journal-score-row"><div class="journal-score-top"><span>${label}</span><span class="journal-score-value" id="journal-${key}-val">3</span></div><div class="journal-range-wrap"><div class="journal-range-ticks"><span></span><span></span><span></span><span></span><span></span><span></span></div><input class="journal-range" type="range" min="0" max="5" step="1" value="3" id="journal-${key}-range"></div><div class="journal-action-prompt" id="journal-${key}-action" style="font-size:12px;font-weight:600;line-height:1.5;margin-top:8px;padding:4px 0 4px 12px;border-left:2px solid transparent;"></div></div>
           `).join('')}
           <div class="journal-score-total"><div class="journal-score-total-label">Morning Score Total (Readiness)</div><div class="journal-score-total-value"><span id="journalMorningScoreValue">18</span><span style="font-size:14px;color:inherit;font-weight:600;opacity:.6;"> / 30</span></div></div>
           <div class="journal-note" id="journalMorningAveragesNote">Vs last week: -- · Vs month: --</div>
           <div class="journal-note">These scores can later calculate weekly and monthly averages.</div>
         </div>
-        <div><h2>Most Powerful Self</h2><div class="journal-prompt">What is the most powerful version of myself that I can step into today?</div><textarea class="journal-textarea" id="journal-powerfulSelf" placeholder="The most powerful version of me today is..."></textarea></div>
-        <div><h2>3 Most Important Actions</h2><div class="journal-prompt">What are the 3 most important actions I can take today that will move me closer to my biggest dream?</div><div style="display:flex;flex-direction:column;gap:10px;">
-          <textarea class="journal-textarea" id="journal-mostImportantAction1" placeholder="1 — The action that moves everything forward is..."></textarea>
-          <textarea class="journal-textarea" id="journal-mostImportantAction2" placeholder="2 — Next most important action..."></textarea>
-          <textarea class="journal-textarea" id="journal-mostImportantAction3" placeholder="3 — Third most important action..."></textarea>
-        </div></div>
-        <div><h2>Unstoppable Evidence</h2><div class="journal-prompt">What evidence will I create today that proves I am unstoppable in achieving my dreams?</div><textarea class="journal-textarea" id="journal-unstoppable" placeholder="By the end of today I will have proven it by..."></textarea></div>
+        <div><h2>Identity Prime</h2><div class="journal-prompt">Who am I becoming, and what is one action today that proves it?</div><textarea class="journal-textarea" id="journal-identityPrime" placeholder="I am becoming... and today I prove it by..."></textarea></div>
+        <div><h2>The Day's Focus</h2><div class="journal-prompt">What is the single most important thing I must do today to move my life forward?</div><textarea class="journal-textarea" id="journal-daysFocus" placeholder="The one needle-mover today is..."></textarea></div>
         <div>
           <h2>Today's Priorities</h2>
           <div class="journal-prompt" style="margin-bottom:10px;">Pulled from your planner for today.</div>

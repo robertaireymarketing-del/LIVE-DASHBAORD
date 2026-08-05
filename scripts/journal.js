@@ -30,7 +30,7 @@ export function initJournalTab(deps) {
 
   const morningFields = {
     rested: document.getElementById('journal-rested-range'), sharpness: document.getElementById('journal-sharpness-range'), calm: document.getElementById('journal-calm-range'), motivation: document.getElementById('journal-motivation-range'), clarity: document.getElementById('journal-clarity-range'), drive: document.getElementById('journal-drive-range'),
-    powerfulSelf: document.getElementById('journal-powerfulSelf'), mostImportantAction1: document.getElementById('journal-mostImportantAction1'), mostImportantAction2: document.getElementById('journal-mostImportantAction2'), mostImportantAction3: document.getElementById('journal-mostImportantAction3'), unstoppable: document.getElementById('journal-unstoppable')
+    identityPrime: document.getElementById('journal-identityPrime'), daysFocus: document.getElementById('journal-daysFocus')
   };
   const eveningFields = {
     execution: document.getElementById('journal-execution-range'), discipline: document.getElementById('journal-discipline-range'), dopamine: document.getElementById('journal-dopamine-range'), physical: document.getElementById('journal-physical-range'), builder: document.getElementById('journal-builder-range'), sleepprep: document.getElementById('journal-sleepprep-range'),
@@ -168,9 +168,9 @@ export function initJournalTab(deps) {
     const sleepRaw = Number(eveningFields.sleepprep?.value ?? getJournalEntry(dateKey, 'evening')?.sleepprep ?? 0);
     const sleepPoints = Math.min(10, sleepRaw * 2);
     const rows = [
-      ['Gym', day.gym ? 15 : 0, 15, day.gym ? 'Ticked on Today page' : 'Not ticked on Today page'],
+      ['Gym', day.gym ? 10 : 0, 10, day.gym ? 'Ticked on Today page' : 'Not ticked on Today page'],
       ['Retention', day.retention ? 10 : 0, 10, day.retention ? 'Ticked on Today page' : 'Not ticked on Today page'],
-      ['Meditation', day.meditation ? 5 : 0, 5, day.meditation ? 'Ticked on Today page' : 'Not ticked on Today page'],
+      ['Meditation', day.meditation ? 10 : 0, 10, day.meditation ? 'Ticked on Today page' : 'Not ticked on Today page'],
       ['Sleep', sleepPoints, 10, `Evening sleep prep ${sleepRaw}/5 × 2`],
     ];
     const total = round1(rows.reduce((sum, [, score]) => sum + Number(score || 0), 0));
@@ -357,7 +357,7 @@ export function initJournalTab(deps) {
       <div style="${cardStyle}margin-bottom:14px;">
         <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${muted};text-transform:uppercase;margin-bottom:10px;">Weighted tier totals</div>
         ${renderRows([
-          ['Tier 1 habits', tier1.total, 40, 'Gym 15 + retention 10 + meditation 5 + sleep from evening score'],
+          ['Tier 1 habits', tier1.total, 40, 'Gym 10 + retention 10 + meditation 10 + sleep from evening score'],
           ['Tier 2 evening rating', tier2.weightedTotal, 45, `Scaled from evening journal ${formatScore(tier2.rawTotal, 30)}`],
           ['Tier 3 morning rating', tier3.weightedTotal, 15, `Scaled from morning journal ${formatScore(tier3.rawTotal, 30)}`],
           ['Overall total', total, 100, '40% tier 1 · 45% tier 2 · 15% tier 3'],
@@ -425,9 +425,33 @@ export function initJournalTab(deps) {
       `</div>` +
       `</div>`;
   }
+  // ── Readiness micro-actions ────────────────────────────────────────────
+  // Shown live under each slider, chosen by score band: 0-2 low, 3 mid, 4-5 high.
+  const MORNING_ACTIONS = {
+    rested:     { low:'10-min tactical nap or earlier bedtime tonight.', mid:'Hydrate and move.', high:'Proceed as normal.' },
+    sharpness:  { low:'Delay deep work. Do simple tasks first.', mid:'Green tea and 20-min focus block.', high:'Tackle hardest task first.' },
+    calm:       { low:'3 rounds of 4-7-8 breathing now.', mid:'Silent commute, no phone.', high:'Proceed as normal.' },
+    motivation: { low:'Action first, feeling later. Just start moving.', mid:'Review your August vision for 60 seconds.', high:"Channel it into the Day's Focus." },
+    clarity:    { low:'Read your August contract aloud.', mid:'Write down the one thing that matters today.', high:"Break the Day's Focus into micro-steps." },
+    drive:      { low:'Walk in sunlight. Check sleep and discipline from yesterday.', mid:'Note and observe patterns.', high:'Channel into movement, hard work, or intentional connection with Warda. Do not open a browser.' },
+  };
+  const ACTION_BAND_COLOUR = { low:'#e67e22', mid:'#9aa0a6', high:'#2ecc71' };
+  function renderMorningActionPrompt(key){
+    const el = document.getElementById('journal-' + key + '-action');
+    const field = morningFields[key];
+    const spec = MORNING_ACTIONS[key];
+    if (!el || !field || !spec) return;
+    const v = Number(field.value);
+    const band = v <= 2 ? 'low' : (v === 3 ? 'mid' : 'high');
+    el.textContent = spec[band];
+    el.style.color = ACTION_BAND_COLOUR[band];
+    el.style.borderLeftColor = ACTION_BAND_COLOUR[band];
+  }
+  function renderAllMorningActionPrompts(){ Object.keys(MORNING_ACTIONS).forEach(renderMorningActionPrompt); }
+
   function computeMorningScore(){ const total=Number(morningFields.rested.value)+Number(morningFields.sharpness.value)+Number(morningFields.calm.value)+Number(morningFields.motivation.value)+Number(morningFields.clarity.value)+Number(morningFields.drive.value); morningScoreValue.textContent=total; updateBestVersionPercent(); return total; }
   function computeEveningScore(){ const total=Number(eveningFields.execution.value)+Number(eveningFields.discipline.value)+Number(eveningFields.dopamine.value)+Number(eveningFields.physical.value)+Number(eveningFields.builder.value)+Number(eveningFields.sleepprep.value); eveningScoreValue.textContent=total; updateBestVersionPercent(); return total; }
-  function evaluateMorningCompletion(){ const complete=[morningFields.powerfulSelf,morningFields.mostImportantAction1,morningFields.unstoppable].every(el=>isFilled(el.value)); morningCard.classList.toggle('complete-block', complete); morningBadge.textContent=complete?'Complete':'In progress'; morningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
+  function evaluateMorningCompletion(){ const complete=[morningFields.identityPrime,morningFields.daysFocus].every(el=>isFilled(el.value)); morningCard.classList.toggle('complete-block', complete); morningBadge.textContent=complete?'Complete':'In progress'; morningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
   function evaluateEveningCompletion(){ const textComplete=[eveningFields.proud,eveningFields.learned,eveningFields.release,eveningFields.alignment].every(el=>isFilled(el.value)); const gratitudeComplete=[eveningFields.grateful1,eveningFields.grateful2,eveningFields.grateful3,eveningFields.grateful4,eveningFields.grateful5,eveningFields.grateful6].some(el=>isFilled(el.value)); const complete=textComplete&&gratitudeComplete; eveningCard.classList.toggle('complete-block', complete); eveningBadge.textContent=complete?'Complete':'In progress'; eveningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
 
   // ── Morning Launch Overlay ─────────────────────────────────────────────
@@ -535,11 +559,8 @@ export function initJournalTab(deps) {
     sessionStorage.setItem('launchOverlayShown_' + todayKey, '1');
 
     const quote = STOIC_QUOTES[Math.floor(Math.random() * STOIC_QUOTES.length)];
-    const actions = [payload.mostImportantAction1, payload.mostImportantAction2, payload.mostImportantAction3]
-      .map(a => (a || '').trim())
-      .filter(Boolean);
-    // Backward compatibility with older entries that stored a single action
-    if (!actions.length && (payload.mostImportantAction || '').trim()) actions.push(payload.mostImportantAction.trim());
+    const daysFocus = (payload.daysFocus || '').trim();
+    const identityPrime = (payload.identityPrime || '').trim();
     const dateKey = keyFromDate(currentDate);
     const dayData = deps.state.data?.days?.[dateKey] || {};
     const rawTasks = Array.isArray(dayData.tasks) ? dayData.tasks : [];
@@ -576,15 +597,18 @@ export function initJournalTab(deps) {
           <div style="font-size:14px;color:rgba(255,255,255,0.45);margin-top:10px;">The bed is done. The day begins.</div>
         </div>
 
-        <!-- Most Important Actions -->
-        ${actions.length ? `
+        <!-- The Day's Focus -->
+        ${daysFocus ? `
         <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:14px;padding:16px 18px;text-align:left;">
-          <div style="font-size:9px;font-weight:900;letter-spacing:2.5px;color:#C9A84C;text-transform:uppercase;margin-bottom:8px;">${actions.length > 1 ? '3 Most Important Actions Today' : 'Most Important Action Today'}</div>
-          ${actions.map((a,i) => `
-            <div style="display:flex;gap:12px;align-items:flex-start;${i>0?'margin-top:10px;padding-top:10px;border-top:1px solid rgba(201,168,76,0.15);':''}">
-              <div style="width:22px;height:22px;flex-shrink:0;border-radius:6px;background:#C9A84C;color:#050A14;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;">${i+1}</div>
-              <div style="font-size:15px;font-weight:800;color:#ffffff;line-height:1.4;padding-top:1px;">${a}</div>
-            </div>`).join('')}
+          <div style="font-size:9px;font-weight:900;letter-spacing:2.5px;color:#C9A84C;text-transform:uppercase;margin-bottom:8px;">The Day's Focus</div>
+          <div style="font-size:16px;font-weight:800;color:#ffffff;line-height:1.45;">${daysFocus}</div>
+        </div>` : ''}
+
+        <!-- Identity Prime -->
+        ${identityPrime ? `
+        <div style="text-align:left;padding:0 4px;">
+          <div style="font-size:9px;font-weight:900;letter-spacing:2.5px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:6px;">Who I'm Becoming</div>
+          <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.8);line-height:1.5;font-style:italic;">${identityPrime}</div>
         </div>` : ''}
 
         <!-- Priorities -->
@@ -690,11 +714,14 @@ export function initJournalTab(deps) {
   }
 
   function saveMorning(silent){
-    const complete = evaluateMorningCompletion();
+    const existing = getJournalEntry(keyFromDate(currentDate),'morning') || {};
+    let complete = evaluateMorningCompletion();
+    // A past entry completed under the old 3-question format must not be
+    // downgraded just because the user opened it (new fields empty).
+    if (!complete && existing.complete && !isFilled(morningFields.identityPrime.value) && !isFilled(morningFields.daysFocus.value)) complete = true;
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-    const existing = getJournalEntry(keyFromDate(currentDate),'morning') || {};
-    const payload={rested:morningFields.rested.value,sharpness:morningFields.sharpness.value,calm:morningFields.calm.value,motivation:morningFields.motivation.value,clarity:morningFields.clarity.value,drive:morningFields.drive.value,powerfulSelf:morningFields.powerfulSelf.value,mostImportantAction1:morningFields.mostImportantAction1.value,mostImportantAction2:morningFields.mostImportantAction2.value,mostImportantAction3:morningFields.mostImportantAction3.value,unstoppable:morningFields.unstoppable.value,score:computeMorningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
+    const payload={...existing,rested:morningFields.rested.value,sharpness:morningFields.sharpness.value,calm:morningFields.calm.value,motivation:morningFields.motivation.value,clarity:morningFields.clarity.value,drive:morningFields.drive.value,identityPrime:morningFields.identityPrime.value,daysFocus:morningFields.daysFocus.value,score:computeMorningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
     setJournalEntry(keyFromDate(currentDate),'morning',payload);
     flashSavedPill(morningSavedPill, timeStr);
     // Header recomputations reflow layout above the fields, so on a silent
@@ -721,7 +748,7 @@ export function initJournalTab(deps) {
     }
   }
 
-  function loadMorning(){ const data=getJournalEntry(keyFromDate(currentDate),'morning')||{}; morningFields.rested.value=data.rested??3; morningFields.sharpness.value=data.sharpness??3; morningFields.calm.value=data.calm??3; morningFields.motivation.value=data.motivation??3; morningFields.clarity.value=data.clarity??3; morningFields.drive.value=data.drive??3; morningFields.powerfulSelf.value=data.powerfulSelf??''; morningFields.mostImportantAction1.value=data.mostImportantAction1??data.mostImportantAction??''; morningFields.mostImportantAction2.value=data.mostImportantAction2??''; morningFields.mostImportantAction3.value=data.mostImportantAction3??''; morningFields.unstoppable.value=data.unstoppable??''; morningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = morningFields[key].value; }); computeMorningScore(); evaluateMorningCompletion(); renderDayPriorities(); }
+  function loadMorning(){ const data=getJournalEntry(keyFromDate(currentDate),'morning')||{}; morningFields.rested.value=data.rested??3; morningFields.sharpness.value=data.sharpness??3; morningFields.calm.value=data.calm??3; morningFields.motivation.value=data.motivation??3; morningFields.clarity.value=data.clarity??3; morningFields.drive.value=data.drive??3; morningFields.identityPrime.value=data.identityPrime??''; morningFields.daysFocus.value=data.daysFocus??''; morningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = morningFields[key].value; }); computeMorningScore(); renderAllMorningActionPrompts(); evaluateMorningCompletion(); renderDayPriorities(); }
 
   function renderDayPriorities() {
     const el = document.getElementById('journalDayPrioritiesDisplay');
@@ -805,7 +832,7 @@ export function initJournalTab(deps) {
     updateLauncherButtons();
   }
 
-  morningBindings.forEach(([key,valId])=>{ const range=morningFields[key]; const val=document.getElementById(valId); bindOnce(range,'input','rangeval',()=>{ val.textContent=range.value; computeMorningScore(); }); });
+  morningBindings.forEach(([key,valId])=>{ const range=morningFields[key]; const val=document.getElementById(valId); bindOnce(range,'input','rangeval',()=>{ val.textContent=range.value; computeMorningScore(); renderMorningActionPrompt(key); }); });
   eveningBindings.forEach(([key,valId])=>{ const range=eveningFields[key]; const val=document.getElementById(valId); bindOnce(range,'input','rangeval',()=>{ val.textContent=range.value; computeEveningScore(); }); });
   Object.values(morningFields).forEach(el=>bindOnce(el,'input','evalcomplete',evaluateMorningCompletion));
   Object.values(eveningFields).forEach(el=>bindOnce(el,'input','evalcomplete',evaluateEveningCompletion));
@@ -967,7 +994,7 @@ export function initJournalTab(deps) {
     const scale = (raw, rawMax, targetMax) => rawMax > 0 ? round1((Number(raw || 0) / rawMax) * targetMax) : 0;
     const g = (obj, key) => Number(obj?.[key] ?? 0);
     const sleepRaw = g(evening, 'sleepprep');
-    const tier1 = round1((day.gym ? 15 : 0) + (day.retention ? 10 : 0) + (day.meditation ? 5 : 0) + Math.min(10, sleepRaw * 2));
+    const tier1 = round1((day.gym ? 10 : 0) + (day.retention ? 10 : 0) + (day.meditation ? 10 : 0) + Math.min(10, sleepRaw * 2));
     const eveningRaw = round1(['execution','discipline','dopamine','physical','builder','sleepprep'].reduce((s,k) => s + g(evening, k), 0));
     const tier2 = scale(eveningRaw, 30, 45);
     const morningRaw = round1(['rested','sharpness','calm','motivation','clarity','drive'].reduce((s,k) => s + g(morning, k), 0));
