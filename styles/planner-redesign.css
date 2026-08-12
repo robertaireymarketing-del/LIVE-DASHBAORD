@@ -1,0 +1,186 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   TJM PLANNER — "DEEP NAVY" REDESIGN  (Design B)
+   ---------------------------------------------------------------------------
+   Drop-in restyle for the Weekly Planner tab. Overrides the inline styles in
+   renderWeeklyTab.js — nothing in the JS/logic changes.
+
+   HOW IT WORKS
+   • Every rule is scoped to #wk-root and uses !important so it wins over the
+     inline <style> block regardless of load order.
+   • Load this file AFTER app.css in index.html.
+   • To revert: remove the <link> line. That's it.
+
+   PALETTE
+   • Navy (structure)      #17385f      panel, day chip, primary buttons
+   • Deep navy ink (text)  #152a47 / #1e293b
+   • Bright blue (accent)  #4a90e2      objectives bar, today highlight
+   • Light blue            #8fb4dd      tasks bar
+   • Blue chip bg / text   #e6eefa / #1c4f96
+   • Cool border           #e3e8ef
+   • Cool muted / label    #94a3b8 / #64748b
+   • Card inner tint       #f4f7fb
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Title + eyebrow ─────────────────────────────────────────────────────── */
+/* Bebas condensed -> clean sentence-case sans. This is the biggest "feel" shift. */
+#wk-root .wk-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif !important;
+  font-size: 23px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+  color: #152a47 !important;
+  line-height: 1.15 !important;
+}
+#wk-root .wk-eyebrow {
+  color: #94a3b8 !important;
+  letter-spacing: 0.14em !important;
+}
+
+/* ── Prev / Next buttons ─────────────────────────────────────────────────── */
+#wk-root .wk-nav-btn {
+  color: #334155 !important;
+  border: 1px solid #d5dce6 !important;
+  background: #fff !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+}
+#wk-root .wk-nav-btn:active {
+  background: #17385f !important;
+  border-color: #17385f !important;
+  color: #fff !important;
+}
+
+/* ── Undo button (recolour from gold to a calm blue chip) ────────────────── */
+#wk-root #wkUndoBtn {
+  background: #e6eefa !important;
+  border: 1px solid #cdd9ec !important;
+  color: #1c4f96 !important;
+  font-weight: 800 !important;
+}
+#wk-root #wkUndoBtn:active { background: #d6e2f5 !important; }
+
+/* ── Stats row → the signature NAVY panel ────────────────────────────────── */
+#wk-root .wk-stats-row {
+  background: #17385f !important;
+  border: 1px solid #17385f !important;
+  border-radius: 14px !important;
+}
+#wk-root .wk-stat-divider { background: rgba(255,255,255,0.14) !important; }
+#wk-root .wk-stat-label   { color: #8ea6c4 !important; }
+#wk-root .wk-stat-count   { color: #ffffff !important; }
+#wk-root .wk-stat-pct     { color: #cfe0f2 !important; }
+#wk-root .wk-prog-track   { background: #274b76 !important; }
+/* two-tone bars on the navy: objectives brighter, tasks lighter */
+#wk-root .wk-stat-block:first-child  .wk-prog-fill { background: #4a90e2 !important; }
+#wk-root .wk-stat-block:last-child   .wk-prog-fill { background: #8fb4dd !important; }
+
+/* ── Section headers ─────────────────────────────────────────────────────── */
+#wk-root .wk-sec        { border-bottom: 1px solid #e3e8ef !important; }
+#wk-root .wk-sec-label  { color: #64748b !important; }
+
+/* "+ Add" buttons → navy primary */
+#wk-root .wk-sec-btn {
+  background: #17385f !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+}
+#wk-root .wk-sec-btn:active { opacity: 0.85 !important; }
+#wk-root .wk-btn-blue { background: #3a6ea5 !important; }
+
+/* ── Objectives + "Things I got done" cards ──────────────────────────────── */
+#wk-root .wk-obj-row,
+#wk-root .wk-win-row {
+  border-color: #e3e8ef !important;
+  border-radius: 12px !important;
+}
+#wk-root .wk-obj-name  { color: #1e293b !important; }
+#wk-root .wk-win-text  { color: #1e293b !important; }
+#wk-root .wk-win-dot   { color: #3a6ea5 !important; }
+#wk-root .wk-obj-chk   { border-color: #cdd6e2 !important; }
+#wk-root .wk-empty     { color: #94a3b8 !important; }
+#wk-root .wk-carried   { color: #94a3b8 !important; }
+#wk-root .wk-win-del   { color: #cdd6e2 !important; }
+
+/* Edit/delete icon hovers → cool */
+#wk-root .wk-obj-edit:active { color: #1c4f96 !important; background: #eaf1fb !important; }
+
+/* ── Add / edit forms ────────────────────────────────────────────────────── */
+#wk-root .wk-obj-form   { border-color: #e3e8ef !important; border-radius: 12px !important; }
+#wk-root .wk-inline-edit{ background: #f4f7fb !important; border-color: #3a6ea5 !important; }
+#wk-root .wk-form-inp,
+#wk-root .wk-tag-inp    { background: #f4f7fb !important; border-color: #e3e8ef !important; color: #1e293b !important; }
+#wk-root .wk-form-inp:focus,
+#wk-root .wk-tag-inp:focus { border-color: #3a6ea5 !important; }
+#wk-root .wk-form-label { color: #94a3b8 !important; }
+#wk-root .wk-swatch.selected { border-color: #17385f !important; }
+
+/* Save/cancel */
+#wk-root .wk-btn-save   { background: #17385f !important; }
+#wk-root .wk-btn-cancel { border-color: #e3e8ef !important; color: #94a3b8 !important; }
+#wk-root .wk-btn-cancel:active { background: #eef2f7 !important; }
+
+/* ── Day blocks ──────────────────────────────────────────────────────────── */
+#wk-root .wk-day-grid  { gap: 8px !important; }
+#wk-root .wk-day-block {
+  border: 1px solid #e3e8ef !important;
+  border-radius: 14px !important;
+}
+#wk-root .wk-day-header { border-bottom: 1px solid #eef1f5 !important; }
+
+/* "WED" → a compact navy chip, like the mockup */
+#wk-root .wk-day-name {
+  width: auto !important;
+  background: #17385f !important;
+  color: #ffffff !important;
+  padding: 3px 8px !important;
+  border-radius: 7px !important;
+  letter-spacing: 0.06em !important;
+}
+#wk-root .wk-day-date  { color: #94a3b8 !important; }
+#wk-root .wk-task-count{ color: #94a3b8 !important; }
+
+/* Focus badge → light blue chip */
+#wk-root .wk-focus-badge {
+  background: #eef2f7 !important;
+  color: #64748b !important;
+}
+
+/* "+ Task" → light blue chip */
+#wk-root .wk-day-add-btn {
+  background: #e6eefa !important;
+  color: #1c4f96 !important;
+  border-radius: 8px !important;
+}
+
+/* AM / PM period zones + empties */
+#wk-root .wk-day-empty  { color: #c1c9d3 !important; }
+
+/* ── "Today" highlight → cohesive blue instead of green ──────────────────── */
+#wk-root .wk-day-block.today {
+  border-color: #4a90e2 !important;
+  border-width: 2px !important;
+}
+#wk-root .wk-day-block.today .wk-day-header {
+  background: #4a90e2 !important;
+  border-bottom-color: #4a90e2 !important;
+}
+#wk-root .wk-day-block.today .wk-day-name {
+  background: rgba(255,255,255,0.22) !important;
+  color: #fff !important;
+}
+#wk-root .wk-day-block.today .wk-day-add-btn {
+  background: rgba(255,255,255,0.25) !important;
+  color: #fff !important;
+}
+
+/* ── Drag / drop highlight → blue ────────────────────────────────────────── */
+#wk-root .wk-day-block.drag-over {
+  box-shadow: 0 0 0 2.5px #3a6ea5 !important;
+  border-color: #3a6ea5 !important;
+}
+
+/* ── Dividers ────────────────────────────────────────────────────────────── */
+#wk-root .wk-divider,
+#wk-root .wk-past-label::before,
+#wk-root .wk-past-label::after { background: #e3e8ef !important; }
+#wk-root .wk-past-label { color: #94a3b8 !important; }
