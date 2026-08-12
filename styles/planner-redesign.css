@@ -179,11 +179,27 @@
   border-color: #3a6ea5 !important;
 }
 
-/* ── Trim the gap above the bottom nav ───────────────────────────────────── */
-/* #wk-root ships with padding-bottom:40px, but .content already reserves
-   64px + safe-area for the fixed nav — so the 40px is a redundant second gap.
-   Drop it to a small breathing space. */
-#wk-root { padding-bottom: 10px !important; }
+/* ═══ APP-WIDE: bottom navigation spacing ══════════════════════════════════
+   NOT planner-specific — this closes the empty band above the bottom nav on
+   EVERY tab. Root cause (in app.css): the nav bar is 64px tall (line 2137)
+   but .content reserves 76px of clearance (line 2200), leaving a ~12px dead
+   band. These rules live here because this file loads after app.css, so they
+   win — no need to edit app.css itself.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Match content clearance to the actual bar height → removes the dead band */
+.content { padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important; }
+
+/* Tighten the planner's own trailing padding to near-zero */
+#wk-root { padding-bottom: 4px !important; }
+
+/* OPTIONAL — if the BAR ITSELF still feels too tall, uncomment this block to
+   slim it. The .content value here must stay in sync with the min-height. */
+/*
+.bottom-nav-app     { min-height: calc(54px + env(safe-area-inset-bottom)) !important; }
+.bottom-nav-app-btn { margin: 4px 2px 4px !important; padding: 8px 4px 8px !important; }
+.content            { padding-bottom: calc(54px + env(safe-area-inset-bottom)) !important; }
+*/
 
 /* ── Dividers ────────────────────────────────────────────────────────────── */
 #wk-root .wk-divider,
