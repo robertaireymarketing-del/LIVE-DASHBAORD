@@ -179,6 +179,12 @@
   border-color: #3a6ea5 !important;
 }
 
+/* ── Trim the gap above the bottom nav ───────────────────────────────────── */
+/* #wk-root ships with padding-bottom:40px, but .content already reserves
+   64px + safe-area for the fixed nav — so the 40px is a redundant second gap.
+   Drop it to a small breathing space. */
+#wk-root { padding-bottom: 10px !important; }
+
 /* ── Dividers ────────────────────────────────────────────────────────────── */
 #wk-root .wk-divider,
 #wk-root .wk-past-label::before,
