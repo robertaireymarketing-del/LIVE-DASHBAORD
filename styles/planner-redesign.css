@@ -179,27 +179,30 @@
   border-color: #3a6ea5 !important;
 }
 
-/* ═══ APP-WIDE: bottom navigation spacing ══════════════════════════════════
-   NOT planner-specific — this closes the empty band above the bottom nav on
-   EVERY tab. Root cause (in app.css): the nav bar is 64px tall (line 2137)
-   but .content reserves 76px of clearance (line 2200), leaving a ~12px dead
-   band. These rules live here because this file loads after app.css, so they
-   win — no need to edit app.css itself.
+/* ═══ APP-WIDE: bottom navigation — slimmer bar, applies to EVERY tab ═══════
+   This file loads after app.css, so these win without editing app.css.
+   The stock bar (app.css line 2137) is ~66px tall AND .content reserves 76px
+   of clearance (line 2200) — that combination is the excess padding you see
+   on every page. Below: slim the bar, then match the clearance to it.
+
+   ONE NUMBER TO TUNE: change 52 in the three rules together to make the whole
+   bottom menu taller/shorter. (Keep it ≥ 48 so tap targets stay comfortable.)
    ────────────────────────────────────────────────────────────────────────── */
 
-/* Match content clearance to the actual bar height → removes the dead band */
-.content { padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important; }
+.bottom-nav-app {
+  min-height: calc(52px + env(safe-area-inset-bottom)) !important;
+}
+.bottom-nav-app-btn {
+  margin: 3px 2px 3px !important;
+  padding: 7px 4px 7px !important;
+  gap: 4px !important;
+}
+.content {
+  padding-bottom: calc(54px + env(safe-area-inset-bottom)) !important;
+}
 
-/* Tighten the planner's own trailing padding to near-zero */
+/* Planner's own trailing padding → near zero (it stacked on top of the above) */
 #wk-root { padding-bottom: 4px !important; }
-
-/* OPTIONAL — if the BAR ITSELF still feels too tall, uncomment this block to
-   slim it. The .content value here must stay in sync with the min-height. */
-/*
-.bottom-nav-app     { min-height: calc(54px + env(safe-area-inset-bottom)) !important; }
-.bottom-nav-app-btn { margin: 4px 2px 4px !important; padding: 8px 4px 8px !important; }
-.content            { padding-bottom: calc(54px + env(safe-area-inset-bottom)) !important; }
-*/
 
 /* ── Dividers ────────────────────────────────────────────────────────────── */
 #wk-root .wk-divider,
