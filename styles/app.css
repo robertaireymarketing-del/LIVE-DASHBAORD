@@ -2123,6 +2123,15 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
 /* ═══════════════════════════════════════════════════════════════════════════
    PERMANENT FIXED BOTTOM NAV — Design 1: Command Bar
 ═══════════════════════════════════════════════════════════════════════════ */
+/* Home-bar clearance for the fixed nav. iOS reports ~34px of safe-area at the
+   bottom; the home indicator only needs ~8-10px, so we trim 20px off it (with a
+   4px floor for non-notched / desktop). Change the "- 20px" to tune the gap:
+   bigger number = tighter to the bottom. Single source of truth — do NOT
+   re-declare .bottom-nav-app padding-bottom in index.html. */
+:root {
+  --nav-safe: max(4px, calc(env(safe-area-inset-bottom, 0px) - 20px));
+}
+
 .bottom-nav-app {
   position: fixed;
   bottom: 0;
@@ -2133,8 +2142,8 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
   align-items: stretch;
   background: #111111;
   border-top: 1px solid rgba(255,255,255,0.07);
-  padding-bottom: env(safe-area-inset-bottom);
-  min-height: calc(50px + env(safe-area-inset-bottom));
+  padding-bottom: var(--nav-safe);
+  min-height: calc(50px + var(--nav-safe));
 }
 
 .bottom-nav-app-btn {
@@ -2207,7 +2216,7 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
 
 /* Push content above the bar */
 .content {
-  padding-bottom: calc(60px + env(safe-area-inset-bottom)) !important;
+  padding-bottom: calc(58px + var(--nav-safe)) !important;
 }
 
 /* Light mode */
@@ -2227,7 +2236,7 @@ body.light .bottom-nav-app-btn:hover:not(.active) { color: rgba(0,0,0,0.5); }
 ═══════════════════════════════════════════════════════════════════════════ */
 .mobile-more-sheet {
   position: fixed;
-  bottom: calc(50px + env(safe-area-inset-bottom));
+  bottom: calc(50px + var(--nav-safe));
   left: 0;
   right: 0;
   z-index: 950;
