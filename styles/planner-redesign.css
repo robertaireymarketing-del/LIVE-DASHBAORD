@@ -185,20 +185,25 @@
    of clearance (line 2200) — that combination is the excess padding you see
    on every page. Below: slim the bar, then match the clearance to it.
 
-   ONE NUMBER TO TUNE: change 52 in the three rules together to make the whole
-   bottom menu taller/shorter. (Keep it ≥ 48 so tap targets stay comfortable.)
+   ONE NUMBER TO TUNE: change 40 (the base height) below — and keep the 44 in
+   .content a few px above it. Lower = slimmer bar. The "- 32px" is how much of
+   the iOS home-bar inset we cut: raise it for a tighter bottom gap, lower it if
+   labels crowd the home indicator. Labels are app.css's 9px font — shrink that
+   if you want them tinier. This block now sets padding-bottom too, so the bar
+   geometry is fully controlled here and no longer depends on app.css.
    ────────────────────────────────────────────────────────────────────────── */
 
 .bottom-nav-app {
-  min-height: calc(52px + env(safe-area-inset-bottom)) !important;
+  min-height: calc(40px + max(2px, calc(env(safe-area-inset-bottom, 0px) - 32px))) !important;
+  padding-bottom: max(2px, calc(env(safe-area-inset-bottom, 0px) - 32px)) !important;
 }
 .bottom-nav-app-btn {
-  margin: 3px 2px 3px !important;
-  padding: 7px 4px 7px !important;
-  gap: 4px !important;
+  margin: 1px 2px !important;
+  padding: 3px 4px !important;
+  gap: 2px !important;
 }
 .content {
-  padding-bottom: calc(54px + env(safe-area-inset-bottom)) !important;
+  padding-bottom: calc(44px + max(2px, calc(env(safe-area-inset-bottom, 0px) - 32px))) !important;
 }
 
 /* Planner's own trailing padding → near zero (it stacked on top of the above) */
