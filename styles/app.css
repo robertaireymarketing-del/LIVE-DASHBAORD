@@ -2129,7 +2129,7 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
    bigger number = tighter to the bottom. Single source of truth — do NOT
    re-declare .bottom-nav-app padding-bottom in index.html. */
 :root {
-  --nav-safe: max(4px, calc(env(safe-area-inset-bottom, 0px) - 26px));
+  --nav-safe: max(2px, calc(env(safe-area-inset-bottom, 0px) - 32px));
 }
 
 .bottom-nav-app {
@@ -2143,7 +2143,7 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
   background: #111111;
   border-top: 1px solid rgba(255,255,255,0.07);
   padding-bottom: var(--nav-safe);
-  min-height: calc(50px + var(--nav-safe));
+  min-height: calc(46px + var(--nav-safe));
 }
 
 .bottom-nav-app-btn {
@@ -2157,7 +2157,7 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
   letter-spacing: 1.5px;
   text-transform: uppercase;
   color: rgba(255,255,255,0.28);
-  padding: 6px 4px;
+  padding: 4px 4px;
   transition: color 0.15s ease, background 0.15s ease;
   -webkit-tap-highlight-color: transparent;
   outline: none;
@@ -2169,7 +2169,7 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
   gap: 5px;
   position: relative;
   border-radius: 14px;
-  margin: 4px 2px;
+  margin: 3px 2px;
 }
 
 /* Icons via ::before on each tab button (nth-of-type targets by position) */
@@ -2216,7 +2216,7 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
 
 /* Push content above the bar */
 .content {
-  padding-bottom: calc(58px + var(--nav-safe)) !important;
+  padding-bottom: calc(52px + var(--nav-safe)) !important;
 }
 
 /* Light mode */
