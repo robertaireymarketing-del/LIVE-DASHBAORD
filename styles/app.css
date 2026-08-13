@@ -2129,7 +2129,7 @@ body.light .toggle-card.active .toggle-label { font-size: 11px !important; }
    bigger number = tighter to the bottom. Single source of truth — do NOT
    re-declare .bottom-nav-app padding-bottom in index.html. */
 :root {
-  --nav-safe: max(4px, calc(env(safe-area-inset-bottom, 0px) - 20px));
+  --nav-safe: max(4px, calc(env(safe-area-inset-bottom, 0px) - 26px));
 }
 
 .bottom-nav-app {
