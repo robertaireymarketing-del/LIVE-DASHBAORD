@@ -9,8 +9,11 @@ export function initDayPlannerActions({
 }) {
 
   // ── Internal helpers ───────────────────────────────────────────────────
-  async function autoSaveDayDraft() {
-    if (!state.dayPlannerDraft || !state.dayPlannerDay) return;
+  // Commit the in-memory day-planner draft into state.data. Shared by the
+  // loud autosave (renders), the quiet autosave (no render — safe mid-typing),
+  // and the flush-on-close/background path. Does NOT save on its own.
+  function commitDayDraftToState() {
+    if (!state.dayPlannerDraft || !state.dayPlannerDay) return false;
     const activeDay = state.dayPlannerDay;
     const weekOffset = state.dayPlannerWeekOffset || 0;
     let weekKey;
@@ -36,7 +39,44 @@ export function initDayPlannerActions({
     if (!state.data.dayBatchPlan[weekKey][activeDay]) state.data.dayBatchPlan[weekKey][activeDay] = {};
     state.data.dayBatchPlan[weekKey][activeDay]._batch = state.dayPlannerDraft._batch || [];
     state.data.dayBatchPlan[weekKey][activeDay]._streams = state.dayPlannerDraft._streams || [];
+    return true;
+  }
+
+  // Loud commit — used on day/week switch, where a render happens anyway.
+  async function autoSaveDayDraft() {
+    if (!commitDayDraftToState()) return;
     await saveData();
+  }
+
+  // Quiet commit — persists without a render(), so it will NOT blow away the
+  // textarea you're typing in. This is the workhorse for live autosave.
+  async function commitDayDraftQuiet() {
+    if (!commitDayDraftToState()) return;
+    await saveDataQuiet();
+  }
+
+  // ── Live draft autosave (debounced, silent) ────────────────────────────
+  // Every draft edit schedules a quiet save ~0.9s after you stop. Nothing you
+  // type into the planner can now sit unsaved for more than about a second.
+  let _draftSaveTimer = null;
+  function scheduleDraftSave() {
+    if (_draftSaveTimer) clearTimeout(_draftSaveTimer);
+    _draftSaveTimer = setTimeout(() => { _draftSaveTimer = null; commitDayDraftQuiet(); }, 900);
+  }
+  async function flushDraftSave() {
+    if (_draftSaveTimer) { clearTimeout(_draftSaveTimer); _draftSaveTimer = null; }
+    await commitDayDraftQuiet();
+  }
+
+  // Flush pending planner edits when the tab is hidden or closed. Mobile
+  // Safari discards backgrounded tabs, so without this an uncommitted draft
+  // would be lost. commitDayDraftQuiet writes localStorage synchronously
+  // (that write always lands) and fires the Firestore save best-effort.
+  if (typeof window !== 'undefined' && !window._dpFlushWired) {
+    window._dpFlushWired = true;
+    const _flushOnExit = () => { if (state.dayPlannerDraft && state.dayPlannerDay) commitDayDraftQuiet(); };
+    window.addEventListener('pagehide', _flushOnExit);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') _flushOnExit(); });
   }
 
   function getUnscheduledSteps() {
@@ -414,8 +454,8 @@ export function initDayPlannerActions({
     render();
   };
 
-  window.closeDayPlanner = (e) => { if (e.target.classList.contains('week-plan-overlay')) { state.dayPlannerOpen = false; render(); } };
-  window.closeDayPlannerBtn = () => { state.dayPlannerOpen = false; render(); };
+  window.closeDayPlanner = async (e) => { if (e.target.classList.contains('week-plan-overlay')) { await flushDraftSave(); state.dayPlannerOpen = false; render(); } };
+  window.closeDayPlannerBtn = async () => { await flushDraftSave(); state.dayPlannerOpen = false; render(); };
 
   window.navPlanWeek = async (dir) => {
     await autoSaveDayDraft();
@@ -505,7 +545,7 @@ export function initDayPlannerActions({
     render();
   };
 
-  window.addDraftTask = (fk) => { if (!state.dayPlannerDraft) state.dayPlannerDraft = {}; if (!state.dayPlannerDraft[fk]) state.dayPlannerDraft[fk] = []; state.dayPlannerDraft[fk].push({ text:'', start:'', end:'' }); render(); };
+  window.addDraftTask = (fk) => { if (!state.dayPlannerDraft) state.dayPlannerDraft = {}; if (!state.dayPlannerDraft[fk]) state.dayPlannerDraft[fk] = []; state.dayPlannerDraft[fk].push({ text:'', start:'', end:'' }); scheduleDraftSave(); render(); };
 
   // Confirmation is handled by the button's onclick confirm() in renderModals.js
   // This function only runs if the user clicks OK on that dialog
@@ -523,7 +563,7 @@ export function initDayPlannerActions({
       });
       state.dayPlannerDraft[fk].splice(ti, 1);
     }
-    await saveDataQuiet();
+    await flushDraftSave();
     render();
   };
 
@@ -538,7 +578,7 @@ export function initDayPlannerActions({
     if (!state.dayPlannerDraft[fk]) state.dayPlannerDraft[fk] = [];
     state.dayPlannerDraft[fk].push(taskData);
     state.data.archivedTasks.splice(i, 1);
-    await saveDataQuiet();
+    await flushDraftSave();
     render();
   };
   window.updateDraftTask = (fk, ti, val, field) => {
@@ -547,6 +587,7 @@ export function initDayPlannerActions({
     const obj = typeof existing === 'object' ? existing : { text: existing||'', start:'', end:'' };
     obj[field || 'text'] = val;
     state.dayPlannerDraft[fk][ti] = obj;
+    scheduleDraftSave(); // persist keystrokes without a render (keeps focus)
   };
 
   window.saveDayPlan = async (weekKey) => {
@@ -577,12 +618,14 @@ export function initDayPlannerActions({
     if(!state.dayPlannerDraft) state.dayPlannerDraft = {};
     if(!state.dayPlannerDraft._batch) state.dayPlannerDraft._batch = [];
     state.dayPlannerDraft._batch.push({ ...step, done: false, startTime: '' });
+    scheduleDraftSave();
     render();
   };
 
   window.updateBatchStepTime = (si, startTime, durationMins) => {
     if(!state.dayPlannerDraft?._batch?.[si]) return;
     state.dayPlannerDraft._batch[si].startTime = startTime;
+    scheduleDraftSave();
     const card = document.querySelector(`[data-batch-si="${si}"]`);
     if(card) {
       const endSpan = card.querySelector('.batch-end-time');
@@ -594,7 +637,7 @@ export function initDayPlannerActions({
     }
   };
 
-  window.removeBatchFromDraft = (si) => { if(state.dayPlannerDraft?._batch) { state.dayPlannerDraft._batch.splice(si, 1); render(); } };
+  window.removeBatchFromDraft = (si) => { if(state.dayPlannerDraft?._batch) { state.dayPlannerDraft._batch.splice(si, 1); scheduleDraftSave(); render(); } };
   window.markWeekBatchStepDone = async (batchId, stepIdx, draftIdx) => {
     if(state.dayPlannerDraft?._batch?.[draftIdx]) state.dayPlannerDraft._batch[draftIdx].done = true;
     await markBatchStepComplete(batchId, stepIdx);
@@ -694,9 +737,9 @@ export function initDayPlannerActions({
     if(!state.dayPlannerDraft) state.dayPlannerDraft = {};
     if(!state.dayPlannerDraft._streams) state.dayPlannerDraft._streams = [];
     state.dayPlannerDraft._streams.push({ topic, start: s.start||'', end });
-    state.dayPlannerStreamForm = false; state.dayPlannerStreamDraft = null; render();
+    state.dayPlannerStreamForm = false; state.dayPlannerStreamDraft = null; scheduleDraftSave(); render();
   };
-  window.removeStreamFromDraft = (si) => { if(state.dayPlannerDraft?._streams) { state.dayPlannerDraft._streams.splice(si,1); render(); } };
+  window.removeStreamFromDraft = (si) => { if(state.dayPlannerDraft?._streams) { state.dayPlannerDraft._streams.splice(si,1); scheduleDraftSave(); render(); } };
 
   // ── Time Picker ────────────────────────────────────────────────────────
   window.openTimePicker = (fk, ti, field) => {
@@ -808,6 +851,7 @@ export function initDayPlannerActions({
     } else {
       window.updateDraftTask(fk, ti, hour + ':' + minute, field);
     }
+    scheduleDraftSave();
     state.timePickerOpen = null; render();
   };
 

@@ -102,15 +102,30 @@ export function createStorage({
     } catch (e) {
       console.error('Load failed:', e);
       // ── Restore from local backup if available ──
-      const backupJournal = localStorage.getItem('tjm_backup_journal');
-      const backupDays = localStorage.getItem('tjm_backup_days');
-      state.data = {
-        days: backupDays ? JSON.parse(backupDays) : {},
-        journal: backupJournal ? JSON.parse(backupJournal) : {},
-        settings: defaultSettings,
-        overrides: {},
-        marchStats: { lives: 0, sales: 0, revenue: 0, warmLeads: 0, dmsSent: 0, gymDays: 0 }
-      };
+      // If optimistic paint already populated state.data from cache, KEEP it —
+      // the old code overwrote a full snapshot with a days+journal-only stub.
+      if (!state.data) {
+        // Prefer the full-state cache (covers planner: projectFronts, dayBatchPlan, etc.)
+        try {
+          const fullCache = localStorage.getItem('tjm_state_cache');
+          if (fullCache) state.data = JSON.parse(fullCache);
+        } catch (_) { /* corrupt cache — fall through to partial backup */ }
+
+        // Legacy partial fallback (days + journal only) if no full cache exists
+        if (!state.data) {
+          const backupJournal = localStorage.getItem('tjm_backup_journal');
+          const backupDays = localStorage.getItem('tjm_backup_days');
+          state.data = {
+            days: backupDays ? JSON.parse(backupDays) : {},
+            journal: backupJournal ? JSON.parse(backupJournal) : {},
+            settings: defaultSettings,
+            overrides: {},
+            marchStats: { lives: 0, sales: 0, revenue: 0, warmLeads: 0, dmsSent: 0, gymDays: 0 }
+          };
+        }
+      }
+      state.data.days = state.data.days || {};
+      state.days = state.data.days;
     }
     render();
   }
