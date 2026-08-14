@@ -155,22 +155,29 @@
 /* AM / PM period zones + empties */
 #wk-root .wk-day-empty  { color: #c1c9d3 !important; }
 
-/* ── "Today" highlight → cohesive blue instead of green ──────────────────── */
+/* ── "Today" highlight → DEEP NAVY (matches stats panel + day chips) ──────── */
 #wk-root .wk-day-block.today {
-  border-color: #4a90e2 !important;
+  border-color: #17385f !important;
   border-width: 2px !important;
 }
 #wk-root .wk-day-block.today .wk-day-header {
-  background: #4a90e2 !important;
-  border-bottom-color: #4a90e2 !important;
+  background: #17385f !important;
+  border-bottom-color: #17385f !important;
 }
 #wk-root .wk-day-block.today .wk-day-name {
-  background: rgba(255,255,255,0.22) !important;
+  background: rgba(255,255,255,0.20) !important;
   color: #fff !important;
 }
 #wk-root .wk-day-block.today .wk-day-add-btn {
-  background: rgba(255,255,255,0.25) !important;
+  background: rgba(255,255,255,0.22) !important;
   color: #fff !important;
+}
+/* Header text sits on navy now — flip it light or it disappears */
+#wk-root .wk-day-block.today .wk-day-date   { color: #cfe0f2 !important; }
+#wk-root .wk-day-block.today .wk-task-count { color: rgba(255,255,255,0.7) !important; }
+#wk-root .wk-day-block.today .wk-focus-badge {
+  background: rgba(255,255,255,0.16) !important;
+  color: #eaf1fb !important;
 }
 
 /* ── Drag / drop highlight → blue ────────────────────────────────────────── */
