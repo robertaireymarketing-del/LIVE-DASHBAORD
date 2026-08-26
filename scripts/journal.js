@@ -29,17 +29,19 @@ export function initJournalTab(deps) {
   let currentDate = new Date(((deps.state.journalDate) || deps.getToday()) + 'T12:00:00');
 
   const morningFields = {
-    rested: document.getElementById('journal-rested-range'), sharpness: document.getElementById('journal-sharpness-range'), calm: document.getElementById('journal-calm-range'), motivation: document.getElementById('journal-motivation-range'), clarity: document.getElementById('journal-clarity-range'), drive: document.getElementById('journal-drive-range'),
-    identityPrime: document.getElementById('journal-identityPrime'), daysFocus: document.getElementById('journal-daysFocus')
+    daysFocus: document.getElementById('journal-daysFocus'),
+    frogBlock: document.getElementById('journal-frogBlock')
   };
   const eveningFields = {
     execution: document.getElementById('journal-execution-range'), discipline: document.getElementById('journal-discipline-range'), dopamine: document.getElementById('journal-dopamine-range'), physical: document.getElementById('journal-physical-range'), builder: document.getElementById('journal-builder-range'), sleepprep: document.getElementById('journal-sleepprep-range'),
+    frogKilled: document.getElementById('journal-frogKilled'), frogBlocker: document.getElementById('journal-frogBlocker'), blocksProtected: document.getElementById('journal-blocksProtected'),
     proud: document.getElementById('journal-proud'), learned: document.getElementById('journal-learned'), release: document.getElementById('journal-release'), alignment: document.getElementById('journal-alignment'),
     tomorrowTask1: document.getElementById('journal-tomorrowTask1'), tomorrowTask2: document.getElementById('journal-tomorrowTask2'), tomorrowTask3: document.getElementById('journal-tomorrowTask3'),
     grateful1: document.getElementById('journal-grateful1'), grateful2: document.getElementById('journal-grateful2'), grateful3: document.getElementById('journal-grateful3'), grateful4: document.getElementById('journal-grateful4'), grateful5: document.getElementById('journal-grateful5'), grateful6: document.getElementById('journal-grateful6')
   };
 
-  const morningBindings = [['rested','journal-rested-val'],['sharpness','journal-sharpness-val'],['calm','journal-calm-val'],['motivation','journal-motivation-val'],['clarity','journal-clarity-val'],['drive','journal-drive-val']];
+  // Morning readiness sliders removed — no slider→value bindings remain.
+  const morningBindings = [];
   const eveningBindings = [['execution','journal-execution-val'],['discipline','journal-discipline-val'],['dopamine','journal-dopamine-val'],['physical','journal-physical-val'],['builder','journal-builder-val'],['sleepprep','journal-sleepprep-val']];
 
   const keyFromDate = d => d.toISOString().split('T')[0];
@@ -141,8 +143,8 @@ export function initJournalTab(deps) {
 
   function updateAverageNotes(){
     const avgs=computeHistoricalAverages();
-    morningAveragesNote.textContent=`Vs last week: ${formatAvg(avgs.morningLastWeek,30)} · Vs month: ${formatAvg(avgs.morningMonth,30)}`;
-    eveningAveragesNote.textContent=`Vs last week: ${formatAvg(avgs.eveningLastWeek,30)} · Vs month: ${formatAvg(avgs.eveningMonth,30)}`;
+    if (morningAveragesNote) morningAveragesNote.textContent=`Vs last week: ${formatAvg(avgs.morningLastWeek,30)} · Vs month: ${formatAvg(avgs.morningMonth,30)}`;
+    if (eveningAveragesNote) eveningAveragesNote.textContent=`Vs last week: ${formatAvg(avgs.eveningLastWeek,30)} · Vs month: ${formatAvg(avgs.eveningMonth,30)}`;
   }
 
   function getDayHabitData(dateKey) {
@@ -206,11 +208,13 @@ export function initJournalTab(deps) {
   }
 
   function getWeightedScores(dateKey = keyFromDate(currentDate)) {
-    const tier1 = getTier1Breakdown(dateKey);
-    const tier2 = getEveningBreakdown(dateKey);
-    const tier3 = getMorningBreakdown(dateKey);
-    const total = round1(tier1.total + tier2.weightedTotal + tier3.weightedTotal);
-    return { tier1, tier2, tier3, total, max: 100 };
+    const tier1 = getTier1Breakdown(dateKey);       // habits, out of 40
+    const tier2 = getEveningBreakdown(dateKey);     // evening execution, out of 45
+    // Morning readiness tier removed. Tier1 (40) + Tier2 (45) = 85 raw, rescaled to 100
+    // so a full day is still reachable and past days stay comparable to future ones.
+    const rawTotal = round1(tier1.total + tier2.weightedTotal);
+    const total = round1((rawTotal / 85) * 100);
+    return { tier1, tier2, rawTotal, rawMax: 85, total, max: 100 };
   }
 
   function getPerformanceTier(score){
@@ -271,7 +275,7 @@ export function initJournalTab(deps) {
 
   function openBestVersionModal(){
     const scores = getWeightedScores();
-    const { tier1, tier2, tier3, total } = scores;
+    const { tier1, tier2, rawTotal, total } = scores;
     const { percent, colour, status } = getPerformanceTier(total);
     const modal = ensureBestVersionModal();
     const body = document.getElementById('journalBestVersionModalBody');
@@ -359,8 +363,8 @@ export function initJournalTab(deps) {
         ${renderRows([
           ['Tier 1 habits', tier1.total, 40, 'Gym 10 + retention 10 + meditation 10 + sleep from evening score'],
           ['Tier 2 evening rating', tier2.weightedTotal, 45, `Scaled from evening journal ${formatScore(tier2.rawTotal, 30)}`],
-          ['Tier 3 morning rating', tier3.weightedTotal, 15, `Scaled from morning journal ${formatScore(tier3.rawTotal, 30)}`],
-          ['Overall total', total, 100, '40% tier 1 · 45% tier 2 · 15% tier 3'],
+          ['Raw subtotal', rawTotal, 85, 'Tier 1 + Tier 2'],
+          ['Overall (rescaled)', total, 100, 'Raw 85 rescaled to 100'],
         ])}
       </div>
 
@@ -375,14 +379,6 @@ export function initJournalTab(deps) {
           <div style="font-size:12px;color:${muted};">${formatScore(tier2.rawTotal, 30)} raw → ${formatScore(tier2.weightedTotal, 45)} weighted</div>
         </div>
         ${renderRows(tier2.rows)}
-      </div>
-
-      <div style="${cardStyle}margin-bottom:14px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
-          <div style="font-size:11px;font-weight:900;letter-spacing:2px;color:${muted};text-transform:uppercase;">Tier 3 morning breakdown</div>
-          <div style="font-size:12px;color:${muted};">${formatScore(tier3.rawTotal, 30)} raw → ${formatScore(tier3.weightedTotal, 15)} weighted</div>
-        </div>
-        ${renderRows(tier3.rows)}
       </div>
 
       <div style="${cardStyle}">
@@ -449,9 +445,11 @@ export function initJournalTab(deps) {
   }
   function renderAllMorningActionPrompts(){ Object.keys(MORNING_ACTIONS).forEach(renderMorningActionPrompt); }
 
-  function computeMorningScore(){ const total=Number(morningFields.rested.value)+Number(morningFields.sharpness.value)+Number(morningFields.calm.value)+Number(morningFields.motivation.value)+Number(morningFields.clarity.value)+Number(morningFields.drive.value); morningScoreValue.textContent=total; updateBestVersionPercent(); return total; }
+  // Morning readiness scan removed — morning no longer contributes a numeric score.
+  // Kept as a no-op returning 0 so existing callers (save/load) stay intact.
+  function computeMorningScore(){ return 0; }
   function computeEveningScore(){ const total=Number(eveningFields.execution.value)+Number(eveningFields.discipline.value)+Number(eveningFields.dopamine.value)+Number(eveningFields.physical.value)+Number(eveningFields.builder.value)+Number(eveningFields.sleepprep.value); eveningScoreValue.textContent=total; updateBestVersionPercent(); return total; }
-  function evaluateMorningCompletion(){ const complete=[morningFields.identityPrime,morningFields.daysFocus].every(el=>isFilled(el.value)); morningCard.classList.toggle('complete-block', complete); morningBadge.textContent=complete?'Complete':'In progress'; morningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
+  function evaluateMorningCompletion(){ const complete=[morningFields.daysFocus,morningFields.frogBlock].every(el=>isFilled(el.value)); morningCard.classList.toggle('complete-block', complete); morningBadge.textContent=complete?'Complete':'In progress'; morningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
   function evaluateEveningCompletion(){ const textComplete=[eveningFields.proud,eveningFields.learned,eveningFields.release,eveningFields.alignment].every(el=>isFilled(el.value)); const gratitudeComplete=[eveningFields.grateful1,eveningFields.grateful2,eveningFields.grateful3,eveningFields.grateful4,eveningFields.grateful5,eveningFields.grateful6].some(el=>isFilled(el.value)); const complete=textComplete&&gratitudeComplete; eveningCard.classList.toggle('complete-block', complete); eveningBadge.textContent=complete?'Complete':'In progress'; eveningBadge.classList.toggle('is-complete', complete); updateLauncherButtons(); return complete; }
 
   // ── Morning Launch Overlay ─────────────────────────────────────────────
@@ -560,7 +558,7 @@ export function initJournalTab(deps) {
 
     const quote = STOIC_QUOTES[Math.floor(Math.random() * STOIC_QUOTES.length)];
     const daysFocus = (payload.daysFocus || '').trim();
-    const identityPrime = (payload.identityPrime || '').trim();
+    const frogBlock = (payload.frogBlock || '').trim();
     const dateKey = keyFromDate(currentDate);
     const dayData = deps.state.data?.days?.[dateKey] || {};
     const rawTasks = Array.isArray(dayData.tasks) ? dayData.tasks : [];
@@ -597,18 +595,12 @@ export function initJournalTab(deps) {
           <div style="font-size:14px;color:rgba(255,255,255,0.45);margin-top:10px;">The bed is done. The day begins.</div>
         </div>
 
-        <!-- The Day's Focus -->
+        <!-- Today's Frog -->
         ${daysFocus ? `
         <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:14px;padding:16px 18px;text-align:left;">
-          <div style="font-size:9px;font-weight:900;letter-spacing:2.5px;color:#C9A84C;text-transform:uppercase;margin-bottom:8px;">The Day's Focus</div>
+          <div style="font-size:9px;font-weight:900;letter-spacing:2.5px;color:#C9A84C;text-transform:uppercase;margin-bottom:8px;">Today's Frog — Eat It First</div>
           <div style="font-size:16px;font-weight:800;color:#ffffff;line-height:1.45;">${daysFocus}</div>
-        </div>` : ''}
-
-        <!-- Identity Prime -->
-        ${identityPrime ? `
-        <div style="text-align:left;padding:0 4px;">
-          <div style="font-size:9px;font-weight:900;letter-spacing:2.5px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:6px;">Who I'm Becoming</div>
-          <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.8);line-height:1.5;font-style:italic;">${identityPrime}</div>
+          ${frogBlock ? `<div style="font-size:12px;font-weight:700;color:rgba(201,168,76,0.75);margin-top:8px;">Killing it in: ${frogBlock}</div>` : ''}
         </div>` : ''}
 
         <!-- Priorities -->
@@ -716,12 +708,14 @@ export function initJournalTab(deps) {
   function saveMorning(silent){
     const existing = getJournalEntry(keyFromDate(currentDate),'morning') || {};
     let complete = evaluateMorningCompletion();
-    // A past entry completed under the old 3-question format must not be
-    // downgraded just because the user opened it (new fields empty).
-    if (!complete && existing.complete && !isFilled(morningFields.identityPrime.value) && !isFilled(morningFields.daysFocus.value)) complete = true;
+    // A past entry completed under an older format must not be downgraded just
+    // because the user opened it and the new fields (frog/block) are empty.
+    if (!complete && existing.complete && !isFilled(morningFields.daysFocus.value) && !isFilled(morningFields.frogBlock.value)) complete = true;
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-    const payload={...existing,rested:morningFields.rested.value,sharpness:morningFields.sharpness.value,calm:morningFields.calm.value,motivation:morningFields.motivation.value,clarity:morningFields.clarity.value,drive:morningFields.drive.value,identityPrime:morningFields.identityPrime.value,daysFocus:morningFields.daysFocus.value,score:computeMorningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
+    // ...existing preserves any historical readiness/identity data already stored
+    // for past days; new saves only write the frog framework fields.
+    const payload={...existing,daysFocus:morningFields.daysFocus.value,frogBlock:morningFields.frogBlock.value,score:computeMorningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
     setJournalEntry(keyFromDate(currentDate),'morning',payload);
     flashSavedPill(morningSavedPill, timeStr);
     // Header recomputations reflow layout above the fields, so on a silent
@@ -739,7 +733,7 @@ export function initJournalTab(deps) {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
     const existing = getJournalEntry(keyFromDate(currentDate),'evening') || {};
-    const payload={execution:eveningFields.execution.value,discipline:eveningFields.discipline.value,dopamine:eveningFields.dopamine.value,physical:eveningFields.physical.value,builder:eveningFields.builder.value,sleepprep:eveningFields.sleepprep.value,proud:eveningFields.proud.value,learned:eveningFields.learned.value,release:eveningFields.release.value,alignment:eveningFields.alignment.value,tomorrowTask1:eveningFields.tomorrowTask1.value,tomorrowTask2:eveningFields.tomorrowTask2.value,tomorrowTask3:eveningFields.tomorrowTask3.value,grateful1:eveningFields.grateful1.value,grateful2:eveningFields.grateful2.value,grateful3:eveningFields.grateful3.value,grateful4:eveningFields.grateful4.value,grateful5:eveningFields.grateful5.value,grateful6:eveningFields.grateful6.value,score:computeEveningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
+    const payload={...existing,execution:eveningFields.execution.value,discipline:eveningFields.discipline.value,dopamine:eveningFields.dopamine.value,physical:eveningFields.physical.value,builder:eveningFields.builder.value,sleepprep:eveningFields.sleepprep.value,frogKilled:eveningFields.frogKilled.value,frogBlocker:eveningFields.frogBlocker.value,blocksProtected:eveningFields.blocksProtected.value,proud:eveningFields.proud.value,learned:eveningFields.learned.value,release:eveningFields.release.value,alignment:eveningFields.alignment.value,tomorrowTask1:eveningFields.tomorrowTask1.value,tomorrowTask2:eveningFields.tomorrowTask2.value,tomorrowTask3:eveningFields.tomorrowTask3.value,grateful1:eveningFields.grateful1.value,grateful2:eveningFields.grateful2.value,grateful3:eveningFields.grateful3.value,grateful4:eveningFields.grateful4.value,grateful5:eveningFields.grateful5.value,grateful6:eveningFields.grateful6.value,score:computeEveningScore(),complete,savedAt:timeStr,firstSavedAt:existing.firstSavedAt||timeStr};
     setJournalEntry(keyFromDate(currentDate),'evening',payload);
     flashSavedPill(eveningSavedPill, timeStr);
     if (!silent) {
@@ -748,7 +742,28 @@ export function initJournalTab(deps) {
     }
   }
 
-  function loadMorning(){ const data=getJournalEntry(keyFromDate(currentDate),'morning')||{}; morningFields.rested.value=data.rested??3; morningFields.sharpness.value=data.sharpness??3; morningFields.calm.value=data.calm??3; morningFields.motivation.value=data.motivation??3; morningFields.clarity.value=data.clarity??3; morningFields.drive.value=data.drive??3; morningFields.identityPrime.value=data.identityPrime??''; morningFields.daysFocus.value=data.daysFocus??''; morningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = morningFields[key].value; }); computeMorningScore(); renderAllMorningActionPrompts(); evaluateMorningCompletion(); renderDayPriorities(); }
+  function loadMorning(){ const data=getJournalEntry(keyFromDate(currentDate),'morning')||{}; morningFields.daysFocus.value=data.daysFocus??''; morningFields.frogBlock.value=data.frogBlock??''; evaluateMorningCompletion(); renderMorningWeekSpine(); renderDayPriorities(); }
+
+  function renderMorningWeekSpine() {
+    const el = document.getElementById('journalMorningWeekSpine');
+    if (!el) return;
+    const isLight = document.body.classList.contains('light');
+    const muted = isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.3)';
+    const weekKey = deps.getWeekKey ? deps.getWeekKey(currentDate) : null;
+    const raw = weekKey ? deps.state.data?.weekObjectives?.[weekKey] : null;
+    const objs = Array.isArray(raw) ? raw : (raw ? [{ text: raw, done: false }] : []);
+    if (!objs.length) {
+      el.innerHTML = `<div style="font-size:13px;font-style:italic;color:${muted};">No outcomes set for this week yet — set your 3 in the Planner so today's frog has something to serve.</div>`;
+      return;
+    }
+    el.innerHTML = objs.map((o, i) => {
+      const done = !!o.done;
+      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:10px;background:${isLight?(done?'rgba(46,204,113,0.06)':'#fff'):(done?'rgba(46,204,113,0.06)':'rgba(255,255,255,0.03)')};border:1px solid ${isLight?(done?'rgba(46,204,113,0.3)':'#CDD4E0'):(done?'rgba(46,204,113,0.25)':'rgba(255,255,255,0.08)')};${done?'opacity:0.6;':''}">
+        <div style="width:20px;height:20px;flex-shrink:0;border-radius:6px;background:${done?'rgba(46,204,113,0.2)':'transparent'};border:1.5px solid ${done?'#2ecc71':'rgba(201,168,76,0.5)'};color:#2ecc71;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:900;margin-top:1px;">${done?'✓':(i+1)}</div>
+        <div style="font-size:14px;font-weight:700;color:${isLight?(done?'rgba(0,0,0,0.35)':'#0A1628'):(done?'rgba(255,255,255,0.4)':'rgba(255,255,255,0.88)')};line-height:1.4;${done?'text-decoration:line-through;':''}">${o.text || ''}</div>
+      </div>`;
+    }).join('');
+  }
 
   function renderDayPriorities() {
     const el = document.getElementById('journalDayPrioritiesDisplay');
@@ -772,7 +787,21 @@ export function initJournalTab(deps) {
     }).join('');
   }
 
-  function loadEvening(){ const data=getJournalEntry(keyFromDate(currentDate),'evening')||{}; eveningFields.execution.value=data.execution??3; eveningFields.discipline.value=data.discipline??3; eveningFields.dopamine.value=data.dopamine??3; eveningFields.physical.value=data.physical??3; eveningFields.builder.value=data.builder??3; eveningFields.sleepprep.value=data.sleepprep??3; eveningFields.proud.value=data.proud??''; eveningFields.learned.value=data.learned??''; eveningFields.release.value=data.release??''; eveningFields.alignment.value=data.alignment??''; eveningFields.tomorrowTask1.value=data.tomorrowTask1??''; eveningFields.tomorrowTask2.value=data.tomorrowTask2??''; eveningFields.tomorrowTask3.value=data.tomorrowTask3??''; eveningFields.grateful1.value=data.grateful1??''; eveningFields.grateful2.value=data.grateful2??''; eveningFields.grateful3.value=data.grateful3??''; eveningFields.grateful4.value=data.grateful4??''; eveningFields.grateful5.value=data.grateful5??''; eveningFields.grateful6.value=data.grateful6??''; eveningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = eveningFields[key].value; }); computeEveningScore(); evaluateEveningCompletion(); }
+  function loadEvening(){ const data=getJournalEntry(keyFromDate(currentDate),'evening')||{}; eveningFields.execution.value=data.execution??3; eveningFields.discipline.value=data.discipline??3; eveningFields.dopamine.value=data.dopamine??3; eveningFields.physical.value=data.physical??3; eveningFields.builder.value=data.builder??3; eveningFields.sleepprep.value=data.sleepprep??3; eveningFields.frogKilled.value=data.frogKilled??''; eveningFields.frogBlocker.value=data.frogBlocker??''; eveningFields.blocksProtected.value=data.blocksProtected??''; eveningFields.proud.value=data.proud??''; eveningFields.learned.value=data.learned??''; eveningFields.release.value=data.release??''; eveningFields.alignment.value=data.alignment??''; eveningFields.tomorrowTask1.value=data.tomorrowTask1??''; eveningFields.tomorrowTask2.value=data.tomorrowTask2??''; eveningFields.tomorrowTask3.value=data.tomorrowTask3??''; eveningFields.grateful1.value=data.grateful1??''; eveningFields.grateful2.value=data.grateful2??''; eveningFields.grateful3.value=data.grateful3??''; eveningFields.grateful4.value=data.grateful4??''; eveningFields.grateful5.value=data.grateful5??''; eveningFields.grateful6.value=data.grateful6??''; eveningBindings.forEach(([key,valId])=>{ document.getElementById(valId).textContent = eveningFields[key].value; }); renderEveningFrogDisplay(); computeEveningScore(); evaluateEveningCompletion(); }
+
+  function renderEveningFrogDisplay() {
+    const el = document.getElementById('journalEveningFrogDisplay');
+    if (!el) return;
+    const isLight = document.body.classList.contains('light');
+    const morning = getJournalEntry(keyFromDate(currentDate), 'morning') || {};
+    const frog = (morning.daysFocus || '').trim();
+    const block = (morning.frogBlock || '').trim();
+    if (!frog) {
+      el.innerHTML = `<span style="font-size:14px;font-style:italic;color:${isLight?'rgba(0,0,0,0.3)':'rgba(255,255,255,0.3)'};">No frog was set this morning.</span>`;
+      return;
+    }
+    el.innerHTML = `<span style="color:${isLight?'#0A1628':'#ffffff'};">${frog}</span>${block ? `<span style="display:block;font-size:12px;font-weight:700;color:rgba(201,168,76,0.7);margin-top:4px;">Planned for: ${block}</span>` : ''}`;
+  }
 
   function updateLauncherButtons() {
     const mComplete = morningBadge.classList.contains('is-complete');
@@ -997,9 +1026,10 @@ export function initJournalTab(deps) {
     const tier1 = round1((day.gym ? 10 : 0) + (day.retention ? 10 : 0) + (day.meditation ? 10 : 0) + Math.min(10, sleepRaw * 2));
     const eveningRaw = round1(['execution','discipline','dopamine','physical','builder','sleepprep'].reduce((s,k) => s + g(evening, k), 0));
     const tier2 = scale(eveningRaw, 30, 45);
-    const morningRaw = round1(['rested','sharpness','calm','motivation','clarity','drive'].reduce((s,k) => s + g(morning, k), 0));
-    const tier3 = scale(morningRaw, 30, 15);
-    const pct = Math.round(round1(tier1 + tier2 + tier3));
+    // Morning readiness tier removed — rescale tier1(40)+tier2(45)=85 up to 100,
+    // matching getWeightedScores so the calendar and header agree.
+    const rawTotal = round1(tier1 + tier2);
+    const pct = Math.round(round1((rawTotal / 85) * 100));
     if (pct >= 95) return { label: 'LEGENDARY', colour: '#D4AF37', pct };
     if (pct >= 90) return { label: 'ELITE',      colour: '#2ecc71', pct };
     if (pct >= 80) return { label: 'STRONG',     colour: '#3498db', pct };

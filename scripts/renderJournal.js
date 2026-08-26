@@ -71,7 +71,7 @@ export function renderJournalTab() {
           </div>`;
         })()}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
-          <button class="journal-launch-btn" id="journalOpenMorningBtn">Morning Journal<small>Open readiness, identity, mission, and priorities</small></button>
+          <button class="journal-launch-btn" id="journalOpenMorningBtn">Morning Journal<small>Set today's frog, the block you'll kill it in, and the plan</small></button>
           <button class="journal-launch-btn" id="journalOpenEveningBtn">Evening Reflection<small>Open execution, reflection, and reset for tomorrow</small></button>
         </div>
       </div>
@@ -90,26 +90,6 @@ export function renderJournalTab() {
       </div>
       <div class="journal-collapsible-content">
 
-        <!-- ── THE LOCK ─────────────────────────────────────────────────── -->
-        <div id="journalLockBlock" style="border-left:3px solid #C9A84C;border-radius:14px;padding:20px 22px;margin-bottom:4px;">
-          <div id="journalLockLabel" style="font-size:9px;font-weight:900;letter-spacing:3px;color:#C9A84C;text-transform:uppercase;margin-bottom:12px;">The Lock</div>
-          <div id="journalLockIntro" style="font-size:13px;font-weight:700;line-height:1.5;margin-bottom:10px;font-style:italic;">I am a man of total standard. These things do not exist in my world:</div>
-          <div id="journalLockItems" style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px;">
-            ${[
-              ['🚫','No porn. No masturbation.'],
-              ['🚫','No food outside my diet.'],
-              ['🚫','No skipping the gym.'],
-              ['🚫','No mindless scrolling.'],
-            ].map(([icon, text]) => `
-              <div style="display:flex;align-items:center;gap:10px;">
-                <span style="font-size:12px;opacity:0.6;">${icon}</span>
-                <span class="journal-lock-item-text" style="font-size:14px;font-weight:800;letter-spacing:0.1px;">${text}</span>
-              </div>
-            `).join('')}
-          </div>
-          <div id="journalLockDeclaration" style="font-size:12px;font-weight:700;color:rgba(201,168,76,0.7);letter-spacing:0.3px;padding-top:10px;font-style:italic;">The question never arises. It is already decided. I am already that man.</div>
-        </div>
-
         <!-- ── STOIC PRINCIPLE OF THE DAY ──────────────────────────────── -->
         <div id="journalStoicBlock" style="border-radius:14px;padding:20px 22px;margin-bottom:4px;">
           <div id="journalStoicLabel" style="font-size:9px;font-weight:900;letter-spacing:3px;text-transform:uppercase;margin-bottom:14px;">Stoic Principle of the Day</div>
@@ -120,23 +100,31 @@ export function renderJournalTab() {
           <div id="journalStoicApplication" style="font-size:13px;line-height:1.75;color:rgba(255,255,255,0.6);padding:14px 16px;background:rgba(201,168,76,0.06);border-radius:10px;border-left:2px solid rgba(201,168,76,0.3);margin-top:4px;font-style:italic;"></div>
         </div>
 
+        <!-- ── THIS WEEK'S OUTCOMES (the spine — read-only) ────────────── -->
         <div>
-          <h2>Morning Readiness Scan</h2>
-          <div class="journal-prompt">Score how you're feeling right now (0 = very low, 5 = excellent).</div>
-          ${[
-            ['Rested','rested'],['Mental Sharpness','sharpness'],['Calmness','calm'],['Motivation','motivation'],['Goal Clarity','clarity'],['Sex Drive','drive']
-          ].map(([label,key]) => `
-          <div class="journal-score-row"><div class="journal-score-top"><span>${label}</span><span class="journal-score-value" id="journal-${key}-val">3</span></div><div class="journal-range-wrap"><div class="journal-range-ticks"><span></span><span></span><span></span><span></span><span></span><span></span></div><input class="journal-range" type="range" min="0" max="5" step="1" value="3" id="journal-${key}-range"></div><div class="journal-action-prompt" id="journal-${key}-action" style="font-size:12px;font-weight:600;line-height:1.5;margin-top:8px;padding:4px 0 4px 12px;border-left:2px solid transparent;"></div></div>
-          `).join('')}
-          <div class="journal-score-total"><div class="journal-score-total-label">Morning Score Total (Readiness)</div><div class="journal-score-total-value"><span id="journalMorningScoreValue">18</span><span style="font-size:14px;color:inherit;font-weight:600;opacity:.6;"> / 30</span></div></div>
-          <div class="journal-note" id="journalMorningAveragesNote">Vs last week: -- · Vs month: --</div>
-          <div class="journal-note">These scores can later calculate weekly and monthly averages.</div>
+          <h2>This Week's Outcomes</h2>
+          <div class="journal-prompt" style="margin-bottom:10px;">The 3 outcomes that make this week a win. Today's frog should serve one of them. Set these in the Planner.</div>
+          <div id="journalMorningWeekSpine" style="display:flex;flex-direction:column;gap:8px;"></div>
         </div>
-        <div><h2>Identity Prime</h2><div class="journal-prompt">Who am I becoming, and what is one action today that proves it?</div><textarea class="journal-textarea" id="journal-identityPrime" placeholder="I am becoming... and today I prove it by..."></textarea></div>
-        <div><h2>The Day's Focus</h2><div class="journal-prompt">What is the single most important thing I must do today to move my life forward?</div><textarea class="journal-textarea" id="journal-daysFocus" placeholder="The one needle-mover today is..."></textarea></div>
+
+        <!-- ── THE FROG (the one needle-mover) ────────────────────────── -->
         <div>
-          <h2>Today's Priorities</h2>
-          <div class="journal-prompt" style="margin-bottom:10px;">Pulled from your planner for today.</div>
+          <h2>The Frog 🐸</h2>
+          <div class="journal-prompt">The one task that, if it's the only thing you finish today, makes the day a win. Eat it first — before the shop, before your phone, before anything reactive.</div>
+          <textarea class="journal-textarea" id="journal-daysFocus" placeholder="Today's frog is..."></textarea>
+        </div>
+
+        <!-- ── THE BLOCK (when it gets killed) ────────────────────────── -->
+        <div>
+          <h2>Kill It In This Block</h2>
+          <div class="journal-prompt">Name the time block you do the frog in — the first protected block of the day. Deciding it now is what stops 6am-you having to decide it later.</div>
+          <input class="journal-input" type="text" id="journal-frogBlock" placeholder="e.g. 6:30–8:00, before the shop" />
+        </div>
+
+        <!-- ── TODAY'S PRIORITIES (the rest of the plan) ──────────────── -->
+        <div>
+          <h2>Everything Else, Queued</h2>
+          <div class="journal-prompt" style="margin-bottom:10px;">The rest of today's plan, pulled from your planner. The frog comes first — this is what fills the blocks after it.</div>
           <div id="journalDayPrioritiesDisplay" style="display:flex;flex-direction:column;gap:8px;"></div>
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
@@ -158,6 +146,36 @@ export function renderJournalTab() {
         </div>
       </div>
       <div class="journal-collapsible-content">
+
+        <!-- ── DAILY CLOSE-OUT (the accountability loop) ──────────────── -->
+        <div id="journalCloseOutBlock" style="border-left:3px solid #C9A84C;border-radius:14px;padding:20px 22px;margin-bottom:4px;">
+          <div style="font-size:9px;font-weight:900;letter-spacing:3px;color:#C9A84C;text-transform:uppercase;margin-bottom:12px;">Daily Close-Out</div>
+          <div style="font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-bottom:6px;">This morning's frog</div>
+          <div id="journalEveningFrogDisplay" style="font-size:15px;font-weight:800;line-height:1.4;margin-bottom:16px;"></div>
+          <div style="margin-bottom:16px;">
+            <div class="journal-prompt" style="margin-bottom:8px;">Did you kill the frog?</div>
+            <select class="journal-input" id="journal-frogKilled">
+              <option value="">—</option>
+              <option value="yes">Yes — ate it first</option>
+              <option value="late">Yes — but not first</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div style="margin-bottom:16px;">
+            <div class="journal-prompt" style="margin-bottom:8px;">If it survived, what got in the way?</div>
+            <input class="journal-input" type="text" id="journal-frogBlocker" placeholder="What stopped the frog getting done..." />
+          </div>
+          <div>
+            <div class="journal-prompt" style="margin-bottom:8px;">Did you protect your blocks?</div>
+            <select class="journal-input" id="journal-blocksProtected">
+              <option value="">—</option>
+              <option value="yes">Yes — held the line</option>
+              <option value="partly">Partly</option>
+              <option value="no">No — the day ran me</option>
+            </select>
+          </div>
+        </div>
+
         <div>
           <h2>Evening Execution Scan</h2>
           <div class="journal-prompt">Rate the five core standards that determine whether you are becoming the man you intend to be (0 = failed standard, 5 = elite standard).</div>
@@ -174,8 +192,8 @@ export function renderJournalTab() {
         <div><h2>Biggest Learning</h2><div class="journal-prompt">What did I learn today that will make me even more effective tomorrow?</div><textarea class="journal-textarea" id="journal-learned" placeholder="Today taught me that..."></textarea></div>
         <div><h2>Release &amp; Intention</h2><div class="journal-prompt">What can I release from today, and what intention will I set for a powerful tomorrow?</div><textarea class="journal-textarea" id="journal-release" placeholder="I release... and tomorrow I intend to..."></textarea></div>
         <div><h2>Alignment</h2><div class="journal-prompt">How did my actions today align with the person I am becoming and the life I am creating?</div><textarea class="journal-textarea" id="journal-alignment" placeholder="Today I moved toward the man I'm becoming by..."></textarea><div style="font-size:11px;font-weight:700;color:rgba(201,168,76,0.6);letter-spacing:0.3px;margin-top:8px;font-style:italic;">Acknowledge · Extract the lesson · Affirm commitment</div></div>
-        <div><h2>3 Most Important Tasks Tomorrow</h2><div class="journal-prompt">What are my 3 most important tasks tomorrow?</div><div style="display:flex;flex-direction:column;gap:8px;">
-          <input class="journal-input" type="text" id="journal-tomorrowTask1" placeholder="1 — Tomorrow's most important task..." />
+        <div><h2>3 Most Important Tasks Tomorrow</h2><div class="journal-prompt">Task 1 is tomorrow's frog — the one needle-mover you'll eat first.</div><div style="display:flex;flex-direction:column;gap:8px;">
+          <input class="journal-input" type="text" id="journal-tomorrowTask1" placeholder="1 — Tomorrow's frog (the one needle-mover)..." />
           <input class="journal-input" type="text" id="journal-tomorrowTask2" placeholder="2 — Next most important task..." />
           <input class="journal-input" type="text" id="journal-tomorrowTask3" placeholder="3 — Third most important task..." />
         </div></div>
