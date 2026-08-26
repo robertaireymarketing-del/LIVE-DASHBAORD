@@ -224,6 +224,28 @@ export function renderWeeklyTab() {
 
     const renderTaskItem = (task, ti) => {
       const tc=WK_COLORS.find(c=>c.id===task.color)||WK_COLORS[7];
+      const subtasks   = task.subtasks || [];
+      const subDone    = subtasks.filter(s=>s.done).length;
+      const isExpanded = window._wkExpandedTask === (i + ':' + ti);
+      const subBadge = subtasks.length > 0
+        ? `<span class="wk-task-subs" onclick="event.stopPropagation();weeklyToggleTaskSubtasks(${i},${ti})" style="font-size:9px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0;border-radius:4px;padding:1px 6px;color:${subDone===subtasks.length?'#4caf7d':tc.hex};background:${tc.hex}1a;">${subDone}/${subtasks.length} ${isExpanded?'▲':'▼'}</span>`
+        : `<span class="wk-task-subs" onclick="event.stopPropagation();weeklyToggleTaskSubtasks(${i},${ti})" title="Break into subtasks" style="font-size:12px;cursor:pointer;flex-shrink:0;color:#c4c1b8;padding:0 3px;">${isExpanded?'▲':'⊞'}</span>`;
+      const panel = isExpanded ? `
+      <div style="margin:2px 0 8px 30px;background:#f9f8f5;border-radius:8px;border:1px solid #e5e3dc;overflow:hidden;">
+        ${subtasks.length > 0 ? `<div style="padding:8px 12px 0;">
+          ${subtasks.map((st,si)=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f0ede5;">
+            <div class="wk-task-chk${st.done?' checked':''}" onclick="weeklyToggleTaskSubtask(${i},${ti},${si})" style="flex-shrink:0;"></div>
+            <span style="flex:1;font-size:13px;font-weight:600;color:${st.done?'#aaa89f':'#1a1917'};${st.done?'text-decoration:line-through;':''};word-break:break-word;">${wkEsc(st.text)}</span>
+            ${st.duration?`<span style="font-size:10px;font-weight:700;color:#aaa89f;background:#ede9e0;border-radius:4px;padding:2px 6px;white-space:nowrap;flex-shrink:0;">⏱ ${wkEsc(st.duration)}</span>`:''}
+            <span onclick="weeklyDeleteTaskSubtask(${i},${ti},${si})" style="cursor:pointer;color:#d95b5b;font-size:13px;flex-shrink:0;padding:0 2px;">✕</span>
+          </div>`).join('')}
+        </div>`:''}
+        <div style="display:flex;gap:6px;padding:10px 12px;align-items:center;">
+          <input id="wkTSubInp${i}_${ti}" class="wk-day-form-inp" placeholder="New subtask..." style="flex:1;padding:7px 10px;font-size:13px;" onkeydown="if(event.key==='Enter')weeklyAddTaskSubtask(${i},${ti})" />
+          <input id="wkTSubDur${i}_${ti}" class="wk-day-form-inp" placeholder="e.g. 30m" style="width:72px;padding:7px 8px;font-size:13px;" onkeydown="if(event.key==='Enter')weeklyAddTaskSubtask(${i},${ti})" />
+          <button onclick="weeklyAddTaskSubtask(${i},${ti})" style="background:#C9A84C;border:none;border-radius:8px;padding:7px 14px;color:#000;font-family:'DM Mono',monospace;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap;flex-shrink:0;">+ Add</button>
+        </div>
+      </div>` : '';
       return `
       <div class="wk-task-item${task.done?' done':''}"
         data-day="${i}" data-task="${ti}"
@@ -236,9 +258,10 @@ export function renderWeeklyTab() {
         <div class="wk-task-chk${task.done?' checked':''}" onclick="weeklyToggleTask(${i},${ti})"></div>
         <span class="wk-task-name">${wkEsc(task.name)}</span>
         ${task.rolledOver ? '<span style="font-size:9px;font-weight:900;color:#e67e22;background:rgba(230,126,34,0.12);border:1px solid rgba(230,126,34,0.3);border-radius:8px;padding:1px 5px;white-space:nowrap;">↩ rolled</span>' : ''}
+        ${subBadge}
         <span class="wk-task-edit" onclick="weeklyStartEditTask(${i},${ti})">✎</span>
         <span class="wk-task-del"  onclick="if(confirm('Archive this task?'))weeklyDeleteTask(${i},${ti})">✕</span>
-      </div>`;
+      </div>${panel}`;
     };
 
     const amTasks = tasks.map((t,ti)=>({t,ti})).filter(({t})=>(t.period||'am')==='am');
@@ -1087,6 +1110,49 @@ export function initWeeklyTab() {
   window.weeklyDeleteSubtask = (objIdx, subIdx) => {
     const ws = wkGetWS(window._weeklyOffset);
     ws.objectives[objIdx]?.subtasks?.splice(subIdx, 1);
+    wkSaveWS(ws, window._weeklyOffset);
+    rerender();
+  };
+
+  // ── Task subtasks (break a day-task into smaller steps) ───────────────────
+  window.weeklyToggleTaskSubtasks = (di, ti) => {
+    const key = di + ':' + ti;
+    window._wkExpandedTask = window._wkExpandedTask === key ? null : key;
+    rerender();
+    if (window._wkExpandedTask === key) {
+      setTimeout(() => document.getElementById('wkTSubInp'+di+'_'+ti)?.focus(), 50);
+    }
+  };
+
+  window.weeklyAddTaskSubtask = (di, ti) => {
+    const text = (document.getElementById('wkTSubInp'+di+'_'+ti)?.value||'').trim();
+    if (!text) return;
+    const dur  = (document.getElementById('wkTSubDur'+di+'_'+ti)?.value||'').trim();
+    const ws   = wkGetWS(window._weeklyOffset);
+    const task = ws.days?.[di]?.tasks?.[ti]; if (!task) return;
+    if (!task.subtasks) task.subtasks = [];
+    task.subtasks.push({ text, duration: dur, done: false, addedAt: Date.now() });
+    wkSaveWS(ws, window._weeklyOffset);
+    rerender();
+    setTimeout(() => {
+      const inp = document.getElementById('wkTSubInp'+di+'_'+ti);
+      if (inp) { inp.value = ''; inp.focus(); }
+      const d = document.getElementById('wkTSubDur'+di+'_'+ti);
+      if (d) d.value = '';
+    }, 30);
+  };
+
+  window.weeklyToggleTaskSubtask = (di, ti, si) => {
+    const ws = wkGetWS(window._weeklyOffset);
+    const st = ws.days?.[di]?.tasks?.[ti]?.subtasks?.[si]; if (!st) return;
+    st.done = !st.done;
+    wkSaveWS(ws, window._weeklyOffset);
+    rerender();
+  };
+
+  window.weeklyDeleteTaskSubtask = (di, ti, si) => {
+    const ws = wkGetWS(window._weeklyOffset);
+    ws.days?.[di]?.tasks?.[ti]?.subtasks?.splice(si, 1);
     wkSaveWS(ws, window._weeklyOffset);
     rerender();
   };
