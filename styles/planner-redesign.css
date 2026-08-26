@@ -201,7 +201,7 @@
    ────────────────────────────────────────────────────────────────────────── */
 
 .bottom-nav-app {
-  min-height: calc(40px + max(2px, calc(env(safe-area-inset-bottom, 0px) - 32px))) !important;
+  min-height: calc(53.33px + max(2px, calc(env(safe-area-inset-bottom, 0px) - 32px))) !important;
   padding-bottom: max(2px, calc(env(safe-area-inset-bottom, 0px) - 32px)) !important;
 }
 .bottom-nav-app-btn {
@@ -210,7 +210,7 @@
   gap: 2px !important;
 }
 .content {
-  padding-bottom: calc(44px + max(2px, calc(env(safe-area-inset-bottom, 0px) - 32px))) !important;
+  padding-bottom: calc(57.33px + max(2px, calc(env(safe-area-inset-bottom, 0px) - 32px))) !important;
 }
 
 /* Planner's own trailing padding → near zero (it stacked on top of the above) */
