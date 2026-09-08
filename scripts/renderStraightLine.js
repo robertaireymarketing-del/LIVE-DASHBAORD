@@ -311,86 +311,83 @@ function _slEvidence() {
 
 /* ============================ STYLES ==================================== */
 const SLL_CSS = `
-/* Palette is intentionally identical in light and dark — a fixed navy+gold
-   identity surface, like the app's identity/quote hero cards. Every colour is
-   pinned with !important (and -webkit-text-fill-color, which iOS WebViews use
-   to re-colour text) so the app's global light-mode cascade cannot override it
-   and paint dark text on these dark cards. */
-.sl-scope{--sl-navy:#0A1628;--sl-navy2:#0F1F38;--sl-line:#243657;--sl-gold:#D4AF37;
-  --sl-gold-soft:#EBCE77;--sl-ink:#F2ECDE;--sl-ink-dim:#C6CEDD;--sl-ink-faint:#939DB4;
-  --sl-green:#88BE94;font-family:'Newsreader',Georgia,serif;color:var(--sl-ink) !important;
-  -webkit-text-fill-color:var(--sl-ink) !important;}
-.sl-scope *{box-sizing:border-box;}
-/* every element's iOS text-fill follows its own colour, so nothing renders invisible */
-.sl-scope *{-webkit-text-fill-color:currentColor !important;}
-.sl-card{background:var(--sl-navy) !important;border:1px solid var(--sl-line) !important;
-  border-radius:16px;padding:20px;margin:0 0 16px 0;}
-.sl-card.hero{border-color:#31456B !important;}
-.sl-kicker{font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;font-size:11px;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--sl-gold) !important;font-weight:700;margin:0 0 8px 0;}
-.sl-vs{font-size:26px;line-height:1.15;font-weight:600;margin:0 0 4px 0;color:var(--sl-ink) !important;}
-.sl-vs .sl-slword{color:var(--sl-gold-soft) !important;font-weight:700;}
-.sl-vs .sl-trap{color:var(--sl-ink-faint) !important;font-style:italic;}
-.sl-essence{font-size:16px;line-height:1.5;color:var(--sl-ink-dim) !important;margin:10px 0 0 0;}
-.sl-apply{font-size:16px;line-height:1.45;color:var(--sl-ink) !important;margin:14px 0 0 0;font-style:italic;}
-.sl-label{font-family:ui-sans-serif,system-ui,sans-serif;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--sl-gold-soft) !important;font-weight:700;margin:16px 0 6px 0;}
-.sl-input,.sl-textarea{width:100%;background:var(--sl-navy2) !important;border:1px solid var(--sl-line) !important;
-  border-radius:10px;color:var(--sl-ink) !important;-webkit-text-fill-color:var(--sl-ink) !important;
-  font-family:'Newsreader',Georgia,serif;font-size:16px;line-height:1.4;padding:11px 13px;outline:none;
-  -webkit-appearance:none;appearance:none;}
-.sl-input:focus,.sl-textarea:focus{border-color:var(--sl-gold) !important;}
-.sl-textarea{resize:vertical;min-height:52px;}
-.sl-textarea.big{min-height:66px;font-size:18px;}
-.sl-input::placeholder,.sl-textarea::placeholder{color:var(--sl-ink-faint) !important;-webkit-text-fill-color:var(--sl-ink-faint) !important;opacity:1;}
+/* Deep-azure bold theme. A fixed LIGHT surface in both app themes (the page is
+   painted, so the app's dark mode can't strand light text on a light design).
+   Every colour is pinned with !important + -webkit-text-fill-color so the app's
+   global light-mode cascade cannot override it. */
+.sl-scope{--page:#F4F7FB;--ink:#121B24;--dim:#4C5766;--faint:#828E9C;--border:#DBE3EC;
+  --card:#FFFFFF;--field:#EEF3F8;--hero:#075985;--hero-kick:#7DD3FC;--hero-dim:#4C87AC;
+  --hero-ess:#B3DCF0;--accent:#0369A1;--accent2:#0284C7;--on:#FFFFFF;--good:#127A50;--bad:#C1121F;
+  font-family:'Helvetica Neue',Arial,system-ui,sans-serif;color:var(--ink) !important;-webkit-text-fill-color:var(--ink) !important;}
+.sl-scope *{box-sizing:border-box;-webkit-text-fill-color:currentColor !important;}
+.sl-scope.sl-page{background:var(--page) !important;padding:20px 16px 30px;border-radius:14px;}
+.sl-h{font-size:22px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:var(--ink) !important;}
+.sl-rule{width:44px;height:4px;background:var(--accent) !important;border-radius:2px;margin:8px 0 5px;}
+.sl-sub{font-size:12px;color:var(--faint) !important;-webkit-text-fill-color:var(--faint) !important;margin-bottom:2px;}
+.sl-tabs{display:flex;gap:6px;margin:16px 0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;}
+.sl-tab{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;padding:9px 12px;
+  border-radius:8px;border:1.5px solid var(--border) !important;background:transparent !important;color:var(--dim) !important;
+  -webkit-text-fill-color:var(--dim) !important;cursor:pointer;flex:0 0 auto;}
+.sl-tab.active{background:var(--accent) !important;border-color:var(--accent) !important;color:var(--on) !important;-webkit-text-fill-color:var(--on) !important;}
+.sl-card{background:var(--card) !important;border:1.5px solid var(--border) !important;border-radius:12px;padding:20px;margin:0 0 16px 0;}
+.sl-card.hero{background:var(--hero) !important;border-color:var(--hero) !important;}
+.sl-kicker{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--accent) !important;-webkit-text-fill-color:var(--accent) !important;margin-bottom:11px;}
+.sl-card.hero .sl-kicker{color:var(--hero-kick) !important;-webkit-text-fill-color:var(--hero-kick) !important;}
+.sl-hword{font-size:37px;font-weight:800;letter-spacing:-.02em;line-height:.98;text-transform:uppercase;color:var(--on) !important;-webkit-text-fill-color:var(--on) !important;}
+.sl-sub2{margin-top:6px;font-size:18px;font-weight:800;text-transform:uppercase;}
+.sl-sub2 .vs{font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--hero-dim) !important;-webkit-text-fill-color:var(--hero-dim) !important;}
+.sl-sub2 .trap{color:var(--hero-dim) !important;-webkit-text-fill-color:var(--hero-dim) !important;text-decoration:line-through;text-decoration-thickness:2px;}
+.sl-vs{font-size:22px;font-weight:800;text-transform:uppercase;letter-spacing:-.01em;color:var(--ink) !important;-webkit-text-fill-color:var(--ink) !important;line-height:1.1;}
+.sl-vs .sl-slword{color:var(--accent) !important;-webkit-text-fill-color:var(--accent) !important;}
+.sl-vs .sl-trap{color:var(--faint) !important;-webkit-text-fill-color:var(--faint) !important;text-decoration:line-through;text-decoration-thickness:2px;}
+.sl-essence{font-size:15px;line-height:1.5;color:var(--dim) !important;-webkit-text-fill-color:var(--dim) !important;margin-top:12px;}
+.sl-card.hero .sl-essence{color:var(--hero-ess) !important;-webkit-text-fill-color:var(--hero-ess) !important;margin-top:15px;}
+.sl-apply{font-size:15px;line-height:1.45;color:var(--ink) !important;-webkit-text-fill-color:var(--ink) !important;font-weight:500;margin-top:13px;}
+.sl-card.hero .sl-apply{color:var(--on) !important;-webkit-text-fill-color:var(--on) !important;}
+.sl-label{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent) !important;-webkit-text-fill-color:var(--accent) !important;margin:16px 0 7px;}
+.sl-input,.sl-textarea{width:100%;background:var(--field) !important;border:1.5px solid var(--border) !important;border-radius:8px;
+  color:var(--ink) !important;-webkit-text-fill-color:var(--ink) !important;font-family:inherit;font-size:15px;line-height:1.4;padding:12px 13px;outline:none;-webkit-appearance:none;appearance:none;}
+.sl-input:focus,.sl-textarea:focus{border-color:var(--accent) !important;}
+.sl-textarea{resize:vertical;min-height:48px;}
+.sl-textarea.big{min-height:60px;font-size:16px;}
+.sl-input::placeholder,.sl-textarea::placeholder{color:var(--faint) !important;-webkit-text-fill-color:var(--faint) !important;opacity:1;}
 .sl-row{display:flex;gap:8px;flex-wrap:wrap;}
-.sl-btn{font-family:ui-sans-serif,system-ui,sans-serif;font-weight:700;font-size:15px;border-radius:11px;padding:12px 16px;
-  border:1px solid var(--sl-line) !important;background:var(--sl-navy2) !important;color:var(--sl-ink) !important;
-  -webkit-text-fill-color:var(--sl-ink) !important;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.sl-btn{font-family:inherit;font-weight:800;font-size:13px;letter-spacing:.05em;text-transform:uppercase;border-radius:8px;padding:13px 15px;
+  border:1.5px solid var(--border) !important;background:var(--field) !important;color:var(--ink) !important;-webkit-text-fill-color:var(--ink) !important;cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .sl-btn:active{transform:translateY(1px);}
-.sl-btn.gold{background:var(--sl-gold) !important;border-color:var(--sl-gold) !important;color:#1A1408 !important;-webkit-text-fill-color:#1A1408 !important;}
-.sl-btn.ghost{background:transparent !important;}
+.sl-btn.gold{background:var(--accent) !important;border-color:var(--accent) !important;color:var(--on) !important;-webkit-text-fill-color:var(--on) !important;}
+.sl-btn.ghost{background:transparent !important;border-color:var(--accent) !important;color:var(--accent) !important;-webkit-text-fill-color:var(--accent) !important;}
 .sl-btn.wide{width:100%;}
-.sl-btn.now{background:#3A1A1A !important;border-color:#6E3030 !important;color:#F4CDBB !important;-webkit-text-fill-color:#F4CDBB !important;font-size:16px;padding:15px 16px;}
-.sl-btn.now .em{color:#F0A176 !important;-webkit-text-fill-color:#F0A176 !important;}
-.sl-tabs{display:flex;gap:6px;margin:2px 0 16px 0;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;}
-.sl-tab{font-family:ui-sans-serif,system-ui,sans-serif;font-size:13px;font-weight:700;white-space:nowrap;padding:9px 14px;
-  border-radius:999px;border:1px solid var(--sl-line) !important;background:transparent !important;color:var(--sl-ink-dim) !important;
-  -webkit-text-fill-color:var(--sl-ink-dim) !important;cursor:pointer;flex:0 0 auto;}
-.sl-tab.active{background:var(--sl-gold) !important;border-color:var(--sl-gold) !important;color:#1A1408 !important;-webkit-text-fill-color:#1A1408 !important;}
-.sl-h{font-size:22px;font-weight:700;margin:0 0 2px 0;color:var(--sl-ink) !important;}
-.sl-sub{font-family:ui-sans-serif,system-ui,sans-serif;font-size:13px;color:var(--sl-ink-faint) !important;margin:0 0 16px 0;}
+.sl-btn.now{background:var(--field) !important;border-color:var(--border) !important;color:var(--ink) !important;-webkit-text-fill-color:var(--ink) !important;}
+.sl-btn.now .em{color:var(--accent) !important;-webkit-text-fill-color:var(--accent) !important;}
+.sl-card.hero .sl-btn.gold{background:var(--on) !important;border-color:var(--on) !important;color:var(--accent) !important;-webkit-text-fill-color:var(--accent) !important;}
+.sl-card.hero .sl-btn.now{background:transparent !important;border-color:#3E7EA0 !important;color:#CDE8F7 !important;-webkit-text-fill-color:#CDE8F7 !important;}
+.sl-card.hero .sl-btn.now .em{color:#7DD3FC !important;-webkit-text-fill-color:#7DD3FC !important;}
 .sl-meter{display:flex;align-items:baseline;gap:10px;margin:0 0 4px 0;}
-.sl-meter .big{font-size:40px;font-weight:700;color:var(--sl-gold) !important;-webkit-text-fill-color:var(--sl-gold) !important;line-height:1;}
-.sl-meter .small{font-family:ui-sans-serif,system-ui,sans-serif;font-size:13px;color:var(--sl-ink-dim) !important;}
-.sl-bar{height:8px;border-radius:99px;background:var(--sl-line) !important;overflow:hidden;margin:8px 0;}
-.sl-bar > i{display:block;height:100%;background:var(--sl-gold) !important;}
-.sl-pill{display:inline-block;font-family:ui-sans-serif,system-ui,sans-serif;font-size:12px;padding:3px 9px;border-radius:99px;
-  border:1px solid var(--sl-line) !important;color:var(--sl-ink-dim) !important;-webkit-text-fill-color:var(--sl-ink-dim) !important;margin:0 6px 6px 0;}
-.sl-pill.warn{border-color:#6E3030 !important;color:#F0A176 !important;-webkit-text-fill-color:#F0A176 !important;}
-.sl-pill.good{border-color:#2E5A3C !important;color:var(--sl-green) !important;-webkit-text-fill-color:var(--sl-green) !important;}
-.sl-decl{border:1px solid var(--sl-line) !important;border-radius:12px;padding:13px 14px;margin:0 0 10px 0;background:var(--sl-navy2) !important;}
-.sl-decl.overdue{border-color:#6E3030 !important;}
-.sl-decl .out{font-size:17px;color:var(--sl-ink) !important;margin:0 0 3px 0;}
-.sl-decl .meta{font-family:ui-sans-serif,system-ui,sans-serif;font-size:12px;color:var(--sl-ink-faint) !important;}
-.sl-decl .na{font-size:15px;color:var(--sl-gold-soft) !important;-webkit-text-fill-color:var(--sl-gold-soft) !important;margin:6px 0 0 0;}
-.sl-reveal{border-top:1px dashed var(--sl-line) !important;margin-top:14px;padding-top:14px;}
-.sl-muted{color:var(--sl-ink-faint) !important;-webkit-text-fill-color:var(--sl-ink-faint) !important;font-family:ui-sans-serif,system-ui,sans-serif;font-size:13px;}
+.sl-meter .big{font-size:40px;font-weight:800;color:var(--accent) !important;-webkit-text-fill-color:var(--accent) !important;line-height:1;}
+.sl-meter .small{font-size:13px;color:var(--dim) !important;-webkit-text-fill-color:var(--dim) !important;}
+.sl-bar{height:8px;border-radius:99px;background:var(--field) !important;overflow:hidden;margin:8px 0;border:1px solid var(--border) !important;}
+.sl-bar > i{display:block;height:100%;background:var(--accent) !important;}
+.sl-pill{display:inline-block;font-size:12px;font-weight:600;padding:3px 9px;border-radius:99px;border:1.5px solid var(--border) !important;color:var(--dim) !important;-webkit-text-fill-color:var(--dim) !important;margin:0 6px 6px 0;}
+.sl-pill.warn{border-color:#E6B2AB !important;color:var(--bad) !important;-webkit-text-fill-color:var(--bad) !important;}
+.sl-pill.good{border-color:#A8D6BF !important;color:var(--good) !important;-webkit-text-fill-color:var(--good) !important;}
+.sl-card.hero .sl-pill{border-color:#3E7EA0 !important;color:#CDE8F7 !important;-webkit-text-fill-color:#CDE8F7 !important;}
+.sl-card.hero .sl-pill.good{border-color:#5FB89A !important;color:#BDF0DA !important;-webkit-text-fill-color:#BDF0DA !important;}
+.sl-card.hero .sl-pill.warn{border-color:#D9928A !important;color:#FAD4CF !important;-webkit-text-fill-color:#FAD4CF !important;}
+.sl-decl{border:1.5px solid var(--border) !important;border-radius:10px;padding:13px 14px;margin:0 0 10px 0;background:var(--field) !important;}
+.sl-decl.overdue{border-color:#E6B2AB !important;}
+.sl-decl .out{font-size:16px;font-weight:600;color:var(--ink) !important;-webkit-text-fill-color:var(--ink) !important;margin:0 0 3px 0;}
+.sl-decl .meta{font-size:12px;color:var(--faint) !important;-webkit-text-fill-color:var(--faint) !important;}
+.sl-decl .na{font-size:15px;color:var(--accent) !important;-webkit-text-fill-color:var(--accent) !important;margin:6px 0 0 0;}
+.sl-reveal{border-top:1.5px dashed var(--border) !important;margin-top:14px;padding-top:14px;}
+.sl-muted{color:var(--faint) !important;-webkit-text-fill-color:var(--faint) !important;font-size:13px;text-transform:none;font-weight:400;letter-spacing:0;}
 .sl-center{text-align:center;}
-.sl-empty{text-align:center;color:var(--sl-ink-dim) !important;padding:26px 10px;font-size:16px;}
+.sl-empty{text-align:center;color:var(--dim) !important;-webkit-text-fill-color:var(--dim) !important;padding:26px 10px;font-size:16px;}
 .sl-score-row{display:flex;gap:8px;}
 .sl-score-row .sl-btn{flex:1;text-align:center;}
-.sl-score-row .cause.on{background:var(--sl-green) !important;border-color:var(--sl-green) !important;color:#0C1A10 !important;-webkit-text-fill-color:#0C1A10 !important;}
-.sl-score-row .mixed.on{background:var(--sl-gold) !important;border-color:var(--sl-gold) !important;color:#1A1408 !important;-webkit-text-fill-color:#1A1408 !important;}
-.sl-score-row .effect.on{background:#9A5140 !important;border-color:#9A5140 !important;color:#FCEEE7 !important;-webkit-text-fill-color:#FCEEE7 !important;}
-/* --- theme-adaptive chrome --- the page title, subtitle and inactive tab pills
-   sit on the APP's page background (not a navy card), so in light mode they must
-   be dark to stay legible. The navy cards and everything inside them stay fixed
-   in both themes (handled above). Double-class selectors beat the base rules. */
-body.light .sl-scope .sl-h{color:#17120A !important;-webkit-text-fill-color:#17120A !important;}
-body.light .sl-scope .sl-sub{color:#5F553D !important;-webkit-text-fill-color:#5F553D !important;}
-body.light .sl-scope .sl-tab{color:#2C3340 !important;-webkit-text-fill-color:#2C3340 !important;border-color:#BFC6D2 !important;background:transparent !important;}
-body.light .sl-scope .sl-tab.active{color:#1A1408 !important;-webkit-text-fill-color:#1A1408 !important;background:var(--sl-gold) !important;border-color:var(--sl-gold) !important;}
+.sl-score-row .cause.on{background:var(--good) !important;border-color:var(--good) !important;color:#fff !important;-webkit-text-fill-color:#fff !important;}
+.sl-score-row .mixed.on{background:var(--accent) !important;border-color:var(--accent) !important;color:#fff !important;-webkit-text-fill-color:#fff !important;}
+.sl-score-row .effect.on{background:var(--bad) !important;border-color:var(--bad) !important;color:#fff !important;-webkit-text-fill-color:#fff !important;}
 `;
 function _slInjectCSS() {
   if (typeof document === 'undefined') return;
@@ -402,10 +399,9 @@ function _slInjectCSS() {
 }
 
 function _slHeadline(card) {
-  if (card.type === 'foundation') return `<div class="sl-vs">${_slEsc(card.name)}</div>`;
-  return `<div class="sl-vs"><span class="sl-slword">${_slEsc(card.sl)}</span>` +
-         ` <span class="sl-muted" style="font-size:16px">vs</span> ` +
-         `<span class="sl-trap">${_slEsc(card.trap)}</span></div>`;
+  if (card.type === 'foundation') return `<div class="sl-hword">${_slEsc(card.name)}</div>`;
+  return `<div class="sl-hword">${_slEsc(card.sl)}</div>` +
+         `<div class="sl-sub2"><span class="vs">NOT</span> <span class="trap">${_slEsc(card.trap)}</span></div>`;
 }
 
 /* ===================== TODAY-TAB ENTRY CARD ============================== */
@@ -442,9 +438,10 @@ export function renderStraightLineTab(deps) {
   const d = _slData();
   const view = d._view || 'line';
   return `
-  <div class="sl-scope">
+  <div class="sl-scope sl-page">
     <div class="sl-h">The Line</div>
-    <div class="sl-sub">Separate what you know from what you live. — Djukich, Ch 9</div>
+    <div class="sl-rule"></div>
+    <div class="sl-sub">Separate what you know from what you live — Djukich, Ch 9</div>
     <div class="sl-tabs" id="sl-tabs">
       <button class="sl-tab ${view==='line'?'active':''}" data-v="line">Today</button>
       <button class="sl-tab ${view==='now'?'active':''}" data-v="now">Now</button>
@@ -533,7 +530,7 @@ function _slViewLine() {
       <textarea id="sl-l-out" class="sl-textarea" placeholder="Not a wish. The result, stated as done.">${_slEsc(_slDraft('out'))}</textarea>
       <div class="sl-label">By when</div>
       <input id="sl-l-dl" type="date" class="sl-input" value="${_slEsc(_slDraft('dl'))}" />
-      <div class="sl-label" style="color:var(--sl-gold)">3 · The next action — do this first</div>
+      <div class="sl-label" style="color:var(--accent)">3 · The next action — do this first</div>
       <textarea id="sl-l-na" class="sl-textarea big" placeholder="The single move that starts the straight line.">${_slEsc(_slDraft('na'))}</textarea>
       <div class="sl-row" style="margin-top:14px">
         <button class="sl-btn gold wide" onclick="slDeclare()">Declare it</button>
@@ -567,12 +564,12 @@ function _slViewNow() {
   const d = _slData();
   const recent = (d.interventions||[]).slice(0,5);
   return `
-    <div class="sl-card" style="border-color:#5A2A2A">
-      <div class="sl-kicker" style="color:#E8956F">Caught yourself drifting?</div>
+    <div class="sl-card" style="border-color:#E6B2AB;border-width:2px">
+      <div class="sl-kicker" style="color:#C1121F;-webkit-text-fill-color:#C1121F">Caught yourself drifting?</div>
       <div class="sl-vs" style="font-size:22px">Name it. Redraw the line. Move.</div>
       <div class="sl-label">Where am I being the effect, right now?</div>
       <textarea id="sl-n-eff" class="sl-textarea" placeholder="The story I'm telling myself this second."></textarea>
-      <div class="sl-label" style="color:var(--sl-gold)">Straight line from here — the very next move</div>
+      <div class="sl-label" style="color:var(--accent)">Straight line from here — the very next move</div>
       <textarea id="sl-n-sl" class="sl-textarea big" placeholder="What does the cause do right now?"></textarea>
       <button class="sl-btn gold wide" style="margin-top:12px" onclick="slLogNow()">Log &amp; go</button>
       <div class="sl-muted sl-center" style="margin-top:8px">Being the cause happens in the moment, not at 9pm.</div>
@@ -581,7 +578,7 @@ function _slViewNow() {
       <div class="sl-label">Recent catches</div>
       ${recent.map(x=>`<div class="sl-decl">
         <div class="meta">${_slEsc(new Date(x.ts).toLocaleString(undefined,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}))}</div>
-        <div class="out" style="font-size:15px;color:var(--sl-ink-dim)">${_slEsc(x.effect||'—')}</div>
+        <div class="out" style="font-size:15px;color:var(--dim)">${_slEsc(x.effect||'—')}</div>
         <div class="na">⟶ ${_slEsc(x.straightLine||'—')}</div>
       </div>`).join('')}
     </div>` : ''}`;
@@ -612,15 +609,15 @@ function _slViewRecall() {
   const s = _slData().cards[card.id];
   const firstTime = !s.seen;
   return `
-    <div class="sl-card hero" id="sl-recall-card" data-id="${card.id}">
+    <div class="sl-card" id="sl-recall-card" data-id="${card.id}">
       <div class="sl-kicker">Ch ${card.ch} · ${due.length} due</div>
       ${card.type==='foundation'
         ? `<div class="sl-vs" style="font-size:20px">${_slEsc(card.name)}</div>
-           <div class="sl-apply" style="font-style:normal;color:var(--sl-ink-dim)">In your own words — what is this, and how do you live it?</div>`
+           <div class="sl-apply" style="font-style:normal;color:var(--dim)">In your own words — what is this, and how do you live it?</div>`
         : `<div class="sl-vs" style="font-size:22px"><span class="sl-slword">${_slEsc(card.sl)}</span>
              <span class="sl-muted" style="font-size:15px">vs</span>
              <span class="sl-trap">${_slEsc(card.trap)}</span></div>
-           <div class="sl-apply" style="font-style:normal;color:var(--sl-ink-dim)">Which side is the straight line — and what does it mean? Say it before you flip.</div>`}
+           <div class="sl-apply" style="font-style:normal;color:var(--dim)">Which side is the straight line — and what does it mean? Say it before you flip.</div>`}
       <div id="sl-reveal-slot"></div>
       <div class="sl-row" id="sl-recall-controls" style="margin-top:16px">
         <button class="sl-btn gold wide" onclick="slFlip('${card.id}')">Flip</button>
@@ -644,12 +641,12 @@ function _slFlip(id) {
   if (!card || !slot || !ctr) return;
   const answer = card.type==='foundation'
     ? `<div class="sl-essence">${_slEsc(card.essence)}</div>`
-    : `<div class="sl-essence"><b style="color:var(--sl-gold-soft)">${_slEsc(card.sl)}</b> is the straight line. ${_slEsc(card.essence)}</div>`;
+    : `<div class="sl-essence"><b style="color:var(--accent)">${_slEsc(card.sl)}</b> is the straight line. ${_slEsc(card.essence)}</div>`;
   slot.innerHTML = `<div class="sl-reveal">${answer}</div>`;
   ctr.innerHTML = `
     <button class="sl-btn" style="flex:1" onclick="slGradeCard('${id}','again')">Again</button>
     <button class="sl-btn gold" style="flex:1" onclick="slGradeCard('${id}','good')">Good</button>
-    <button class="sl-btn ghost" style="flex:1;border-color:var(--sl-gold)" onclick="slGradeCard('${id}','easy')">Easy</button>`;
+    <button class="sl-btn ghost" style="flex:1;border-color:var(--accent)" onclick="slGradeCard('${id}','easy')">Easy</button>`;
 }
 function _slGradeCard(id, grade) {
   const mean = document.getElementById('sl-enc-mean');
@@ -674,7 +671,7 @@ function _slViewLedger() {
   const open = d.declarations.filter(x => x.status === 'open');
   const overdueSet = new Set(open.filter(x => x.deadline && x.deadline < today).map(x=>x.id));
   return `
-    <div class="sl-card hero">
+    <div class="sl-card">
       <div class="sl-kicker">Tonight's honest read</div>
       <div class="sl-vs" style="font-size:20px">Today, was I the cause?</div>
       <div class="sl-score-row" style="margin-top:12px">
@@ -734,9 +731,9 @@ function _slViewProgress() {
   const keptTotal = ev.kept + ev.broken;
   const keptPct = keptTotal ? Math.round((ev.kept/keptTotal)*100) : 0;
   return `
-    <div class="sl-card hero">
+    <div class="sl-card">
       <div class="sl-kicker">Who you're becoming — the evidence</div>
-      <div class="sl-meter"><span class="big">${ev.cause}<span style="font-size:22px;color:var(--sl-ink-faint)">/${ev.logged||0}</span></span>
+      <div class="sl-meter"><span class="big">${ev.cause}<span style="font-size:22px;color:var(--faint)">/${ev.logged||0}</span></span>
         <span class="small">days operating as the cause,<br>of the last 20 you logged</span></div>
       <div class="sl-bar"><i style="width:${causePct}%"></i></div>
     </div>
@@ -749,7 +746,7 @@ function _slViewProgress() {
     </div>
     <div class="sl-card">
       <div class="sl-label">Distinctions in active recall</div>
-      <div class="sl-meter"><span class="big">${ev.seenCount}<span style="font-size:22px;color:var(--sl-ink-faint)">/${ev.total}</span></span>
+      <div class="sl-meter"><span class="big">${ev.seenCount}<span style="font-size:22px;color:var(--faint)">/${ev.total}</span></span>
         <span class="small">encoded and scheduled</span></div>
       <div class="sl-bar"><i style="width:${seenPct}%"></i></div>
     </div>
