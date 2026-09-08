@@ -13,7 +13,7 @@ export const defaultSettings = {
 export const state = {
   user: null,
   data: null,
-  activeTab: 'planner',
+  activeTab: 'straightline',
   saving: false,
   // ── Clarity (thinking tool) ──
   clarityView: 'today',                        // today | browse | history
