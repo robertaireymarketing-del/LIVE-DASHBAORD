@@ -1,3 +1,5 @@
+import { habitsTodaySummary } from './renderHabits.js';
+
 export function renderJournalTab() {
   return `
   <div class="journal-shell">
@@ -37,10 +39,21 @@ export function renderJournalTab() {
         .jd-card-inactive .jd-icon { color: #C8D6E5 !important; }
       </style>
       <div class="journal-launch-grid">
-        <button class="journal-launch-btn" id="journalOpenHabitsBtn" onclick="setTab('habits')" style="border-left:4px solid #22A35A;">
-          <span style="display:flex;align-items:center;gap:10px;font-size:17px;font-weight:900;line-height:1;"><span style="font-size:22px;">✅</span> Habit Tracker</span>
-          <small>Build the chains · never miss two days in a row</small>
-        </button>
+        ${(() => {
+          const sum = (typeof habitsTodaySummary === 'function') ? habitsTodaySummary(window.state || {}) : { done: 0, total: 0, pct: null, color: '#9AA7B8' };
+          const ratio = sum.total ? `${sum.done}/${sum.total}` : '0/0';
+          const sub = sum.total ? `${sum.pct}% of today's habits done` : 'Add habits to start tracking';
+          return `<button class="journal-launch-btn" id="journalOpenHabitsBtn" onclick="setTab('habits')" style="border-left:4px solid ${sum.color};display:flex;align-items:center;justify-content:space-between;gap:14px;">
+            <span style="display:flex;flex-direction:column;min-width:0;">
+              <span style="display:flex;align-items:center;gap:10px;font-size:17px;font-weight:900;line-height:1;"><span style="font-size:22px;">✅</span> Habit Tracker</span>
+              <small style="margin-top:8px;">${sub}</small>
+            </span>
+            <span style="display:flex;flex-direction:column;align-items:center;line-height:1;flex:0 0 auto;">
+              <span style="font-size:38px;font-weight:900;color:${sum.color};letter-spacing:-1px;">${ratio}</span>
+              <span style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:${sum.color};text-transform:uppercase;margin-top:3px;">Today</span>
+            </span>
+          </button>`;
+        })()}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
           <button class="journal-launch-btn" id="journalOpenMorningBtn">Morning Journal<small>Set today's frog, the block you'll kill it in, and the plan</small></button>
           <button class="journal-launch-btn" id="journalOpenEveningBtn">Evening Reflection<small>Open execution, reflection, and reset for tomorrow</small></button>

@@ -51,15 +51,26 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
 // ── State access ────────────────────────────────────────────────────────────
 function getHabits(state) {
   const h = state.data && state.data.habits;
-  if (!h) return { items: [], log: {}, view: '3' };
-  return { items: h.items || [], log: h.log || {}, view: h.view || '3' };
+  if (!h) return { items: [], log: {}, values: {}, view: '3' };
+  return { items: h.items || [], log: h.log || {}, values: h.values || {}, view: h.view || '3' };
 }
-function isDone(H, habitId, dStr) { return !!(H.log[dStr] && H.log[dStr][habitId]); }
+function timerVal(H, id, dStr) { return (H.values[dStr] && H.values[dStr][id]) || 0; }
+function isTimer(habit) { return habit.type === 'timer'; }
+// "done" for a day: binary → ticked true; timer → any minutes logged
+function isDone(H, habit, dStr) {
+  if (isTimer(habit)) return timerVal(H, habit.id, dStr) > 0;
+  return !!(H.log[dStr] && H.log[dStr][habit.id] === true);
+}
 
 // status for one habit on one day: 'pre' | 'future' | 'done' | 'open' | 'miss'
 function dayStatus(H, habit, dStr, tStr) {
   if (dStr < habit.createdAt) return 'pre';
   if (dStr > tStr) return 'future';
+  if (isTimer(habit)) {
+    if (timerVal(H, habit.id, dStr) > 0) return 'done';
+    if (dStr === tStr) return 'open';
+    return 'miss';
+  }
   const v = H.log[dStr] ? H.log[dStr][habit.id] : undefined;
   if (v === true) return 'done';
   if (v === false) return 'miss';   // explicitly marked not-done
@@ -70,12 +81,12 @@ function dayStatus(H, habit, dStr, tStr) {
 // current streak: consecutive done ending today, or ending yesterday if today not yet done
 function currentStreak(H, habit, tStr) {
   let cursor = parseYmd(tStr);
-  if (!isDone(H, habit.id, tStr)) cursor = addDays(cursor, -1);
+  if (!isDone(H, habit, tStr)) cursor = addDays(cursor, -1);
   let s = 0;
   for (let i = 0; i < 2000; i++) {
     const k = ymd(cursor);
     if (k < habit.createdAt) break;
-    if (isDone(H, habit.id, k)) { s++; cursor = addDays(cursor, -1); } else break;
+    if (isDone(H, habit, k)) { s++; cursor = addDays(cursor, -1); } else break;
   }
   return s;
 }
@@ -86,7 +97,7 @@ function longestStreak(H, habit, tStr) {
   for (let i = 0; i < Math.min(guard, 4000); i++) {
     const k = ymd(cursor);
     if (k > tStr) break;
-    if (isDone(H, habit.id, k)) { run++; if (run > best) best = run; } else run = 0;
+    if (isDone(H, habit, k)) { run++; if (run > best) best = run; } else run = 0;
     cursor = addDays(cursor, 1);
   }
   return best;
@@ -106,7 +117,7 @@ function settledRange(habit, startStr, endStr, tStr) {
 function completionPct(H, habit, startStr, endStr, tStr) {
   const days = settledRange(habit, startStr, endStr, tStr);
   if (!days.length) return null;
-  const done = days.filter(d => isDone(H, habit.id, d)).length;
+  const done = days.filter(d => isDone(H, habit, d)).length;
   return Math.round((done / days.length) * 100);
 }
 // count of distinct runs of 2+ consecutive misses in the settled range
@@ -114,16 +125,31 @@ function slipRuns(H, habit, startStr, endStr, tStr) {
   const days = settledRange(habit, startStr, endStr, tStr);
   let runs = 0, run = 0;
   for (const d of days) {
-    if (!isDone(H, habit.id, d)) { run++; if (run === 2) runs++; } else run = 0;
+    if (!isDone(H, habit, d)) { run++; if (run === 2) runs++; } else run = 0;
   }
   return runs;
 }
 // at risk RIGHT NOW: today not done yet, and yesterday was an eligible miss
 function atRisk(H, habit, tStr) {
-  if (isDone(H, habit.id, tStr)) return false;
+  if (isDone(H, habit, tStr)) return false;
   const yStr = ymd(addDays(parseYmd(tStr), -1));
   if (yStr < habit.createdAt) return false;
-  return !isDone(H, habit.id, yStr);
+  return !isDone(H, habit, yStr);
+}
+// minutes formatting for timer habits
+function fmtMinsShort(m) { if (m < 60) return String(m); const h = Math.floor(m / 60), mm = m % 60; return mm ? `${h}:${String(mm).padStart(2, '0')}` : `${h}h`; }
+function fmtMinsLong(m) { const h = Math.floor(m / 60), mm = m % 60; if (h && mm) return `${h}h ${mm}m`; if (h) return `${h}h`; return `${mm}m`; }
+// today's completion across all habits — used by the Journal launch button
+export function habitsTodaySummary(state) {
+  const H = getHabits(state);
+  const t = todayStr();
+  const total = H.items.length;
+  let done = 0;
+  H.items.forEach(h => { if (isDone(H, h, t)) done++; });
+  const pct = total ? Math.round((done / total) * 100) : null;
+  let color = '#9AA7B8';
+  if (pct !== null) color = pct >= 100 ? '#22A35A' : (pct < 50 ? '#E74C3C' : '#F39C12');
+  return { done, total, pct, color };
 }
 
 function rangeFor(view, items, tStr) {
@@ -170,7 +196,7 @@ function squareStyle(status, s) {
   }
 }
 
-const LABEL_W = 132;
+const LABEL_W = 150;
 
 // ── Grid ────────────────────────────────────────────────────────────────────
 function buildGrid(H, tStr) {
@@ -204,6 +230,7 @@ function buildGrid(H, tStr) {
 
   // habit rows
   const rows = H.items.map(habit => {
+    const timer = isTimer(habit);
     const risk = atRisk(H, habit, tStr);
     const streak = currentStreak(H, habit, tStr);
     const labelBg = risk ? C.amberBg : C.card;
@@ -211,25 +238,36 @@ function buildGrid(H, tStr) {
     const streakChip = streak > 0
       ? `<span style="font-size:10px;font-weight:900;color:${C.done};">🔥${streak}</span>`
       : `<span style="font-size:10px;font-weight:800;color:${C.faint};">0</span>`;
+    const todayV = timer ? timerVal(H, habit.id, tStr) : 0;
+    const timerNote = timer ? `<span style="font-size:10px;font-weight:700;color:${C.muted};">· ${todayV > 0 ? fmtMinsLong(todayV) + ' today' : 'tap to log'}</span>` : '';
     let cells = '';
     days.forEach(d => {
       const st = dayStatus(H, habit, d, tStr);
-      const explicitMiss = !!(H.log[d] && H.log[d][habit.id] === false);
       const clickable = (st === 'done' || st === 'miss' || st === 'open');
-      const onclick = clickable ? ` onclick="habitToggle('${habit.id}','${d}')"` : '';
-      let mark = '';
-      if (s.sq >= 22) { if (st === 'done') mark = '✓'; else if (explicitMiss) mark = '✕'; }
-      const markEl = mark ? `<span style="color:#fff;font-size:${Math.round(s.sq * 0.46)}px;font-weight:900;line-height:${s.sq}px;">${mark}</span>` : '';
+      const onclick = clickable
+        ? (timer ? ` onclick="habitOpenTimer('${habit.id}','${d}')"` : ` onclick="habitToggle('${habit.id}','${d}')"`)
+        : '';
+      let markEl = '';
+      if (timer) {
+        const v = timerVal(H, habit.id, d);
+        if (v > 0 && s.sq >= 26) markEl = `<span style="color:#fff;font-size:${Math.max(8, Math.round(s.sq * 0.30))}px;font-weight:900;line-height:1.02;text-align:center;">${fmtMinsShort(v)}</span>`;
+      } else {
+        const explicitMiss = !!(H.log[d] && H.log[d][habit.id] === false);
+        let mark = '';
+        if (s.sq >= 22) { if (st === 'done') mark = '✓'; else if (explicitMiss) mark = '✕'; }
+        if (mark) markEl = `<span style="color:#fff;font-size:${Math.round(s.sq * 0.46)}px;font-weight:900;line-height:${s.sq}px;">${mark}</span>`;
+      }
       cells += `<div${onclick} title="${d}" style="${squareStyle(st, s)}margin-right:${s.gap}px;display:flex;align-items:center;justify-content:center;">${markEl}</div>`;
     });
     return `<div style="display:flex;align-items:center;margin-top:${s.gap}px;">
       <div style="position:sticky;left:0;z-index:2;background:${labelBg};width:${LABEL_W}px;flex:0 0 ${LABEL_W}px;padding:6px 8px 6px 2px;border-right:1px solid ${C.line};">
-        <div style="display:flex;align-items:center;gap:5px;">
-          <span style="font-size:14px;line-height:1;">${habit.emoji || '✅'}</span>
-          <span style="font-size:12px;font-weight:800;color:${nameColor};line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:${LABEL_W - 34}px;">${habit.name}</span>
+        <div style="display:flex;align-items:flex-start;gap:5px;">
+          <span style="font-size:14px;line-height:1.2;flex:0 0 auto;">${habit.emoji || (timer ? '⏱' : '✅')}</span>
+          <span style="font-size:12px;font-weight:800;color:${nameColor};line-height:1.2;word-break:break-word;">${habit.name}</span>
         </div>
-        <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap;">
           ${risk ? `<span style="font-size:9px;font-weight:900;color:${C.amber};">⚠ AT RISK</span>` : streakChip}
+          ${timerNote}
         </div>
       </div>
       <div style="display:flex;align-items:center;">${cells}</div>
@@ -266,10 +304,10 @@ function buildMetrics(H, tStr) {
   dayKeys.forEach(d => {
     const active = H.items.filter(h => d >= h.createdAt);
     if (!active.length) return;
-    const done = active.filter(h => isDone(H, h.id, d)).length;
+    const done = active.filter(h => isDone(H, h, d)).length;
     pctSum += done / active.length; pctDays++;
     const wd = parseYmd(d).getDay();
-    active.forEach(h => { weekdayElig[wd]++; if (!isDone(H, h.id, d)) weekdayMiss[wd]++; });
+    active.forEach(h => { weekdayElig[wd]++; if (!isDone(H, h, d)) weekdayMiss[wd]++; });
   });
   const avgPct = pctDays ? Math.round((pctSum / pctDays) * 100) : null;
 
@@ -327,11 +365,28 @@ function buildMetrics(H, tStr) {
       <tbody>${rows}</tbody>
     </table></div>`;
 
+  // time trackers — total & average minutes over the period
+  const timers = H.items.filter(h => isTimer(h));
+  const timerBlock = timers.length ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid ${C.line};">
+    <div style="font-size:9px;font-weight:900;letter-spacing:0.8px;text-transform:uppercase;color:${C.muted};margin-bottom:8px;">Time tracked</div>
+    ${timers.map(h => {
+      const days = settledRange(h, start, end, tStr);
+      const total = days.reduce((a, d) => a + timerVal(H, h.id, d), 0);
+      const avg = days.length ? Math.round(total / days.length) : 0;
+      const todayV = timerVal(H, h.id, tStr);
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;">
+        <span style="font-size:12px;font-weight:800;color:${C.ink};">${h.emoji || '⏱'} ${h.name}</span>
+        <span style="font-size:11px;font-weight:800;color:${total > 0 ? C.navy : C.faint};text-align:right;">${fmtMinsLong(total)} total · ${fmtMinsLong(avg)}/day${todayV > 0 ? ` · ${fmtMinsLong(todayV)} today` : ''}</span>
+      </div>`;
+    }).join('')}
+  </div>` : '';
+
   return `<div style="background:${C.card};border:1px solid ${C.lineStrong};border-radius:16px;padding:16px;margin-top:16px;">
     <div style="font-size:11px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:${C.navy};margin-bottom:12px;">Insights · ${viewLabel}</div>
     ${cards}
     ${table}
-    <div style="font-size:10px;color:${C.faint};font-weight:600;margin-top:10px;line-height:1.5;">"Done" and "Slips" cover settled days only (today isn't counted until the day is over). A slip = a run of 2+ missed days.</div>
+    ${timerBlock}
+    <div style="font-size:10px;color:${C.faint};font-weight:600;margin-top:10px;line-height:1.5;">"Done", "Slips" and time totals cover settled days only (today is shown separately). A slip = a run of 2+ missed days.</div>
   </div>`;
 }
 
@@ -350,10 +405,23 @@ function buildAddBar(state) {
       </div>`;
     }
   }
-  return `<div style="background:${C.card};border:1px solid ${C.lineStrong};border-radius:14px;padding:12px;margin-bottom:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-    <input id="habit-new-emoji" maxlength="2" placeholder="🙂" style="width:46px;flex:0 0 auto;box-sizing:border-box;text-align:center;padding:11px 4px;border:1px solid ${C.lineStrong};border-radius:10px;font-size:16px;background:${C.panel};color:${C.ink};" />
-    <input id="habit-new-name" placeholder="New habit (e.g. Reading, Cold shower)" onkeydown="if(event.key==='Enter')habitAdd()" style="flex:1 1 120px;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid ${C.lineStrong};border-radius:10px;font-size:14px;background:${C.panel};color:${C.ink};" />
-    <button onclick="habitAdd()" style="padding:11px 18px;background:${C.navy} !important;border:none;border-radius:10px;color:#ffffff !important;font-size:13px;font-weight:900;cursor:pointer;">+ Add</button>
+  const newType = state.habitNewType === 'timer' ? 'timer' : 'binary';
+  const typeBtn = (val, label) => {
+    const active = newType === val;
+    return `<button onclick="habitSetNewType('${val}')" style="flex:1;padding:9px 8px;border-radius:9px;border:1px solid ${active ? C.navy : C.lineStrong};background:${active ? C.navy : C.card} !important;color:${active ? '#ffffff' : C.muted} !important;font-size:12px;font-weight:800;cursor:pointer;">${label}</button>`;
+  };
+  const placeholder = newType === 'timer' ? 'New time tracker (e.g. Deep Work)' : 'New habit (e.g. Reading, Cold shower)';
+  return `<div style="background:${C.card};border:1px solid ${C.lineStrong};border-radius:14px;padding:12px;margin-bottom:16px;">
+    <div style="display:flex;gap:6px;margin-bottom:10px;">
+      ${typeBtn('binary', '✓ Yes / No')}
+      ${typeBtn('timer', '⏱ Time')}
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <input id="habit-new-emoji" maxlength="2" placeholder="${newType === 'timer' ? '⏱' : '🙂'}" style="width:46px;flex:0 0 auto;box-sizing:border-box;text-align:center;padding:11px 4px;border:1px solid ${C.lineStrong};border-radius:10px;font-size:16px;background:${C.panel};color:${C.ink};" />
+      <input id="habit-new-name" placeholder="${placeholder}" onkeydown="if(event.key==='Enter')habitAdd()" style="flex:1 1 120px;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid ${C.lineStrong};border-radius:10px;font-size:14px;background:${C.panel};color:${C.ink};" />
+      <button onclick="habitAdd()" style="padding:11px 18px;background:${C.navy} !important;border:none;border-radius:10px;color:#ffffff !important;font-size:13px;font-weight:900;cursor:pointer;">+ Add</button>
+    </div>
+    ${newType === 'timer' ? `<div style="font-size:10px;color:${C.faint};font-weight:600;margin-top:8px;">Logs hours &amp; minutes per day — tap a day to set the time.</div>` : ''}
   </div>`;
 }
 
@@ -361,7 +429,8 @@ function buildAddBar(state) {
 function buildManage(state, H) {
   if (!H.items.length) return '';
   const del = state.habitDeleteConfirm;
-  const rows = H.items.map(h => {
+  const last = H.items.length - 1;
+  const rows = H.items.map((h, idx) => {
     if (del === h.id) {
       return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid ${C.missSoft};border-radius:10px;background:#FDECEA;margin-top:6px;">
         <span style="flex:1;font-size:12px;font-weight:800;color:${C.ink};">Delete "${h.name}" and all its history?</span>
@@ -369,17 +438,27 @@ function buildManage(state, H) {
         <button onclick="habitDeleteCancel()" style="padding:7px 12px;background:${C.panel};border:1px solid ${C.lineStrong};border-radius:8px;color:${C.muted};font-size:12px;font-weight:800;cursor:pointer;">Keep</button>
       </div>`;
     }
-    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid ${C.line};border-radius:10px;background:${C.panel};margin-top:6px;">
-      <span style="font-size:15px;">${h.emoji || '✅'}</span>
-      <span style="flex:1;font-size:12px;font-weight:800;color:${C.ink};">${h.name}</span>
-      <button onclick="habitEditStart('${h.id}')" style="padding:6px 10px;background:${C.card};border:1px solid ${C.lineStrong};border-radius:8px;color:${C.navy};font-size:12px;font-weight:800;cursor:pointer;">Edit</button>
-      <button onclick="habitDeleteAsk('${h.id}')" style="padding:6px 10px;background:${C.card};border:1px solid ${C.missSoft};border-radius:8px;color:${C.miss};font-size:12px;font-weight:800;cursor:pointer;">Delete</button>
+    const arrow = (dir, disabled) => {
+      const glyph = dir === 'up' ? '▲' : '▼';
+      const base = `width:26px;height:17px;display:flex;align-items:center;justify-content:center;border:1px solid ${C.lineStrong};border-radius:6px;background:${C.card};font-size:9px;font-weight:900;font-family:inherit;padding:0;`;
+      if (disabled) return `<span style="${base}color:${C.line};opacity:0.5;">${glyph}</span>`;
+      return `<button onclick="habitMove${dir === 'up' ? 'Up' : 'Down'}('${h.id}')" style="${base}color:${C.navy};cursor:pointer;">${glyph}</button>`;
+    };
+    return `<div style="display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid ${C.line};border-radius:10px;background:${C.panel};margin-top:6px;">
+      <span style="display:flex;flex-direction:column;gap:2px;flex:0 0 auto;">${arrow('up', idx === 0)}${arrow('down', idx === last)}</span>
+      <span style="font-size:15px;flex:0 0 auto;">${h.emoji || (isTimer(h) ? '⏱' : '✅')}</span>
+      <span style="flex:1;min-width:0;font-size:12px;font-weight:800;color:${C.ink};word-break:break-word;">${h.name}${isTimer(h) ? ` <span style="font-size:9px;font-weight:800;color:${C.navy};background:${C.card};border:1px solid ${C.line};border-radius:6px;padding:1px 5px;">TIME</span>` : ''}</span>
+      <button onclick="habitEditStart('${h.id}')" style="padding:6px 10px;background:${C.card};border:1px solid ${C.lineStrong};border-radius:8px;color:${C.navy};font-size:12px;font-weight:800;cursor:pointer;flex:0 0 auto;">Edit</button>
+      <button onclick="habitDeleteAsk('${h.id}')" style="padding:6px 10px;background:${C.card};border:1px solid ${C.missSoft};border-radius:8px;color:${C.miss};font-size:12px;font-weight:800;cursor:pointer;flex:0 0 auto;">Delete</button>
     </div>`;
   }).join('');
   const openState = state.habitManageOpen ? 'block' : 'none';
   return `<div style="margin-top:16px;">
-    <button onclick="habitToggleManage()" style="width:100%;padding:11px;background:${C.card};border:1px solid ${C.lineStrong};border-radius:12px;color:${C.muted};font-size:12px;font-weight:800;cursor:pointer;">${state.habitManageOpen ? 'Hide' : 'Manage'} habits (edit / delete)</button>
-    <div style="display:${openState};">${rows}</div>
+    <button onclick="habitToggleManage()" style="width:100%;padding:11px;background:${C.card};border:1px solid ${C.lineStrong};border-radius:12px;color:${C.muted};font-size:12px;font-weight:800;cursor:pointer;">${state.habitManageOpen ? 'Hide' : 'Manage'} habits (reorder / edit / delete)</button>
+    <div style="display:${openState};">
+      ${rows}
+      <div style="font-size:10px;color:${C.faint};font-weight:600;margin-top:8px;">Use ▲ ▼ to reorder — the order here is the order shown on the tracker.</div>
+    </div>
   </div>`;
 }
 
@@ -416,11 +495,12 @@ function buildBody(state) {
         ${legendDashed(C.openEdge, 'Today — tap to tick')}
         ${legend(C.grey, 'Before habit / upcoming')}
       </div>
-      <div style="font-size:10px;color:${C.faint};font-weight:600;margin-top:8px;">Tap a square to cycle: done → not done → clear. Missed past days turn red on their own.</div>
+      <div style="font-size:10px;color:${C.faint};font-weight:600;margin-top:8px;">Yes/No habits: tap a square to cycle done → not done → clear. Time trackers: tap a day to log hours &amp; minutes. Missed past days turn red on their own.</div>
     </div>
     ${buildMetrics(H, tStr)}
     ${buildManage(state, H)}
     <div style="height:20px;"></div>
+    ${buildTimerModal(state)}
   `;
 }
 function legend(color, label) {
@@ -428,6 +508,43 @@ function legend(color, label) {
 }
 function legendDashed(edge, label) {
   return `<div style="display:flex;align-items:center;gap:6px;"><span style="width:14px;height:14px;border-radius:4px;background:#fff;border:1.5px dashed ${edge};"></span><span style="font-size:11px;font-weight:700;color:${C.muted};">${label}</span></div>`;
+}
+
+// ── Time picker (hours + minutes) — native selects give an iOS wheel ─────────
+function buildTimerModal(state) {
+  const m = state.habitTimerModal;
+  if (!m) return '';
+  const H = getHabits(state);
+  const h = H.items.find(x => x.id === m.habitId);
+  if (!h) return '';
+  const cur = timerVal(H, m.habitId, m.date);
+  const ch = Math.floor(cur / 60), cm = cur % 60;
+  const dt = parseYmd(m.date);
+  const hopts = Array.from({ length: 25 }, (_, i) => `<option value="${i}" ${i === ch ? 'selected' : ''}>${i}</option>`).join('');
+  const mopts = Array.from({ length: 60 }, (_, i) => `<option value="${i}" ${i === cm ? 'selected' : ''}>${String(i).padStart(2, '0')}</option>`).join('');
+  const selStyle = `font-size:22px;font-weight:900;padding:12px 16px;border:1px solid ${C.lineStrong};border-radius:12px;background:${C.panel};color:${C.ink};font-family:inherit;`;
+  return `<div onclick="habitCloseTimer()" style="position:fixed;inset:0;background:rgba(10,22,40,0.55);z-index:3000;display:flex;align-items:flex-end;justify-content:center;">
+    <div onclick="event.stopPropagation()" style="background:#fff;border-radius:22px 22px 0 0;padding:22px 18px calc(24px + env(safe-area-inset-bottom));width:100%;max-width:480px;box-shadow:0 -12px 40px rgba(0,0,0,0.28);box-sizing:border-box;">
+      <div style="font-size:11px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;color:${C.navy};">${h.emoji || '⏱'} ${h.name}</div>
+      <div style="font-size:13px;font-weight:700;color:${C.muted};margin:2px 0 18px;">${WD[dt.getDay()]} ${dt.getDate()} ${MO[dt.getMonth()]}${m.date === todayStr() ? ' · today' : ''}</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:20px;">
+        <div style="text-align:center;">
+          <select id="habit-timer-hh" style="${selStyle}">${hopts}</select>
+          <div style="font-size:10px;font-weight:800;color:${C.muted};margin-top:6px;letter-spacing:1px;">HOURS</div>
+        </div>
+        <div style="font-size:26px;font-weight:900;color:${C.faint};margin-top:-14px;">:</div>
+        <div style="text-align:center;">
+          <select id="habit-timer-mm" style="${selStyle}">${mopts}</select>
+          <div style="font-size:10px;font-weight:800;color:${C.muted};margin-top:6px;letter-spacing:1px;">MINUTES</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button onclick="habitClearTimer()" style="flex:0 0 auto;padding:14px 16px;background:${C.card};border:1px solid ${C.missSoft};border-radius:12px;color:${C.miss};font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Clear</button>
+        <button onclick="habitCloseTimer()" style="flex:1;padding:14px;background:${C.panel};border:1px solid ${C.lineStrong};border-radius:12px;color:${C.muted};font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Cancel</button>
+        <button onclick="habitSaveTimer()" style="flex:1;padding:14px;background:${C.navy} !important;border:none;border-radius:12px;color:#ffffff !important;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;">Save</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 // ── Public: render ──────────────────────────────────────────────────────────
@@ -438,9 +555,10 @@ export function renderHabitsTab({ state }) {
 // ── Public: init (wires window handlers, runs after each render) ────────────
 export function initHabitsTab({ state, saveData, saveDataQuiet, render }) {
   function ensure() {
-    if (!state.data.habits) state.data.habits = { items: [], log: {}, view: '3' };
+    if (!state.data.habits) state.data.habits = { items: [], log: {}, values: {}, view: '3' };
     if (!state.data.habits.items) state.data.habits.items = [];
     if (!state.data.habits.log) state.data.habits.log = {};
+    if (!state.data.habits.values) state.data.habits.values = {};
     if (!state.data.habits.view) state.data.habits.view = '3';
     return state.data.habits;
   }
@@ -485,6 +603,7 @@ export function initHabitsTab({ state, saveData, saveDataQuiet, render }) {
   };
 
   window.habitSetView = (v) => { const H = ensure(); H.view = v; saveDataQuiet(); refresh(); };
+  window.habitSetNewType = (t) => { state.habitNewType = (t === 'timer' ? 'timer' : 'binary'); refresh(); };
 
   window.habitAdd = () => {
     const nameEl = document.getElementById('habit-new-name');
@@ -492,10 +611,31 @@ export function initHabitsTab({ state, saveData, saveDataQuiet, render }) {
     const name = (nameEl && nameEl.value || '').trim();
     if (!name) { if (nameEl) nameEl.focus(); return; }
     const emoji = (emojiEl && emojiEl.value || '').trim().slice(0, 2);
+    const type = state.habitNewType === 'timer' ? 'timer' : 'binary';
     const H = ensure();
-    H.items.push({ id: 'h_' + Date.now().toString(36), name, emoji: emoji || '✅', createdAt: todayStr() });
+    H.items.push({ id: 'h_' + Date.now().toString(36), name, emoji: emoji || (type === 'timer' ? '⏱' : '✅'), createdAt: todayStr(), type });
     saveDataQuiet();
     refresh();
+  };
+
+  // ── Time tracker (minutes) ──
+  window.habitOpenTimer = (habitId, dStr) => { state.habitTimerModal = { habitId, date: dStr }; refresh(); };
+  window.habitCloseTimer = () => { state.habitTimerModal = null; refresh(); };
+  window.habitClearTimer = () => {
+    const m = state.habitTimerModal; if (!m) return;
+    const H = ensure();
+    if (H.values[m.date]) { delete H.values[m.date][m.habitId]; if (!Object.keys(H.values[m.date]).length) delete H.values[m.date]; }
+    state.habitTimerModal = null; saveDataQuiet(); refresh();
+  };
+  window.habitSaveTimer = () => {
+    const m = state.habitTimerModal; if (!m) return;
+    const hh = parseInt(document.getElementById('habit-timer-hh') && document.getElementById('habit-timer-hh').value || '0', 10) || 0;
+    const mm = parseInt(document.getElementById('habit-timer-mm') && document.getElementById('habit-timer-mm').value || '0', 10) || 0;
+    const total = hh * 60 + mm;
+    const H = ensure();
+    if (total > 0) { if (!H.values[m.date]) H.values[m.date] = {}; H.values[m.date][m.habitId] = total; }
+    else { if (H.values[m.date]) { delete H.values[m.date][m.habitId]; if (!Object.keys(H.values[m.date]).length) delete H.values[m.date]; } }
+    state.habitTimerModal = null; saveDataQuiet(); refresh();
   };
 
   window.habitEditStart = (id) => { state.habitEditing = id; state.habitManageOpen = true; refresh(); };
@@ -514,6 +654,16 @@ export function initHabitsTab({ state, saveData, saveDataQuiet, render }) {
   };
 
   window.habitToggleManage = () => { state.habitManageOpen = !state.habitManageOpen; state.habitEditing = null; refresh(); };
+  window.habitMoveUp = (id) => {
+    const H = ensure();
+    const i = H.items.findIndex(x => x.id === id);
+    if (i > 0) { const t = H.items[i - 1]; H.items[i - 1] = H.items[i]; H.items[i] = t; saveDataQuiet(); refresh(); }
+  };
+  window.habitMoveDown = (id) => {
+    const H = ensure();
+    const i = H.items.findIndex(x => x.id === id);
+    if (i > -1 && i < H.items.length - 1) { const t = H.items[i + 1]; H.items[i + 1] = H.items[i]; H.items[i] = t; saveDataQuiet(); refresh(); }
+  };
   window.habitDeleteAsk = (id) => { state.habitDeleteConfirm = id; refresh(); };
   window.habitDeleteCancel = () => { state.habitDeleteConfirm = null; refresh(); };
   window.habitDeleteConfirm = (id) => {
