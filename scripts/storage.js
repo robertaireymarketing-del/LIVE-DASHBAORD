@@ -169,8 +169,23 @@ export function createStorage({
           gymCalories: parseNum(raw.gymCalories) ?? parseNum(raw.activeEnergy) ?? parseNum(raw.activeCalories) ?? parseNum(raw.active_energy) ?? parseNum(raw.exerciseCalories),
           // Protein — accept any field name the iOS Shortcut might use
           protein: parseNum(raw.protein) ?? parseNum(raw.dietaryProtein) ?? parseNum(raw.dietary_protein) ?? parseNum(raw.proteinGrams),
-          // d.updateTime is not available on modular SDK snapshot docs — use metadata instead
-          syncedAt: d.metadata?.hasPendingWrites === false ? Date.now() : null,
+          // d.updateTime is not available on modular SDK snapshot docs. Prefer a REAL
+          // timestamp written by the iOS Shortcut (any of syncedAt / syncTime / timestamp /
+          // time) so we can show WHEN the reading was actually taken. Accepts an ISO string,
+          // epoch seconds, or epoch millis. If the doc carries no timestamp we fall back to
+          // load-time — that only marks when the dashboard last pulled, not the measurement.
+          syncedAt: (() => {
+            const rawTs = parse(raw.syncedAt) ?? parse(raw.syncTime) ?? parse(raw.timestamp) ?? parse(raw.time);
+            if (rawTs !== null && rawTs !== undefined && rawTs !== '') {
+              const n = Number(rawTs);
+              if (!Number.isNaN(n) && n > 0) return n < 1e12 ? n * 1000 : n; // secs → ms
+              const t = new Date(rawTs).getTime();
+              if (!Number.isNaN(t)) return t;
+            }
+            return d.metadata?.hasPendingWrites === false ? Date.now() : null;
+          })(),
+          // 'device' = real time the Shortcut stamped; 'load' = fallback (app-load time only)
+          syncedAtSource: ((parse(raw.syncedAt) ?? parse(raw.syncTime) ?? parse(raw.timestamp) ?? parse(raw.time)) != null) ? 'device' : 'load',
         };
         console.log(`[HealthSync] Doc ${d.id}:`, entry);
         return entry;

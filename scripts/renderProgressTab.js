@@ -82,7 +82,7 @@ export function renderProgressTab(deps) {
   const expectedWeightAtGoal = +(currentLeanMass / (1 - settings.targetBodyFat / 100)).toFixed(1);
   const weeklyTargetWeight   = +(currentWeight - (currentWeight * bfLossRate / 100)).toFixed(1);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getToday(); // local date — avoids UTC rollover showing yesterday overnight
 
   // ── Steps (week / month) ────────────────────────────────────────────────
   const weekStartDate = new Date(todayStr + 'T00:00:00');
@@ -448,10 +448,29 @@ export function renderProgressTab(deps) {
           .sort((a,b) => b.date.localeCompare(a.date))[0];
         const bfBase = prevWeekEntry?.bodyFat ?? currentBF;
         const wtBase = prevWeekEntry?.weight  ?? currentWeight;
-        // Current week: prorate target pace by how many days are actually in this week
-        const fraction   = daysInWeek / 7;
-        const projEndBF = +(bfBase - bfLossRate * fraction).toFixed(1);
-        const projEndWt = +(wtBase - wtBase * bfLossRate / 100 * fraction).toFixed(1);
+        const fraction = daysInWeek / 7;
+
+        let projEndBF, projEndWt;
+        if (isCurrent) {
+          // ── Current week: anchor on TODAY's actual reading, then carry the observed pace
+          // forward over the days LEFT in the week. This re-derives every day — as currentBF /
+          // currentWeight update from sync and the remaining-day count shrinks, the end-of-week
+          // figure tracks where you actually are instead of a fixed target line drawn off last
+          // week. On the final day of the week (0 days left) it simply equals today's reading.
+          const daysToEnd = Math.max(
+            0,
+            Math.round((new Date(wk.endStr + 'T12:00:00') - new Date(todayStr + 'T12:00:00')) / 86400000)
+          );
+          const remFraction = daysToEnd / 7;
+          // effectivePace = observed BF %/wk (blended 7d + overall), or the target pace until
+          // there's enough sync data. effectiveWtPace is the matching lb/wk figure.
+          projEndBF = +(currentBF - effectivePace * remFraction).toFixed(1);
+          projEndWt = +(currentWeight - effectiveWtPace * remFraction).toFixed(1);
+        } else {
+          // Past/future weeks keep the prior chained-projection behaviour (target pace).
+          projEndBF = +(bfBase - bfLossRate * fraction).toFixed(1);
+          projEndWt = +(wtBase - wtBase * bfLossRate / 100 * fraction).toFixed(1);
+        }
         const locked = actual != null && !isCurrent;
         return { ...wk, actual, isPast, isCurrent, isFuture, daysInWeek, projEndBF, projEndWt, locked, prevWeekEntry };
       });
@@ -505,12 +524,34 @@ export function renderProgressTab(deps) {
         }
       })();
 
+      // ── When was the reading shown here actually taken / synced? ──────────────
+      const latestReading = [...(state.healthData || [])]
+        .filter(h => h.weight != null || h.bodyFat != null)
+        .sort((a, b) => b.date.localeCompare(a.date))[0] || null;
+      const syncStale = !!latestReading && latestReading.date !== todayStr;
+      const syncLine = (() => {
+        if (!latestReading) return 'No sync data yet — showing start figures';
+        const y = new Date(Date.now() - 86400000);
+        const yStr = `${y.getFullYear()}-${String(y.getMonth()+1).padStart(2,'0')}-${String(y.getDate()).padStart(2,'0')}`;
+        let whenDay;
+        if (latestReading.date === todayStr)      whenDay = 'today';
+        else if (latestReading.date === yStr)     whenDay = 'yesterday';
+        else whenDay = new Date(latestReading.date + 'T12:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+        // Only show a clock time when it's a REAL device timestamp (not the app-load fallback)
+        const hasDeviceTime = latestReading.syncedAt && latestReading.syncedAtSource === 'device';
+        const timePart = hasDeviceTime
+          ? ' at ' + new Date(latestReading.syncedAt).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })
+          : '';
+        return (latestReading.date === todayStr ? 'Synced ' : 'Last reading ') + whenDay + timePart;
+      })();
+
       const youAreHereHtml =
         '<div style="background:#0d2a1a;border:2px solid #27ae60;border-radius:12px;padding:14px;margin-bottom:8px;">' +
           '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
             '<div>' +
               '<div style="font-size:8px;font-weight:900;letter-spacing:2px;color:#27ae60;margin-bottom:4px;">📍 YOU ARE HERE</div>' +
               '<div style="font-size:10px;font-weight:700;color:#4a9a6a;">Today · ' + todayStr.split('-').reverse().join('/') + '</div>' +
+              '<div style="font-size:9px;font-weight:700;margin-top:2px;color:' + (syncStale ? '#f39c12' : 'rgba(39,174,96,0.75)') + ';">' + syncLine + '</div>' +
             '</div>' +
             youAreHereStatusEl +
           '</div>' +
