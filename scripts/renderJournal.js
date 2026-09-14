@@ -37,39 +37,10 @@ export function renderJournalTab() {
         .jd-card-inactive .jd-icon { color: #C8D6E5 !important; }
       </style>
       <div class="journal-launch-grid">
-        ${(() => {
-          const days = window.state?.data?.days || {};
-          // Use the journal's currently viewed date, falling back to today
-          const viewedDate = window.state?.journalDate || new Date().toISOString().slice(0,10);
-          const viewedData = days[viewedDate] || {};
-          function streak(field) {
-            const cursor = new Date();
-            cursor.setHours(12, 0, 0, 0);
-            const todayStr = cursor.toISOString().slice(0, 10);
-            if (!days[todayStr]?.[field]) cursor.setDate(cursor.getDate() - 1);
-            let s = 0;
-            for (let i = 0; i < 400; i++) {
-              const key = cursor.toISOString().slice(0, 10);
-              if (days[key]?.[field]) { s++; cursor.setDate(cursor.getDate() - 1); }
-              else break;
-            }
-            return s;
-          }
-          const fields = [
-            { key: 'gym',       label: 'GYM',       emoji: '🏋️' },
-            { key: 'retention', label: 'RETENTION',  emoji: '🩸' },
-            { key: 'meditation',label: 'MEDITATION', emoji: '🧘' },
-          ];
-          return `<div id="journal-habit-grid" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px;">
-            ${fields.map(f => `
-            <div onclick="toggleJournalDay('${f.key}')" class="${viewedData[f.key]?'jd-card-active':'jd-card-inactive'}" style="border-radius:16px;padding:16px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:all 0.2s;border:2px solid;">
-              <span style="font-size:28px;line-height:1;">${f.emoji}</span>
-              <span class="jd-icon" style="font-size:24px;font-weight:900;color:${viewedData[f.key]?'#ffffff':'#C8D6E5'}!important;">${viewedData[f.key]?'✓':'○'}</span>
-              <span style="font-size:11px;font-weight:900;letter-spacing:1px;color:${viewedData[f.key]?'#ffffff':'#0A1628'}!important;">${f.label}</span>
-              <span class="jd-streak" style="font-size:10px;font-weight:700;color:${viewedData[f.key]?'#ffffff':'#7b92aa'}!important;">${streak(f.key)} day streak</span>
-            </div>`).join('')}
-          </div>`;
-        })()}
+        <button class="journal-launch-btn" id="journalOpenHabitsBtn" onclick="setTab('habits')" style="border-left:4px solid #22A35A;">
+          <span style="display:flex;align-items:center;gap:10px;font-size:17px;font-weight:900;line-height:1;"><span style="font-size:22px;">✅</span> Habit Tracker</span>
+          <small>Build the chains · never miss two days in a row</small>
+        </button>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
           <button class="journal-launch-btn" id="journalOpenMorningBtn">Morning Journal<small>Set today's frog, the block you'll kill it in, and the plan</small></button>
           <button class="journal-launch-btn" id="journalOpenEveningBtn">Evening Reflection<small>Open execution, reflection, and reset for tomorrow</small></button>

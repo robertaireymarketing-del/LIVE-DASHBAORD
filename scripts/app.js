@@ -20,6 +20,7 @@ import { renderVisionTab as renderVisionTabExternal } from './renderVisionTab.js
 import { renderScenesTab as renderScenesTabExternal, initSceneActions } from './scenes.js';
 import { renderClarityTab as renderClarityTabExternal, initClarityTab as initClarityTabExternal, renderClarityCard as renderClarityCardExternal } from './renderClarity.js';
 import { renderStraightLineTab as renderStraightLineTabExternal, initStraightLineTab as initStraightLineTabExternal, initStraightLineActions, renderStraightLineCard as renderStraightLineCardExternal } from './renderStraightLine.js';
+import { renderHabitsTab as renderHabitsTabExternal, initHabitsTab as initHabitsTabExternal } from './renderHabits.js';
 import { renderWeeklyTab as renderWeeklyTabExternal, initWeeklyTab as initWeeklyTabExternal } from './renderWeeklyTab.js';
 import { renderDayPlannerModal as renderDayPlannerModalExternal, renderEmbeddedDayPlanner as renderEmbeddedDayPlannerExternal, renderTimePickerModal as renderTimePickerModalExternal, renderWeekPlanModal as renderWeekPlanModalExternal, renderDatePickerModal as renderDatePickerModalExternal, renderSoldModal as renderSoldModalExternal } from './renderModals.js';
 import { renderRetentionModal as renderRetentionModalExternal, renderPastDaysModal as renderPastDaysModalExternal, renderMonthTargetsModal as renderMonthTargetsModalExternal, renderChallengeModal as renderChallengeModalExternal } from './renderMoreModals.js';
@@ -161,6 +162,7 @@ function renderClarityTab() { return renderClarityTabExternal({ state }); }
 function renderClarityCard() { return renderClarityCardExternal(state); }
 function renderStraightLineTab() { return renderStraightLineTabExternal({ state }); }
 function renderStraightLineCard() { return renderStraightLineCardExternal(state); }
+function renderHabitsTab() { return renderHabitsTabExternal({ state }); }
 function renderDayPlannerModal() { return renderDayPlannerModalExternal(renderModalDeps); }
 function renderTimePickerModal() { return renderTimePickerModalExternal(renderModalDeps); }
 function renderWeekPlanModal() { return renderWeekPlanModalExternal(renderModalDeps); }
@@ -171,7 +173,7 @@ function renderChallengeModal() { return renderChallengeModalExternal(renderMore
 
 // ── Bottom nav (6 tabs — permanent on every page) ─────────────────────────
 function renderBottomNav() {
-  const moreActive = state.moreMenuOpen || ['march','vault','roadmap','fire','vision','clarity','scenes'].includes(state.activeTab);
+  const moreActive = state.moreMenuOpen || ['march','vault','roadmap','fire','vision','clarity','scenes','habits'].includes(state.activeTab);
   return `
   <nav class="bottom-nav-app">
     <button data-tab="today"    class="bottom-nav-app-btn ${state.activeTab==='today'?'active':''}"    onclick="setTab('today')"><span class="nav-icon">🏠</span>Today</button>
@@ -230,7 +232,7 @@ function render() {
     <div class="day-badge" onclick="openChallengeSetup()" style="cursor:pointer;">DAY ${getDayNumber()}/${getSettings().challengeDays||90}</div>
     </div>
     </div>
-    <button class="panic-trigger" onclick="openPanic()" style="margin-bottom:12px;margin-top:4px;${['today','journal','planner','progress','scenes','bricks','clarity','straightline'].includes(state.activeTab) ? 'display:none;' : ''}"><span>🆘</span> PANIC BUTTON</button>
+    <button class="panic-trigger" onclick="openPanic()" style="margin-bottom:12px;margin-top:4px;${['today','journal','planner','progress','scenes','bricks','clarity','straightline','habits'].includes(state.activeTab) ? 'display:none;' : ''}"><span>🆘</span> PANIC BUTTON</button>
     ${(state.activeTab === 'today' || state.activeTab === 'journal') ? `
     <div class="quote-card">
     <div class="quote-icon">✦</div>
@@ -249,6 +251,7 @@ function render() {
     ${(() => { try { return state.activeTab === 'progress' ? renderProgressTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">BODY ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'vault' ? renderVaultTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">IDEAS ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'journal' ? renderJournalTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">JOURNAL ERROR: '+ e.message + '</div>'; }})()}
+    ${(() => { try { return state.activeTab === 'habits' ? renderHabitsTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">HABITS ERROR: '+ e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'fire' ? renderFireTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">FIRE ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'roadmap' ? renderRoadmapTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">ROADMAP ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'planner' ? renderPlannerTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">PLANNER ERROR: ' + e.message + '</div>'; }})()}
@@ -266,6 +269,7 @@ function render() {
         <button class="mobile-more-sheet-btn ${state.activeTab==='roadmap'?'active':''}" onclick="setTab('roadmap');toggleMoreMenu()">🗺 Map</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='vision'?'active':''}" onclick="setTab('vision');toggleMoreMenu()">🔭 Vision</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='clarity'?'active':''}" onclick="setTab('clarity');toggleMoreMenu()">🧠 Clarity</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab==='habits'?'active':''}" onclick="setTab('habits');toggleMoreMenu()">✅ Habits</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='scenes'?'active':''}" onclick="setTab('scenes');toggleMoreMenu()">🎬 Scenes</button>
         <button class="mobile-more-sheet-btn danger" onclick="handleLogout()">Sign Out</button>
       </div>
@@ -334,6 +338,7 @@ function render() {
     if (state.activeTab === 'planner') setTimeout(() => { try { initWeeklyTabExternal(); } catch(e) { console.error('Weekly init error:', e); } }, 0);
     if (state.activeTab === 'vision') setTimeout(() => { try { renderVisionTabExternal({ db, user: state.user }); } catch(e) { console.error('Vision init error:', e); } }, 0);
     if (state.activeTab === 'clarity') setTimeout(() => { try { initClarityTabExternal({ state, saveData, saveDataQuiet, render }); } catch(e) { console.error('Clarity init error:', e); } }, 0);
+    if (state.activeTab === 'habits') setTimeout(() => { try { initHabitsTabExternal({ state, saveData, saveDataQuiet, render }); } catch(e) { console.error('Habits init error:', e); } }, 0);
     if (state.activeTab === 'straightline') setTimeout(() => { try { initStraightLineTabExternal({ state, saveData, saveDataQuiet, render }); } catch(e) { console.error('Line init error:', e); } }, 0);
 
     // ── AI-tailored quote interpretation ──────────────────────────────────
