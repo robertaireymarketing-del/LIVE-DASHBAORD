@@ -3,6 +3,8 @@
 // Data lives in state.data.habits = { items:[{id,name,emoji,createdAt}], log:{ 'YYYY-MM-DD': {habitId:true} }, view:'3' }
 // Rule: any ELIGIBLE past day (>= habit createdAt, < today) that isn't ticked = MISS (red).
 //       Today stays neutral until ticked. Days before a habit existed are greyed out.
+// Per-day value in log[date][id]: true = done (green), false = explicitly not done (red),
+//       absent = no entry (past → auto red per Option A, today → neutral). Tap cycles true → false → absent.
 // All colours are hardcoded hex so the page reads correctly in the dashboard's light mode.
 
 // ── Palette (hardcoded, light-mode safe) ───────────────────────────────────
@@ -58,9 +60,11 @@ function isDone(H, habitId, dStr) { return !!(H.log[dStr] && H.log[dStr][habitId
 function dayStatus(H, habit, dStr, tStr) {
   if (dStr < habit.createdAt) return 'pre';
   if (dStr > tStr) return 'future';
-  if (isDone(H, habit.id, dStr)) return 'done';
+  const v = H.log[dStr] ? H.log[dStr][habit.id] : undefined;
+  if (v === true) return 'done';
+  if (v === false) return 'miss';   // explicitly marked not-done
   if (dStr === tStr) return 'open';
-  return 'miss';
+  return 'miss';                     // Option A: untouched past day counts as a miss
 }
 
 // current streak: consecutive done ending today, or ending yesterday if today not yet done
@@ -210,10 +214,13 @@ function buildGrid(H, tStr) {
     let cells = '';
     days.forEach(d => {
       const st = dayStatus(H, habit, d, tStr);
+      const explicitMiss = !!(H.log[d] && H.log[d][habit.id] === false);
       const clickable = (st === 'done' || st === 'miss' || st === 'open');
       const onclick = clickable ? ` onclick="habitToggle('${habit.id}','${d}')"` : '';
-      const check = (st === 'done' && s.sq >= 22) ? `<span style="color:#fff;font-size:${Math.round(s.sq * 0.5)}px;font-weight:900;line-height:${s.sq}px;">✓</span>` : '';
-      cells += `<div${onclick} title="${d}" style="${squareStyle(st, s)}margin-right:${s.gap}px;display:flex;align-items:center;justify-content:center;">${check}</div>`;
+      let mark = '';
+      if (s.sq >= 22) { if (st === 'done') mark = '✓'; else if (explicitMiss) mark = '✕'; }
+      const markEl = mark ? `<span style="color:#fff;font-size:${Math.round(s.sq * 0.46)}px;font-weight:900;line-height:${s.sq}px;">${mark}</span>` : '';
+      cells += `<div${onclick} title="${d}" style="${squareStyle(st, s)}margin-right:${s.gap}px;display:flex;align-items:center;justify-content:center;">${markEl}</div>`;
     });
     return `<div style="display:flex;align-items:center;margin-top:${s.gap}px;">
       <div style="position:sticky;left:0;z-index:2;background:${labelBg};width:${LABEL_W}px;flex:0 0 ${LABEL_W}px;padding:6px 8px 6px 2px;border-right:1px solid ${C.line};">
@@ -346,7 +353,7 @@ function buildAddBar(state) {
   return `<div style="background:${C.card};border:1px solid ${C.lineStrong};border-radius:14px;padding:12px;margin-bottom:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
     <input id="habit-new-emoji" maxlength="2" placeholder="🙂" style="width:46px;flex:0 0 auto;box-sizing:border-box;text-align:center;padding:11px 4px;border:1px solid ${C.lineStrong};border-radius:10px;font-size:16px;background:${C.panel};color:${C.ink};" />
     <input id="habit-new-name" placeholder="New habit (e.g. Reading, Cold shower)" onkeydown="if(event.key==='Enter')habitAdd()" style="flex:1 1 120px;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid ${C.lineStrong};border-radius:10px;font-size:14px;background:${C.panel};color:${C.ink};" />
-    <button onclick="habitAdd()" style="padding:11px 18px;background:${C.navy};border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:900;cursor:pointer;">+ Add</button>
+    <button onclick="habitAdd()" style="padding:11px 18px;background:${C.navy} !important;border:none;border-radius:10px;color:#ffffff !important;font-size:13px;font-weight:900;cursor:pointer;">+ Add</button>
   </div>`;
 }
 
@@ -409,7 +416,7 @@ function buildBody(state) {
         ${legendDashed(C.openEdge, 'Today — tap to tick')}
         ${legend(C.grey, 'Before habit / upcoming')}
       </div>
-      <div style="font-size:10px;color:${C.faint};font-weight:600;margin-top:8px;">Tap any square — including past days — to correct a day.</div>
+      <div style="font-size:10px;color:${C.faint};font-weight:600;margin-top:8px;">Tap a square to cycle: done → not done → clear. Missed past days turn red on their own.</div>
     </div>
     ${buildMetrics(H, tStr)}
     ${buildManage(state, H)}
@@ -464,9 +471,15 @@ export function initHabitsTab({ state, saveData, saveDataQuiet, render }) {
 
   window.habitToggle = (habitId, dStr) => {
     const H = ensure();
-    if (!H.log[dStr]) H.log[dStr] = {};
-    if (H.log[dStr][habitId]) { delete H.log[dStr][habitId]; if (!Object.keys(H.log[dStr]).length) delete H.log[dStr]; }
-    else H.log[dStr][habitId] = true;
+    const cur = H.log[dStr] ? H.log[dStr][habitId] : undefined;
+    // cycle: clear/auto → done(true) → not-done(false) → clear
+    const next = cur === true ? false : (cur === false ? undefined : true);
+    if (next === undefined) {
+      if (H.log[dStr]) { delete H.log[dStr][habitId]; if (!Object.keys(H.log[dStr]).length) delete H.log[dStr]; }
+    } else {
+      if (!H.log[dStr]) H.log[dStr] = {};
+      H.log[dStr][habitId] = next;
+    }
     saveDataQuiet();
     refresh();
   };
