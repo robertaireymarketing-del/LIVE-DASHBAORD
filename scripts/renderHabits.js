@@ -63,19 +63,30 @@ function isDone(H, habit, dStr) {
 }
 
 // status for one habit on one day: 'pre' | 'future' | 'done' | 'open' | 'miss'
+// A day BEFORE the habit's start is 'pre' (grey) only while untouched — an explicit
+// entry there still shows and is editable, so earlier days can be backfilled.
 function dayStatus(H, habit, dStr, tStr) {
-  if (dStr < habit.createdAt) return 'pre';
   if (dStr > tStr) return 'future';
   if (isTimer(habit)) {
     if (timerVal(H, habit.id, dStr) > 0) return 'done';
+    if (dStr < habit.createdAt) return 'pre';
     if (dStr === tStr) return 'open';
     return 'miss';
   }
   const v = H.log[dStr] ? H.log[dStr][habit.id] : undefined;
   if (v === true) return 'done';
-  if (v === false) return 'miss';   // explicitly marked not-done
+  if (v === false) return 'miss';   // explicitly marked not-done (any day)
+  if (dStr < habit.createdAt) return 'pre';
   if (dStr === tStr) return 'open';
   return 'miss';                     // Option A: untouched past day counts as a miss
+}
+
+// earliest day that has any logged data for this habit (for streak reach into backfilled days)
+function firstDayWithData(H, habit) {
+  let min = habit.createdAt;
+  Object.keys(H.log).forEach(d => { if (H.log[d][habit.id] === true && d < min) min = d; });
+  if (isTimer(habit)) Object.keys(H.values).forEach(d => { if (H.values[d][habit.id] > 0 && d < min) min = d; });
+  return min;
 }
 
 // current streak: consecutive done ending today, or ending yesterday if today not yet done
@@ -83,18 +94,18 @@ function currentStreak(H, habit, tStr) {
   let cursor = parseYmd(tStr);
   if (!isDone(H, habit, tStr)) cursor = addDays(cursor, -1);
   let s = 0;
-  for (let i = 0; i < 2000; i++) {
+  for (let i = 0; i < 4000; i++) {
     const k = ymd(cursor);
-    if (k < habit.createdAt) break;
     if (isDone(H, habit, k)) { s++; cursor = addDays(cursor, -1); } else break;
   }
   return s;
 }
 function longestStreak(H, habit, tStr) {
-  let cursor = parseYmd(habit.createdAt);
+  const floor = firstDayWithData(H, habit);
+  let cursor = parseYmd(floor);
   let best = 0, run = 0;
-  const guard = diffDays(tStr, habit.createdAt) + 2;
-  for (let i = 0; i < Math.min(guard, 4000); i++) {
+  const guard = diffDays(tStr, floor) + 2;
+  for (let i = 0; i < Math.min(guard, 5000); i++) {
     const k = ymd(cursor);
     if (k > tStr) break;
     if (isDone(H, habit, k)) { run++; if (run > best) best = run; } else run = 0;
@@ -243,7 +254,7 @@ function buildGrid(H, tStr) {
     let cells = '';
     days.forEach(d => {
       const st = dayStatus(H, habit, d, tStr);
-      const clickable = (st === 'done' || st === 'miss' || st === 'open');
+      const clickable = (st === 'done' || st === 'miss' || st === 'open' || st === 'pre');
       const onclick = clickable
         ? (timer ? ` onclick="habitOpenTimer('${habit.id}','${d}')"` : ` onclick="habitToggle('${habit.id}','${d}')"`)
         : '';
@@ -493,9 +504,9 @@ function buildBody(state) {
         ${legend(C.done, 'Done')}
         ${legend(C.miss, 'Missed')}
         ${legendDashed(C.openEdge, 'Today — tap to tick')}
-        ${legend(C.grey, 'Before habit / upcoming')}
+        ${legend(C.grey, 'Not tracked yet — tap to backfill')}
       </div>
-      <div style="font-size:10px;color:${C.faint};font-weight:600;margin-top:8px;">Yes/No habits: tap a square to cycle done → not done → clear. Time trackers: tap a day to log hours &amp; minutes. Missed past days turn red on their own.</div>
+      <div style="font-size:10px;color:${C.faint};font-weight:600;margin-top:8px;">Tap any day — past or before you started — to edit it. Yes/No habits cycle done → not done → clear; time trackers open a picker. Missed days after your start turn red on their own.</div>
     </div>
     ${buildMetrics(H, tStr)}
     ${buildManage(state, H)}
