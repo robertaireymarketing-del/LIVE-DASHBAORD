@@ -385,7 +385,63 @@ export function renderProgressTab(deps) {
 
   const weekTotalHtml = `<div style="background:#0f1c2a;border:1px solid ${weekTotalBorder};border-left:4px solid ${weekTotalColor};border-radius:12px;padding:14px 16px;margin-bottom:8px;margin-top:4px;"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:9px;font-weight:900;color:rgba(255,255,255,0.5);letter-spacing:1.5px;margin-bottom:3px;">WEEK TOTAL</div><div style="font-size:10px;color:rgba(255,255,255,0.35);">${calWeeklyDays} of 7 days with dietary data</div></div><div style="text-align:right;"><div style="font-size:28px;font-weight:900;color:${weekTotalColor};letter-spacing:-0.5px;">${weekTotalAmt}</div>${weekTotalLabel ? `<div style="font-size:10px;font-weight:700;color:${weekTotalColor};margin-top:1px;">${weekTotalLabel}</div>` : ''}</div></div></div>`;
 
-  const calDayCardsHtml = todayCard + weekTotalHtml + pastCards + futureCards;
+  // ── Target deficit vs the projection at the top of the page ──────────────
+  // Ties the number you should be hitting to the SAME target pace the projections
+  // use (bfLossRate, the %/wk control). Weight to lose per week = currentWeight ×
+  // bfLossRate/100 lb; convert at ~3,500 kcal per lb of fat.
+  const KCAL_PER_LB          = 3500;
+  const targetWeeklyDeficit  = Math.round((currentWeight * bfLossRate / 100) * KCAL_PER_LB);
+  const targetDailyDeficit   = Math.round(targetWeeklyDeficit / 7);
+  // Fair week-so-far target: compare only against the days that actually have data.
+  const targetForLoggedDays  = Math.round(targetDailyDeficit * calWeeklyDays);
+
+  const todayCalEntry = calDayData.find(d => d.isToday) || null;
+  const todayDeficit  = todayCalEntry ? todayCalEntry.deficit : null; // null = no dietary data yet
+
+  const fmtDef = (n) => (n > 0 ? '−' : '+') + Math.abs(Math.round(n)).toLocaleString() + ' kcal';
+
+  const targetStatusPill = (actual, target) => {
+    if (actual === null || actual === undefined)
+      return '<span style="font-size:9px;font-weight:800;color:#5a7a8a;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:2px 7px;white-space:nowrap;">NO DATA</span>';
+    const delta = Math.round(actual - target);
+    if (delta >= 0)
+      return '<span style="font-size:9px;font-weight:800;color:#2ecc71;background:#0a1f14;border:1px solid #1a5a2a;border-radius:4px;padding:2px 7px;white-space:nowrap;">✓ ON TRACK</span>';
+    if (delta >= -250)
+      return '<span style="font-size:9px;font-weight:800;color:#f39c12;background:#1f1500;border:1px solid #7a4a00;border-radius:4px;padding:2px 7px;white-space:nowrap;">~ CLOSE</span>';
+    return '<span style="font-size:9px;font-weight:800;color:#e74c3c;background:#1f0a0a;border:1px solid #5a1a1a;border-radius:4px;padding:2px 7px;white-space:nowrap;">▲ BEHIND</span>';
+  };
+
+  const targetRow = (label, targetVal, actualVal, sub) => {
+    const behind   = actualVal !== null && actualVal < targetVal;
+    const amtColor = actualVal === null ? 'rgba(255,255,255,0.3)' : behind ? '#e74c3c' : '#2ecc71';
+    const gap      = behind ? Math.round(targetVal - actualVal) : 0;
+    return `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-top:1px solid rgba(255,255,255,0.06);">
+      <div style="min-width:0;padding-right:10px;">
+        <div style="font-size:9px;font-weight:900;letter-spacing:1.5px;color:rgba(201,168,76,0.8);margin-bottom:3px;">${label}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.5);">Aim <span style="color:#D4AF37;font-weight:800;">−${targetVal.toLocaleString()} kcal</span>${sub ? '<br><span style="font-size:10px;color:rgba(255,255,255,0.35);">' + sub + '</span>' : ''}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:18px;font-weight:900;color:${amtColor};letter-spacing:-0.3px;">${actualVal === null ? '—' : fmtDef(actualVal)}</div>
+        <div style="margin-top:3px;">${targetStatusPill(actualVal, targetVal)}</div>
+        ${behind ? `<div style="font-size:9px;font-weight:700;color:#e74c3c;margin-top:2px;">${gap.toLocaleString()} kcal short</div>` : ''}
+      </div>
+    </div>`;
+  };
+
+  const showTargetCard = isCurrentWeek || calWeeklyDays > 0;
+  const targetDeficitHtml = !showTargetCard ? '' : `
+  <div style="background:#0f1c2a;border:1px solid rgba(201,168,76,0.28);border-radius:12px;padding:4px 16px 10px;margin-bottom:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0 1px;">
+      <div style="font-size:9px;font-weight:900;color:rgba(201,168,76,0.85);letter-spacing:1.5px;">TARGET TO STAY ON TRACK</div>
+      <div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.35);">${bfLossRate}%/wk pace</div>
+    </div>
+    ${isCurrentWeek ? targetRow('TODAY', targetDailyDeficit, todayDeficit, todayDeficit === null ? 'no food data yet' : '') : ''}
+    ${targetRow('WEEK SO FAR', targetForLoggedDays, calWeeklyDays > 0 ? calWeeklyTotal : null, calWeeklyDays + (calWeeklyDays === 1 ? ' day logged' : ' days logged') + ' · full week −' + targetWeeklyDeficit.toLocaleString())}
+    <div style="font-size:9px;color:rgba(255,255,255,0.3);padding-top:9px;">Uses ~3,500 kcal per lb and the target pace set at the top of the page — change the pace and this updates.</div>
+  </div>`;
+
+  const calDayCardsHtml = todayCard + weekTotalHtml + targetDeficitHtml + pastCards + futureCards;
 
   // ── Main return ─────────────────────────────────────────────────────────
   return `
