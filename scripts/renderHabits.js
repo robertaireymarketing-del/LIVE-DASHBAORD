@@ -31,7 +31,7 @@ const C = {
 };
 
 const VIEWS = [
-  ['3', '3-Day'], ['7', '7-Day'], ['30', '30-Day'], ['month', 'This Month'],
+  ['3', '3-Day'], ['7', '7-Day'], ['week', 'This Week'], ['30', '30-Day'], ['month', 'This Month'],
   ['60', '60-Day'], ['90', '90-Day'], ['365', 'Year'], ['all', 'All-Time'],
 ];
 
@@ -170,6 +170,11 @@ function rangeFor(view, items, tStr) {
     const last = new Date(t.getFullYear(), t.getMonth() + 1, 0, 12, 0, 0, 0);
     return { start: ymd(first), end: ymd(last) };
   }
+  if (view === 'week') {
+    const off = (t.getDay() + 6) % 7;        // days since Monday (Mon=0 … Sun=6)
+    const mon = addDays(t, -off);
+    return { start: ymd(mon), end: ymd(addDays(mon, 6)) };
+  }
   if (view === 'all') {
     let earliest = tStr;
     items.forEach(h => { if (h.createdAt && h.createdAt < earliest) earliest = h.createdAt; });
@@ -235,7 +240,7 @@ function buildGrid(H, tStr) {
       : (firstOfMonth
           ? `<div style="font-size:8px;font-weight:800;color:${C.faint};text-align:center;line-height:1;">${MO[dt.getMonth()]}</div>`
           : `<div style="height:1px;"></div>`);
-    header += `<div style="width:${s.sq}px;margin-right:${s.gap}px;flex:0 0 auto;display:flex;justify-content:center;align-items:flex-end;min-height:${s.labels ? 26 : 12}px;">${label}</div>`;
+    header += `<div${isToday ? ' id="habit-today-col"' : ''} style="width:${s.sq}px;margin-right:${s.gap}px;flex:0 0 auto;display:flex;justify-content:center;align-items:flex-end;min-height:${s.labels ? 26 : 12}px;">${label}</div>`;
   });
   header += `</div>`;
 
@@ -594,8 +599,21 @@ export function initHabitsTab({ state, saveData, saveDataQuiet, render }) {
     const en2 = document.getElementById('habit-edit-name'); if (en2 && keep.en != null) en2.value = keep.en;
     const ee2 = document.getElementById('habit-edit-emoji'); if (ee2 && keep.ee != null) ee2.value = keep.ee;
     const grid2 = document.getElementById('habit-grid-scroll');
-    if (grid2) grid2.scrollLeft = (keepLeft != null ? keepLeft : grid2.scrollWidth);
+    if (grid2) { if (keepLeft != null) grid2.scrollLeft = keepLeft; else scrollGridToToday(); }
     window.scrollTo(0, pageY);
+  }
+
+  // bring today's column to the right edge (leaves the whole span visible when it fits)
+  function scrollGridToToday() {
+    const grid = document.getElementById('habit-grid-scroll');
+    if (!grid) return;
+    const col = document.getElementById('habit-today-col');
+    if (col) {
+      const gr = grid.getBoundingClientRect(), cr = col.getBoundingClientRect();
+      grid.scrollLeft += (cr.right - gr.right) + 10;
+    } else {
+      grid.scrollLeft = grid.scrollWidth;
+    }
   }
 
   window.habitToggle = (habitId, dStr) => {
@@ -681,12 +699,12 @@ export function initHabitsTab({ state, saveData, saveDataQuiet, render }) {
     const H = ensure();
     H.items = H.items.filter(x => x.id !== id);
     Object.keys(H.log).forEach(d => { if (H.log[d][id]) { delete H.log[d][id]; if (!Object.keys(H.log[d]).length) delete H.log[d]; } });
+    Object.keys(H.values || {}).forEach(d => { if (H.values[d][id] != null) { delete H.values[d][id]; if (!Object.keys(H.values[d]).length) delete H.values[d]; } });
     state.habitDeleteConfirm = null;
     saveDataQuiet();
     refresh();
   };
 
-  // initial: scroll the grid to today (far right)
-  const grid = document.getElementById('habit-grid-scroll');
-  if (grid) grid.scrollLeft = grid.scrollWidth;
+  // initial: bring today's column into view
+  scrollGridToToday();
 }
