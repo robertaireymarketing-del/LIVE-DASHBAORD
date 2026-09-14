@@ -230,7 +230,7 @@ function buildGrid(H, tStr) {
   }).join('');
 
   const totalW = LABEL_W + days.length * col + 8;
-  return `<div id="habit-grid-scroll" style="overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;padding:6px 0 4px;">
+  return `<div id="habit-grid-scroll" style="overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;padding:6px 0 4px;max-width:100%;">
     <div style="min-width:${totalW}px;">${header}${rows}</div>
   </div>`;
 }
@@ -308,7 +308,7 @@ function buildMetrics(H, tStr) {
     </tr>`;
   }).join('');
 
-  const table = `<div style="overflow-x:auto;">
+  const table = `<div style="overflow-x:auto;max-width:100%;">
     <table style="width:100%;border-collapse:collapse;min-width:340px;">
       <thead><tr>
         <th style="text-align:left;padding:0 8px 6px;font-size:9px;font-weight:900;letter-spacing:0.8px;text-transform:uppercase;color:${C.muted};">Habit</th>
@@ -336,16 +336,16 @@ function buildAddBar(state) {
     const h = H.items.find(x => x.id === editing);
     if (h) {
       return `<div style="background:${C.card};border:1.5px solid ${C.gold};border-radius:14px;padding:12px;margin-bottom:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <input id="habit-edit-emoji" value="${h.emoji || ''}" maxlength="2" placeholder="🙂" style="width:46px;text-align:center;padding:11px 4px;border:1px solid ${C.lineStrong};border-radius:10px;font-size:16px;background:${C.panel};color:${C.ink};" />
-        <input id="habit-edit-name" value="${h.name.replace(/"/g, '&quot;')}" style="flex:1 1 140px;padding:11px 12px;border:1px solid ${C.lineStrong};border-radius:10px;font-size:14px;background:${C.panel};color:${C.ink};" />
+        <input id="habit-edit-emoji" value="${h.emoji || ''}" maxlength="2" placeholder="🙂" style="width:46px;flex:0 0 auto;box-sizing:border-box;text-align:center;padding:11px 4px;border:1px solid ${C.lineStrong};border-radius:10px;font-size:16px;background:${C.panel};color:${C.ink};" />
+        <input id="habit-edit-name" value="${h.name.replace(/"/g, '&quot;')}" style="flex:1 1 120px;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid ${C.lineStrong};border-radius:10px;font-size:14px;background:${C.panel};color:${C.ink};" />
         <button onclick="habitEditSave('${h.id}')" style="padding:11px 16px;background:${C.gold};border:none;border-radius:10px;color:#1A1204;font-size:13px;font-weight:900;cursor:pointer;">Save</button>
         <button onclick="habitEditCancel()" style="padding:11px 14px;background:${C.panel};border:1px solid ${C.lineStrong};border-radius:10px;color:${C.muted};font-size:13px;font-weight:800;cursor:pointer;">Cancel</button>
       </div>`;
     }
   }
   return `<div style="background:${C.card};border:1px solid ${C.lineStrong};border-radius:14px;padding:12px;margin-bottom:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-    <input id="habit-new-emoji" maxlength="2" placeholder="🙂" style="width:46px;text-align:center;padding:11px 4px;border:1px solid ${C.lineStrong};border-radius:10px;font-size:16px;background:${C.panel};color:${C.ink};" />
-    <input id="habit-new-name" placeholder="New habit (e.g. Reading, Cold shower)" onkeydown="if(event.key==='Enter')habitAdd()" style="flex:1 1 160px;padding:11px 12px;border:1px solid ${C.lineStrong};border-radius:10px;font-size:14px;background:${C.panel};color:${C.ink};" />
+    <input id="habit-new-emoji" maxlength="2" placeholder="🙂" style="width:46px;flex:0 0 auto;box-sizing:border-box;text-align:center;padding:11px 4px;border:1px solid ${C.lineStrong};border-radius:10px;font-size:16px;background:${C.panel};color:${C.ink};" />
+    <input id="habit-new-name" placeholder="New habit (e.g. Reading, Cold shower)" onkeydown="if(event.key==='Enter')habitAdd()" style="flex:1 1 120px;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid ${C.lineStrong};border-radius:10px;font-size:14px;background:${C.panel};color:${C.ink};" />
     <button onclick="habitAdd()" style="padding:11px 18px;background:${C.navy};border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:900;cursor:pointer;">+ Add</button>
   </div>`;
 }
@@ -380,9 +380,10 @@ function buildManage(state, H) {
 function buildSwitcher(H) {
   const btns = VIEWS.map(([v, label]) => {
     const active = H.view === v;
-    return `<button onclick="habitSetView('${v}')" style="padding:8px 12px;border-radius:9px;border:1px solid ${active ? C.navy : C.lineStrong};background:${active ? C.navy : C.card};color:${active ? '#fff' : C.muted};font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;">${label}</button>`;
+    const txt = active ? '#ffffff' : C.muted;
+    return `<button onclick="habitSetView('${v}')" style="padding:8px 12px;border-radius:9px;border:1px solid ${active ? C.navy : C.lineStrong};background:${active ? C.navy : C.card} !important;color:${txt} !important;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;flex:0 0 auto;">${label}</button>`;
   }).join('');
-  return `<div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;margin-bottom:14px;">${btns}</div>`;
+  return `<div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;margin-bottom:14px;max-width:100%;">${btns}</div>`;
 }
 
 // ── Full body (rebuildable) ─────────────────────────────────────────────────
@@ -424,7 +425,7 @@ function legendDashed(edge, label) {
 
 // ── Public: render ──────────────────────────────────────────────────────────
 export function renderHabitsTab({ state }) {
-  return `<div id="habit-root" style="max-width:760px;margin:0 auto;">${buildBody(state)}</div>`;
+  return `<div id="habit-root" style="width:100%;max-width:760px;margin:0 auto;box-sizing:border-box;min-width:0;overflow-x:hidden;">${buildBody(state)}</div>`;
 }
 
 // ── Public: init (wires window handlers, runs after each render) ────────────
