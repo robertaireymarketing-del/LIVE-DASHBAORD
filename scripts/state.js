@@ -13,7 +13,7 @@ export const defaultSettings = {
 export const state = {
   user: null,
   data: null,
-  activeTab: 'straightline',
+  activeTab: 'today',                          // app opens on the new Home page
   saving: false,
   // ── Clarity (thinking tool) ──
   clarityView: 'today',                        // today | browse | history
