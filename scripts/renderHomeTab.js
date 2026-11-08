@@ -128,7 +128,7 @@ body.light .nh {
 .nh .nh-w-delta.up { color:var(--nh-red) !important; background:rgba(239,68,68,0.12); }
 .nh .nh-w-delta.flat { color:var(--nh-muted) !important; background:rgba(127,127,127,0.12); }
 .nh .nh-w-chart { margin:14px 0 4px; }
-.nh .nh-w-days { display:grid; grid-template-columns:repeat(7,1fr); font-size:10px; font-weight:800; text-align:center; color:var(--nh-muted) !important; }
+.nh .nh-w-days { display:grid; grid-template-columns:repeat(7,1fr); font-size:12px; font-weight:800; text-align:center; color:var(--nh-muted) !important; }
 .nh .nh-w-comp { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
 .nh .nh-w-comp-tile { border:1px solid var(--nh-line); border-radius:12px; padding:10px 12px; }
 .nh .nh-w-comp-k { font-size:10px; font-weight:900; letter-spacing:1.5px; color:var(--nh-muted) !important; }
@@ -136,11 +136,18 @@ body.light .nh {
 .nh .nh-w-comp-v span { font-size:12px; color:var(--nh-muted) !important; letter-spacing:0; margin-left:2px; }
 .nh .nh-w-comp-d { font-size:11px; font-weight:800; margin-top:2px; }
 .nh .nh-legend { display:flex; flex-direction:column; gap:5px; margin-top:8px; }
-.nh .nh-leg { display:flex; align-items:flex-start; gap:8px; font-size:12px; line-height:1.35; color:var(--nh-sub) !important; }
+.nh .nh-legend { gap:10px; margin-top:10px; }
+.nh .nh-leg { display:flex; align-items:flex-start; gap:10px; font-size:14px; line-height:1.4; color:var(--nh-sub) !important; }
 .nh .nh-leg span { color:var(--nh-sub) !important; }
-.nh .nh-leg b { color:var(--nh-text) !important; }
-.nh .nh-leg em { font-style:normal; color:var(--nh-muted) !important; }
-.nh .nh-leg i { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-top:3px; }
+.nh .nh-leg .nh-leg-name { font-weight:800; color:var(--nh-sub) !important; }
+.nh .nh-leg b { font-size:18px; font-weight:900; color:var(--nh-text) !important; font-variant-numeric:tabular-nums; }
+.nh .nh-leg em { white-space:nowrap; font-style:normal; font-size:13px; font-weight:700; color:var(--nh-muted) !important; }
+.nh .nh-leg i { width:12px; height:12px; border-radius:50%; flex-shrink:0; margin-top:6px; }
+.nh .nh-cal-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.nh .nh-cal-nav button { width:44px; height:44px; border-radius:12px; border:1px solid var(--nh-line); background:transparent; font-size:22px; font-weight:900; color:var(--nh-text) !important; }
+.nh .nh-cal-nav button:disabled { opacity:0.3; cursor:default; }
+.nh .nh-cal-title { font-size:16px; font-weight:900; color:var(--nh-text) !important; text-align:center; }
+.nh .nh-cal-title em { font-style:normal; font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--nh-gold) !important; margin-left:4px; }
 .nh .nh-w-target { display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--nh-line); }
 .nh .nh-w-target-lbl { font-size:13px; font-weight:700; color:var(--nh-sub) !important; }
 .nh .nh-w-target-val { font-size:20px; font-weight:900; color:var(--nh-text) !important; font-variant-numeric:tabular-nums; }
@@ -306,42 +313,69 @@ export function renderHomeTab(deps) {
     return parseKey(k).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   };
 
-  // Calendar-month chart: weight + body fat, actual to date (solid) and projected to
-  // month end (dashed). Projection = least-squares trend over the last 28 days of
-  // readings (falls back to whatever exists, needs ≥ 3 readings spanning ≥ 5 days).
-  // A regression over ~4 weeks smooths daily water swings far better than
-  // first-vs-last, while still reacting to a change in pace within the month.
+  // Calendar-month chart: weight + body fat. Scroll months with ‹ ›
+  // (state.homeChartMonth = offset from this month; negative = past).
+  //  • Past months: actual readings only.
+  //  • This month: actual to date (solid) + projection to month end (dashed).
+  //  • Future months: projection only (dashed).
+  // Projection = least-squares trend over the last 28 days of readings, anchored on
+  // the latest reading (needs ≥ 3 readings spanning ≥ 5 days). A ~4-week regression
+  // smooths daily water swings far better than first-vs-last.
   function chart() {
     const now = parseKey(todayKey);
-    const mStart = localKey(new Date(now.getFullYear(), now.getMonth(), 1, 12));
-    const nDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const allKeys = Object.keys(weightByDate).concat(Object.keys(bfByDate)).sort();
+    const firstKey = allKeys[0] || todayKey;
+    const minOff = (parseKey(firstKey).getFullYear() - now.getFullYear()) * 12 + (parseKey(firstKey).getMonth() - now.getMonth());
+    const maxOff = 12;
+    const mOff = Math.max(minOff, Math.min(maxOff, state.homeChartMonth || 0));
+    const mDate = new Date(now.getFullYear(), now.getMonth() + mOff, 1, 12);
+    const mStart = localKey(mDate);
+    const nDays = new Date(mDate.getFullYear(), mDate.getMonth() + 1, 0).getDate();
     const mEnd = addDaysKey(mStart, nDays - 1);
-    const dayIdx = (k) => Math.round((parseKey(k) - parseKey(mStart)) / 86400000); // 0-based
+    const dayIdx = (k) => Math.round((parseKey(k) - parseKey(mStart)) / 86400000); // can be <0 / >nDays-1
     const todayIdx = dayIdx(todayKey);
+    const monthLabel = mDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    const monthShort = mDate.toLocaleDateString('en-GB', { month: 'short' });
 
     function build(byDate) {
       const keys = Object.keys(byDate).sort();
-      const actual = keys.filter(k => k >= mStart && k <= todayKey).map(k => ({ i: dayIdx(k), v: +byDate[k] }));
+      const actual = keys.filter(k => k >= mStart && k <= mEnd && k <= todayKey).map(k => ({ i: dayIdx(k), v: +byDate[k], k }));
       const win = keys.filter(k => k >= addDaysKey(todayKey, -27) && k <= todayKey);
       let slope = null;
-      if (win.length >= 3 && dayIdx(win[win.length - 1]) - dayIdx(win[0]) >= 5) {
-        const xs = win.map(dayIdx), ys = win.map(k => +byDate[k]);
-        const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
-        const num = xs.reduce((a, x, j) => a + (x - mx) * (ys[j] - my), 0);
-        const den = xs.reduce((a, x) => a + (x - mx) ** 2, 0);
-        slope = den ? num / den : null; // per day
+      if (win.length >= 3) {
+        const xs = win.map(k => Math.round((parseKey(k) - now) / 86400000));
+        if (xs[xs.length - 1] - xs[0] >= 5) {
+          const ys = win.map(k => +byDate[k]);
+          const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+          const num = xs.reduce((a, x, j) => a + (x - mx) * (ys[j] - my), 0);
+          const den = xs.reduce((a, x) => a + (x - mx) ** 2, 0);
+          slope = den ? num / den : null; // per day
+        }
+      }
+      const latestKey = keys.filter(k => k <= todayKey).slice(-1)[0];
+      const anchor = latestKey ? { i: dayIdx(latestKey), v: +byDate[latestKey] } : null;
+      const valAt = (i) => anchor.v + slope * (i - anchor.i);
+      let proj = [];
+      if (anchor && slope != null && mEnd > latestKey) {
+        const i0 = Math.max(anchor.i, 0);
+        proj = [{ i: i0, v: valAt(i0) }, { i: nDays - 1, v: valAt(nDays - 1) }];
       }
       const last = actual[actual.length - 1] || null;
-      let proj = [];
-      if (last && slope != null && last.i < nDays - 1) {
-        proj = [{ i: last.i, v: last.v }, { i: nDays - 1, v: last.v + slope * (nDays - 1 - last.i) }];
-      }
-      return { actual, proj, slope, last, end: proj.length ? proj[1].v : null };
+      return { actual, proj, slope, last, end: proj.length ? proj[1].v : null, start: proj.length ? proj[0].v : null };
     }
     const W = build(weightByDate), B = build(bfByDate);
-    if (W.actual.length + B.actual.length === 0) return `<div class="nh-empty">No weight or body fat readings this month yet.</div>`;
 
-    const VW = 320, VH = 120, padL = 30, padR = 30, padT = 10, padB = 10;
+    const nav = `
+    <div class="nh-cal-nav">
+      <button onclick="homeChartShift(-1)" ${mOff <= minOff ? 'disabled' : ''} aria-label="Previous month">‹</button>
+      <div class="nh-cal-title">${monthLabel}${mOff === 0 ? '' : mOff > 0 ? ' <em>projected</em>' : ''}</div>
+      <button onclick="homeChartShift(1)" ${mOff >= maxOff ? 'disabled' : ''} aria-label="Next month">›</button>
+    </div>`;
+    if (W.actual.length + B.actual.length + W.proj.length + B.proj.length === 0) {
+      return nav + `<div class="nh-empty">${mOff > 0 ? 'Not enough recent data to project this month.' : 'No weight or body fat readings this month.'}</div>`;
+    }
+
+    const VW = 320, VH = 130, padL = 34, padR = 40, padT = 12, padB = 12;
     const x = (i) => padL + (i / (nDays - 1)) * (VW - padL - padR);
     const scaler = (ser) => {
       const vals = ser.actual.map(p => p.v).concat(ser.proj.map(p => p.v));
@@ -355,32 +389,41 @@ export function renderHomeTab(deps) {
     const path = (pts, sc) => pts.map(p => `${x(p.i).toFixed(1)},${sc.y(p.v).toFixed(1)}`).join(' ');
     const line = (ser, sc, col) => !sc ? '' : `
       ${ser.actual.length > 1 ? `<polyline points="${path(ser.actual, sc)}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></polyline>` : ''}
-      ${ser.proj.length ? `<polyline points="${path(ser.proj, sc)}" fill="none" stroke="${col}" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round" opacity="0.8"></polyline>` : ''}
+      ${ser.proj.length ? `<polyline points="${path(ser.proj, sc)}" fill="none" stroke="${col}" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round" opacity="0.85"></polyline>` : ''}
       ${ser.actual.map(p => `<circle cx="${x(p.i).toFixed(1)}" cy="${sc.y(p.v).toFixed(1)}" r="${p === ser.last ? 4 : 2.2}" fill="${col}"></circle>`).join('')}
       ${ser.proj.length ? `<circle cx="${x(nDays - 1).toFixed(1)}" cy="${sc.y(ser.end).toFixed(1)}" r="3.5" fill="none" stroke="${col}" stroke-width="2"></circle>` : ''}`;
-    const axis = (sc, side, col, fmt) => !sc ? '' : [sc.hi, sc.lo].map((v, j) => `<text x="${side === 'l' ? 2 : VW - 2}" y="${j ? VH - padB : padT + 8}" text-anchor="${side === 'l' ? 'start' : 'end'}" font-size="9" font-weight="800" fill="${col}">${fmt(v)}</text>`).join('');
+    const axis = (sc, side, col, fmt) => !sc ? '' : [sc.hi, sc.lo].map((v, j) => `<text x="${side === 'l' ? 0 : VW}" y="${j ? VH - padB + 4 : padT + 4}" text-anchor="${side === 'l' ? 'start' : 'end'}" font-size="13" font-weight="900" fill="${col}">${fmt(v)}</text>`).join('');
     const weekLines = [7, 14, 21, 28].filter(d => d < nDays).map(d => `<line x1="${x(d).toFixed(1)}" x2="${x(d).toFixed(1)}" y1="${padT}" y2="${VH - padB}" stroke="var(--nh-line)" stroke-width="1"></line>`).join('');
-    const todayLine = `<line x1="${x(todayIdx).toFixed(1)}" x2="${x(todayIdx).toFixed(1)}" y1="${padT - 4}" y2="${VH - padB}" stroke="var(--nh-muted)" stroke-width="1" stroke-dasharray="2 3"></line>`;
+    const todayLine = todayIdx >= 0 && todayIdx < nDays ? `<line x1="${x(todayIdx).toFixed(1)}" x2="${x(todayIdx).toFixed(1)}" y1="${padT - 4}" y2="${VH - padB}" stroke="var(--nh-muted)" stroke-width="1" stroke-dasharray="2 3"></line>` : '';
 
-    const monthName = now.toLocaleDateString('en-GB', { month: 'short' });
-    const legend = (label, ser, col, unit, dp) => {
-      if (!ser.last) return `<div class="nh-leg"><i style="background:${col};"></i><span>${label}: no readings this month</span></div>`;
-      const endTxt = ser.end != null ? ` → <b>${ser.end.toFixed(dp)}${unit}</b> by ${nDays} ${monthName}` : ' · not enough data to project';
-      const wk = ser.slope != null ? ` <em>(${ser.slope * 7 > 0 ? '+' : ''}${(ser.slope * 7).toFixed(dp === 0 ? 1 : dp)}${unit}/wk)</em>` : '';
-      return `<div class="nh-leg"><i style="background:${col};"></i><span>${label} <b>${ser.last.v.toFixed(dp)}${unit}</b>${endTxt}${wk}</span></div>`;
+    const legend = (label, ser, col, unit) => {
+      const f = (v) => v.toFixed(1) + unit;
+      let body;
+      if (mOff < 0) {
+        body = ser.actual.length
+          ? `<b>${f(ser.actual[0].v)}</b> → <b>${f(ser.last.v)}</b> <em>(${ser.last.v - ser.actual[0].v > 0 ? '+' : ''}${(ser.last.v - ser.actual[0].v).toFixed(1)}${unit})</em>`
+          : 'no readings';
+      } else if (mOff > 0) {
+        body = ser.proj.length ? `<b>${f(ser.start)}</b> → <b>${f(ser.end)}</b> by ${nDays} ${monthShort}` : 'not enough data to project';
+      } else {
+        body = !ser.last ? 'no readings this month'
+          : `<b>${f(ser.last.v)}</b>${ser.end != null ? ` → <b>${f(ser.end)}</b> by ${nDays} ${monthShort}` : ' · not enough data to project'}`;
+      }
+      const wk = mOff >= 0 && ser.slope != null ? ` <em>(${ser.slope * 7 > 0 ? '+' : ''}${(ser.slope * 7).toFixed(1)}${unit}/wk)</em>` : '';
+      return `<div class="nh-leg"><i style="background:${col};"></i><span><span class="nh-leg-name">${label}</span> ${body}${wk}</span></div>`;
     };
-    return `
-    <svg viewBox="0 0 ${VW} ${VH}" width="100%" height="${VH}" role="img" aria-label="Weight and body fat this month with projection to month end" style="display:block;">
+    return nav + `
+    <svg viewBox="0 0 ${VW} ${VH}" width="100%" height="${VH}" role="img" aria-label="Weight and body fat, ${monthLabel}" style="display:block;">
       ${weekLines}${todayLine}
       ${axis(sw, 'l', WC, v => v.toFixed(0))}${axis(sb, 'r', BC, v => v.toFixed(1) + '%')}
       ${line(B, sb, BC)}${line(W, sw, WC)}
     </svg>
-    <div class="nh-w-days" aria-hidden="true" style="position:relative;height:14px;display:block;">
+    <div class="nh-w-days" aria-hidden="true" style="position:relative;height:16px;display:block;">
       ${[1, 8, 15, 22, 29].map(d => `<span style="position:absolute;left:${(x(d - 1) / VW * 100).toFixed(2)}%;transform:translateX(-50%);">${d}</span>`).join('')}
     </div>
     <div class="nh-legend">
-      ${legend('Weight', W, WC, ' lb', 1)}
-      ${legend('Body fat', B, BC, '%', 1)}
+      ${legend('Weight', W, WC, ' lb')}
+      ${legend('Body fat', B, BC, '%')}
     </div>`;
   }
 

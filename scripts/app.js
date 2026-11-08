@@ -431,6 +431,7 @@ window.handleLogout = async () => { await signOut(auth); try { localStorage.remo
 window.setTab = (tab) => { state.activeTab = tab; state.selectedEditDate = null; state.moreMenuOpen = false; if (tab !== 'bricks') state.bricksViewDate = null; render(); };
 window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render(); };
 // ── New Home: past-day overrides for Gym / Diet (today can't be overridden) ──
+window.homeChartShift = (d) => { state.homeChartMonth = (state.homeChartMonth || 0) + d; render(); };
 window.toggleHomeEdit = () => { state.homeEditOpen = !state.homeEditOpen; state.homePending = null; render(); };
 window.homeEditShift = (delta) => {
   const today = getToday();
