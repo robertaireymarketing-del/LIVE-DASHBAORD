@@ -74,18 +74,18 @@ body.light .nh {
 .nh .nh-card { background:var(--nh-card); border:1px solid var(--nh-line); border-radius:18px; }
 .nh .nh-kicker { font-size:11px; font-weight:900; letter-spacing:2.5px; color:var(--nh-muted) !important; }
 
-/* 1. Lease countdown — bright & bold, same in both themes */
-.nh .nh-lease { background:linear-gradient(160deg,#FF3B30 0%,#FF6A00 100%) !important; border:0; border-radius:20px; padding:20px 18px 18px; color:#fff; }
-.nh .nh-lease .nh-kicker { color:rgba(255,255,255,0.85) !important; }
-.nh .nh-lease-units { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px; }
-.nh .nh-lease-unit { background:rgba(0,0,0,0.22); border-radius:14px; padding:12px 6px 10px; text-align:center; }
-.nh .nh-lease-num { font-size:52px; font-weight:900; line-height:1; letter-spacing:-2px; color:#FFFFFF !important; font-variant-numeric:tabular-nums; }
-.nh .nh-lease-lbl { font-size:11px; font-weight:900; letter-spacing:2px; margin-top:6px; color:rgba(255,255,255,0.9) !important; }
-.nh .nh-lease-passed { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.3); }
-.nh .nh-lease-passed-val { font-size:20px; font-weight:900; color:#FFFFFF !important; letter-spacing:-0.3px; }
-.nh .nh-lease-bar { height:8px; background:rgba(0,0,0,0.25); border-radius:4px; margin-top:10px; overflow:hidden; }
-.nh .nh-lease-bar div { height:100%; background:#FFFFFF; border-radius:4px; }
-.nh .nh-lease-foot { display:flex; justify-content:space-between; gap:10px; margin-top:12px; font-size:12px; font-weight:700; color:rgba(255,255,255,0.92) !important; }
+/* 1. Lease countdown — bright & bold, same in both themes (compact) */
+.nh .nh-lease { background:linear-gradient(160deg,#FF3B30 0%,#FF6A00 100%) !important; border:0; border-radius:16px; padding:11px 12px 10px; color:#fff; }
+.nh .nh-lease .nh-kicker { font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.85) !important; }
+.nh .nh-lease-units { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:7px; }
+.nh .nh-lease-unit { background:rgba(0,0,0,0.22); border-radius:10px; padding:6px 4px 5px; text-align:center; display:flex; align-items:baseline; justify-content:center; gap:5px; }
+.nh .nh-lease-num { font-size:26px; font-weight:900; line-height:1; letter-spacing:-1px; color:#FFFFFF !important; font-variant-numeric:tabular-nums; }
+.nh .nh-lease-lbl { font-size:9px; font-weight:900; letter-spacing:1.5px; color:rgba(255,255,255,0.9) !important; }
+.nh .nh-lease-passed { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-top:8px; padding-top:7px; border-top:1px solid rgba(255,255,255,0.3); }
+.nh .nh-lease-passed-val { font-size:14px; font-weight:900; color:#FFFFFF !important; }
+.nh .nh-lease-bar { height:5px; background:rgba(0,0,0,0.25); border-radius:3px; margin-top:6px; overflow:hidden; }
+.nh .nh-lease-bar div { height:100%; background:#FFFFFF; border-radius:3px; }
+.nh .nh-lease-foot { display:flex; justify-content:space-between; gap:8px; margin-top:6px; font-size:10px; font-weight:700; color:rgba(255,255,255,0.92) !important; }
 
 /* 2. Birthday countdown */
 .nh .nh-bday { padding:16px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
