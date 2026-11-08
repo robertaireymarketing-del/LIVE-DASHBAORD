@@ -92,12 +92,14 @@ body.light .nh {
 .nh .nh-lease-lbl { font-size:9px; font-weight:900; letter-spacing:1.5px; color:rgba(255,255,255,0.9) !important; }
 .nh .nh-lease-passed { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-top:8px; padding-top:7px; border-top:1px solid rgba(255,255,255,0.3); }
 .nh .nh-lease-passed-val { font-size:14px; font-weight:900; color:#FFFFFF !important; }
-.nh .nh-lease-track { position:relative; height:8px; margin-top:10px; }
-.nh .nh-lease-bar { position:absolute; inset:0; background:rgba(0,0,0,0.25); border-radius:4px; overflow:hidden; }
-.nh .nh-lease-bar div { height:100%; background:#FFFFFF; border-radius:4px; }
-.nh .nh-tick { position:absolute; top:0; width:1px; height:8px; background:rgba(0,0,0,0.35); transform:translateX(-0.5px); }
-.nh .nh-tick.year { top:-3px; width:2px; height:14px; background:#FFFFFF; border-radius:1px; transform:translateX(-1px); box-shadow:0 0 0 1px rgba(0,0,0,0.15); }
-.nh .nh-lease-years { position:relative; height:12px; margin-top:5px; }
+.nh .nh-lease-track { position:relative; height:10px; margin-top:16px; }
+.nh .nh-lease-bar { position:absolute; inset:0; background:rgba(0,0,0,0.28); border-radius:5px; overflow:hidden; }
+.nh .nh-lease-bar div { height:100%; background:#FFFFFF; border-radius:5px; }
+/* Quarter: white bar poking out above & below, dark edge so it shows on the white fill too */
+.nh .nh-tick { position:absolute; top:-4px; width:2px; height:18px; background:rgba(255,255,255,0.9); border-radius:1px; transform:translateX(-1px); box-shadow:0 0 0 1px rgba(120,20,0,0.55); }
+/* Year: thicker and taller */
+.nh .nh-tick.year { top:-7px; width:4px; height:24px; background:#FFFFFF; border-radius:2px; transform:translateX(-2px); box-shadow:0 0 0 1.5px rgba(120,20,0,0.7); }
+.nh .nh-lease-years { position:relative; height:12px; margin-top:10px; }
 .nh .nh-lease-years span { position:absolute; top:0; transform:translateX(-50%); font-size:9px; font-weight:800; color:rgba(255,255,255,0.9) !important; }
 .nh .nh-lease-years span:first-child { transform:none; }
 .nh .nh-lease-years span:last-child { transform:translateX(-100%); }
