@@ -92,14 +92,16 @@ body.light .nh {
 .nh .nh-lease-lbl { font-size:9px; font-weight:900; letter-spacing:1.5px; color:rgba(255,255,255,0.9) !important; }
 .nh .nh-lease-passed { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-top:8px; padding-top:7px; border-top:1px solid rgba(255,255,255,0.3); }
 .nh .nh-lease-passed-val { font-size:14px; font-weight:900; color:#FFFFFF !important; }
-.nh .nh-lease-track { position:relative; height:10px; margin-top:16px; }
-.nh .nh-lease-bar { position:absolute; inset:0; background:rgba(0,0,0,0.28); border-radius:5px; overflow:hidden; }
-.nh .nh-lease-bar div { height:100%; background:#FFFFFF; border-radius:5px; }
-/* Quarter: white bar poking out above & below, dark edge so it shows on the white fill too */
-.nh .nh-tick { position:absolute; top:-4px; width:2px; height:18px; background:rgba(255,255,255,0.9); border-radius:1px; transform:translateX(-1px); box-shadow:0 0 0 1px rgba(120,20,0,0.55); }
-/* Year: thicker and taller */
-.nh .nh-tick.year { top:-7px; width:4px; height:24px; background:#FFFFFF; border-radius:2px; transform:translateX(-2px); box-shadow:0 0 0 1.5px rgba(120,20,0,0.7); }
-.nh .nh-lease-years { position:relative; height:12px; margin-top:10px; }
+.nh .nh-lease-track { display:flex; align-items:center; height:10px; margin-top:12px; }
+.nh .nh-lease-yr { display:flex; gap:2px; flex:1; height:100%; }
+.nh .nh-lease-yr + .nh-lease-yr { margin-left:6px; }
+.nh .nh-seg-q { flex:1; height:100%; background:rgba(0,0,0,0.22); border-radius:3px; overflow:hidden; position:relative; }
+.nh .nh-seg-q > i { position:absolute; inset:0 auto 0 0; background:#FFFFFF; }
+.nh .nh-seg-q.current { box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.85); }
+.nh .nh-lease-q { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-top:10px; padding:8px 10px; border-radius:10px; background:rgba(0,0,0,0.18); }
+.nh .nh-lease-q-lbl { font-size:10px; font-weight:900; letter-spacing:1.5px; color:rgba(255,255,255,0.88) !important; }
+.nh .nh-lease-q-val { font-size:14px; font-weight:900; color:#FFFFFF !important; white-space:nowrap; }
+.nh .nh-lease-years { position:relative; height:12px; margin-top:6px; }
 .nh .nh-lease-years span { position:absolute; top:0; transform:translateX(-50%); font-size:9px; font-weight:800; color:rgba(255,255,255,0.9) !important; }
 .nh .nh-lease-years span:first-child { transform:none; }
 .nh .nh-lease-years span:last-child { transform:translateX(-100%); }
@@ -189,6 +191,22 @@ export function renderHomeTab(deps) {
   const passed = ymdUntil(todayKey, LEASE_START); // time elapsed since the lease started
   const leaseTotal = Math.round((parseKey(LEASE_END) - parseKey(LEASE_START)) / 86400000);
   const passedPct = Math.min(100, Math.max(0, (passed.totalDays / leaseTotal) * 100));
+  // Lease quarters (20 × 3 months from 24 Sep 2026)
+  const addMonthsKey = (k, n) => { const d = parseKey(k); d.setMonth(d.getMonth() + n); return localKey(d); };
+  let qIdx = 0;
+  while (qIdx < 19 && addMonthsKey(LEASE_START, 3 * (qIdx + 1)) <= todayKey) qIdx++;
+  const qStart = addMonthsKey(LEASE_START, 3 * qIdx);
+  const qEnd = addMonthsKey(LEASE_START, 3 * (qIdx + 1));
+  const qLeft = ymdUntil(qEnd, todayKey);
+  const qWeeks = Math.floor(qLeft.d / 7), qDays = qLeft.d % 7;
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const qLeftTxt = qLeft.past ? 'Quarter complete'
+    : [qLeft.m ? plural(qLeft.m, 'month') : '', qWeeks ? plural(qWeeks, 'week') : '', qDays || (!qLeft.m && !qWeeks) ? plural(qDays, 'day') : ''].filter(Boolean).join(' ');
+  const segFill = (q) => {
+    const a = parseKey(addMonthsKey(LEASE_START, 3 * q)), b = parseKey(addMonthsKey(LEASE_START, 3 * (q + 1))), t = parseKey(todayKey);
+    if (t >= b) return 100; if (t <= a) return 0;
+    return Math.max(4, ((t - a) / (b - a)) * 100);
+  };
   const passedTxt = [passed.y ? `${passed.y}y` : '', passed.y || passed.m ? `${passed.m}m` : '', `${passed.d}d`].filter(Boolean).join(' ');
   const leaseSection = `
   <section class="nh-lease" aria-label="Shop lease countdown">
@@ -203,14 +221,17 @@ export function renderHomeTab(deps) {
       <div class="nh-kicker">PASSED SINCE 24 SEP 2026</div>
       <div class="nh-lease-passed-val">${passedTxt}</div>
     </div>
-    <div class="nh-lease-track" role="img" aria-label="${passedPct.toFixed(1)}% of the lease gone">
-      <div class="nh-lease-bar"><div style="width:${Math.max(passedPct, 0.8)}%;"></div></div>
-      ${Array.from({ length: 19 }, (_, i) => i + 1).map(q => `<span class="nh-tick ${q % 4 === 0 ? 'year' : ''}" style="left:${(q / 20) * 100}%;"></span>`).join('')}
+    <div class="nh-lease-track" role="img" aria-label="${passedPct.toFixed(1)}% of the lease gone, quarter ${qIdx + 1} of 20">
+      ${[0, 1, 2, 3, 4].map(y => `<div class="nh-lease-yr">${[0, 1, 2, 3].map(qq => { const q = y * 4 + qq; return `<span class="nh-seg-q ${q === qIdx ? 'current' : ''}"><i style="width:${segFill(q)}%;"></i></span>`; }).join('')}</div>`).join('')}
     </div>
     <div class="nh-lease-years" aria-hidden="true">
       ${[0, 1, 2, 3, 4, 5].map(y => `<span style="left:${y * 20}%;">${y === 0 ? 'Sep 26' : y === 5 ? 'Sep 31' : 'Y' + y}</span>`).join('')}
     </div>
     <div class="nh-lease-foot"><span>${passed.totalDays.toLocaleString()} days gone</span><span>${passedPct.toFixed(1)}% of 5 years</span></div>
+    <div class="nh-lease-q">
+      <span class="nh-lease-q-lbl">LEFT THIS QUARTER · Q${qIdx + 1}/20</span>
+      <span class="nh-lease-q-val">${qLeftTxt}</span>
+    </div>
   </section>`;
 
   // ── 2. 30th birthday countdown ──────────────────────────────────────────
