@@ -148,10 +148,15 @@ body.light .nh {
 .nh .nh-cal-nav button:disabled { opacity:0.3; cursor:default; }
 .nh .nh-cal-title { font-size:16px; font-weight:900; color:var(--nh-text) !important; text-align:center; }
 .nh .nh-cal-title em { font-style:normal; font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--nh-gold) !important; margin-left:4px; }
-.nh .nh-w-target { display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--nh-line); }
+.nh .nh-w-target { margin-top:14px; padding-top:12px; border-top:1px solid var(--nh-line); }
+.nh .nh-w-target-head { font-size:14px; font-weight:800; color:var(--nh-sub) !important; }
+.nh .nh-w-target-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+.nh .nh-w-target-cell { border:1px solid var(--nh-line); border-radius:12px; padding:10px 12px; }
+.nh .nh-w-target-k { font-size:10px; font-weight:900; letter-spacing:1.5px; }
+.nh .nh-w-target-from { font-size:11px; font-weight:600; margin-top:4px; color:var(--nh-muted) !important; }
 .nh .nh-w-target-lbl { font-size:13px; font-weight:700; color:var(--nh-sub) !important; }
 .nh .nh-w-target-val { font-size:20px; font-weight:900; color:var(--nh-text) !important; font-variant-numeric:tabular-nums; }
-.nh .nh-w-target-gap { font-size:12px; font-weight:800; margin-top:2px; text-align:right; }
+.nh .nh-w-target-gap { font-size:12px; font-weight:800; margin-top:2px; }
 .nh .nh-empty { font-size:13px; font-style:italic; color:var(--nh-muted) !important; padding:6px 0; }
 
 /* 4. Gym / Diet */
@@ -482,6 +487,16 @@ export function renderHomeTab(deps) {
       </div>
     </div>`;
   const deltaTxt = delta7 == null ? '— 7d' : `${delta7 > 0 ? '+' : ''}${delta7} lb · 7d`;
+  // Body fat target for the same week: base BF (same Sunday rule as weight) minus
+  // bfLossRate percentage points — the same rule the Health page / old home used.
+  const bfWeekBaseKey = bfDates.filter(k => k <= lastSunKey).slice(-1)[0] || bfDates.find(k => k >= thisWeek[0]);
+  const bfWeekBase = bfWeekBaseKey ? +bfByDate[bfWeekBaseKey] : null;
+  const bfTarget = bfWeekBase != null ? +(bfWeekBase - lossRate).toFixed(1) : null;
+  const bfGap = bfNow != null && bfTarget != null ? +(bfNow - bfTarget).toFixed(1) : null;
+  const bfGapHtml = bfGap == null ? '' : bfGap <= 0
+    ? `<div class="nh-w-target-gap" style="color:var(--nh-green) !important;">Hit ✓ (${Math.abs(bfGap)}% under)</div>`
+    : `<div class="nh-w-target-gap" style="color:var(--nh-red) !important;">${bfGap}% to go</div>`;
+  const fmtBase = (k) => parseKey(k).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   const gapHtml = gap == null ? '' : gap <= 0
     ? `<div class="nh-w-target-gap" style="color:var(--nh-green) !important;">Hit ✓ (${Math.abs(gap)} lb under)</div>`
     : `<div class="nh-w-target-gap" style="color:var(--nh-red) !important;">${gap} lb to go</div>`;
@@ -499,10 +514,20 @@ export function renderHomeTab(deps) {
     ${compSection}
     <div class="nh-w-chart" data-swipe-months="1">${chart()}</div>
     <div class="nh-w-target">
-      <div class="nh-w-target-lbl">Target by Sun ${parseKey(targetSunKey).getDate()} ${parseKey(targetSunKey).toLocaleDateString('en-GB', { month: 'short' })}<div style="font-size:11px;font-weight:600;margin-top:2px;color:var(--nh-muted) !important;">from ${weekBase != null ? (+weekBase).toFixed(1) + ' lb on ' + parseKey(weekBaseKey).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : '—'} − ${lossRate}%</div></div>
-      <div>
-        <div class="nh-w-target-val">${sundayTarget != null ? sundayTarget + ' lb' : '—'}</div>
-        ${gapHtml}
+      <div class="nh-w-target-head">Target by Sun ${parseKey(targetSunKey).getDate()} ${parseKey(targetSunKey).toLocaleDateString('en-GB', { month: 'short' })}</div>
+      <div class="nh-w-target-grid">
+        <div class="nh-w-target-cell">
+          <div class="nh-w-target-k" style="color:var(--nh-wcol) !important;">WEIGHT</div>
+          <div class="nh-w-target-val">${sundayTarget != null ? sundayTarget + ' lb' : '—'}</div>
+          ${gapHtml}
+          <div class="nh-w-target-from">from ${weekBase != null ? (+weekBase).toFixed(1) + ' lb · ' + fmtBase(weekBaseKey) : '—'} − ${lossRate}%</div>
+        </div>
+        <div class="nh-w-target-cell">
+          <div class="nh-w-target-k" style="color:var(--nh-bcol) !important;">BODY FAT</div>
+          <div class="nh-w-target-val">${bfTarget != null ? bfTarget.toFixed(1) + '%' : '—'}</div>
+          ${bfGapHtml}
+          <div class="nh-w-target-from">from ${bfWeekBase != null ? bfWeekBase.toFixed(1) + '% · ' + fmtBase(bfWeekBaseKey) : '—'} − ${lossRate} pts</div>
+        </div>
       </div>
     </div>
   </section>`;
