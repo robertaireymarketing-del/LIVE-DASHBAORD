@@ -299,7 +299,14 @@ export function renderHomeTab(deps) {
   const settings = (deps.getSettings && deps.getSettings()) || {};
   const lossRate = settings.bfLossRate || 0.75;
   const thisWeek = weekDates(todayKey);
-  const lastSunKey = addDaysKey(thisWeek[0], -1);
+  // Weeks run Mon–Sun; the Sunday weigh-in closes the week. So once today is Sunday
+  // AND today's weigh-in is in, roll forward: today's weight becomes the base and
+  // the target is NEXT Sunday. Otherwise the base is last Sunday's weigh-in and the
+  // target is this coming Sunday.
+  const isSunday = parseKey(todayKey).getDay() === 0;
+  const rolled = isSunday && weightByDate[todayKey] != null;
+  const lastSunKey = rolled ? todayKey : addDaysKey(thisWeek[0], -1);
+  const targetSunKey = rolled ? addDaysKey(todayKey, 7) : thisWeek[6];
   const weekBaseKey = weightDates.filter(k => k <= lastSunKey).slice(-1)[0]
     || weightDates.find(k => k >= thisWeek[0]);
   const weekBase = weekBaseKey ? weightByDate[weekBaseKey] : null;
@@ -492,7 +499,7 @@ export function renderHomeTab(deps) {
     ${compSection}
     <div class="nh-w-chart" data-swipe-months="1">${chart()}</div>
     <div class="nh-w-target">
-      <div class="nh-w-target-lbl">Target by Sunday</div>
+      <div class="nh-w-target-lbl">Target by Sun ${parseKey(targetSunKey).getDate()} ${parseKey(targetSunKey).toLocaleDateString('en-GB', { month: 'short' })}<div style="font-size:11px;font-weight:600;margin-top:2px;color:var(--nh-muted) !important;">from ${weekBase != null ? (+weekBase).toFixed(1) + ' lb on ' + parseKey(weekBaseKey).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : '—'} − ${lossRate}%</div></div>
       <div>
         <div class="nh-w-target-val">${sundayTarget != null ? sundayTarget + ' lb' : '—'}</div>
         ${gapHtml}
