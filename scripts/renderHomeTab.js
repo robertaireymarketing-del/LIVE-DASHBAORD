@@ -76,6 +76,7 @@ body.light .nh {
 
 /* 1. Lease countdown — bright & bold, same in both themes (compact) */
 .nh .nh-lease { background:linear-gradient(160deg,#FF3B30 0%,#FF6A00 100%) !important; border:0; border-radius:16px; padding:11px 12px 10px; color:#fff; }
+.nh .nh-lease-title { font-size:22px; font-weight:900; letter-spacing:-0.3px; line-height:1.1; color:#FFFFFF !important; }
 .nh .nh-lease .nh-kicker { font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.85) !important; }
 .nh .nh-lease-units { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:7px; }
 .nh .nh-lease-unit { background:rgba(0,0,0,0.22); border-radius:10px; padding:6px 4px 5px; text-align:center; display:flex; align-items:baseline; justify-content:center; gap:5px; }
@@ -83,17 +84,25 @@ body.light .nh {
 .nh .nh-lease-lbl { font-size:9px; font-weight:900; letter-spacing:1.5px; color:rgba(255,255,255,0.9) !important; }
 .nh .nh-lease-passed { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-top:8px; padding-top:7px; border-top:1px solid rgba(255,255,255,0.3); }
 .nh .nh-lease-passed-val { font-size:14px; font-weight:900; color:#FFFFFF !important; }
-.nh .nh-lease-bar { height:5px; background:rgba(0,0,0,0.25); border-radius:3px; margin-top:6px; overflow:hidden; }
-.nh .nh-lease-bar div { height:100%; background:#FFFFFF; border-radius:3px; }
+.nh .nh-lease-track { position:relative; height:8px; margin-top:10px; }
+.nh .nh-lease-bar { position:absolute; inset:0; background:rgba(0,0,0,0.25); border-radius:4px; overflow:hidden; }
+.nh .nh-lease-bar div { height:100%; background:#FFFFFF; border-radius:4px; }
+.nh .nh-tick { position:absolute; top:0; width:1px; height:8px; background:rgba(0,0,0,0.35); transform:translateX(-0.5px); }
+.nh .nh-tick.year { top:-3px; width:2px; height:14px; background:#FFFFFF; border-radius:1px; transform:translateX(-1px); box-shadow:0 0 0 1px rgba(0,0,0,0.15); }
+.nh .nh-lease-years { position:relative; height:12px; margin-top:5px; }
+.nh .nh-lease-years span { position:absolute; top:0; transform:translateX(-50%); font-size:9px; font-weight:800; color:rgba(255,255,255,0.9) !important; }
+.nh .nh-lease-years span:first-child { transform:none; }
+.nh .nh-lease-years span:last-child { transform:translateX(-100%); }
 .nh .nh-lease-foot { display:flex; justify-content:space-between; gap:8px; margin-top:6px; font-size:10px; font-weight:700; color:rgba(255,255,255,0.92) !important; }
 
 /* 2. Birthday countdown */
-.nh .nh-bday { padding:16px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.nh .nh-bday-main { font-size:22px; font-weight:900; margin-top:6px; color:var(--nh-text) !important; letter-spacing:-0.3px; }
-.nh .nh-bday-sub { font-size:12px; margin-top:3px; color:var(--nh-muted) !important; }
+.nh .nh-bday { padding:20px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.nh .nh-bday .nh-kicker { font-size:13px; }
+.nh .nh-bday-main { font-size:28px; font-weight:900; margin-top:6px; color:var(--nh-text) !important; letter-spacing:-0.5px; line-height:1.1; }
+.nh .nh-bday-sub { font-size:14px; margin-top:4px; color:var(--nh-muted) !important; }
 .nh .nh-bday-days { text-align:right; }
-.nh .nh-bday-days b { display:block; font-size:34px; font-weight:900; line-height:1; color:var(--nh-gold) !important; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
-.nh .nh-bday-days span { font-size:10px; font-weight:900; letter-spacing:2px; color:var(--nh-muted) !important; }
+.nh .nh-bday-days b { display:block; font-size:48px; font-weight:900; line-height:1; color:var(--nh-gold) !important; font-variant-numeric:tabular-nums; letter-spacing:-1.5px; }
+.nh .nh-bday-days span { font-size:11px; font-weight:900; letter-spacing:2px; color:var(--nh-muted) !important; }
 
 /* 3. Weight */
 .nh .nh-weight { padding:16px 18px; }
@@ -154,7 +163,7 @@ export function renderHomeTab(deps) {
   const passedTxt = [passed.y ? `${passed.y}y` : '', passed.y || passed.m ? `${passed.m}m` : '', `${passed.d}d`].filter(Boolean).join(' ');
   const leaseSection = `
   <section class="nh-lease" aria-label="Shop lease countdown">
-    <div class="nh-kicker">SHOP LEASE ENDS</div>
+    <div class="nh-lease-title">Shop lease ends</div>
     <div class="nh-lease-units">
       <div class="nh-lease-unit"><div class="nh-lease-num">${lease.y}</div><div class="nh-lease-lbl">YEAR${lease.y === 1 ? '' : 'S'}</div></div>
       <div class="nh-lease-unit"><div class="nh-lease-num">${lease.m}</div><div class="nh-lease-lbl">MONTH${lease.m === 1 ? '' : 'S'}</div></div>
@@ -165,7 +174,13 @@ export function renderHomeTab(deps) {
       <div class="nh-kicker">PASSED SINCE 24 SEP 2026</div>
       <div class="nh-lease-passed-val">${passedTxt}</div>
     </div>
-    <div class="nh-lease-bar" role="img" aria-label="${passedPct.toFixed(1)}% of the lease gone"><div style="width:${Math.max(passedPct, 0.8)}%;"></div></div>
+    <div class="nh-lease-track" role="img" aria-label="${passedPct.toFixed(1)}% of the lease gone">
+      <div class="nh-lease-bar"><div style="width:${Math.max(passedPct, 0.8)}%;"></div></div>
+      ${Array.from({ length: 19 }, (_, i) => i + 1).map(q => `<span class="nh-tick ${q % 4 === 0 ? 'year' : ''}" style="left:${(q / 20) * 100}%;"></span>`).join('')}
+    </div>
+    <div class="nh-lease-years" aria-hidden="true">
+      ${[0, 1, 2, 3, 4, 5].map(y => `<span style="left:${y * 20}%;">${y === 0 ? 'Sep 26' : y === 5 ? 'Sep 31' : 'Y' + y}</span>`).join('')}
+    </div>
     <div class="nh-lease-foot"><span>${passed.totalDays.toLocaleString()} days gone</span><span>${passedPct.toFixed(1)}% of 5 years</span></div>
   </section>`;
 
