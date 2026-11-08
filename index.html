@@ -22,9 +22,23 @@
   /* Top status-bar inset only. Bottom nav + content spacing live in app.css
      (see --nav-safe) so they aren't declared twice and fighting each other. */
   #app { padding-top: env(safe-area-inset-top, 0px); }
+
+  /* Solid status-bar area. iOS tints/fades the strip under the clock using the
+     page's background and any fixed element at the very top, which showed as a
+     grey-to-black gradient. A solid html background + a fixed cover strip the
+     height of the status bar keeps it flat black (or flat light in light mode). */
+  html { background: #0a0a0a; }
+  html:has(body.light) { background: #E8EBF0; }
+  #status-cover {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: env(safe-area-inset-top, 0px);
+    background: #0a0a0a; z-index: 10000; pointer-events: none;
+  }
+  body.light #status-cover { background: #E8EBF0; }
 </style>
 </head>
 <body>
+<div id="status-cover" aria-hidden="true"></div>
 <div id="app">
 <div class="loading">Loading...</div>
 </div>
