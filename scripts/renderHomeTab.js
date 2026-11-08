@@ -19,6 +19,7 @@
 // All styles are scoped under .nh. Colours use CSS variables + !important
 // because app.css has `body.light p, span, div { color: inherit; }`.
 
+const LEASE_START = '2026-09-24';
 const LEASE_END = '2031-09-24';
 const BIRTHDAY_30 = '2027-08-12';
 
@@ -80,6 +81,10 @@ body.light .nh {
 .nh .nh-lease-unit { background:rgba(0,0,0,0.22); border-radius:14px; padding:12px 6px 10px; text-align:center; }
 .nh .nh-lease-num { font-size:52px; font-weight:900; line-height:1; letter-spacing:-2px; color:#FFFFFF !important; font-variant-numeric:tabular-nums; }
 .nh .nh-lease-lbl { font-size:11px; font-weight:900; letter-spacing:2px; margin-top:6px; color:rgba(255,255,255,0.9) !important; }
+.nh .nh-lease-passed { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.3); }
+.nh .nh-lease-passed-val { font-size:20px; font-weight:900; color:#FFFFFF !important; letter-spacing:-0.3px; }
+.nh .nh-lease-bar { height:8px; background:rgba(0,0,0,0.25); border-radius:4px; margin-top:10px; overflow:hidden; }
+.nh .nh-lease-bar div { height:100%; background:#FFFFFF; border-radius:4px; }
 .nh .nh-lease-foot { display:flex; justify-content:space-between; gap:10px; margin-top:12px; font-size:12px; font-weight:700; color:rgba(255,255,255,0.92) !important; }
 
 /* 2. Birthday countdown */
@@ -143,6 +148,10 @@ export function renderHomeTab(deps) {
 
   // ── 1. Lease countdown ──────────────────────────────────────────────────
   const lease = ymdUntil(LEASE_END, todayKey);
+  const passed = ymdUntil(todayKey, LEASE_START); // time elapsed since the lease started
+  const leaseTotal = Math.round((parseKey(LEASE_END) - parseKey(LEASE_START)) / 86400000);
+  const passedPct = Math.min(100, Math.max(0, (passed.totalDays / leaseTotal) * 100));
+  const passedTxt = [passed.y ? `${passed.y}y` : '', passed.y || passed.m ? `${passed.m}m` : '', `${passed.d}d`].filter(Boolean).join(' ');
   const leaseSection = `
   <section class="nh-lease" aria-label="Shop lease countdown">
     <div class="nh-kicker">SHOP LEASE ENDS</div>
@@ -151,7 +160,13 @@ export function renderHomeTab(deps) {
       <div class="nh-lease-unit"><div class="nh-lease-num">${lease.m}</div><div class="nh-lease-lbl">MONTH${lease.m === 1 ? '' : 'S'}</div></div>
       <div class="nh-lease-unit"><div class="nh-lease-num">${lease.d}</div><div class="nh-lease-lbl">DAY${lease.d === 1 ? '' : 'S'}</div></div>
     </div>
-    <div class="nh-lease-foot"><span>24 Sep 2031 · Dad retires</span><span>${lease.totalDays.toLocaleString()} days</span></div>
+    <div class="nh-lease-foot"><span>24 Sep 2031 · Dad retires</span><span>${lease.totalDays.toLocaleString()} days left</span></div>
+    <div class="nh-lease-passed">
+      <div class="nh-kicker">PASSED SINCE 24 SEP 2026</div>
+      <div class="nh-lease-passed-val">${passedTxt}</div>
+    </div>
+    <div class="nh-lease-bar" role="img" aria-label="${passedPct.toFixed(1)}% of the lease gone"><div style="width:${Math.max(passedPct, 0.8)}%;"></div></div>
+    <div class="nh-lease-foot"><span>${passed.totalDays.toLocaleString()} days gone</span><span>${passedPct.toFixed(1)}% of 5 years</span></div>
   </section>`;
 
   // ── 2. 30th birthday countdown ──────────────────────────────────────────
