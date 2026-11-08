@@ -129,6 +129,12 @@ body.light .nh {
 .nh .nh-w-delta.flat { color:var(--nh-muted) !important; background:rgba(127,127,127,0.12); }
 .nh .nh-w-chart { margin:14px 0 4px; }
 .nh .nh-w-days { display:grid; grid-template-columns:repeat(7,1fr); font-size:10px; font-weight:800; text-align:center; color:var(--nh-muted) !important; }
+.nh .nh-w-comp { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
+.nh .nh-w-comp-tile { border:1px solid var(--nh-line); border-radius:12px; padding:10px 12px; }
+.nh .nh-w-comp-k { font-size:10px; font-weight:900; letter-spacing:1.5px; color:var(--nh-muted) !important; }
+.nh .nh-w-comp-v { font-size:22px; font-weight:900; margin-top:4px; letter-spacing:-0.5px; color:var(--nh-text) !important; font-variant-numeric:tabular-nums; }
+.nh .nh-w-comp-v span { font-size:12px; color:var(--nh-muted) !important; letter-spacing:0; margin-left:2px; }
+.nh .nh-w-comp-d { font-size:11px; font-weight:800; margin-top:2px; }
 .nh .nh-w-target { display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--nh-line); }
 .nh .nh-w-target-lbl { font-size:13px; font-weight:700; color:var(--nh-sub) !important; }
 .nh .nh-w-target-val { font-size:20px; font-weight:900; color:var(--nh-text) !important; font-variant-numeric:tabular-nums; }
@@ -316,6 +322,38 @@ export function renderHomeTab(deps) {
 
   const dayLetters = last7.map(k => ['S', 'M', 'T', 'W', 'T', 'F', 'S'][parseKey(k).getDay()]);
   const deltaCls = delta7 == null ? 'flat' : delta7 < 0 ? 'down' : delta7 > 0 ? 'up' : 'flat';
+  // Body fat + fat-free mass (FFM = weight × (1 − BF%)). BF from the sync, else manual day entries.
+  const bfByDate = {};
+  Object.entries(days).forEach(([k, d]) => { if (d && d.bodyFat) bfByDate[k] = +d.bodyFat; });
+  health.forEach(h => { if (h.bodyFat) bfByDate[h.date] = +h.bodyFat; });
+  const bfDates = Object.keys(bfByDate).sort();
+  const bfKey = bfDates.filter(k => k <= todayKey).slice(-1)[0];
+  const bfNow = bfKey ? +bfByDate[bfKey] : null;
+  const bfBaseKey = bfDates.filter(k => k <= addDaysKey(todayKey, -7)).slice(-1)[0] || bfDates.find(k => k >= last7[0]);
+  const bfBase = bfBaseKey && bfBaseKey !== bfKey ? +bfByDate[bfBaseKey] : null;
+  const bfDelta = bfNow != null && bfBase != null ? +(bfNow - bfBase).toFixed(1) : null;
+  // FFM uses the weight closest to (on or before) each BF reading's date
+  const weightOnOrBefore = (k) => { const wk = weightDates.filter(x => x <= k).slice(-1)[0]; return wk ? +weightByDate[wk] : null; };
+  const ffmAt = (bk) => { if (!bk) return null; const w = weightOnOrBefore(bk); return w != null ? +(w * (1 - bfByDate[bk] / 100)).toFixed(1) : null; };
+  const ffmNow = ffmAt(bfKey);
+  const ffmBase = bfBase != null ? ffmAt(bfBaseKey) : null;
+  const ffmDelta = ffmNow != null && ffmBase != null ? +(ffmNow - ffmBase).toFixed(1) : null;
+  // Colour: BF down = good; FFM up/flat = good (keeping muscle on a cut)
+  const dCol = (v, goodWhenDown) => v == null || v === 0 ? 'var(--nh-muted)' : ((v < 0) === goodWhenDown ? 'var(--nh-green)' : 'var(--nh-red)');
+  const dTxt = (v, unit) => v == null ? 'No 7-day comparison yet' : `${v > 0 ? '+' : ''}${v}${unit} · 7d`;
+  const compSection = `
+    <div class="nh-w-comp">
+      <div class="nh-w-comp-tile">
+        <div class="nh-w-comp-k">BODY FAT</div>
+        <div class="nh-w-comp-v">${bfNow != null ? bfNow.toFixed(1) : '—'}<span>%</span></div>
+        <div class="nh-w-comp-d" style="color:${dCol(bfDelta, true)} !important;">${bfNow != null ? dTxt(bfDelta, '%') : 'No body fat synced'}</div>
+      </div>
+      <div class="nh-w-comp-tile">
+        <div class="nh-w-comp-k">FAT-FREE MASS</div>
+        <div class="nh-w-comp-v">${ffmNow != null ? ffmNow : '—'}<span>lb</span></div>
+        <div class="nh-w-comp-d" style="color:${dCol(ffmDelta, false)} !important;">${ffmNow != null ? dTxt(ffmDelta, ' lb') : 'Needs weight + body fat'}</div>
+      </div>
+    </div>`;
   const deltaTxt = delta7 == null ? '— 7d' : `${delta7 > 0 ? '+' : ''}${delta7} lb · 7d`;
   const gapHtml = gap == null ? '' : gap <= 0
     ? `<div class="nh-w-target-gap" style="color:var(--nh-green) !important;">Hit ✓ (${Math.abs(gap)} lb under)</div>`
@@ -331,6 +369,7 @@ export function renderHomeTab(deps) {
       </div>
       <div class="nh-w-delta ${deltaCls}">${deltaTxt}</div>
     </div>
+    ${compSection}
     <div class="nh-w-chart">${chart()}</div>
     <div class="nh-w-days">${dayLetters.map(l => `<span>${l}</span>`).join('')}</div>
     <div class="nh-w-target">
