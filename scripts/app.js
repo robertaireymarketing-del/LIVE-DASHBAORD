@@ -430,7 +430,26 @@ window.handleLogin = async () => { try { await signInWithPopup(auth, provider); 
 window.handleLogout = async () => { await signOut(auth); try { localStorage.removeItem('tjm_state_cache'); } catch(e) {} state.user = null; state.data = null; render(); };
 window.setTab = (tab) => { state.activeTab = tab; state.selectedEditDate = null; state.moreMenuOpen = false; if (tab !== 'bricks') state.bricksViewDate = null; render(); };
 window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render(); };
-window.toggleHomeDiet = () => { updateDayField(getToday(), 'dietManual', !getTodayData().dietManual); };
+// ── New Home: past-day overrides for Gym / Diet (today can't be overridden) ──
+window.toggleHomeEdit = () => { state.homeEditOpen = !state.homeEditOpen; state.homePending = null; render(); };
+window.homeEditShift = (delta) => {
+  const today = getToday();
+  const base = state.homeEditDate && state.homeEditDate < today ? state.homeEditDate : null;
+  const d = new Date((base || today) + 'T12:00:00');
+  if (!base) d.setDate(d.getDate() - 1); // start from yesterday
+  d.setDate(d.getDate() + delta);
+  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (key >= today) return;
+  state.homeEditDate = key; state.homePending = null; render();
+};
+window.homePickOverride = (habit, val, date) => { state.homePending = { habit, val, date }; render(); };
+window.homeCancelOverride = () => { state.homePending = null; render(); };
+window.homeConfirmOverride = () => {
+  const p = state.homePending;
+  if (!p || !p.date || p.date >= getToday()) { state.homePending = null; render(); return; }
+  state.homePending = null;
+  updateDayField(p.date, p.habit === 'gym' ? 'gymOverride' : 'dietOverride', p.val === 'auto' ? null : p.val);
+};
 window.toggleObjectivesCollapsed = () => { state.objectivesCollapsed = !state.objectivesCollapsed; render(); };
 window.toggleBatchesCollapsed    = () => { state.batchesCollapsed    = !state.batchesCollapsed;    render(); };
 window._weekObjsHtml = function(weekObjectivesData, weekKey, clickable) {

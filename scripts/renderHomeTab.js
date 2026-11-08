@@ -11,10 +11,16 @@
 //
 // Data:
 //   Weight   → state.healthData (health sync), fallback state.data.days[*].weight
-//   Gym      → state.data.days[date].gym (same field as the old Discipline toggle)
-//   Diet     → auto-done when health sync has dietary calories for that date
-//              (healthData[].calories > 0). If not synced, tapping sets a manual
-//              state.data.days[date].dietManual flag.
+//   Gym      → AUTO: health sync has a workout that day (Garmin → Apple Health →
+//              Shortcut → healthSync/<date>.workoutMinutes / workoutCount).
+//              Done when workoutMinutes >= GYM_MIN_MINUTES, or workoutCount >= 1
+//              if the Shortcut only sends a count.
+//   Diet     → AUTO: health sync has dietary calories that day (calories > 0).
+//   Neither can be ticked for TODAY by hand. Past days can be overridden from the
+//   "Edit a past day" panel (two-step confirm) → days[date].gymOverride /
+//   dietOverride = 'done' | 'missed' (null/absent = use the sync).
+//   Days before LEGACY_CUTOFF still honour the old manual ticks (days[date].gym,
+//   days[date].dietManual) so earlier history isn't wiped.
 //
 // All styles are scoped under .nh. Colours use CSS variables + !important
 // because app.css has `body.light p, span, div { color: inherit; }`.
@@ -22,6 +28,8 @@
 const LEASE_START = '2026-09-24';
 const LEASE_END = '2031-09-24';
 const BIRTHDAY_30 = '2027-08-12';
+const GYM_MIN_MINUTES = 20;
+const LEGACY_CUTOFF = '2026-11-09'; // manual ticks only count before this date
 
 function localKey(d = new Date()) {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -125,7 +133,6 @@ body.light .nh {
 /* 4. Gym / Diet */
 .nh .nh-habits { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .nh .nh-habit { border:0; border-radius:18px; padding:16px 14px 14px; text-align:left; min-height:132px; display:flex; flex-direction:column; justify-content:space-between; color:#fff; }
-.nh .nh-habit:disabled { opacity:1; cursor:default; }
 .nh .nh-habit.todo { background:#E11D2E; animation:nhFlash 1s ease-in-out infinite; }
 .nh .nh-habit.done { background:#16A34A; animation:none; }
 @keyframes nhFlash {
@@ -141,6 +148,26 @@ body.light .nh {
 .nh .nh-dot.miss { background:rgba(0,0,0,0.35); border-color:rgba(0,0,0,0.35); }
 .nh .nh-dot.today { outline:2px solid #FFFFFF; outline-offset:2px; }
 .nh .nh-dot.future { opacity:0.45; }
+.nh .nh-habit-src { font-size:12px; font-weight:700; margin-top:6px; color:rgba(255,255,255,0.92) !important; line-height:1.3; }
+.nh .nh-edit-link { width:100%; height:44px; background:transparent; border:1px solid var(--nh-line); border-radius:14px; font-size:13px; font-weight:700; color:var(--nh-muted) !important; }
+.nh .nh-edit { padding:14px; }
+.nh .nh-edit-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.nh .nh-edit-nav button { width:44px; height:44px; border-radius:12px; border:1px solid var(--nh-line); background:transparent; font-size:18px; font-weight:900; color:var(--nh-text) !important; }
+.nh .nh-edit-nav button:disabled { opacity:0.3; cursor:default; }
+.nh .nh-edit-date { font-size:16px; font-weight:900; color:var(--nh-text) !important; text-align:center; }
+.nh .nh-edit-row { margin-top:14px; padding-top:12px; border-top:1px solid var(--nh-line); }
+.nh .nh-edit-row-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+.nh .nh-edit-name { font-size:15px; font-weight:900; color:var(--nh-text) !important; }
+.nh .nh-edit-sync { font-size:12px; color:var(--nh-muted) !important; text-align:right; }
+.nh .nh-seg { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:10px; }
+.nh .nh-seg button { height:42px; border-radius:10px; border:1.5px solid var(--nh-line); background:transparent; font-size:13px; font-weight:800; color:var(--nh-sub) !important; }
+.nh .nh-seg button.on { background:var(--nh-text); border-color:var(--nh-text); color:var(--nh-card) !important; }
+.nh .nh-seg button.pending { border-color:var(--nh-gold); color:var(--nh-gold) !important; border-style:dashed; }
+.nh .nh-confirm { display:flex; gap:8px; align-items:center; margin-top:10px; padding:10px 12px; border-radius:12px; background:rgba(245,197,66,0.12); border:1px solid var(--nh-gold); }
+.nh .nh-confirm-text { flex:1; font-size:13px; font-weight:700; color:var(--nh-text) !important; line-height:1.3; }
+.nh .nh-confirm button { height:40px; padding:0 14px; border-radius:10px; border:0; font-size:13px; font-weight:900; }
+.nh .nh-confirm .yes { background:var(--nh-gold); color:#000 !important; }
+.nh .nh-confirm .no { background:transparent; border:1px solid var(--nh-line); color:var(--nh-sub) !important; }
 .nh .nh-habit-foot { font-size:11px; font-weight:800; margin-top:6px; color:rgba(255,255,255,0.88) !important; }
 </style>`;
 
@@ -284,9 +311,28 @@ export function renderHomeTab(deps) {
 
   // ── 4. Gym + Diet ───────────────────────────────────────────────────────
   const dayData = (k) => days[k] || {};
-  const syncCals = (k) => { const h = health.find(e => e.date === k); return h && Number(h.calories) > 0 ? Number(h.calories) : 0; };
-  const gymDone = (k) => !!dayData(k).gym;
-  const dietDone = (k) => syncCals(k) > 0 || !!dayData(k).dietManual;
+  const syncFor = (k) => health.find(e => e.date === k) || null;
+  const syncCals = (k) => { const h = syncFor(k); return h && Number(h.calories) > 0 ? Number(h.calories) : 0; };
+  const syncWorkout = (k) => {
+    const h = syncFor(k);
+    const mins = h && Number(h.workoutMinutes) > 0 ? Math.round(Number(h.workoutMinutes)) : 0;
+    const count = h && Number(h.workoutCount) > 0 ? Number(h.workoutCount) : 0;
+    const type = h && h.workoutType ? String(h.workoutType) : '';
+    const hit = mins >= GYM_MIN_MINUTES || (mins === 0 && count >= 1);
+    return { mins, count, type, hit };
+  };
+  const gymSyncDone = (k) => syncWorkout(k).hit;
+  const dietSyncDone = (k) => syncCals(k) > 0;
+  const legacyGym = (k) => k < LEGACY_CUTOFF && !!dayData(k).gym;
+  const legacyDiet = (k) => k < LEGACY_CUTOFF && !!dayData(k).dietManual;
+  const resolve = (k, ov, auto, legacy) => {
+    const o = dayData(k)[ov];
+    if (k !== todayKey && o === 'done') return true;
+    if (k !== todayKey && o === 'missed') return false;
+    return auto(k) || legacy(k);
+  };
+  const gymDone = (k) => resolve(k, 'gymOverride', gymSyncDone, legacyGym);
+  const dietDone = (k) => resolve(k, 'dietOverride', dietSyncDone, legacyDiet);
 
   function dots(fn) {
     return thisWeek.map(k => {
@@ -297,34 +343,98 @@ export function renderHomeTab(deps) {
   const weekCount = (fn) => thisWeek.filter(k => k <= todayKey && fn(k)).length;
   const elapsed = thisWeek.filter(k => k <= todayKey).length;
 
+  const wToday = syncWorkout(todayKey);
   const gymToday = gymDone(todayKey);
+  const gymSrc = wToday.mins > 0
+    ? `Garmin · ${wToday.mins} min${wToday.type ? ' · ' + wToday.type : ''}${wToday.hit ? '' : ` (needs ${GYM_MIN_MINUTES})`}`
+    : wToday.count > 0 ? `Garmin · ${wToday.count} workout${wToday.count === 1 ? '' : 's'}` : 'No workout synced yet';
   const calsToday = syncCals(todayKey);
   const dietToday = dietDone(todayKey);
-  const dietState = calsToday > 0 ? `SYNCED · ${Math.round(calsToday).toLocaleString()} KCAL`
-    : dietToday ? 'MARKED DONE' : 'NOT SYNCED YET';
+  const dietSrc = calsToday > 0 ? `Synced · ${Math.round(calsToday).toLocaleString()} kcal` : 'No calories synced yet';
 
   const habitsSection = `
   <section class="nh-habits">
-    <button class="nh-habit ${gymToday ? 'done' : 'todo'}" onclick="toggleToday('gym')" aria-pressed="${gymToday}">
+    <div class="nh-habit ${gymToday ? 'done' : 'todo'}" role="status" aria-label="Gym ${gymToday ? 'done' : 'not done'}">
       <div>
         <div class="nh-habit-name">Gym</div>
-        <div class="nh-habit-state">${gymToday ? 'DONE ✓' : 'TAP WHEN DONE'}</div>
+        <div class="nh-habit-state">${gymToday ? 'DONE ✓' : 'NOT DONE'}</div>
+        <div class="nh-habit-src">${gymSrc}</div>
       </div>
       <div>
         <div class="nh-dots" aria-hidden="true">${dots(gymDone)}</div>
         <div class="nh-habit-foot">${weekCount(gymDone)}/${elapsed} this week</div>
       </div>
-    </button>
-    <button class="nh-habit ${dietToday ? 'done' : 'todo'}" ${calsToday > 0 ? 'disabled' : `onclick="toggleHomeDiet()"`} aria-pressed="${dietToday}">
+    </div>
+    <div class="nh-habit ${dietToday ? 'done' : 'todo'}" role="status" aria-label="Diet ${dietToday ? 'done' : 'not done'}">
       <div>
         <div class="nh-habit-name">Diet</div>
-        <div class="nh-habit-state">${dietState}</div>
+        <div class="nh-habit-state">${dietToday ? 'DONE ✓' : 'NOT DONE'}</div>
+        <div class="nh-habit-src">${dietSrc}</div>
       </div>
       <div>
         <div class="nh-dots" aria-hidden="true">${dots(dietDone)}</div>
         <div class="nh-habit-foot">${weekCount(dietDone)}/${elapsed} this week</div>
       </div>
-    </button>
+    </div>
+  </section>`;
+
+  // ── 5. Edit a past day (overrides) ──────────────────────────────────────
+  const yesterday = addDaysKey(todayKey, -1);
+  const oldest = addDaysKey(todayKey, -60);
+  let editDate = state.homeEditDate && state.homeEditDate < todayKey ? state.homeEditDate : yesterday;
+  if (editDate < oldest) editDate = oldest;
+  const pending = state.homePending || null; // { habit:'gym'|'diet', val:'auto'|'done'|'missed', date }
+  const editLabel = parseKey(editDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+
+  function editRow(habit) {
+    const ovKey = habit === 'gym' ? 'gymOverride' : 'dietOverride';
+    const cur = dayData(editDate)[ovKey] === 'done' ? 'done' : dayData(editDate)[ovKey] === 'missed' ? 'missed' : 'auto';
+    let syncTxt;
+    if (habit === 'gym') {
+      const w = syncWorkout(editDate);
+      syncTxt = w.mins > 0 ? `Sync: ${w.mins} min${w.type ? ' · ' + w.type : ''}` : w.count > 0 ? `Sync: ${w.count} workout${w.count === 1 ? '' : 's'}` : 'Sync: no workout';
+      if (legacyGym(editDate)) syncTxt += ' · old manual tick';
+    } else {
+      const c = syncCals(editDate);
+      syncTxt = c > 0 ? `Sync: ${Math.round(c).toLocaleString()} kcal` : 'Sync: no calories';
+      if (legacyDiet(editDate)) syncTxt += ' · old manual tick';
+    }
+    const autoResult = habit === 'gym' ? (gymSyncDone(editDate) || legacyGym(editDate)) : (dietSyncDone(editDate) || legacyDiet(editDate));
+    const isPending = pending && pending.habit === habit && pending.date === editDate;
+    const btn = (val, label) => {
+      const cls = isPending ? (pending.val === val ? 'pending' : '') : (cur === val ? 'on' : '');
+      return `<button class="${cls}" onclick="homePickOverride('${habit}','${val}','${editDate}')">${label}</button>`;
+    };
+    const valLabel = { auto: `use the sync (${autoResult ? 'done' : 'missed'})`, done: 'DONE', missed: 'MISSED' };
+    return `
+    <div class="nh-edit-row">
+      <div class="nh-edit-row-top">
+        <div class="nh-edit-name">${habit === 'gym' ? 'Gym' : 'Diet'}</div>
+        <div class="nh-edit-sync">${syncTxt}</div>
+      </div>
+      <div class="nh-seg" role="group" aria-label="${habit} for ${editLabel}">
+        ${btn('auto', 'Auto')}${btn('done', 'Done')}${btn('missed', 'Missed')}
+      </div>
+      ${isPending ? `
+      <div class="nh-confirm">
+        <div class="nh-confirm-text">Set ${habit === 'gym' ? 'Gym' : 'Diet'} on ${editLabel} to ${valLabel[pending.val]}?</div>
+        <button class="no" onclick="homeCancelOverride()">Cancel</button>
+        <button class="yes" onclick="homeConfirmOverride()">Confirm</button>
+      </div>` : ''}
+    </div>`;
+  }
+
+  const editSection = !state.homeEditOpen ? `
+  <button class="nh-edit-link" onclick="toggleHomeEdit()">Edit a past day</button>` : `
+  <section class="nh-card nh-edit" aria-label="Edit a past day">
+    <div class="nh-edit-nav">
+      <button onclick="homeEditShift(-1)" ${editDate <= oldest ? 'disabled' : ''} aria-label="Previous day">‹</button>
+      <div class="nh-edit-date">${editLabel}</div>
+      <button onclick="homeEditShift(1)" ${editDate >= yesterday ? 'disabled' : ''} aria-label="Next day">›</button>
+    </div>
+    ${editRow('gym')}
+    ${editRow('diet')}
+    <button class="nh-edit-link" style="margin-top:14px;" onclick="toggleHomeEdit()">Close</button>
   </section>`;
 
   return HOME_CSS + `
@@ -333,5 +443,6 @@ export function renderHomeTab(deps) {
     ${bdaySection}
     ${weightSection}
     ${habitsSection}
+    ${editSection}
   </div>`;
 }

@@ -167,6 +167,11 @@ export function createStorage({
           calories: parseNum(raw.calories) ?? parseNum(raw.dietaryEnergy) ?? parseNum(raw.dietaryCalories) ?? parseNum(raw.energy) ?? parseNum(raw.dietary_energy) ?? parseNum(raw.food),
           // Active energy — accept any field name the iOS Shortcut might use
           gymCalories: parseNum(raw.gymCalories) ?? parseNum(raw.activeEnergy) ?? parseNum(raw.activeCalories) ?? parseNum(raw.active_energy) ?? parseNum(raw.exerciseCalories),
+          // Workouts (Garmin → Apple Health → Shortcut). Total workout minutes for the day,
+          // plus a count. Accepts any field name the iOS Shortcut might use.
+          workoutMinutes: parseNum(raw.workoutMinutes) ?? parseNum(raw.workoutDuration) ?? parseNum(raw.workout_minutes) ?? parseNum(raw.workoutMins),
+          workoutCount: parseNum(raw.workoutCount) ?? parseNum(raw.workouts) ?? parseNum(raw.workout_count),
+          workoutType: parse(raw.workoutType) ?? parse(raw.workoutTypes) ?? null,
           // Protein — accept any field name the iOS Shortcut might use
           protein: parseNum(raw.protein) ?? parseNum(raw.dietaryProtein) ?? parseNum(raw.dietary_protein) ?? parseNum(raw.proteinGrams),
           // d.updateTime is not available on modular SDK snapshot docs. Prefer a REAL
