@@ -133,15 +133,37 @@ export function createStorage({
   async function loadHealthData() {
     try {
       console.log('[HealthSync] Starting load from healthSync collection...');
-      const q = query(collection(db, 'healthSync'), orderBy('date', 'desc'), limit(90));
-      const snap = await getDocs(q);
+      // Load the WHOLE collection. The old query (orderBy('date') + limit(90)) silently
+      // dropped history: Firestore's orderBy skips any doc without a 'date' field, and
+      // 90 docs isn't 90 days if the Shortcut ever writes more than one doc per day.
+      // One small doc per day ≈ 365 docs/year, which is fine to read in one go.
+      const snap = await getDocs(collection(db, 'healthSync'));
       console.log(`[HealthSync] Got ${snap.docs.length} document(s) from Firestore`);
 
       if (snap.docs.length === 0) {
         console.warn('[HealthSync] No documents found. Check: (1) iOS Shortcut is writing to healthSync/<date>, (2) Firestore rules allow reads, (3) correct Firebase project is connected.');
       }
 
-      state.healthData = snap.docs.map(d => {
+      // Normalise any date string to YYYY-MM-DD (handles 2026-7-4, 2026-07-04T07:12:00,
+      // 04/07/2026 (UK), "4 Jul 2026", Firestore timestamps).
+      const MONTHS = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+      const pad = (n) => String(n).padStart(2, '0');
+      const normDate = (v) => {
+        if (v == null || v === '') return null;
+        if (typeof v === 'object' && typeof v.toDate === 'function') v = v.toDate();
+        if (v instanceof Date) return isNaN(v) ? null : `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`;
+        const str = String(v).trim();
+        let m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+        m = str.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/); // UK day/month/year
+        if (m) return `${m[3]}-${pad(m[2])}-${pad(m[1])}`;
+        m = str.match(/^(\d{1,2})\s+([A-Za-z]{3})[A-Za-z]*\s+(\d{4})/);
+        if (m && MONTHS[m[2].toLowerCase()]) return `${m[3]}-${pad(MONTHS[m[2].toLowerCase()])}-${pad(m[1])}`;
+        const t = new Date(str);
+        return isNaN(t) ? null : `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+      };
+
+      const rawEntries = snap.docs.map(d => {
         const raw = d.data();
         const parse = (v) => {
           if (v === null || v === undefined) return null;
@@ -158,7 +180,7 @@ export function createStorage({
         const rawBmr = parseNum(raw.bmr);
         // Note: bmr >= 500 guard removed — was silently dropping valid low BMR values
         const entry = {
-          date: parse(raw.date) || d.id,
+          date: normDate(raw.date && typeof raw.date === 'object' && typeof raw.date.toDate === 'function' ? raw.date : parse(raw.date)) || normDate(d.id) || String(parse(raw.date) || d.id),
           weight: parseNum(raw.weight),
           bodyFat: parseNum(raw.bodyFat),
           bmr: (rawBmr && rawBmr > 0) ? rawBmr : null,
@@ -195,6 +217,17 @@ export function createStorage({
         console.log(`[HealthSync] Doc ${d.id}:`, entry);
         return entry;
       });
+
+      // One entry per day: if several docs share a date, merge them field by field,
+      // preferring the most recently synced non-empty value.
+      const byDate = {};
+      rawEntries
+        .sort((a, b) => (a.syncedAt || 0) - (b.syncedAt || 0))
+        .forEach(e => {
+          const cur = byDate[e.date] || (byDate[e.date] = { date: e.date });
+          Object.entries(e).forEach(([k, v]) => { if (v !== null && v !== undefined && v !== '') cur[k] = v; });
+        });
+      state.healthData = Object.values(byDate).sort((a, b) => b.date.localeCompare(a.date)); // newest first, as before
 
       console.log(`[HealthSync] Loaded ${state.healthData.length} entries. Most recent:`, state.healthData[0] || 'none');
 
