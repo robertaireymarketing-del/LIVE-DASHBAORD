@@ -70,12 +70,12 @@ function weekDates(todayKey) {
 const HOME_CSS = `<style id="new-home-css">
 .nh {
   --nh-card:#151515; --nh-line:#262626; --nh-text:#FFFFFF; --nh-sub:#B5B5B5; --nh-muted:#9A9A9A;
-  --nh-gold:#F5C542; --nh-green:#22C55E; --nh-red:#EF4444;
+  --nh-gold:#F5C542; --nh-green:#22C55E; --nh-red:#EF4444; --nh-wcol:#4FA3FF; --nh-bcol:#FF8A3D;
   display:flex; flex-direction:column; gap:14px; width:100%; color:var(--nh-text);
 }
 body.light .nh {
   --nh-card:#FFFFFF; --nh-line:#CDD4E0; --nh-text:#0A1628; --nh-sub:#3D4B60; --nh-muted:#5B6778;
-  --nh-gold:#8B6914; --nh-green:#15803D; --nh-red:#DC2626;
+  --nh-gold:#8B6914; --nh-green:#15803D; --nh-red:#DC2626; --nh-wcol:#1D63C9; --nh-bcol:#C2410C;
 }
 .nh * { box-sizing:border-box; }
 .nh button { font-family:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent; }
@@ -135,6 +135,12 @@ body.light .nh {
 .nh .nh-w-comp-v { font-size:22px; font-weight:900; margin-top:4px; letter-spacing:-0.5px; color:var(--nh-text) !important; font-variant-numeric:tabular-nums; }
 .nh .nh-w-comp-v span { font-size:12px; color:var(--nh-muted) !important; letter-spacing:0; margin-left:2px; }
 .nh .nh-w-comp-d { font-size:11px; font-weight:800; margin-top:2px; }
+.nh .nh-legend { display:flex; flex-direction:column; gap:5px; margin-top:8px; }
+.nh .nh-leg { display:flex; align-items:flex-start; gap:8px; font-size:12px; line-height:1.35; color:var(--nh-sub) !important; }
+.nh .nh-leg span { color:var(--nh-sub) !important; }
+.nh .nh-leg b { color:var(--nh-text) !important; }
+.nh .nh-leg em { font-style:normal; color:var(--nh-muted) !important; }
+.nh .nh-leg i { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-top:3px; }
 .nh .nh-w-target { display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--nh-line); }
 .nh .nh-w-target-lbl { font-size:13px; font-weight:700; color:var(--nh-sub) !important; }
 .nh .nh-w-target-val { font-size:20px; font-weight:900; color:var(--nh-text) !important; font-variant-numeric:tabular-nums; }
@@ -300,27 +306,84 @@ export function renderHomeTab(deps) {
     return parseKey(k).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   };
 
+  // Calendar-month chart: weight + body fat, actual to date (solid) and projected to
+  // month end (dashed). Projection = least-squares trend over the last 28 days of
+  // readings (falls back to whatever exists, needs ≥ 3 readings spanning ≥ 5 days).
+  // A regression over ~4 weeks smooths daily water swings far better than
+  // first-vs-last, while still reacting to a change in pace within the month.
   function chart() {
-    const pts = series.map((v, i) => ({ v, i })).filter(p => p.v != null);
-    if (pts.length < 2) return `<div class="nh-empty">Need at least 2 weigh-ins this week to show the trend.</div>`;
-    const vals = pts.map(p => p.v).concat(sundayTarget != null ? [sundayTarget] : []);
-    const min = Math.min(...vals) - 0.3, max = Math.max(...vals) + 0.3, range = max - min || 1;
-    const W = 320, H = 70, pad = 8;
-    const x = i => pad + (i / 6) * (W - pad * 2);
-    const y = v => pad + (1 - (v - min) / range) * (H - pad * 2);
-    const line = pts.map(p => `${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
-    const colour = delta7 != null && delta7 > 0 ? 'var(--nh-red)' : 'var(--nh-green)';
-    const tgt = sundayTarget != null
-      ? `<line x1="${pad}" x2="${W - pad}" y1="${y(sundayTarget).toFixed(1)}" y2="${y(sundayTarget).toFixed(1)}" stroke="var(--nh-gold)" stroke-width="1.5" stroke-dasharray="4 4"></line>` : '';
+    const now = parseKey(todayKey);
+    const mStart = localKey(new Date(now.getFullYear(), now.getMonth(), 1, 12));
+    const nDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const mEnd = addDaysKey(mStart, nDays - 1);
+    const dayIdx = (k) => Math.round((parseKey(k) - parseKey(mStart)) / 86400000); // 0-based
+    const todayIdx = dayIdx(todayKey);
+
+    function build(byDate) {
+      const keys = Object.keys(byDate).sort();
+      const actual = keys.filter(k => k >= mStart && k <= todayKey).map(k => ({ i: dayIdx(k), v: +byDate[k] }));
+      const win = keys.filter(k => k >= addDaysKey(todayKey, -27) && k <= todayKey);
+      let slope = null;
+      if (win.length >= 3 && dayIdx(win[win.length - 1]) - dayIdx(win[0]) >= 5) {
+        const xs = win.map(dayIdx), ys = win.map(k => +byDate[k]);
+        const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+        const num = xs.reduce((a, x, j) => a + (x - mx) * (ys[j] - my), 0);
+        const den = xs.reduce((a, x) => a + (x - mx) ** 2, 0);
+        slope = den ? num / den : null; // per day
+      }
+      const last = actual[actual.length - 1] || null;
+      let proj = [];
+      if (last && slope != null && last.i < nDays - 1) {
+        proj = [{ i: last.i, v: last.v }, { i: nDays - 1, v: last.v + slope * (nDays - 1 - last.i) }];
+      }
+      return { actual, proj, slope, last, end: proj.length ? proj[1].v : null };
+    }
+    const W = build(weightByDate), B = build(bfByDate);
+    if (W.actual.length + B.actual.length === 0) return `<div class="nh-empty">No weight or body fat readings this month yet.</div>`;
+
+    const VW = 320, VH = 120, padL = 30, padR = 30, padT = 10, padB = 10;
+    const x = (i) => padL + (i / (nDays - 1)) * (VW - padL - padR);
+    const scaler = (ser) => {
+      const vals = ser.actual.map(p => p.v).concat(ser.proj.map(p => p.v));
+      if (!vals.length) return null;
+      let lo = Math.min(...vals), hi = Math.max(...vals);
+      const pad = Math.max((hi - lo) * 0.15, 0.5); lo -= pad; hi += pad;
+      return { lo, hi, y: (v) => padT + (1 - (v - lo) / (hi - lo)) * (VH - padT - padB) };
+    };
+    const sw = scaler(W), sb = scaler(B);
+    const WC = 'var(--nh-wcol)', BC = 'var(--nh-bcol)';
+    const path = (pts, sc) => pts.map(p => `${x(p.i).toFixed(1)},${sc.y(p.v).toFixed(1)}`).join(' ');
+    const line = (ser, sc, col) => !sc ? '' : `
+      ${ser.actual.length > 1 ? `<polyline points="${path(ser.actual, sc)}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></polyline>` : ''}
+      ${ser.proj.length ? `<polyline points="${path(ser.proj, sc)}" fill="none" stroke="${col}" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round" opacity="0.8"></polyline>` : ''}
+      ${ser.actual.map(p => `<circle cx="${x(p.i).toFixed(1)}" cy="${sc.y(p.v).toFixed(1)}" r="${p === ser.last ? 4 : 2.2}" fill="${col}"></circle>`).join('')}
+      ${ser.proj.length ? `<circle cx="${x(nDays - 1).toFixed(1)}" cy="${sc.y(ser.end).toFixed(1)}" r="3.5" fill="none" stroke="${col}" stroke-width="2"></circle>` : ''}`;
+    const axis = (sc, side, col, fmt) => !sc ? '' : [sc.hi, sc.lo].map((v, j) => `<text x="${side === 'l' ? 2 : VW - 2}" y="${j ? VH - padB : padT + 8}" text-anchor="${side === 'l' ? 'start' : 'end'}" font-size="9" font-weight="800" fill="${col}">${fmt(v)}</text>`).join('');
+    const weekLines = [7, 14, 21, 28].filter(d => d < nDays).map(d => `<line x1="${x(d).toFixed(1)}" x2="${x(d).toFixed(1)}" y1="${padT}" y2="${VH - padB}" stroke="var(--nh-line)" stroke-width="1"></line>`).join('');
+    const todayLine = `<line x1="${x(todayIdx).toFixed(1)}" x2="${x(todayIdx).toFixed(1)}" y1="${padT - 4}" y2="${VH - padB}" stroke="var(--nh-muted)" stroke-width="1" stroke-dasharray="2 3"></line>`;
+
+    const monthName = now.toLocaleDateString('en-GB', { month: 'short' });
+    const legend = (label, ser, col, unit, dp) => {
+      if (!ser.last) return `<div class="nh-leg"><i style="background:${col};"></i><span>${label}: no readings this month</span></div>`;
+      const endTxt = ser.end != null ? ` → <b>${ser.end.toFixed(dp)}${unit}</b> by ${nDays} ${monthName}` : ' · not enough data to project';
+      const wk = ser.slope != null ? ` <em>(${ser.slope * 7 > 0 ? '+' : ''}${(ser.slope * 7).toFixed(dp === 0 ? 1 : dp)}${unit}/wk)</em>` : '';
+      return `<div class="nh-leg"><i style="background:${col};"></i><span>${label} <b>${ser.last.v.toFixed(dp)}${unit}</b>${endTxt}${wk}</span></div>`;
+    };
     return `
-    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="Weight over the last 7 days" style="display:block;">
-      ${tgt}
-      <polyline points="${line}" fill="none" stroke="${colour}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
-      ${pts.map(p => `<circle cx="${x(p.i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="${p.i === 6 ? 5 : 3.5}" fill="${colour}"></circle>`).join('')}
-    </svg>`;
+    <svg viewBox="0 0 ${VW} ${VH}" width="100%" height="${VH}" role="img" aria-label="Weight and body fat this month with projection to month end" style="display:block;">
+      ${weekLines}${todayLine}
+      ${axis(sw, 'l', WC, v => v.toFixed(0))}${axis(sb, 'r', BC, v => v.toFixed(1) + '%')}
+      ${line(B, sb, BC)}${line(W, sw, WC)}
+    </svg>
+    <div class="nh-w-days" aria-hidden="true" style="position:relative;height:14px;display:block;">
+      ${[1, 8, 15, 22, 29].map(d => `<span style="position:absolute;left:${(x(d - 1) / VW * 100).toFixed(2)}%;transform:translateX(-50%);">${d}</span>`).join('')}
+    </div>
+    <div class="nh-legend">
+      ${legend('Weight', W, WC, ' lb', 1)}
+      ${legend('Body fat', B, BC, '%', 1)}
+    </div>`;
   }
 
-  const dayLetters = last7.map(k => ['S', 'M', 'T', 'W', 'T', 'F', 'S'][parseKey(k).getDay()]);
   const deltaCls = delta7 == null ? 'flat' : delta7 < 0 ? 'down' : delta7 > 0 ? 'up' : 'flat';
   // Body fat + fat-free mass (FFM = weight × (1 − BF%)). BF from the sync, else manual day entries.
   const bfByDate = {};
@@ -371,7 +434,6 @@ export function renderHomeTab(deps) {
     </div>
     ${compSection}
     <div class="nh-w-chart">${chart()}</div>
-    <div class="nh-w-days">${dayLetters.map(l => `<span>${l}</span>`).join('')}</div>
     <div class="nh-w-target">
       <div class="nh-w-target-lbl">Target by Sunday</div>
       <div>
