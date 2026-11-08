@@ -172,7 +172,9 @@ export function renderHomeTab(deps) {
   // ── 2. 30th birthday countdown ──────────────────────────────────────────
   const bday = ymdUntil(BIRTHDAY_30, todayKey);
   const bdayMain = bday.past ? 'You made it to 30' :
-    [bday.y ? `${bday.y}y` : '', `${bday.m}m`, `${bday.d}d`].filter(Boolean).join(' ');
+    [bday.y ? `${bday.y} year${bday.y === 1 ? '' : 's'}` : '',
+     `${bday.m} month${bday.m === 1 ? '' : 's'}`,
+     `${bday.d} day${bday.d === 1 ? '' : 's'}`].filter(Boolean).join(' ');
   const bdaySection = `
   <section class="nh-card nh-bday" aria-label="30th birthday countdown">
     <div>
