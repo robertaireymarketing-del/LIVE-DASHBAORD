@@ -375,7 +375,7 @@ export function renderHomeTab(deps) {
       return nav + `<div class="nh-empty">${mOff > 0 ? 'Not enough recent data to project this month.' : 'No weight or body fat readings this month.'}</div>`;
     }
 
-    const VW = 320, VH = 130, padL = 34, padR = 40, padT = 12, padB = 12;
+    const VW = 320, VH = 260, padL = 36, padR = 44, padT = 14, padB = 14;
     const x = (i) => padL + (i / (nDays - 1)) * (VW - padL - padR);
     const scaler = (ser) => {
       const vals = ser.actual.map(p => p.v).concat(ser.proj.map(p => p.v));
@@ -392,7 +392,19 @@ export function renderHomeTab(deps) {
       ${ser.proj.length ? `<polyline points="${path(ser.proj, sc)}" fill="none" stroke="${col}" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round" opacity="0.85"></polyline>` : ''}
       ${ser.actual.map(p => `<circle cx="${x(p.i).toFixed(1)}" cy="${sc.y(p.v).toFixed(1)}" r="${p === ser.last ? 4 : 2.2}" fill="${col}"></circle>`).join('')}
       ${ser.proj.length ? `<circle cx="${x(nDays - 1).toFixed(1)}" cy="${sc.y(ser.end).toFixed(1)}" r="3.5" fill="none" stroke="${col}" stroke-width="2"></circle>` : ''}`;
-    const axis = (sc, side, col, fmt) => !sc ? '' : [sc.hi, sc.lo].map((v, j) => `<text x="${side === 'l' ? 0 : VW}" y="${j ? VH - padB + 4 : padT + 4}" text-anchor="${side === 'l' ? 'start' : 'end'}" font-size="13" font-weight="900" fill="${col}">${fmt(v)}</text>`).join('');
+    // 6 evenly spaced ticks per side, with faint horizontal gridlines
+    const TICKS = 6;
+    const tickVals = (sc) => Array.from({ length: TICKS }, (_, j) => sc.hi - (j / (TICKS - 1)) * (sc.hi - sc.lo));
+    const gridLines = Array.from({ length: TICKS }, (_, j) => { const y = padT + (j / (TICKS - 1)) * (VH - padT - padB); return `<line x1="${padL}" x2="${VW - padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--nh-line)" stroke-width="1" opacity="0.6"></line>`; }).join('');
+    const axis = (sc, side, col, fmt) => !sc ? '' : tickVals(sc).map(v => `<text x="${side === 'l' ? 0 : VW}" y="${(sc.y(v) + 4).toFixed(1)}" text-anchor="${side === 'l' ? 'start' : 'end'}" font-size="12" font-weight="800" fill="${col}">${fmt(v)}</text>`).join('');
+    // Value labels on the latest reading and the projected month-end point
+    const tag = (ser, sc, col, fmt, below) => {
+      if (!sc) return '';
+      const out = [];
+      if (ser.last) out.push(`<text x="${x(ser.last.i).toFixed(1)}" y="${(sc.y(ser.last.v) + (below ? 20 : -10)).toFixed(1)}" text-anchor="${ser.last.i > nDays * 0.8 ? 'end' : ser.last.i < 3 ? 'start' : 'middle'}" font-size="12" font-weight="900" fill="${col}" stroke="var(--nh-card)" stroke-width="3" paint-order="stroke">${fmt(ser.last.v)}</text>`);
+      if (ser.proj.length) out.push(`<text x="${x(nDays - 1).toFixed(1)}" y="${(sc.y(ser.end) + (below ? 20 : -10)).toFixed(1)}" text-anchor="end" font-size="12" font-weight="900" fill="${col}" stroke="var(--nh-card)" stroke-width="3" paint-order="stroke">${fmt(ser.end)}</text>`);
+      return out.join('');
+    };
     const weekLines = [7, 14, 21, 28].filter(d => d < nDays).map(d => `<line x1="${x(d).toFixed(1)}" x2="${x(d).toFixed(1)}" y1="${padT}" y2="${VH - padB}" stroke="var(--nh-line)" stroke-width="1"></line>`).join('');
     const todayLine = todayIdx >= 0 && todayIdx < nDays ? `<line x1="${x(todayIdx).toFixed(1)}" x2="${x(todayIdx).toFixed(1)}" y1="${padT - 4}" y2="${VH - padB}" stroke="var(--nh-muted)" stroke-width="1" stroke-dasharray="2 3"></line>` : '';
 
@@ -415,8 +427,10 @@ export function renderHomeTab(deps) {
     return nav + `
     <svg viewBox="0 0 ${VW} ${VH}" width="100%" height="${VH}" role="img" aria-label="Weight and body fat, ${monthLabel}" style="display:block;">
       ${weekLines}${todayLine}
-      ${axis(sw, 'l', WC, v => v.toFixed(0))}${axis(sb, 'r', BC, v => v.toFixed(1) + '%')}
+      ${gridLines}
+      ${axis(sw, 'l', WC, v => v.toFixed(1))}${axis(sb, 'r', BC, v => v.toFixed(1) + '%')}
       ${line(B, sb, BC)}${line(W, sw, WC)}
+      ${tag(B, sb, BC, v => v.toFixed(1) + '%', false)}${tag(W, sw, WC, v => v.toFixed(1), true)}
     </svg>
     <div class="nh-w-days" aria-hidden="true" style="position:relative;height:16px;display:block;">
       ${[1, 8, 15, 22, 29].map(d => `<span style="position:absolute;left:${(x(d - 1) / VW * 100).toFixed(2)}%;transform:translateX(-50%);">${d}</span>`).join('')}
@@ -476,7 +490,7 @@ export function renderHomeTab(deps) {
       <div class="nh-w-delta ${deltaCls}">${deltaTxt}</div>
     </div>
     ${compSection}
-    <div class="nh-w-chart">${chart()}</div>
+    <div class="nh-w-chart" data-swipe-months="1">${chart()}</div>
     <div class="nh-w-target">
       <div class="nh-w-target-lbl">Target by Sunday</div>
       <div>
@@ -618,8 +632,8 @@ export function renderHomeTab(deps) {
   <div class="nh">
     ${leaseSection}
     ${bdaySection}
-    ${weightSection}
     ${habitsSection}
     ${editSection}
+    ${weightSection}
   </div>`;
 }

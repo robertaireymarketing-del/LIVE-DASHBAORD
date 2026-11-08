@@ -432,6 +432,24 @@ window.setTab = (tab) => { state.activeTab = tab; state.selectedEditDate = null;
 window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render(); };
 // ── New Home: past-day overrides for Gym / Diet (today can't be overridden) ──
 window.homeChartShift = (d) => { state.homeChartMonth = (state.homeChartMonth || 0) + d; render(); };
+// Swipe left/right on the home weight chart to change month (delegated so it survives re-renders)
+(() => {
+  let sx = null, sy = null;
+  document.addEventListener('touchstart', (e) => {
+    const el = e.target.closest && e.target.closest('[data-swipe-months]');
+    if (!el || e.touches.length !== 1 || e.target.closest('button')) { sx = null; return; }
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    if (sx === null) return;
+    const t = e.changedTouches[0]; const dx = t.clientX - sx, dy = t.clientY - sy; sx = null;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const prev = document.querySelector('.nh-cal-nav button[aria-label="Previous month"]');
+    const next = document.querySelector('.nh-cal-nav button[aria-label="Next month"]');
+    if (dx < 0 && next && !next.disabled) window.homeChartShift(1);   // swipe left → later month
+    if (dx > 0 && prev && !prev.disabled) window.homeChartShift(-1);  // swipe right → earlier month
+  }, { passive: true });
+})();
 window.toggleHomeEdit = () => { state.homeEditOpen = !state.homeEditOpen; state.homePending = null; render(); };
 window.homeEditShift = (delta) => {
   const today = getToday();

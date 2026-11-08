@@ -37,7 +37,7 @@
   document.addEventListener('DOMContentLoaded', () => document.body.appendChild(ind));
   if (document.body) document.body.appendChild(ind);
 
-  let startY = null, pull = 0, active = false, refreshing = false;
+  let startY = null, startX = null, pull = 0, active = false, refreshing = false;
 
   const atTop = () => (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
 
@@ -88,13 +88,15 @@
 
   window.addEventListener('touchstart', (e) => {
     if (refreshing || e.touches.length !== 1 || !atTop() || insideScrolled(e.target)) { startY = null; return; }
-    startY = e.touches[0].clientY; pull = 0; active = false;
+    startY = e.touches[0].clientY; startX = e.touches[0].clientX; pull = 0; active = false;
   }, { passive: true });
 
   window.addEventListener('touchmove', (e) => {
     if (startY === null || refreshing) return;
     if (e.touches.length !== 1) { reset(); return; }
     const dy = e.touches[0].clientY - startY;
+    const dx = e.touches[0].clientX - startX;
+    if (!active && Math.abs(dx) > Math.abs(dy)) { startY = null; return; } // sideways swipe, not a pull
     if (dy <= 0 || !atTop()) { if (active) reset(); else startY = null; return; }
     active = true;
     pull = dy * 0.6; // resistance
