@@ -10,6 +10,7 @@ import { initBatchActions } from './batchActions.js';
 import { initBatchEditorUI } from './batchActions.js';
 import { initPanicButton } from './panicButton.js';
 import { renderTodayTab as renderTodayTabExternal } from './renderTodayTab.js';
+import { renderHomeTab as renderHomeTabExternal } from './renderHomeTab.js';
 import { renderBricksTab as renderBricksTabExternal, initBricksActions } from './bricks.js';
 import { renderMarchTab as renderMarchTabExternal } from './renderMarchTab.js';
 import { renderProgressTab as renderProgressTabExternal } from './renderProgressTab.js';
@@ -149,7 +150,8 @@ const renderVaultDeps = { state, getVaultIdeas, vaultStaleCount, VAULT_STAGES, V
 const renderModalDeps = { state, getProjectFronts, getTodayDayKey, BATCH_COLOURS };
 const renderMoreModalDeps = { state, getStreak, RETENTION_SCIENCE, getToday, getSettings, getDayNumber, getMonthTargets };
 
-function renderTodayTab() { return renderTodayTabExternal(renderTabDeps); }
+function renderTodayTab() { return renderTodayTabExternal(renderTabDeps); } // Old Home (More menu)
+function renderHomeTab() { return renderHomeTabExternal({ state, getSettings }); } // New Home
 function renderBricksTab() { return renderBricksTabExternal(state); }
 function renderMarchTab() { return renderMarchTabExternal(renderTabDeps); }
 function renderProgressTab() { return renderProgressTabExternal(renderTabDeps); }
@@ -173,7 +175,7 @@ function renderChallengeModal() { return renderChallengeModalExternal(renderMore
 
 // ── Bottom nav (6 tabs — permanent on every page) ─────────────────────────
 function renderBottomNav() {
-  const moreActive = state.moreMenuOpen || ['march','vault','roadmap','fire','vision','clarity','scenes','habits'].includes(state.activeTab);
+  const moreActive = state.moreMenuOpen || ['march','vault','roadmap','fire','vision','clarity','scenes','habits','oldhome'].includes(state.activeTab);
   return `
   <nav class="bottom-nav-app">
     <button data-tab="today"    class="bottom-nav-app-btn ${state.activeTab==='today'?'active':''}"    onclick="setTab('today')"><span class="nav-icon">🏠</span>Today</button>
@@ -232,8 +234,8 @@ function render() {
     <div class="day-badge" onclick="openChallengeSetup()" style="cursor:pointer;">DAY ${getDayNumber()}/${getSettings().challengeDays||90}</div>
     </div>
     </div>
-    <button class="panic-trigger" onclick="openPanic()" style="margin-bottom:12px;margin-top:4px;${['today','journal','planner','progress','scenes','bricks','clarity','straightline','habits'].includes(state.activeTab) ? 'display:none;' : ''}"><span>🆘</span> PANIC BUTTON</button>
-    ${(state.activeTab === 'today' || state.activeTab === 'journal') ? `
+    <button class="panic-trigger" onclick="openPanic()" style="margin-bottom:12px;margin-top:4px;${['today','oldhome','journal','planner','progress','scenes','bricks','clarity','straightline','habits'].includes(state.activeTab) ? 'display:none;' : ''}"><span>🆘</span> PANIC BUTTON</button>
+    ${(state.activeTab === 'oldhome' || state.activeTab === 'journal') ? `
     <div class="quote-card">
     <div class="quote-icon">✦</div>
     <div class="quote-text">"${quote.text}"</div>
@@ -242,11 +244,12 @@ function render() {
     </div>` : ''}
 
     <div class="content">
-    ${(() => { try { return state.activeTab === 'today' ? renderClarityCard() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">CLARITY CARD ERROR: ' + e.message + '</div>'; }})()}
+    ${(() => { try { return state.activeTab === 'oldhome' ? renderClarityCard() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">CLARITY CARD ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try {
       if (state.activeTab !== 'today') return '';
-      return renderTodayTab();
-    } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">TODAY ERROR: ' + e.message + '</div>'; }})()}
+      return renderHomeTab();
+    } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">HOME ERROR: ' + e.message + '</div>'; }})()}
+    ${(() => { try { return state.activeTab === 'oldhome' ? renderTodayTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">OLD HOME ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'march' ? renderMarchTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">MAR ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'progress' ? renderProgressTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">BODY ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'vault' ? renderVaultTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">IDEAS ERROR: ' + e.message + '</div>'; }})()}
@@ -271,6 +274,7 @@ function render() {
         <button class="mobile-more-sheet-btn ${state.activeTab==='clarity'?'active':''}" onclick="setTab('clarity');toggleMoreMenu()">🧠 Clarity</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='habits'?'active':''}" onclick="setTab('habits');toggleMoreMenu()">✅ Habits</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='scenes'?'active':''}" onclick="setTab('scenes');toggleMoreMenu()">🎬 Scenes</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab==='oldhome'?'active':''}" onclick="setTab('oldhome')">🗂 Old Home</button>
         <button class="mobile-more-sheet-btn danger" onclick="handleLogout()">Sign Out</button>
       </div>
     </div>
@@ -342,7 +346,7 @@ function render() {
     if (state.activeTab === 'straightline') setTimeout(() => { try { initStraightLineTabExternal({ state, saveData, saveDataQuiet, render }); } catch(e) { console.error('Line init error:', e); } }, 0);
 
     // ── AI-tailored quote interpretation ──────────────────────────────────
-    if (state.activeTab === 'today' || state.activeTab === 'journal') {
+    if (state.activeTab === 'oldhome' || state.activeTab === 'journal') {
       setTimeout(async () => {
         try {
           const el = document.getElementById('quote-interpretation-el');
@@ -426,6 +430,7 @@ window.handleLogin = async () => { try { await signInWithPopup(auth, provider); 
 window.handleLogout = async () => { await signOut(auth); try { localStorage.removeItem('tjm_state_cache'); } catch(e) {} state.user = null; state.data = null; render(); };
 window.setTab = (tab) => { state.activeTab = tab; state.selectedEditDate = null; state.moreMenuOpen = false; if (tab !== 'bricks') state.bricksViewDate = null; render(); };
 window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render(); };
+window.toggleHomeDiet = () => { updateDayField(getToday(), 'dietManual', !getTodayData().dietManual); };
 window.toggleObjectivesCollapsed = () => { state.objectivesCollapsed = !state.objectivesCollapsed; render(); };
 window.toggleBatchesCollapsed    = () => { state.batchesCollapsed    = !state.batchesCollapsed;    render(); };
 window._weekObjsHtml = function(weekObjectivesData, weekKey, clickable) {
