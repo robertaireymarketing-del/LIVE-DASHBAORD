@@ -282,6 +282,11 @@ body.light .nh {
 .nh .nh-confirm .no { background:transparent; border:1px solid var(--nh-line); color:var(--nh-sub) !important; }
 .nh .nh-habit.tappable { cursor:pointer; -webkit-tap-highlight-color:transparent; }
 .nh .nh-habit.tappable:active { transform:scale(0.98); }
+.nh .nh-habit-exp { margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.25); }
+.nh .nh-habit-exp-k { font-size:9px; font-weight:900; letter-spacing:1.4px; color:rgba(255,255,255,0.85) !important; }
+.nh .nh-habit-exp-v { font-size:22px; font-weight:900; letter-spacing:-0.3px; line-height:1.1; color:#FFFFFF !important; }
+.nh .nh-habit-exp-v span { font-size:11px; font-weight:700; }
+.nh .nh-habit-exp-s { font-size:10px; font-weight:700; margin-top:2px; line-height:1.3; color:rgba(255,255,255,0.8) !important; }
 .nh .nh-habit-foot { font-size:11px; font-weight:800; margin-top:6px; color:rgba(255,255,255,0.88) !important; }
 </style>`;
 
@@ -990,6 +995,27 @@ export function renderHomeTab(deps) {
   const calsToday = syncCals(todayKey);
   const dietToday = dietDone(todayKey);
   const dietSrc = calsToday > 0 ? `Synced · ${Math.round(calsToday).toLocaleString()} kcal` : 'No calories synced yet';
+  // Expected deficit for today — what the day should close at given what's logged.
+  // BMR is projected to a full day: the synced resting energy builds up through the
+  // day, so use whichever is higher of today's sync and your last full-day BMR
+  // (latest synced day before today, else settings.defaultBmr, else 2085).
+  // Activity is only what's logged: synced active energy + manual gym/treadmill entries.
+  const expDef = (() => {
+    if (calsToday <= 0) return null;
+    const hT = syncFor(todayKey) || {};
+    const dT = dayData(todayKey);
+    const lastFull = [...health].filter(e => e.date < todayKey && Number(e.bmr) > 0).sort((a, b) => b.date.localeCompare(a.date))[0];
+    const fullBmr = Number(lastFull && lastFull.bmr) || settings.defaultBmr || 2085;
+    const bmr = Math.max(Number(hT.bmr) || 0, fullBmr);
+    const active = (Number(hT.gymCalories) || 0) + (Number(dT.gymCalEntry) || 0) + (Number(dT.treadmillCal) || 0);
+    return { def: Math.round(bmr + active - calsToday), bmr: Math.round(bmr), active: Math.round(active) };
+  })();
+  const dietExp = expDef ? `
+        <div class="nh-habit-exp">
+          <div class="nh-habit-exp-k">EXPECTED ${expDef.def < 0 ? 'SURPLUS' : 'DEFICIT'}</div>
+          <div class="nh-habit-exp-v">${Math.abs(expDef.def).toLocaleString()}<span> kcal</span></div>
+          <div class="nh-habit-exp-s">${expDef.bmr.toLocaleString()} BMR + ${expDef.active.toLocaleString()} active − ${Math.round(calsToday).toLocaleString()} eaten</div>
+        </div>` : '';
 
   const habitsSection = `
   <section class="nh-habits">
@@ -1008,7 +1034,7 @@ export function renderHomeTab(deps) {
       <div>
         <div class="nh-habit-name">Diet</div>
         <div class="nh-habit-state">${dietToday ? 'DONE ✓' : 'NOT DONE'}</div>
-        <div class="nh-habit-src">${dietSrc}</div>
+        <div class="nh-habit-src">${dietSrc}</div>${dietExp}
       </div>
       <div>
         <div class="nh-dots" aria-hidden="true">${dots(dietDone)}</div>
