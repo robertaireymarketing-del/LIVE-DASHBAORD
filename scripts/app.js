@@ -431,6 +431,15 @@ window.handleLogout = async () => { await signOut(auth); try { localStorage.remo
 window.setTab = (tab) => { state.activeTab = tab; state.selectedEditDate = null; state.moreMenuOpen = false; if (tab !== 'bricks') state.bricksViewDate = null; render(); };
 window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render(); };
 // ── New Home: past-day overrides for Gym / Diet (today can't be overridden) ──
+window.toggleHomeGoalEdit = () => { state.homeGoalEdit = !state.homeGoalEdit; render(); };
+window.homeSaveGoal = () => {
+  const bf = parseFloat(document.getElementById('home-goal-bf')?.value);
+  const date = document.getElementById('home-goal-date')?.value;
+  if (!(bf >= 5 && bf <= 40) || !/^\d{4}-\d{2}-\d{2}$/.test(date || '') || date <= getToday()) { alert('Enter a body fat goal between 5 and 40% and a future date.'); return; }
+  state.data.settings = { ...getSettings(), bfGoal: bf, bfGoalDate: date };
+  state.homeGoalEdit = false;
+  saveData(); render();
+};
 window.homeChartShift = (d) => { state.homeChartMonth = (state.homeChartMonth || 0) + d; render(); };
 // Swipe left/right on the home weight chart to change month (delegated so it survives re-renders)
 (() => {

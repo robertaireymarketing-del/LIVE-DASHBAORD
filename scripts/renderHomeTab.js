@@ -155,6 +155,18 @@ body.light .nh {
 .nh .nh-cal-title { font-size:16px; font-weight:900; color:var(--nh-text) !important; text-align:center; }
 .nh .nh-cal-title em { font-style:normal; font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--nh-gold) !important; margin-left:4px; }
 .nh .nh-w-target { margin-top:14px; padding-top:12px; border-top:1px solid var(--nh-line); }
+.nh .nh-goal { border:1px solid var(--nh-line); border-radius:14px; padding:12px 14px; margin-bottom:14px; }
+.nh .nh-goal-top { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.nh .nh-goal-title { font-size:15px; font-weight:700; color:var(--nh-text) !important; }
+.nh .nh-goal-title b { color:var(--nh-bcol) !important; font-weight:900; }
+.nh .nh-goal-edit { height:36px; padding:0 12px; border-radius:10px; border:1px solid var(--nh-line); background:transparent; font-size:13px; font-weight:800; color:var(--nh-sub) !important; }
+.nh .nh-goal-sub { font-size:13px; line-height:1.45; margin-top:6px; color:var(--nh-sub) !important; }
+.nh .nh-goal-sub b, .nh .nh-goal-pace b { color:var(--nh-text) !important; }
+.nh .nh-goal-pace { font-size:13px; margin-top:4px; color:var(--nh-sub) !important; }
+.nh .nh-goal-form { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+.nh .nh-goal-form label { display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:800; letter-spacing:0.5px; color:var(--nh-muted) !important; }
+.nh .nh-goal-form input { height:42px; border-radius:10px; border:1px solid var(--nh-line); background:transparent; padding:0 10px; font-size:15px; font-family:inherit; color:var(--nh-text); }
+.nh .nh-goal-form button { grid-column:1 / -1; height:44px; border-radius:12px; border:0; background:var(--nh-bcol); color:#000 !important; font-size:14px; font-weight:900; }
 .nh .nh-w-target-head { font-size:14px; font-weight:800; color:var(--nh-sub) !important; }
 .nh .nh-w-target-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
 .nh .nh-w-target-cell { border:1px solid var(--nh-line); border-radius:12px; padding:10px 12px; position:relative; transition:background 0.2s; }
@@ -318,22 +330,67 @@ export function renderHomeTab(deps) {
   const base7 = baseKey ? weightByDate[baseKey] : null;
   const delta7 = current != null && base7 != null ? +(current - base7).toFixed(1) : null;
 
-  // Sunday target — same pace as the Health page: last Sunday's weight × (1 − bfLossRate/100)
+  // ── Body-fat goal model (recomputed on every render → updates daily) ─────
+  // Goal: GOAL_BF % body fat by GOAL_DATE (settings.bfGoal / settings.bfGoalDate,
+  // default 13% by the 30th birthday). Method:
+  //   1. Smoothed "now": least-squares trend over the last 14 days of readings,
+  //      evaluated at today (falls back to 7-day mean, then latest). Smooths daily
+  //      water / scale noise without the lag of a plain average.
+  //   2. Fat-free mass (FFM) = smoothed weight × (1 − smoothed BF%), held constant.
+  //   3. Goal weight = FFM ÷ (1 − goal BF%).
+  //   4. Fat to lose ÷ weeks left = required lb/week (constant lb of fat per week).
+  //   5. Target at any date d: weight = now − rate × weeks(d);
+  //      BF% = (weight − FFM) ÷ weight. So weight & BF targets always agree, and the
+  //      required pace is re-worked every day from where you actually are.
   const settings = (deps.getSettings && deps.getSettings()) || {};
-  const lossRate = settings.bfLossRate || 0.75;
+  const GOAL_BF = +(settings.bfGoal || 13);
+  const GOAL_DATE = settings.bfGoalDate || BIRTHDAY_30;
   const thisWeek = weekDates(todayKey);
-  // Weeks run Mon–Sun; the Sunday weigh-in closes the week. So once today is Sunday
-  // AND today's weigh-in is in, roll forward: today's weight becomes the base and
-  // the target is NEXT Sunday. Otherwise the base is last Sunday's weigh-in and the
-  // target is this coming Sunday.
+  // Weeks run Mon–Sun. Once today is Sunday and today's weigh-in is in, the week is
+  // closed, so the next target is NEXT Sunday.
   const isSunday = parseKey(todayKey).getDay() === 0;
   const rolled = isSunday && weightByDate[todayKey] != null;
-  const lastSunKey = rolled ? todayKey : addDaysKey(thisWeek[0], -1);
   const targetSunKey = rolled ? addDaysKey(todayKey, 7) : thisWeek[6];
-  const weekBaseKey = weightDates.filter(k => k <= lastSunKey).slice(-1)[0]
-    || weightDates.find(k => k >= thisWeek[0]);
-  const weekBase = weekBaseKey ? weightByDate[weekBaseKey] : null;
-  const sundayTarget = weekBase != null ? +(weekBase * (1 - lossRate / 100)).toFixed(1) : null;
+
+  const bfByDate = {};
+  Object.entries(days).forEach(([k, d]) => { if (d && d.bodyFat) bfByDate[k] = +d.bodyFat; });
+  health.forEach(h => { if (h.bodyFat) bfByDate[h.date] = +h.bodyFat; });
+  const bfDates = Object.keys(bfByDate).sort();
+
+  const daysBetween = (a, b) => Math.round((parseKey(b) - parseKey(a)) / 86400000);
+  function smoothedNow(byDate) {
+    const keys = Object.keys(byDate).filter(k => k <= todayKey).sort();
+    if (!keys.length) return null;
+    const win = keys.filter(k => k > addDaysKey(todayKey, -14));
+    if (win.length >= 3 && daysBetween(win[0], win[win.length - 1]) >= 4) {
+      const xs = win.map(k => daysBetween(todayKey, k)), ys = win.map(k => +byDate[k]);
+      const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+      const den = xs.reduce((a, x) => a + (x - mx) ** 2, 0);
+      const slope = den ? xs.reduce((a, x, j) => a + (x - mx) * (ys[j] - my), 0) / den : 0;
+      return my + slope * (0 - mx); // value at today
+    }
+    const w7 = keys.filter(k => k > addDaysKey(todayKey, -7));
+    if (w7.length) return w7.reduce((a, k) => a + +byDate[k], 0) / w7.length;
+    return +byDate[keys[keys.length - 1]];
+  }
+  const wNow = smoothedNow(weightByDate);
+  const bfNowS = smoothedNow(bfByDate);
+  const goal = (() => {
+    if (wNow == null || bfNowS == null) return null;
+    const ffm = wNow * (1 - bfNowS / 100);
+    const goalWeight = ffm / (1 - GOAL_BF / 100);
+    const daysLeft = Math.max(7, daysBetween(todayKey, GOAL_DATE));
+    const weeksLeft = daysLeft / 7;
+    const fatToLose = Math.max(0, wNow - goalWeight);
+    const rate = fatToLose / weeksLeft; // lb per week
+    const wAt = (k) => {
+      const d = Math.min(daysBetween(todayKey, k), daysLeft);
+      return Math.max(goalWeight, wNow - rate * d / 7);
+    };
+    const bfAt = (k) => { const w = wAt(k); return (w - ffm) / w * 100; };
+    return { ffm, goalWeight, weeksLeft, fatToLose, rate, wAt, bfAt, bfPtsPerWeek: (bfNowS - GOAL_BF) / weeksLeft };
+  })();
+  const sundayTarget = goal ? +goal.wAt(targetSunKey).toFixed(1) : null;
   const gap = current != null && sundayTarget != null ? +(current - sundayTarget).toFixed(1) : null;
 
   const fmtAsOf = (k) => {
@@ -409,21 +466,18 @@ export function renderHomeTab(deps) {
     const x = (i) => padL + (i / (nDays - 1)) * (VW - padL - padR);
     // Weekly target markers: the on-target path (same rule as "Target by Sunday")
     // at every Sunday in this month after the base weigh-in, plus month end.
-    const tgtPath = (base, baseKey, fn) => {
-      if (mOff < 0 || base == null || !baseKey) return [];
+    const tgtPath = (fn) => {
+      if (mOff < 0) return [];
       const pts = [];
       for (let i = 0; i < nDays; i++) {
         const k = addDaysKey(mStart, i);
-        if (k <= baseKey) continue;
-        if (parseKey(k).getDay() === 0 || i === nDays - 1) {
-          const wks = (parseKey(k) - parseKey(baseKey)) / (7 * 86400000);
-          pts.push({ i, v: fn(+base, wks), sunday: parseKey(k).getDay() === 0 });
-        }
+        if (k <= todayKey) continue;
+        if (parseKey(k).getDay() === 0 || i === nDays - 1) pts.push({ i, v: fn(k), sunday: parseKey(k).getDay() === 0 });
       }
       return pts;
     };
-    W.tgt = tgtPath(weekBase, weekBaseKey, (b, w) => b * Math.pow(1 - lossRate / 100, w));
-    B.tgt = tgtPath(bfWeekBase, bfWeekBaseKey, (b, w) => b - lossRate * w);
+    W.tgt = goal ? tgtPath(goal.wAt) : [];
+    B.tgt = goal ? tgtPath(goal.bfAt) : [];
     const scaler = (ser) => {
       const vals = ser.actual.map(p => p.v).concat(ser.proj.map(p => p.v)).concat((ser.tgt || []).map(p => p.v));
       if (!vals.length) return null;
@@ -467,13 +521,8 @@ export function renderHomeTab(deps) {
     const weekLines = [7, 14, 21, 28].filter(d => d < nDays).map(d => `<line x1="${x(d).toFixed(1)}" x2="${x(d).toFixed(1)}" y1="${padT}" y2="${VH - padB}" stroke="var(--nh-line)" stroke-width="1"></line>`).join('');
     const todayLine = todayIdx >= 0 && todayIdx < nDays ? `<line x1="${x(todayIdx).toFixed(1)}" x2="${x(todayIdx).toFixed(1)}" y1="${padT - 4}" y2="${VH - padB}" stroke="var(--nh-muted)" stroke-width="1" stroke-dasharray="2 3"></line>` : '';
 
-    // On-target pace to month end, from the same weekly base as the Sunday targets:
-    // weight compounds −lossRate% per week; body fat drops lossRate points per week.
-    const weeksFrom = (k) => (parseKey(mEnd) - parseKey(k)) / (7 * 86400000);
-    const onTarget = {
-      Weight: weekBase != null && weekBaseKey ? +weekBase * Math.pow(1 - lossRate / 100, weeksFrom(weekBaseKey)) : null,
-      'Body fat': bfWeekBase != null && bfWeekBaseKey ? bfWeekBase - lossRate * weeksFrom(bfWeekBaseKey) : null,
-    };
+    // On-target month end = where the 13% goal path says you should be
+    const onTarget = { Weight: goal ? goal.wAt(mEnd) : null, 'Body fat': goal ? goal.bfAt(mEnd) : null };
     const legend = (label, ser, col, unit) => {
       const f = (v) => v.toFixed(1) + unit;
       // Projection vs on-target (this month and future months only)
@@ -520,10 +569,6 @@ export function renderHomeTab(deps) {
 
   const deltaCls = delta7 == null ? 'flat' : delta7 < 0 ? 'down' : delta7 > 0 ? 'up' : 'flat';
   // Body fat + fat-free mass (FFM = weight × (1 − BF%)). BF from the sync, else manual day entries.
-  const bfByDate = {};
-  Object.entries(days).forEach(([k, d]) => { if (d && d.bodyFat) bfByDate[k] = +d.bodyFat; });
-  health.forEach(h => { if (h.bodyFat) bfByDate[h.date] = +h.bodyFat; });
-  const bfDates = Object.keys(bfByDate).sort();
   const bfKey = bfDates.filter(k => k <= todayKey).slice(-1)[0];
   const bfNow = bfKey ? +bfByDate[bfKey] : null;
   const bfBaseKey = bfDates.filter(k => k <= addDaysKey(todayKey, -7)).slice(-1)[0] || bfDates.find(k => k >= last7[0]);
@@ -552,16 +597,11 @@ export function renderHomeTab(deps) {
       </div>
     </div>`;
   const deltaTxt = delta7 == null ? '— 7d' : `${delta7 > 0 ? '+' : ''}${delta7} lb · 7d`;
-  // Body fat target for the same week: base BF (same Sunday rule as weight) minus
-  // bfLossRate percentage points — the same rule the Health page / old home used.
-  const bfWeekBaseKey = bfDates.filter(k => k <= lastSunKey).slice(-1)[0] || bfDates.find(k => k >= thisWeek[0]);
-  const bfWeekBase = bfWeekBaseKey ? +bfByDate[bfWeekBaseKey] : null;
-  const bfTarget = bfWeekBase != null ? +(bfWeekBase - lossRate).toFixed(1) : null;
+  const bfTarget = goal ? +goal.bfAt(targetSunKey).toFixed(1) : null;
   const bfGap = bfNow != null && bfTarget != null ? +(bfNow - bfTarget).toFixed(1) : null;
   const bfGapHtml = bfGap == null ? '' : bfGap <= 0
     ? `<div class="nh-w-target-gap good">Hit ✓ (${Math.abs(bfGap)}% under)</div>`
     : `<div class="nh-w-target-gap bad">${bfGap}% to go</div>`;
-  const fmtBase = (k) => parseKey(k).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   const gapHtml = gap == null ? '' : gap <= 0
     ? `<div class="nh-w-target-gap good">Hit ✓ (${Math.abs(gap)} lb under)</div>`
     : `<div class="nh-w-target-gap bad">${gap} lb to go</div>`;
@@ -579,19 +619,33 @@ export function renderHomeTab(deps) {
     ${compSection}
     <div class="nh-w-chart" data-swipe-months="1">${chart()}</div>
     <div class="nh-w-target">
+      <div class="nh-goal">
+        <div class="nh-goal-top">
+          <div class="nh-goal-title">Goal: <b>${GOAL_BF}% body fat</b> by ${parseKey(GOAL_DATE).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+          <button class="nh-goal-edit" onclick="toggleHomeGoalEdit()">${state.homeGoalEdit ? 'Close' : 'Edit'}</button>
+        </div>
+        ${goal ? `<div class="nh-goal-sub">≈ <b>${goal.goalWeight.toFixed(1)} lb</b> at your current lean mass (${goal.ffm.toFixed(1)} lb) · <b>${goal.fatToLose.toFixed(1)} lb</b> of fat to lose in ${goal.weeksLeft.toFixed(1)} weeks</div>
+        <div class="nh-goal-pace">Needed pace: <b>${goal.rate.toFixed(2)} lb/week</b> · <b>${goal.bfPtsPerWeek.toFixed(2)}% body fat/week</b></div>` : `<div class="nh-goal-sub">Needs weight and body fat readings to work out your targets.</div>`}
+        ${state.homeGoalEdit ? `
+        <div class="nh-goal-form">
+          <label>Body fat goal (%)<input id="home-goal-bf" type="number" inputmode="decimal" step="0.5" min="5" max="40" value="${GOAL_BF}"></label>
+          <label>By<input id="home-goal-date" type="date" value="${GOAL_DATE}"></label>
+          <button onclick="homeSaveGoal()">Save goal</button>
+        </div>` : ''}
+      </div>
       <div class="nh-w-target-head">Target by Sun ${parseKey(targetSunKey).getDate()} ${parseKey(targetSunKey).toLocaleDateString('en-GB', { month: 'short' })}</div>
       <div class="nh-w-target-grid">
         <div class="nh-w-target-cell ${gap != null && gap <= 0 ? 'hit' : ''}">
           <div class="nh-w-target-k is-w">WEIGHT</div>
           <div class="nh-w-target-val">${sundayTarget != null ? sundayTarget + ' lb' : '—'}</div>
           ${gapHtml}
-          <div class="nh-w-target-from">from ${weekBase != null ? (+weekBase).toFixed(1) + ' lb · ' + fmtBase(weekBaseKey) : '—'} − ${lossRate}%</div>
+          <div class="nh-w-target-from">on the path to ${GOAL_BF}% · updates daily</div>
         </div>
         <div class="nh-w-target-cell ${bfGap != null && bfGap <= 0 ? 'hit' : ''}">
           <div class="nh-w-target-k is-b">BODY FAT</div>
           <div class="nh-w-target-val">${bfTarget != null ? bfTarget.toFixed(1) + '%' : '—'}</div>
           ${bfGapHtml}
-          <div class="nh-w-target-from">from ${bfWeekBase != null ? bfWeekBase.toFixed(1) + '% · ' + fmtBase(bfWeekBaseKey) : '—'} − ${lossRate} pts</div>
+          <div class="nh-w-target-from">on the path to ${GOAL_BF}% · updates daily</div>
         </div>
       </div>
     </div>
