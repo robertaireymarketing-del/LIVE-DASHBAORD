@@ -129,7 +129,13 @@ body.light .nh {
 .nh .nh-w-delta.flat { color:var(--nh-muted) !important; background:rgba(127,127,127,0.12); }
 .nh .nh-w-chart { margin:14px 0 4px; }
 .nh .nh-w-days { display:grid; grid-template-columns:repeat(7,1fr); font-size:12px; font-weight:800; text-align:center; color:var(--nh-muted) !important; }
-.nh .nh-w-comp { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
+.nh .nh-w-comp { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+.nh .nh-w-comp-v.big { font-size:30px; }
+.nh .nh-w-comp-k.is-w { color:var(--nh-wcol) !important; }
+.nh .nh-w-comp-k.is-b { color:var(--nh-bcol) !important; }
+.nh .nh-w-ffm { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-top:8px; padding:8px 12px; border:1px solid var(--nh-line); border-radius:12px; font-size:13px; font-weight:700; color:var(--nh-sub) !important; }
+.nh .nh-w-ffm span { color:var(--nh-sub); }
+.nh .nh-w-ffm b { font-size:16px; font-weight:900; color:var(--nh-text) !important; }
 .nh .nh-w-comp-tile { border:1px solid var(--nh-line); border-radius:12px; padding:10px 12px; }
 .nh .nh-w-comp-k { font-size:10px; font-weight:900; letter-spacing:1.5px; color:var(--nh-muted) !important; }
 .nh .nh-w-comp-v { font-size:22px; font-weight:900; margin-top:4px; letter-spacing:-0.5px; color:var(--nh-text) !important; font-variant-numeric:tabular-nums; }
@@ -784,18 +790,23 @@ export function renderHomeTab(deps) {
   // Colour: BF down = good; FFM up/flat = good (keeping muscle on a cut)
   const dCol = (v, goodWhenDown) => v == null || v === 0 ? 'var(--nh-muted)' : ((v < 0) === goodWhenDown ? 'var(--nh-green)' : 'var(--nh-red)');
   const dTxt = (v, unit) => v == null ? 'No 7-day comparison yet' : `${v > 0 ? '+' : ''}${v}${unit} · 7d`;
+  // Actual figures: WEIGHT | BODY FAT (same order as the targets below), FFM underneath
   const compSection = `
     <div class="nh-w-comp">
       <div class="nh-w-comp-tile">
-        <div class="nh-w-comp-k">BODY FAT</div>
-        <div class="nh-w-comp-v">${bfNow != null ? bfNow.toFixed(1) : '—'}<span>%</span></div>
-        <div class="nh-w-comp-d" style="color:${dCol(bfDelta, true)} !important;">${bfNow != null ? dTxt(bfDelta, '%') : 'No body fat synced'}</div>
+        <div class="nh-w-comp-k is-w">WEIGHT</div>
+        <div class="nh-w-comp-v big">${current != null ? current : '—'}<span>lb</span></div>
+        <div class="nh-w-comp-d" style="color:${dCol(delta7, true)} !important;">${current != null ? dTxt(delta7, ' lb') : 'No weight synced'}</div>
       </div>
       <div class="nh-w-comp-tile">
-        <div class="nh-w-comp-k">FAT-FREE MASS</div>
-        <div class="nh-w-comp-v">${ffmNow != null ? ffmNow : '—'}<span>lb</span></div>
-        <div class="nh-w-comp-d" style="color:${dCol(ffmDelta, false)} !important;">${ffmNow != null ? dTxt(ffmDelta, ' lb') : 'Needs weight + body fat'}</div>
+        <div class="nh-w-comp-k is-b">BODY FAT</div>
+        <div class="nh-w-comp-v big">${bfNow != null ? bfNow.toFixed(1) : '—'}<span>%</span></div>
+        <div class="nh-w-comp-d" style="color:${dCol(bfDelta, true)} !important;">${bfNow != null ? dTxt(bfDelta, '%') : 'No body fat synced'}</div>
       </div>
+    </div>
+    <div class="nh-w-ffm">
+      <span>Fat-free mass <b>${ffmNow != null ? ffmNow + ' lb' : '—'}</b></span>
+      <span style="color:${dCol(ffmDelta, false)} !important;">${ffmNow != null ? dTxt(ffmDelta, ' lb') : 'Needs weight + body fat'}</span>
     </div>`;
   const deltaTxt = delta7 == null ? '— 7d' : `${delta7 > 0 ? '+' : ''}${delta7} lb · 7d`;
   const bfTarget = goal ? +(recMode === 'break' ? bfNowS : goal.bfAt(targetSunKey)).toFixed(1) : null;
@@ -810,12 +821,8 @@ export function renderHomeTab(deps) {
   const weightSection = `
   <section class="nh-card nh-weight" aria-label="Weight">
     <div class="nh-w-top">
-      <div>
-        <div class="nh-kicker">WEIGHT</div>
-        <div class="nh-w-now">${current != null ? current : '—'}<span>lb</span></div>
-        <div class="nh-w-asof">${current != null ? 'Last weigh-in: ' + fmtAsOf(latestKey) : 'No weight synced yet'}</div>
-      </div>
-      <div class="nh-w-delta ${deltaCls}">${deltaTxt}</div>
+      <div class="nh-kicker">WEIGHT & BODY FAT</div>
+      <div class="nh-w-asof" style="margin-top:0;">${current != null ? 'Last weigh-in: ' + fmtAsOf(latestKey) : 'No weight synced yet'}</div>
     </div>
     ${compSection}
     <div class="nh-week-targets">
