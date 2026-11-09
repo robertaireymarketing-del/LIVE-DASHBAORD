@@ -137,6 +137,11 @@ export function createStorage({
   }
 
   async function loadHealthData(attempt = 1) {
+    // Sync status for the Home "Health sync" card (scripts/healthSyncStatus.js)
+    const todayKeyLocal = (() => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); })();
+    const snapToday = () => JSON.stringify((state.healthData || []).find(h => h.date === todayKeyLocal) || null, (k, v) => (k === 'syncedAt' || k === 'syncedAtSource') ? undefined : v);
+    const before = attempt === 1 ? snapToday() : state._healthBefore;
+    if (attempt === 1) { state._healthBefore = before; state.healthLoading = true; }
     try {
       console.log('[HealthSync] Starting load from healthSync collection...');
       // Load the WHOLE collection. The old query (orderBy('date') + limit(90)) silently
@@ -240,6 +245,11 @@ export function createStorage({
       state.healthData = Object.values(byDate).sort((a, b) => b.date.localeCompare(a.date)); // newest first, as before
 
       console.log(`[HealthSync] Loaded ${state.healthData.length} entries. Most recent:`, state.healthData[0] || 'none');
+      state.healthLoading = false;
+      state.healthLoadError = null;
+      // Only say "new"/"same" after the first load of the session (cache → fresh is not news)
+      if (state.healthLoadedAt) state.healthSyncChange = snapToday() !== before ? 'new' : 'same';
+      state.healthLoadedAt = Date.now();
       try { localStorage.setItem('tjm_health_cache', JSON.stringify(state.healthData)); } catch (e) { /* storage full — non-fatal */ }
 
       state.days = state.data?.days || state.days || {};
@@ -264,6 +274,8 @@ export function createStorage({
       // A dropped connection on load used to leave Home without sync data until a
       // manual refresh. Retry a couple of times before giving up (cache still shows).
       if (attempt < 3) { setTimeout(() => loadHealthData(attempt + 1), 3000 * attempt); return; }
+      state.healthLoading = false;
+      state.healthLoadError = (e && e.message) || 'load failed';
     }
     // This resolves a second or two AFTER first paint. A render() here tears
     // down the DOM and blows away scroll position and focus — do not do it

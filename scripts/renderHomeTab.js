@@ -28,6 +28,7 @@
 // because app.css has `body.light p, span, div { color: inherit; }`.
 
 import { renderLeaseJourney, leaseJourneyStatus, LEASE_JOURNEY_CSS } from './leaseJourney.js';
+import { renderHealthSyncStatus } from './healthSyncStatus.js';
 import { renderThirtyPlan, thirtySummary, thirtySummaryLine, THIRTY_CSS } from './thirtyPlan.js';
 
 const LEASE_START = '2026-09-24';
@@ -972,6 +973,7 @@ export function renderHomeTab(deps) {
       <div class="nh-kicker">WEIGHT & BODY FAT</div>
       <div class="nh-w-asof" style="margin-top:0;">${current != null ? 'Last weigh-in: ' + fmtAsOf(latestKey) : 'No weight synced yet'}</div>
     </div>
+    <div style="margin-top:12px;">${renderHealthSyncStatus(state, todayKey, state.theme === 'light')}</div>
     ${compSection}
     <div class="nh-week-targets">
       <div class="nh-w-target-head">Target by Sun ${parseKey(targetSunKey).getDate()} ${parseKey(targetSunKey).toLocaleDateString('en-GB', { month: 'short' })}</div>

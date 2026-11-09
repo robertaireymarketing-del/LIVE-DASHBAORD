@@ -988,3 +988,17 @@ onAuthStateChanged(auth, async (user) => {
   // localStorage (painted by loadData) and this re-renders when fresh data lands.
   loadHealthData();
 });
+
+// Health sync: "Check again" button on Home, plus an automatic re-check whenever you
+// switch back to the dashboard (e.g. after running the Health Sync Shortcut).
+window.refreshHealthSync = () => {
+  if (state.healthLoading) return;
+  state.healthLoading = true; state.healthSyncChange = null;
+  if (state.activeTab === 'today') render();
+  loadHealthData();
+};
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !state.user || state.healthLoading) return;
+  if (state.healthLoadedAt && Date.now() - state.healthLoadedAt < 20000) return;
+  loadHealthData();
+});
