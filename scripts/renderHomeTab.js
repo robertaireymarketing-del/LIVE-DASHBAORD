@@ -597,6 +597,22 @@ export function renderHomeTab(deps) {
   const recMode = rec && rec.activeBreak ? 'break' : rec && rec.refeedToday ? 'refeed' : null;
   if (deficit && recMode) { deficit.cutTarget = deficit.target; deficit.target = 0; }
 
+  // ── Protein target vs actual ────────────────────────────────────────────
+  // Target = fat-free mass (kg) × 2.3–2.8 g/kg. Helms et al. (2014) recommend
+  // 2.3–3.1 g/kg of lean mass when cutting, toward the top as you get leaner / the
+  // deficit bites harder. Factor rises linearly from 2.3 at ≥ 25% BF to 2.8 at ≤ 13%.
+  // Uses the smoothed lean mass, so it updates daily. Actual = protein from the sync.
+  const protein = (() => {
+    if (!goal) return null;
+    const ffmKg = goal.ffm * 0.45359237;
+    const factor = bfNowS >= 25 ? 2.3 : bfNowS <= 13 ? 2.8 : 2.3 + (25 - bfNowS) * (0.5 / 12);
+    const target = Math.round(ffmKg * factor / 5) * 5;
+    const today = Number((health.find(e => e.date === todayKey) || {}).protein) || 0;
+    const past = [];
+    for (let i = 1; i <= 7; i++) { const v = Number((health.find(e => e.date === addDaysKey(todayKey, -i)) || {}).protein) || 0; if (v > 0) past.push(v); }
+    return { target, factor, ffmKg, today: Math.round(today), avg7: past.length ? Math.round(past.reduce((a, b) => a + b, 0) / past.length) : null, n7: past.length };
+  })();
+
   const sundayTarget = goal ? +(recMode === 'break' ? wNow : goal.wAt(targetSunKey)).toFixed(1) : null;
   const gap = current != null && sundayTarget != null ? +(current - sundayTarget).toFixed(1) : null;
 
@@ -868,6 +884,20 @@ export function renderHomeTab(deps) {
           </div>
           <div class="nh-def-s">Today: burned ${deficit.today.burn.toLocaleString()} − eaten ${deficit.today.eaten.toLocaleString()} kcal, same figures as the Health page. Updates as you sync.</div>
           <div class="nh-def-s">${deficit.weekly.toLocaleString()} kcal/week · ${goal.lbPerWeekNow.toFixed(1)} lb of fat × 3,500 ÷ 7 · updates daily</div>
+          ${protein ? `
+          <div class="nh-def-vs" style="margin-top:10px;">
+            <div class="nh-def-col">
+              <div class="nh-def-k">TARGET PROTEIN</div>
+              <div class="nh-def-v">${protein.target}<span style="font-size:14px;letter-spacing:0;"> g</span></div>
+              <div class="nh-def-s">today</div>
+            </div>
+            <div class="nh-def-col ${protein.today <= 0 ? '' : protein.today >= protein.target ? 'ok' : protein.today >= protein.target * 0.75 ? 'close' : 'low'}">
+              <div class="nh-def-k">TODAY'S PROTEIN</div>
+              <div class="nh-def-v">${protein.today > 0 ? protein.today : '—'}<span style="font-size:14px;letter-spacing:0;">${protein.today > 0 ? ' g' : ''}</span></div>
+              <div class="nh-def-s">${protein.today <= 0 ? 'no protein synced yet' : protein.today >= protein.target ? 'on target ✓' : `${protein.target - protein.today} g to go`}</div>
+            </div>
+          </div>
+          <div class="nh-def-s">${protein.factor.toFixed(1)} g per kg of lean mass (${protein.ffmKg.toFixed(1)} kg) · rises as you get leaner to protect muscle${protein.avg7 != null ? ` · last 7 days avg <b style="color:var(--nh-text)">${protein.avg7} g</b>` : ''}</div>` : ''}
           ${deficit.avgDef != null ? `
           <div class="nh-def-row ${deficit.avgDef >= deficit.target ? 'ok' : deficit.avgDef >= deficit.target * 0.8 ? 'close' : 'low'}">
             <span>Your last 7 days</span>
