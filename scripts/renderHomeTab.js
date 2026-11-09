@@ -280,6 +280,8 @@ body.light .nh {
 .nh .nh-confirm button { height:40px; padding:0 14px; border-radius:10px; border:0; font-size:13px; font-weight:900; }
 .nh .nh-confirm .yes { background:var(--nh-gold); color:#000 !important; }
 .nh .nh-confirm .no { background:transparent; border:1px solid var(--nh-line); color:var(--nh-sub) !important; }
+.nh .nh-habit.tappable { cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.nh .nh-habit.tappable:active { transform:scale(0.98); }
 .nh .nh-habit-foot { font-size:11px; font-weight:800; margin-top:6px; color:rgba(255,255,255,0.88) !important; }
 </style>`;
 
@@ -956,7 +958,8 @@ export function renderHomeTab(deps) {
   };
   const gymSyncDone = (k) => syncWorkout(k).hit;
   const dietSyncDone = (k) => syncCals(k) > 0;
-  const legacyGym = (k) => k < LEGACY_CUTOFF && !!dayData(k).gym;
+  // Manual tap (Gym only) — counts until the Shortcut can send workouts.
+  const legacyGym = (k) => (k < LEGACY_CUTOFF && !!dayData(k).gym) || !!dayData(k).gymManual;
   const legacyDiet = (k) => k < LEGACY_CUTOFF && !!dayData(k).dietManual;
   const resolve = (k, ov, auto, legacy) => {
     const o = dayData(k)[ov];
@@ -978,16 +981,19 @@ export function renderHomeTab(deps) {
 
   const wToday = syncWorkout(todayKey);
   const gymToday = gymDone(todayKey);
-  const gymSrc = wToday.mins > 0
+  const gymManualToday = !gymSyncDone(todayKey) && !!dayData(todayKey).gymManual;
+  const gymTappable = !gymSyncDone(todayKey); // once synced, the sync owns it
+  const gymSrc = gymManualToday ? 'Marked manually · tap to undo'
+    : wToday.mins > 0
     ? `Garmin · ${wToday.mins} min${wToday.type ? ' · ' + wToday.type : ''}${wToday.hit ? '' : ` (needs ${GYM_MIN_MINUTES})`}`
-    : wToday.count > 0 ? `Garmin · ${wToday.count} workout${wToday.count === 1 ? '' : 's'}` : 'No workout synced yet';
+    : wToday.count > 0 ? `Garmin · ${wToday.count} workout${wToday.count === 1 ? '' : 's'}` : 'No workout synced · tap if done';
   const calsToday = syncCals(todayKey);
   const dietToday = dietDone(todayKey);
   const dietSrc = calsToday > 0 ? `Synced · ${Math.round(calsToday).toLocaleString()} kcal` : 'No calories synced yet';
 
   const habitsSection = `
   <section class="nh-habits">
-    <div class="nh-habit ${gymToday ? 'done' : 'todo'}" role="status" aria-label="Gym ${gymToday ? 'done' : 'not done'}">
+    <div class="nh-habit ${gymToday ? 'done' : 'todo'}${gymTappable ? ' tappable' : ''}" ${gymTappable ? 'role="button" tabindex="0" onclick="toggleHomeGym()"' : 'role="status"'} aria-label="Gym ${gymToday ? 'done' : 'not done'}">
       <div>
         <div class="nh-habit-name">Gym</div>
         <div class="nh-habit-state">${gymToday ? 'DONE ✓' : 'NOT DONE'}</div>
@@ -1026,11 +1032,11 @@ export function renderHomeTab(deps) {
     if (habit === 'gym') {
       const w = syncWorkout(editDate);
       syncTxt = w.mins > 0 ? `Sync: ${w.mins} min${w.type ? ' · ' + w.type : ''}` : w.count > 0 ? `Sync: ${w.count} workout${w.count === 1 ? '' : 's'}` : 'Sync: no workout';
-      if (legacyGym(editDate)) syncTxt += ' · old manual tick';
+      if (legacyGym(editDate)) syncTxt += ' · manual tick';
     } else {
       const c = syncCals(editDate);
       syncTxt = c > 0 ? `Sync: ${Math.round(c).toLocaleString()} kcal` : 'Sync: no calories';
-      if (legacyDiet(editDate)) syncTxt += ' · old manual tick';
+      if (legacyDiet(editDate)) syncTxt += ' · manual tick';
     }
     const autoResult = habit === 'gym' ? (gymSyncDone(editDate) || legacyGym(editDate)) : (dietSyncDone(editDate) || legacyDiet(editDate));
     const isPending = pending && pending.habit === habit && pending.date === editDate;

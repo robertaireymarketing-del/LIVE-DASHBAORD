@@ -488,6 +488,7 @@ window.homeChartShift = (d) => { state.homeChartMonth = (state.homeChartMonth ||
     if (dx > 0 && prev && !prev.disabled) window.homeChartShift(-1);  // swipe right → earlier month
   }, { passive: true });
 })();
+window.toggleHomeGym = () => { updateDayField(getToday(), 'gymManual', !getTodayData().gymManual); };
 window.toggleHomeEdit = () => { state.homeEditOpen = !state.homeEditOpen; state.homePending = null; render(); };
 window.homeEditShift = (delta) => {
   const today = getToday();
