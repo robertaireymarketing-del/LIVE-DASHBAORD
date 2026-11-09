@@ -500,9 +500,22 @@ export function renderHomeTab(deps) {
   // Needs ≥ 14 days with food logged and ≥ 6 weigh-ins spanning ≥ 14 days.
   // factor = real ÷ device burn (clamped 0.6–1.4) and is then applied to every
   // device burn figure below (today's deficit, 7-day average, eat target, adherence).
+  // Today's resting calories arrive in batches through the day (Garmin → Health),
+  // so a mid-day sync is only part of the day. You burn the full BMR by midnight,
+  // so for TODAY use the larger of the synced value and the latest complete day's
+  // BMR (else settings.defaultBmr, else 2085). Past days use their synced total.
+  const fullDayBmr = (() => {
+    const last = health.filter(e => e.date < todayKey && Number(e.bmr) >= 1200).sort((a, b) => b.date.localeCompare(a.date))[0];
+    return Number(last && last.bmr) || settings.defaultBmr || 2085;
+  })();
+  const bmrFor = (k) => {
+    const h = health.find(e => e.date === k) || {};
+    const synced = Number(h.bmr) || 0;
+    return k === todayKey ? Math.max(synced, fullDayBmr) : (synced || settings.defaultBmr || 2085);
+  };
   const deviceBurn = (k) => {
     const h = health.find(e => e.date === k) || {}; const dd = days[k] || {};
-    return (Number(h.bmr) || settings.defaultBmr || 2085) + (Number(h.gymCalories) || 0) + (Number(dd.gymCalEntry) || 0) + (Number(dd.treadmillCal) || 0);
+    return bmrFor(k) + (Number(h.gymCalories) || 0) + (Number(dd.gymCalEntry) || 0) + (Number(dd.treadmillCal) || 0);
   };
   const REAL_MIN_DAYS = 14;
   const realBurn = (() => {

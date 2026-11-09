@@ -218,10 +218,16 @@ export function renderProgressTab(deps) {
   let calWeeklyTotal = 0;
   let calWeeklyDays  = 0;
 
+  const calFullDayBmr = (() => {
+    const last = (state.healthData || []).filter(e => e.date < todayStr && Number(e.bmr) >= 1200).sort((a, b) => b.date.localeCompare(a.date))[0];
+    return Number(last && last.bmr) || settings.defaultBmr || 2085;
+  })();
   const calDayData = calWeekDates.map(ds => {
     const sync       = (state.healthData || []).find(h => h.date === ds) || null;
     const dayEntry   = state.data?.days?.[ds] || {};
-    const bmr        = sync?.bmr || settings.defaultBmr || 2085;
+    // Today: resting calories sync in batches, so use the larger of today's synced
+    // value and the latest complete day's BMR (you burn the full BMR by midnight).
+    const bmr        = ds === todayStr ? Math.max(Number(sync?.bmr) || 0, calFullDayBmr) : (sync?.bmr || settings.defaultBmr || 2085);
     const activeEnergy   = sync?.gymCalories || 0;
     const gymEntry       = dayEntry.gymCalEntry    || 0;
     const treadmillEntry = dayEntry.treadmillCal   || 0;
@@ -231,9 +237,10 @@ export function renderProgressTab(deps) {
     const isToday        = ds === todayStr;
     const isFuture       = ds > todayStr;
     const hasSyncBmr     = !!sync?.bmr;
+    const bmrProjected   = ds === todayStr && bmr > (Number(sync?.bmr) || 0);
     const protein        = sync?.protein || null;
     if (deficit !== null) { calWeeklyTotal += deficit; calWeeklyDays++; }
-    return { ds, bmr, activeEnergy, gymEntry, treadmillEntry, dietaryCal, totalBurn, deficit, isToday, isFuture, hasSyncBmr, protein };
+    return { ds, bmr, activeEnergy, gymEntry, treadmillEntry, dietaryCal, totalBurn, deficit, isToday, isFuture, hasSyncBmr, bmrProjected, protein };
   });
 
   // ── Build calorie day cards ─────────────────────────────────────────────
@@ -262,7 +269,7 @@ export function renderProgressTab(deps) {
         <div style="background:rgba(46,204,113,0.05);border:1px solid rgba(46,204,113,0.14);border-radius:8px;padding:9px;">
           <div style="font-size:9px;font-weight:800;color:rgba(46,204,113,0.7);letter-spacing:1px;margin-bottom:3px;">BMR</div>
           <div style="font-size:17px;font-weight:700;color:#2ecc71;">${Math.round(day.bmr).toLocaleString()}<span style="font-size:9px;font-weight:400;color:rgba(46,204,113,0.55);"> kcal</span></div>
-          <div style="font-size:9px;color:${subText};margin-top:2px;">${day.hasSyncBmr ? 'sync' : 'default'}</div>
+          <div style="font-size:9px;color:${subText};margin-top:2px;">${day.bmrProjected ? 'full day' : day.hasSyncBmr ? 'sync' : 'default'}</div>
         </div>
         <div style="background:rgba(46,204,113,0.05);border:1px solid rgba(46,204,113,0.14);border-radius:8px;padding:9px;">
           <div style="font-size:9px;font-weight:800;color:rgba(46,204,113,0.7);letter-spacing:1px;margin-bottom:3px;">ACTIVE ENERGY</div>
