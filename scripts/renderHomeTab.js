@@ -143,6 +143,7 @@ body.light .nh {
 .nh .nh-leg b { font-size:18px; font-weight:900; color:var(--nh-text) !important; font-variant-numeric:tabular-nums; }
 .nh .nh-leg em { white-space:nowrap; font-style:normal; font-size:13px; font-weight:700; color:var(--nh-muted) !important; }
 .nh .nh-leg i { width:12px; height:12px; border-radius:50%; flex-shrink:0; margin-top:6px; }
+.nh .nh-leg-key { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:var(--nh-muted) !important; margin-top:2px; }
 .nh .nh-vs { margin-top:4px; padding:6px 10px; border-radius:10px; font-size:13px; font-weight:800; }
 .nh .nh-vs b { font-size:15px; }
 .nh .nh-vs.ahead { background:rgba(34,197,94,0.14); color:var(--nh-green) !important; }
@@ -406,8 +407,25 @@ export function renderHomeTab(deps) {
 
     const VW = 320, VH = 260, padL = 36, padR = 44, padT = 14, padB = 14;
     const x = (i) => padL + (i / (nDays - 1)) * (VW - padL - padR);
+    // Weekly target markers: the on-target path (same rule as "Target by Sunday")
+    // at every Sunday in this month after the base weigh-in, plus month end.
+    const tgtPath = (base, baseKey, fn) => {
+      if (mOff < 0 || base == null || !baseKey) return [];
+      const pts = [];
+      for (let i = 0; i < nDays; i++) {
+        const k = addDaysKey(mStart, i);
+        if (k <= baseKey) continue;
+        if (parseKey(k).getDay() === 0 || i === nDays - 1) {
+          const wks = (parseKey(k) - parseKey(baseKey)) / (7 * 86400000);
+          pts.push({ i, v: fn(+base, wks), sunday: parseKey(k).getDay() === 0 });
+        }
+      }
+      return pts;
+    };
+    W.tgt = tgtPath(weekBase, weekBaseKey, (b, w) => b * Math.pow(1 - lossRate / 100, w));
+    B.tgt = tgtPath(bfWeekBase, bfWeekBaseKey, (b, w) => b - lossRate * w);
     const scaler = (ser) => {
-      const vals = ser.actual.map(p => p.v).concat(ser.proj.map(p => p.v));
+      const vals = ser.actual.map(p => p.v).concat(ser.proj.map(p => p.v)).concat((ser.tgt || []).map(p => p.v));
       if (!vals.length) return null;
       let lo = Math.min(...vals), hi = Math.max(...vals);
       const pad = Math.max((hi - lo) * 0.15, 0.5); lo -= pad; hi += pad;
@@ -421,6 +439,18 @@ export function renderHomeTab(deps) {
       ${ser.proj.length ? `<polyline points="${path(ser.proj, sc)}" fill="none" stroke="${col}" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round" opacity="0.85"></polyline>` : ''}
       ${ser.actual.map(p => `<circle cx="${x(p.i).toFixed(1)}" cy="${sc.y(p.v).toFixed(1)}" r="${p === ser.last ? 4 : 2.2}" fill="${col}"></circle>`).join('')}
       ${ser.proj.length ? `<circle cx="${x(nDays - 1).toFixed(1)}" cy="${sc.y(ser.end).toFixed(1)}" r="3.5" fill="none" stroke="${col}" stroke-width="2"></circle>` : ''}`;
+    // Target markers: faint dotted path + diamonds at each Sunday (hollow square at month end)
+    const targets = (ser, sc, col) => {
+      if (!sc || !ser.tgt || !ser.tgt.length) return '';
+      const pts = ser.tgt.map(p => `${x(p.i).toFixed(1)},${sc.y(p.v).toFixed(1)}`).join(' ');
+      const mk = ser.tgt.map(p => {
+        const cx = x(p.i), cy = sc.y(p.v);
+        return p.sunday
+          ? `<rect x="${(cx - 4.5).toFixed(1)}" y="${(cy - 4.5).toFixed(1)}" width="9" height="9" transform="rotate(45 ${cx.toFixed(1)} ${cy.toFixed(1)})" fill="var(--nh-card)" stroke="${col}" stroke-width="2"></rect>`
+          : `<rect x="${(cx - 4).toFixed(1)}" y="${(cy - 4).toFixed(1)}" width="8" height="8" fill="var(--nh-card)" stroke="${col}" stroke-width="2" opacity="0.8"></rect>`;
+      }).join('');
+      return `${ser.tgt.length > 1 ? `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.5" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.7"></polyline>` : ''}${mk}`;
+    };
     // 6 evenly spaced ticks per side, with faint horizontal gridlines
     const TICKS = 6;
     const tickVals = (sc) => Array.from({ length: TICKS }, (_, j) => sc.hi - (j / (TICKS - 1)) * (sc.hi - sc.lo));
@@ -474,6 +504,7 @@ export function renderHomeTab(deps) {
       ${weekLines}${todayLine}
       ${gridLines}
       ${axis(sw, 'l', WC, v => v.toFixed(1))}${axis(sb, 'r', BC, v => v.toFixed(1) + '%')}
+      ${targets(B, sb, BC)}${targets(W, sw, WC)}
       ${line(B, sb, BC)}${line(W, sw, WC)}
       ${tag(B, sb, BC, v => v.toFixed(1) + '%', false)}${tag(W, sw, WC, v => v.toFixed(1), true)}
     </svg>
@@ -483,6 +514,7 @@ export function renderHomeTab(deps) {
     <div class="nh-legend">
       ${legend('Weight', W, WC, ' lb')}
       ${legend('Body fat', B, BC, '%')}
+      ${mOff >= 0 && (W.tgt.length || B.tgt.length) ? `<div class="nh-leg-key"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="3" y="3" width="8" height="8" transform="rotate(45 7 7)" fill="none" stroke="currentColor" stroke-width="2"></rect></svg> Weekly target (each Sunday) · solid = actual · dashed = trend</div>` : ''}
     </div>`;
   }
 
