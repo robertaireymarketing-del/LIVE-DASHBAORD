@@ -162,8 +162,10 @@ body.light .nh {
 .nh .nh-goal-edit { height:36px; padding:0 12px; border-radius:10px; border:1px solid var(--nh-line); background:transparent; font-size:13px; font-weight:800; color:var(--nh-sub) !important; }
 .nh .nh-goal-sub { font-size:13px; line-height:1.45; margin-top:6px; color:var(--nh-sub) !important; }
 .nh .nh-goal-sub b, .nh .nh-goal-pace b { color:var(--nh-text) !important; }
-.nh .nh-goal-pace { font-size:13px; margin-top:4px; color:var(--nh-sub) !important; }
-.nh .nh-goal-form { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+.nh .nh-goal-pace { font-size:13px; line-height:1.45; margin-top:4px; color:var(--nh-sub) !important; }
+.nh .nh-goal-eta { font-size:13px; margin-top:6px; padding:8px 10px; border-radius:10px; background:rgba(255,138,61,0.12); color:var(--nh-text) !important; }
+.nh .nh-goal-eta b { color:var(--nh-bcol) !important; }
+.nh .nh-goal-form { display:grid; grid-template-columns:1fr; gap:8px; margin-top:10px; }
 .nh .nh-goal-form label { display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:800; letter-spacing:0.5px; color:var(--nh-muted) !important; }
 .nh .nh-goal-form input { height:42px; border-radius:10px; border:1px solid var(--nh-line); background:transparent; padding:0 10px; font-size:15px; font-family:inherit; color:var(--nh-text); }
 .nh .nh-goal-form button { grid-column:1 / -1; height:44px; border-radius:12px; border:0; background:var(--nh-bcol); color:#000 !important; font-size:14px; font-weight:900; }
@@ -331,20 +333,24 @@ export function renderHomeTab(deps) {
   const delta7 = current != null && base7 != null ? +(current - base7).toFixed(1) : null;
 
   // ── Body-fat goal model (recomputed on every render → updates daily) ─────
-  // Goal: GOAL_BF % body fat by GOAL_DATE (settings.bfGoal / settings.bfGoalDate,
-  // default 13% by the 30th birthday). Method:
-  //   1. Smoothed "now": least-squares trend over the last 14 days of readings,
-  //      evaluated at today (falls back to 7-day mean, then latest). Smooths daily
-  //      water / scale noise without the lag of a plain average.
+  // Goal: GOAL_BF % body fat (settings.bfGoal, default 13). No deadline — the pace
+  // is the fastest that research supports for keeping lean mass, and it slows
+  // automatically as you get leaner:
+  //   Loss rate (% of body weight per week) by current body fat:
+  //     ≥ 25% → 1.0%/wk   (top of the 0.5–1.0%/wk range, Helms et al. 2014)
+  //     18%   → 0.7%/wk   (Garthe et al. 2011: 0.7%/wk kept more lean mass than 1.4%)
+  //     ≤ 13% → 0.5%/wk   (bottom of range: leaner = more muscle at risk)
+  //     linear in between.
+  // Method:
+  //   1. Smoothed "now": least-squares trend over the last 14 days, evaluated at
+  //      today (falls back to 7-day mean, then latest) — smooths scale/water noise.
   //   2. Fat-free mass (FFM) = smoothed weight × (1 − smoothed BF%), held constant.
-  //   3. Goal weight = FFM ÷ (1 − goal BF%).
-  //   4. Fat to lose ÷ weeks left = required lb/week (constant lb of fat per week).
-  //   5. Target at any date d: weight = now − rate × weeks(d);
-  //      BF% = (weight − FFM) ÷ weight. So weight & BF targets always agree, and the
-  //      required pace is re-worked every day from where you actually are.
+  //   3. Step forward day by day: weight falls at the rate for the current BF%;
+  //      BF% = (weight − FFM) ÷ weight. Stops at the goal BF%.
+  //   So weight & BF targets always agree, and everything is re-worked daily.
   const settings = (deps.getSettings && deps.getSettings()) || {};
   const GOAL_BF = +(settings.bfGoal || 13);
-  const GOAL_DATE = settings.bfGoalDate || BIRTHDAY_30;
+  const ratePct = (bf) => bf >= 25 ? 1.0 : bf >= 18 ? 0.7 + (bf - 18) * (0.3 / 7) : bf > 13 ? 0.5 + (bf - 13) * (0.2 / 5) : 0.5;
   const thisWeek = weekDates(todayKey);
   // Weeks run Mon–Sun. Once today is Sunday and today's weigh-in is in, the week is
   // closed, so the next target is NEXT Sunday.
@@ -379,16 +385,23 @@ export function renderHomeTab(deps) {
     if (wNow == null || bfNowS == null) return null;
     const ffm = wNow * (1 - bfNowS / 100);
     const goalWeight = ffm / (1 - GOAL_BF / 100);
-    const daysLeft = Math.max(7, daysBetween(todayKey, GOAL_DATE));
-    const weeksLeft = daysLeft / 7;
-    const fatToLose = Math.max(0, wNow - goalWeight);
-    const rate = fatToLose / weeksLeft; // lb per week
-    const wAt = (k) => {
-      const d = Math.min(daysBetween(todayKey, k), daysLeft);
-      return Math.max(goalWeight, wNow - rate * d / 7);
+    // Day-by-day path from today; path[d] = weight d days from now
+    const path = [wNow];
+    let w = wNow;
+    for (let d = 1; d <= 1200; d++) {
+      const bf = (w - ffm) / w * 100;
+      if (bf <= GOAL_BF + 0.01 || w <= goalWeight + 0.05) break; // reached goal (float-safe)
+      w = Math.max(goalWeight, w * Math.pow(1 - ratePct(bf) / 100, 1 / 7));
+      path.push(w);
+    }
+    const daysToGoal = path.length - 1;
+    const wAt = (k) => { const d = daysBetween(todayKey, k); return d <= 0 ? wNow : path[Math.min(d, daysToGoal)]; };
+    const bfAt = (k) => { const ww = wAt(k); return (ww - ffm) / ww * 100; };
+    const rateNow = ratePct(bfNowS);
+    return {
+      ffm, goalWeight, fatToLose: Math.max(0, wNow - goalWeight), wAt, bfAt, daysToGoal,
+      rateNow, lbPerWeekNow: wNow * rateNow / 100, etaKey: addDaysKey(todayKey, daysToGoal),
     };
-    const bfAt = (k) => { const w = wAt(k); return (w - ffm) / w * 100; };
-    return { ffm, goalWeight, weeksLeft, fatToLose, rate, wAt, bfAt, bfPtsPerWeek: (bfNowS - GOAL_BF) / weeksLeft };
   })();
   const sundayTarget = goal ? +goal.wAt(targetSunKey).toFixed(1) : null;
   const gap = current != null && sundayTarget != null ? +(current - sundayTarget).toFixed(1) : null;
@@ -621,15 +634,15 @@ export function renderHomeTab(deps) {
     <div class="nh-w-target">
       <div class="nh-goal">
         <div class="nh-goal-top">
-          <div class="nh-goal-title">Goal: <b>${GOAL_BF}% body fat</b> by ${parseKey(GOAL_DATE).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+          <div class="nh-goal-title">Goal: <b>${GOAL_BF}% body fat</b></div>
           <button class="nh-goal-edit" onclick="toggleHomeGoalEdit()">${state.homeGoalEdit ? 'Close' : 'Edit'}</button>
         </div>
-        ${goal ? `<div class="nh-goal-sub">≈ <b>${goal.goalWeight.toFixed(1)} lb</b> at your current lean mass (${goal.ffm.toFixed(1)} lb) · <b>${goal.fatToLose.toFixed(1)} lb</b> of fat to lose in ${goal.weeksLeft.toFixed(1)} weeks</div>
-        <div class="nh-goal-pace">Needed pace: <b>${goal.rate.toFixed(2)} lb/week</b> · <b>${goal.bfPtsPerWeek.toFixed(2)}% body fat/week</b></div>` : `<div class="nh-goal-sub">Needs weight and body fat readings to work out your targets.</div>`}
+        ${goal ? `<div class="nh-goal-sub">≈ <b>${goal.goalWeight.toFixed(1)} lb</b> at your current lean mass (${goal.ffm.toFixed(1)} lb) · <b>${goal.fatToLose.toFixed(1)} lb</b> of fat to lose</div>
+        <div class="nh-goal-pace">Pace now: <b>${goal.rateNow.toFixed(2)}% of body weight/week</b> (≈ ${goal.lbPerWeekNow.toFixed(1)} lb) · slows as you get leaner to protect muscle</div>
+        <div class="nh-goal-eta">On pace you reach ${GOAL_BF}% around <b>${parseKey(goal.etaKey).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</b> · ${Math.round(goal.daysToGoal / 7)} weeks</div>` : `<div class="nh-goal-sub">Needs weight and body fat readings to work out your targets.</div>`}
         ${state.homeGoalEdit ? `
         <div class="nh-goal-form">
           <label>Body fat goal (%)<input id="home-goal-bf" type="number" inputmode="decimal" step="0.5" min="5" max="40" value="${GOAL_BF}"></label>
-          <label>By<input id="home-goal-date" type="date" value="${GOAL_DATE}"></label>
           <button onclick="homeSaveGoal()">Save goal</button>
         </div>` : ''}
       </div>

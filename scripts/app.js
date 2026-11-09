@@ -434,9 +434,8 @@ window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render
 window.toggleHomeGoalEdit = () => { state.homeGoalEdit = !state.homeGoalEdit; render(); };
 window.homeSaveGoal = () => {
   const bf = parseFloat(document.getElementById('home-goal-bf')?.value);
-  const date = document.getElementById('home-goal-date')?.value;
-  if (!(bf >= 5 && bf <= 40) || !/^\d{4}-\d{2}-\d{2}$/.test(date || '') || date <= getToday()) { alert('Enter a body fat goal between 5 and 40% and a future date.'); return; }
-  state.data.settings = { ...getSettings(), bfGoal: bf, bfGoalDate: date };
+  if (!(bf >= 5 && bf <= 40)) { alert('Enter a body fat goal between 5 and 40%.'); return; }
+  state.data.settings = { ...getSettings(), bfGoal: bf };
   state.homeGoalEdit = false;
   saveData(); render();
 };
