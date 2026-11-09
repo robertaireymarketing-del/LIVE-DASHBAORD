@@ -151,8 +151,20 @@ body.light .nh {
 .nh .nh-w-target { margin-top:14px; padding-top:12px; border-top:1px solid var(--nh-line); }
 .nh .nh-w-target-head { font-size:14px; font-weight:800; color:var(--nh-sub) !important; }
 .nh .nh-w-target-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
-.nh .nh-w-target-cell { border:1px solid var(--nh-line); border-radius:12px; padding:10px 12px; }
+.nh .nh-w-target-cell { border:1px solid var(--nh-line); border-radius:12px; padding:10px 12px; position:relative; transition:background 0.2s; }
+/* Target hit: whole box goes green with a tick */
+.nh .nh-w-target-cell.hit { background:#16A34A; border-color:#16A34A; }
+.nh .nh-w-target-cell.hit::after { content:'✓'; position:absolute; top:8px; right:10px; width:24px; height:24px; border-radius:50%; background:#FFFFFF; color:#16A34A; font-size:14px; font-weight:900; display:flex; align-items:center; justify-content:center; }
+.nh .nh-w-target-cell.hit .nh-w-target-k.is-w,
+.nh .nh-w-target-cell.hit .nh-w-target-k.is-b,
+.nh .nh-w-target-cell.hit .nh-w-target-val,
+.nh .nh-w-target-cell.hit .nh-w-target-gap.good,
+.nh .nh-w-target-cell.hit .nh-w-target-from { color:#FFFFFF !important; }
 .nh .nh-w-target-k { font-size:10px; font-weight:900; letter-spacing:1.5px; }
+.nh .nh-w-target-k.is-w { color:var(--nh-wcol) !important; }
+.nh .nh-w-target-k.is-b { color:var(--nh-bcol) !important; }
+.nh .nh-w-target-gap.good { color:var(--nh-green) !important; }
+.nh .nh-w-target-gap.bad { color:var(--nh-red) !important; }
 .nh .nh-w-target-from { font-size:11px; font-weight:600; margin-top:4px; color:var(--nh-muted) !important; }
 .nh .nh-w-target-lbl { font-size:13px; font-weight:700; color:var(--nh-sub) !important; }
 .nh .nh-w-target-val { font-size:20px; font-weight:900; color:var(--nh-text) !important; font-variant-numeric:tabular-nums; }
@@ -494,12 +506,12 @@ export function renderHomeTab(deps) {
   const bfTarget = bfWeekBase != null ? +(bfWeekBase - lossRate).toFixed(1) : null;
   const bfGap = bfNow != null && bfTarget != null ? +(bfNow - bfTarget).toFixed(1) : null;
   const bfGapHtml = bfGap == null ? '' : bfGap <= 0
-    ? `<div class="nh-w-target-gap" style="color:var(--nh-green) !important;">Hit ✓ (${Math.abs(bfGap)}% under)</div>`
-    : `<div class="nh-w-target-gap" style="color:var(--nh-red) !important;">${bfGap}% to go</div>`;
+    ? `<div class="nh-w-target-gap good">Hit ✓ (${Math.abs(bfGap)}% under)</div>`
+    : `<div class="nh-w-target-gap bad">${bfGap}% to go</div>`;
   const fmtBase = (k) => parseKey(k).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   const gapHtml = gap == null ? '' : gap <= 0
-    ? `<div class="nh-w-target-gap" style="color:var(--nh-green) !important;">Hit ✓ (${Math.abs(gap)} lb under)</div>`
-    : `<div class="nh-w-target-gap" style="color:var(--nh-red) !important;">${gap} lb to go</div>`;
+    ? `<div class="nh-w-target-gap good">Hit ✓ (${Math.abs(gap)} lb under)</div>`
+    : `<div class="nh-w-target-gap bad">${gap} lb to go</div>`;
 
   const weightSection = `
   <section class="nh-card nh-weight" aria-label="Weight">
@@ -516,14 +528,14 @@ export function renderHomeTab(deps) {
     <div class="nh-w-target">
       <div class="nh-w-target-head">Target by Sun ${parseKey(targetSunKey).getDate()} ${parseKey(targetSunKey).toLocaleDateString('en-GB', { month: 'short' })}</div>
       <div class="nh-w-target-grid">
-        <div class="nh-w-target-cell">
-          <div class="nh-w-target-k" style="color:var(--nh-wcol) !important;">WEIGHT</div>
+        <div class="nh-w-target-cell ${gap != null && gap <= 0 ? 'hit' : ''}">
+          <div class="nh-w-target-k is-w">WEIGHT</div>
           <div class="nh-w-target-val">${sundayTarget != null ? sundayTarget + ' lb' : '—'}</div>
           ${gapHtml}
           <div class="nh-w-target-from">from ${weekBase != null ? (+weekBase).toFixed(1) + ' lb · ' + fmtBase(weekBaseKey) : '—'} − ${lossRate}%</div>
         </div>
-        <div class="nh-w-target-cell">
-          <div class="nh-w-target-k" style="color:var(--nh-bcol) !important;">BODY FAT</div>
+        <div class="nh-w-target-cell ${bfGap != null && bfGap <= 0 ? 'hit' : ''}">
+          <div class="nh-w-target-k is-b">BODY FAT</div>
           <div class="nh-w-target-val">${bfTarget != null ? bfTarget.toFixed(1) + '%' : '—'}</div>
           ${bfGapHtml}
           <div class="nh-w-target-from">from ${bfWeekBase != null ? bfWeekBase.toFixed(1) + '% · ' + fmtBase(bfWeekBaseKey) : '—'} − ${lossRate} pts</div>
