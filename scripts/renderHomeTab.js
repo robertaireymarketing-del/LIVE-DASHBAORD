@@ -213,6 +213,7 @@ body.light .nh {
 .nh .nh-goal-form label { display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:800; letter-spacing:0.5px; color:var(--nh-muted) !important; }
 .nh .nh-goal-form input { height:42px; border-radius:10px; border:1px solid var(--nh-line); background:transparent; padding:0 10px; font-size:15px; font-family:inherit; color:var(--nh-text); }
 .nh .nh-goal-form button { grid-column:1 / -1; height:44px; border-radius:12px; border:0; background:var(--nh-bcol); color:#000 !important; font-size:14px; font-weight:900; }
+.nh .nh-week-targets { margin-top:14px; }
 .nh .nh-w-target-head { font-size:14px; font-weight:800; color:var(--nh-sub) !important; }
 .nh .nh-w-target-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
 .nh .nh-w-target-cell { border:1px solid var(--nh-line); border-radius:12px; padding:10px 12px; position:relative; transition:background 0.2s; }
@@ -817,6 +818,23 @@ export function renderHomeTab(deps) {
       <div class="nh-w-delta ${deltaCls}">${deltaTxt}</div>
     </div>
     ${compSection}
+    <div class="nh-week-targets">
+      <div class="nh-w-target-head">Target by Sun ${parseKey(targetSunKey).getDate()} ${parseKey(targetSunKey).toLocaleDateString('en-GB', { month: 'short' })}</div>
+      <div class="nh-w-target-grid">
+        <div class="nh-w-target-cell ${gap != null && gap <= 0 ? 'hit' : ''}">
+          <div class="nh-w-target-k is-w">WEIGHT</div>
+          <div class="nh-w-target-val">${sundayTarget != null ? sundayTarget + ' lb' : '—'}</div>
+          ${gapHtml}
+          <div class="nh-w-target-from">on the path to ${GOAL_BF}% · updates daily</div>
+        </div>
+        <div class="nh-w-target-cell ${bfGap != null && bfGap <= 0 ? 'hit' : ''}">
+          <div class="nh-w-target-k is-b">BODY FAT</div>
+          <div class="nh-w-target-val">${bfTarget != null ? bfTarget.toFixed(1) + '%' : '—'}</div>
+          ${bfGapHtml}
+          <div class="nh-w-target-from">on the path to ${GOAL_BF}% · updates daily</div>
+        </div>
+      </div>
+    </div>
     <div class="nh-w-chart" data-swipe-months="1">${chart()}</div>
     <div class="nh-w-target">
       <div class="nh-goal">
@@ -884,21 +902,6 @@ export function renderHomeTab(deps) {
         </button>`;
         return `<div class="nh-recs">${summary}${open ? rf + bk : (rec.refeedToday ? rf : '')}</div>`;
       })() : ''}
-      <div class="nh-w-target-head">Target by Sun ${parseKey(targetSunKey).getDate()} ${parseKey(targetSunKey).toLocaleDateString('en-GB', { month: 'short' })}</div>
-      <div class="nh-w-target-grid">
-        <div class="nh-w-target-cell ${gap != null && gap <= 0 ? 'hit' : ''}">
-          <div class="nh-w-target-k is-w">WEIGHT</div>
-          <div class="nh-w-target-val">${sundayTarget != null ? sundayTarget + ' lb' : '—'}</div>
-          ${gapHtml}
-          <div class="nh-w-target-from">on the path to ${GOAL_BF}% · updates daily</div>
-        </div>
-        <div class="nh-w-target-cell ${bfGap != null && bfGap <= 0 ? 'hit' : ''}">
-          <div class="nh-w-target-k is-b">BODY FAT</div>
-          <div class="nh-w-target-val">${bfTarget != null ? bfTarget.toFixed(1) + '%' : '—'}</div>
-          ${bfGapHtml}
-          <div class="nh-w-target-from">on the path to ${GOAL_BF}% · updates daily</div>
-        </div>
-      </div>
     </div>
   </section>`;
 
