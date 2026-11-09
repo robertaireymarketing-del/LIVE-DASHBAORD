@@ -999,7 +999,8 @@ export function renderHomeTab(deps) {
   const tmCalT = Math.round(Number(dayData(todayKey).treadmillCal) || 0);
   const syncWkCal = Math.round(Number((syncFor(todayKey) || {}).workoutCalories) || 0);
   // Split by workout type when the Shortcut sends workoutBreakdown ("Type:kcal;Type:kcal").
-  // Strength variants collapse to "Strength"; same-label workouts are added together.
+  // Strength variants collapse to "Strength", treadmill/walking/running to "Walking";
+  // same-label workouts are added together.
   const wkSplit = (() => {
     const raw = String((syncFor(todayKey) || {}).workoutBreakdown || '').trim();
     if (!raw) return [];
@@ -1010,7 +1011,7 @@ export function renderHomeTab(deps) {
       const kcal = parseFloat(part.slice(i + 1).replace(/[^0-9.]/g, ''));
       if (!name || !(kcal > 0)) return;
       if (/strength/i.test(name)) name = 'Strength';
-      else if (/treadmill/i.test(name)) name = 'Treadmill';
+      else if (/treadmill|walk|run/i.test(name)) name = 'Walking'; // treadmill sessions show as Walking
       by[name] = (by[name] || 0) + kcal;
     });
     return Object.entries(by).map(([n, k]) => `${n} ${Math.round(k).toLocaleString()}`);
