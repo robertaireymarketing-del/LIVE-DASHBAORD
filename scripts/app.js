@@ -13,6 +13,7 @@ import { renderTodayTab as renderTodayTabExternal } from './renderTodayTab.js';
 import { renderHomeTab as renderHomeTabExternal } from './renderHomeTab.js';
 import { renderSleepTab, initSleepTab, leaveSleepTab } from './renderSleep.js';
 import { initLeaseJourney } from './leaseJourney.js';
+import { initThirtyPlan } from './thirtyPlan.js';
 import { renderBricksTab as renderBricksTabExternal, initBricksActions } from './bricks.js';
 import { renderMarchTab as renderMarchTabExternal } from './renderMarchTab.js';
 import { renderProgressTab as renderProgressTabExternal } from './renderProgressTab.js';
@@ -438,6 +439,8 @@ window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render
 // ── New Home: past-day overrides for Gym / Diet (today can't be overridden) ──
 // ── Shop lease journey (timeline + quarterly check-ins) ──
 initLeaseJourney({ state, saveData, render });
+// ── Road to 30 plan (At-30 → quarterly → monthly goals) ──
+initThirtyPlan({ state, saveData, render });
 window.toggleHomeGoalEdit = () => { state.homeGoalEdit = !state.homeGoalEdit; render(); };
 window.homeSaveGoal = () => {
   const bf = parseFloat(document.getElementById('home-goal-bf')?.value);

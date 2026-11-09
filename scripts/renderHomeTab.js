@@ -28,6 +28,7 @@
 // because app.css has `body.light p, span, div { color: inherit; }`.
 
 import { renderLeaseJourney, leaseJourneyStatus, LEASE_JOURNEY_CSS } from './leaseJourney.js';
+import { renderThirtyPlan, thirtySummary, thirtySummaryLine, THIRTY_CSS } from './thirtyPlan.js';
 
 const LEASE_START = '2026-09-24';
 const LEASE_END = '2031-09-24';
@@ -385,14 +386,29 @@ export function renderHomeTab(deps) {
     [bday.y ? `${bday.y} year${bday.y === 1 ? '' : 's'}` : '',
      `${bday.m} month${bday.m === 1 ? '' : 's'}`,
      `${bday.d} day${bday.d === 1 ? '' : 's'}`].filter(Boolean).join(' ');
+  // Tap to open the Road to 30 plan (scripts/thirtyPlan.js)
+  const t30 = thirtySummary(state, todayKey);
+  const t30Open = !!state.thirtyOpen;
   const bdaySection = `
-  <section class="nh-card nh-bday" aria-label="30th birthday countdown">
-    <div>
-      <div class="nh-kicker">UNTIL 30</div>
-      <div class="nh-bday-main">${bdayMain}</div>
-      <div class="nh-bday-sub">12 Aug 2027</div>
+  <section class="nh-card" style="padding:20px;" aria-label="30th birthday countdown">
+    <div class="nh-bday-tap" role="button" tabindex="0" aria-expanded="${t30Open}" onclick="toggleThirtyPlan()">
+    <div class="nh-bday" style="padding:0;">
+      <div>
+        <div class="nh-kicker">UNTIL 30</div>
+        <div class="nh-bday-main">${bdayMain}</div>
+        <div class="nh-bday-sub">12 Aug 2027</div>
+      </div>
+      <div class="nh-bday-days"><b>${bday.totalDays.toLocaleString()}</b><span>DAYS</span></div>
     </div>
-    <div class="nh-bday-days"><b>${bday.totalDays.toLocaleString()}</b><span>DAYS</span></div>
+    ${bday.past ? '' : `<div class="nh-30-foot">
+      <span class="nh-30-foot-t">${t30Open ? 'Close the plan' : (thirtySummaryLine(t30) || 'Road to 30')}</span>
+      <span style="display:flex;align-items:center;gap:10px;">
+        ${t30.need && !t30Open ? `<span class="nh-30-need">${t30.need}</span>` : ''}
+        <span class="nh-30-chev ${t30Open ? 'open' : ''}" aria-hidden="true">▾</span>
+      </span>
+    </div>`}
+    </div>
+    ${t30Open && !bday.past ? renderThirtyPlan(state, todayKey) : ''}
   </section>`;
 
   // ── 3. Weight ───────────────────────────────────────────────────────────
@@ -1245,7 +1261,7 @@ export function renderHomeTab(deps) {
     <button class="nh-edit-link" style="margin-top:14px;" onclick="toggleHomeEdit()">Close</button>
   </section>`;
 
-  return HOME_CSS + LEASE_JOURNEY_CSS + `
+  return HOME_CSS + LEASE_JOURNEY_CSS + THIRTY_CSS + `
   <div class="nh">
     ${leaseSection}
     ${bdaySection}
