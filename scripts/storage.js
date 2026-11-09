@@ -199,6 +199,8 @@ export function createStorage({
           // plus a count. Accepts any field name the iOS Shortcut might use.
           workoutMinutes: parseNum(raw.workoutMinutes) ?? parseNum(raw.workoutDuration) ?? parseNum(raw.workout_minutes) ?? parseNum(raw.workoutMins),
           workoutCount: parseNum(raw.workoutCount) ?? parseNum(raw.workouts) ?? parseNum(raw.workout_count),
+          // Workout calories (energy burned in the day's workouts only — not all-day active energy)
+          workoutCalories: parseNum(raw.workoutCalories) ?? parseNum(raw.workoutEnergy) ?? parseNum(raw.workoutKcal) ?? parseNum(raw.workout_calories) ?? parseNum(raw.workoutActiveEnergy),
           workoutType: parse(raw.workoutType) ?? parse(raw.workoutTypes) ?? null,
           // Protein — accept any field name the iOS Shortcut might use
           protein: parseNum(raw.protein) ?? parseNum(raw.dietaryProtein) ?? parseNum(raw.dietary_protein) ?? parseNum(raw.proteinGrams),

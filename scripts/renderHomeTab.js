@@ -992,14 +992,20 @@ export function renderHomeTab(deps) {
     : wToday.mins > 0
     ? `Garmin · ${wToday.mins} min${wToday.type ? ' · ' + wToday.type : ''}${wToday.hit ? '' : ` (needs ${GYM_MIN_MINUTES})`}`
     : wToday.count > 0 ? `Garmin · ${wToday.count} workout${wToday.count === 1 ? '' : 's'}` : 'No workout synced · tap if done';
-  // Workout burn today — the Gym + Treadmill calories logged on the Health page.
+  // Workout burn today. Synced workout calories (Garmin → Apple Health → Shortcut,
+  // field workoutCalories) win when present; otherwise fall back to the Gym +
+  // Treadmill calories typed in on the Health page. Never both, so no double count.
   const gymCalT = Math.round(Number(dayData(todayKey).gymCalEntry) || 0);
   const tmCalT = Math.round(Number(dayData(todayKey).treadmillCal) || 0);
+  const syncWkCal = Math.round(Number((syncFor(todayKey) || {}).workoutCalories) || 0);
+  const wkBurn = syncWkCal > 0 ? syncWkCal : gymCalT + tmCalT;
+  const wkBurnSrc = syncWkCal > 0 ? `Garmin · ${wToday.count > 0 ? `${wToday.count} workout${wToday.count === 1 ? '' : 's'}` : 'synced'}`
+    : gymCalT + tmCalT > 0 ? `Gym ${gymCalT.toLocaleString()} + Treadmill ${tmCalT.toLocaleString()}` : 'None synced or logged yet';
   const gymExp = `
         <div class="nh-habit-exp">
           <div class="nh-habit-exp-k">WORKOUT BURN</div>
-          <div class="nh-habit-exp-v">${(gymCalT + tmCalT).toLocaleString()}<span> kcal</span></div>
-          <div class="nh-habit-exp-s">${gymCalT + tmCalT > 0 ? `Gym ${gymCalT.toLocaleString()} + Treadmill ${tmCalT.toLocaleString()}` : 'None logged yet'}</div>
+          <div class="nh-habit-exp-v">${wkBurn.toLocaleString()}<span> kcal</span></div>
+          <div class="nh-habit-exp-s">${wkBurnSrc}</div>
         </div>`;
   const calsToday = syncCals(todayKey);
   const dietToday = dietDone(todayKey);
