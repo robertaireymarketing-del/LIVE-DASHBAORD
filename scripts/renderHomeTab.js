@@ -992,6 +992,15 @@ export function renderHomeTab(deps) {
     : wToday.mins > 0
     ? `Garmin · ${wToday.mins} min${wToday.type ? ' · ' + wToday.type : ''}${wToday.hit ? '' : ` (needs ${GYM_MIN_MINUTES})`}`
     : wToday.count > 0 ? `Garmin · ${wToday.count} workout${wToday.count === 1 ? '' : 's'}` : 'No workout synced · tap if done';
+  // Workout burn today — the Gym + Treadmill calories logged on the Health page.
+  const gymCalT = Math.round(Number(dayData(todayKey).gymCalEntry) || 0);
+  const tmCalT = Math.round(Number(dayData(todayKey).treadmillCal) || 0);
+  const gymExp = `
+        <div class="nh-habit-exp">
+          <div class="nh-habit-exp-k">WORKOUT BURN</div>
+          <div class="nh-habit-exp-v">${(gymCalT + tmCalT).toLocaleString()}<span> kcal</span></div>
+          <div class="nh-habit-exp-s">${gymCalT + tmCalT > 0 ? `Gym ${gymCalT.toLocaleString()} + Treadmill ${tmCalT.toLocaleString()}` : 'None logged yet'}</div>
+        </div>`;
   const calsToday = syncCals(todayKey);
   const dietToday = dietDone(todayKey);
   const dietSrc = calsToday > 0 ? `Synced · ${Math.round(calsToday).toLocaleString()} kcal` : 'No calories synced yet';
@@ -1023,7 +1032,7 @@ export function renderHomeTab(deps) {
       <div>
         <div class="nh-habit-name">Gym</div>
         <div class="nh-habit-state">${gymToday ? 'DONE ✓' : 'NOT DONE'}</div>
-        <div class="nh-habit-src">${gymSrc}</div>
+        <div class="nh-habit-src">${gymSrc}</div>${gymExp}
       </div>
       <div>
         <div class="nh-dots" aria-hidden="true">${dots(gymDone)}</div>
