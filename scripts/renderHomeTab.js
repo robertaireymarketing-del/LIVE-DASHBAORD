@@ -194,6 +194,11 @@ body.light .nh {
 .nh .nh-def-row span, .nh .nh-def-row b { color:inherit !important; }
 .nh .nh-def-eat { font-size:13px; margin-top:8px; color:var(--nh-sub) !important; }
 .nh .nh-def-eat b { font-size:15px; color:var(--nh-text) !important; }
+.nh .nh-real { margin-top:12px; padding-top:10px; border-top:1px solid var(--nh-line); }
+.nh .nh-real-h { font-size:10px; font-weight:900; letter-spacing:1.5px; color:var(--nh-text) !important; }
+.nh .nh-real-h span { font-weight:700; letter-spacing:0.3px; color:var(--nh-muted) !important; margin-left:4px; }
+.nh .nh-real-bar { height:6px; border-radius:3px; background:var(--nh-line); overflow:hidden; margin:8px 0 4px; }
+.nh .nh-real-bar > i { display:block; height:100%; background:var(--nh-gold); border-radius:3px; }
 .nh .nh-def-warn { font-size:12px; line-height:1.4; margin-top:6px; padding:8px 10px; border-radius:10px; background:rgba(245,197,66,0.12); color:var(--nh-gold) !important; }
 .nh .nh-rec-toggle { display:flex; align-items:center; gap:8px; width:100%; min-height:44px; padding:8px 12px; border-radius:12px; border:1px solid var(--nh-line); background:transparent; text-align:left; }
 .nh .nh-rec-toggle-l { font-size:13px; font-weight:800; color:var(--nh-sub) !important; flex-shrink:0; }
@@ -485,6 +490,50 @@ export function renderHomeTab(deps) {
   // settings.defaultBmr, else 2085) + active energy (sync) + manual gym/treadmill
   // entries; deficit = burn − eaten, only on days with dietary calories synced.
   const KCAL_PER_LB_FAT = 3500;
+  // ── Real burn (scale-checked) ───────────────────────────────────────────
+  // Wrist trackers misjudge calories burned (Shcherbina et al. 2017: best of 7
+  // devices was still ~27% out), and food logs under-count. The scale settles it:
+  //   real burn/day = average eaten + (lb lost per day × 3,500)
+  // over the last 28 complete days, using a least-squares weight trend (not single
+  // weigh-ins). The first 7 days after CUT_START are skipped: a new cut drops
+  // glycogen + water fast, which would overstate the burn.
+  // Needs ≥ 14 days with food logged and ≥ 6 weigh-ins spanning ≥ 14 days.
+  // factor = real ÷ device burn (clamped 0.6–1.4) and is then applied to every
+  // device burn figure below (today's deficit, 7-day average, eat target, adherence).
+  const deviceBurn = (k) => {
+    const h = health.find(e => e.date === k) || {}; const dd = days[k] || {};
+    return (Number(h.bmr) || settings.defaultBmr || 2085) + (Number(h.gymCalories) || 0) + (Number(dd.gymCalEntry) || 0) + (Number(dd.treadmillCal) || 0);
+  };
+  const REAL_MIN_DAYS = 14;
+  const realBurn = (() => {
+    const cutStart = settings.cutStart || '2026-11-09';
+    const yesterday = addDaysKey(todayKey, -1);
+    let start = addDaysKey(todayKey, -28);
+    const settle = addDaysKey(cutStart, 7);
+    if (cutStart <= todayKey && settle > start) start = settle;
+    const logged = [];
+    for (let k = start; k <= yesterday; k = addDaysKey(k, 1)) {
+      const h = health.find(e => e.date === k);
+      if (h && Number(h.calories) > 0) logged.push({ k, eaten: Number(h.calories), dev: deviceBurn(k) });
+    }
+    const base = { start, n: logged.length, need: REAL_MIN_DAYS, ready: false, factor: 1 };
+    if (logged.length < REAL_MIN_DAYS) return base;
+    const from = logged[0].k;
+    const ws = Object.keys(weightByDate).filter(k => k >= from && k <= yesterday).sort();
+    if (ws.length < 6 || daysBetween(ws[0], ws[ws.length - 1]) < 14) return { ...base, weighIns: ws.length };
+    const xs = ws.map(k => daysBetween(from, k)), ys = ws.map(k => +weightByDate[k]);
+    const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const den = xs.reduce((a, x) => a + (x - mx) ** 2, 0);
+    const slope = den ? xs.reduce((a, x, j) => a + (x - mx) * (ys[j] - my), 0) / den : 0; // lb/day
+    const avgEaten = logged.reduce((a, r) => a + r.eaten, 0) / logged.length;
+    const avgDev = logged.reduce((a, r) => a + r.dev, 0) / logged.length;
+    const real = avgEaten - slope * KCAL_PER_LB_FAT;
+    const rawF = real / avgDev;
+    const factor = Math.min(1.4, Math.max(0.6, rawF));
+    return { ...base, ready: true, from, real: Math.round(real), device: Math.round(avgDev), avgEaten: Math.round(avgEaten),
+      lbPerWeek: -slope * 7, rawF, factor, clamped: factor !== rawF };
+  })();
+  const adjF = realBurn.factor;
   const deficit = (() => {
     if (!goal) return null;
     const target = Math.round(goal.lbPerWeekNow * KCAL_PER_LB_FAT / 7);
@@ -495,7 +544,7 @@ export function renderHomeTab(deps) {
       const dd = days[k] || {};
       const eaten = Number(h.calories) || 0;
       if (eaten <= 0) continue;
-      const burn = (Number(h.bmr) || settings.defaultBmr || 2085) + (Number(h.gymCalories) || 0) + (Number(dd.gymCalEntry) || 0) + (Number(dd.treadmillCal) || 0);
+      const burn = deviceBurn(k) * adjF;
       rows.push({ burn, eaten, def: burn - eaten });
     }
     const avg = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
@@ -507,9 +556,40 @@ export function renderHomeTab(deps) {
     const hT = health.find(e => e.date === todayKey) || {};
     const dT = days[todayKey] || {};
     const eatenT = Number(hT.calories) || 0;
-    const burnT = (Number(hT.bmr) || settings.defaultBmr || 2085) + (Number(hT.gymCalories) || 0) + (Number(dT.gymCalEntry) || 0) + (Number(dT.treadmillCal) || 0);
-    const today = { eaten: Math.round(eatenT), burn: Math.round(burnT), def: eatenT > 0 ? Math.round(burnT - eatenT) : null };
+    const burnDevT = deviceBurn(todayKey);
+    const burnT = burnDevT * adjF;
+    const today = { eaten: Math.round(eatenT), burnDev: Math.round(burnDevT), burn: Math.round(burnT), def: eatenT > 0 ? Math.round(burnT - eatenT) : null };
     return { today, target, weekly: target * 7, n: rows.length, avgDef: avgDef != null ? Math.round(avgDef) : null, avgBurn: avgBurn != null ? Math.round(avgBurn) : null, eatTarget, belowBmr: eatTarget != null && eatTarget < bmrNow, bmrNow: Math.round(bmrNow) };
+  })();
+
+  // Real burn card markup
+  const realSection = (() => {
+    const fmtD = (k) => parseKey(k).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    if (!realBurn.ready) {
+      const pct = Math.min(100, (realBurn.n / realBurn.need) * 100);
+      const startTxt = realBurn.start > todayKey ? `Counting starts ${fmtD(realBurn.start)} (the first week of a cut is mostly water).` : `Counting from ${fmtD(realBurn.start)}.`;
+      const wTxt = realBurn.n >= realBurn.need ? ` Needs more weigh-ins: at least 6 across 2 weeks (${realBurn.weighIns || 0} so far).` : '';
+      return `
+          <div class="nh-real">
+            <div class="nh-real-h">REAL BURN <span>checks Garmin against your scale</span></div>
+            <div class="nh-real-bar"><i style="width:${pct}%"></i></div>
+            <div class="nh-def-s"><b style="color:var(--nh-text)">${realBurn.n} of ${realBurn.need}</b> days with food logged. ${startTxt}${wTxt} Until then, figures above are Garmin's raw estimate.</div>
+          </div>`;
+    }
+    const diffPct = Math.round((realBurn.rawF - 1) * 100);
+    const verdict = Math.abs(diffPct) < 5 ? 'Garmin is accurate for you (within 5%).'
+      : `Garmin reads <b style="color:var(--nh-text)">${Math.abs(diffPct)}% ${diffPct < 0 ? 'high' : 'low'}</b>, so every burn figure above is multiplied by ${realBurn.factor.toFixed(2)}.`;
+    const planLb = goal ? goal.lbPerWeekNow : null;
+    return `
+          <div class="nh-real">
+            <div class="nh-real-h">REAL BURN <span>since ${fmtD(realBurn.from)} · ${realBurn.n} logged days</span></div>
+            <div class="nh-def-vs" style="margin-top:8px;">
+              <div class="nh-def-col"><div class="nh-def-k">GARMIN SAYS</div><div class="nh-def-v">${realBurn.device.toLocaleString()}</div><div class="nh-def-s">kcal/day</div></div>
+              <div class="nh-def-col ok"><div class="nh-def-k">SCALE SAYS</div><div class="nh-def-v">${realBurn.real.toLocaleString()}</div><div class="nh-def-s">kcal/day real burn</div></div>
+            </div>
+            <div class="nh-def-s">${verdict}${realBurn.clamped ? ' (capped at ±40%: check your food logging and weigh-ins.)' : ''}</div>
+            <div class="nh-def-s">Ate ${realBurn.avgEaten.toLocaleString()}/day on average and the weight trend moved ${realBurn.lbPerWeek >= 0 ? '−' : '+'}${Math.abs(realBurn.lbPerWeek).toFixed(1)} lb/week${planLb ? ` (plan: −${planLb.toFixed(1)})` : ''}. Real burn = eaten + lb lost × 3,500. Updates daily.</div>
+          </div>`;
   })();
 
   // ── Refeeds & diet breaks — EARNED, based on actual progress only ─────────
@@ -533,7 +613,7 @@ export function renderHomeTab(deps) {
   const dayDef = (k) => {
     const h = health.find(e => e.date === k) || {}; const dd = days[k] || {};
     const eaten = Number(h.calories) || 0; if (eaten <= 0) return null;
-    return (Number(h.bmr) || settings.defaultBmr || 2085) + (Number(h.gymCalories) || 0) + (Number(dd.gymCalEntry) || 0) + (Number(dd.treadmillCal) || 0) - eaten;
+    return deviceBurn(k) * adjF - eaten;
   };
   function slopePerWeek(byDate, nDays) {
     const ks = Object.keys(byDate).filter(k => k <= todayKey && k > addDaysKey(todayKey, -nDays)).sort();
@@ -905,7 +985,7 @@ export function renderHomeTab(deps) {
               <div class="nh-def-s">${deficit.today.def == null ? 'no food synced yet' : deficit.today.def < 0 ? 'kcal surplus' : deficit.today.def >= deficit.target ? 'kcal · on target ✓' : `kcal · ${(deficit.target - deficit.today.def).toLocaleString()} to go`}</div>
             </div>
           </div>
-          <div class="nh-def-s">Today: burned ${deficit.today.burn.toLocaleString()} − eaten ${deficit.today.eaten.toLocaleString()} kcal, same figures as the Health page. Updates as you sync.</div>
+          <div class="nh-def-s">${realBurn.ready ? `Today: Garmin ${deficit.today.burnDev.toLocaleString()} × ${realBurn.factor.toFixed(2)} scale correction = <b style="color:var(--nh-text)">${deficit.today.burn.toLocaleString()}</b> burned − eaten ${deficit.today.eaten.toLocaleString()} kcal. Updates as you sync.` : `Today: burned ${deficit.today.burn.toLocaleString()} − eaten ${deficit.today.eaten.toLocaleString()} kcal, same figures as the Health page. Updates as you sync.`}</div>
           <div class="nh-def-s">${deficit.weekly.toLocaleString()} kcal/week · ${goal.lbPerWeekNow.toFixed(1)} lb of fat × 3,500 ÷ 7 · updates daily</div>
           ${protein ? `
           <div class="nh-def-vs" style="margin-top:10px;">
@@ -928,7 +1008,8 @@ export function renderHomeTab(deps) {
           </div>
           <div class="nh-def-s">Average of ${deficit.n} day${deficit.n === 1 ? '' : 's'} with food logged · ${deficit.avgDef >= deficit.target ? 'on pace ✓' : `${(deficit.target - deficit.avgDef).toLocaleString()} kcal/day short`}</div>
           <div class="nh-def-eat">On a typical day you burn ~${deficit.avgBurn.toLocaleString()} kcal → eat about <b>${(recMode ? deficit.avgBurn : deficit.eatTarget).toLocaleString()} kcal</b>${recMode ? ' (maintenance — extra from carbs)' : ''}</div>
-          ${deficit.belowBmr && !recMode ? `<div class="nh-def-warn">That's below your BMR (${deficit.bmrNow.toLocaleString()} kcal). Fine short-term at this body fat, but keep protein high and lift heavy. Don't go lower.</div>` : ''}` : `<div class="nh-def-s">Sync your food (dietary calories) to compare your actual deficit.</div>`}
+          ${deficit.belowBmr && !recMode ? `<div class="nh-def-warn">That's below your BMR (${deficit.bmrNow.toLocaleString()} kcal). Fine short-term at this body fat, but keep protein high and lift heavy. Don't go lower.</div>` : ''}` : `<div class="nh-def-s">Your 7-day average shows once past days have food logged (today counts from tomorrow).</div>`}
+          ${realSection}
         </div>` : ''}` : `<div class="nh-goal-sub">Needs weight and body fat readings to work out your targets.</div>`}
         ${state.homeGoalEdit ? `
         <div class="nh-goal-form">
