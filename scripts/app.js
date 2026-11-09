@@ -439,6 +439,25 @@ window.homeSaveGoal = () => {
   state.homeGoalEdit = false;
   saveData(); render();
 };
+// ── Refeeds & diet breaks (eligibility is enforced on the home page) ──
+window.homeTakeRefeed = () => { updateDayField(getToday(), 'refeed', true); };
+window.homeUndoRefeed = () => { updateDayField(getToday(), 'refeed', false); };
+window.homeStartDietBreak = () => {
+  const t = getToday(); const d = new Date(t + 'T12:00:00'); d.setDate(d.getDate() + 6);
+  const end = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  state.data.dietBreaks = [...(state.data.dietBreaks || []), { start: t, end, startedAt: Date.now() }];
+  saveData(); render();
+};
+window.homeEndDietBreak = () => {
+  const t = getToday();
+  const y = new Date(t + 'T12:00:00'); y.setDate(y.getDate() - 1);
+  const yk = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+  // End it yesterday so today is a cutting day again; a break started today is just removed
+  state.data.dietBreaks = (state.data.dietBreaks || [])
+    .map(b => (t >= b.start && t <= b.end) ? (b.start === t ? null : { ...b, end: yk, endedEarly: true }) : b)
+    .filter(Boolean);
+  saveData(); render();
+};
 window.homeChartShift = (d) => { state.homeChartMonth = (state.homeChartMonth || 0) + d; render(); };
 // Swipe left/right on the home weight chart to change month (delegated so it survives re-renders)
 (() => {

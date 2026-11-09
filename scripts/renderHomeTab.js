@@ -185,6 +185,23 @@ body.light .nh {
 .nh .nh-def-eat { font-size:13px; margin-top:8px; color:var(--nh-sub) !important; }
 .nh .nh-def-eat b { font-size:15px; color:var(--nh-text) !important; }
 .nh .nh-def-warn { font-size:12px; line-height:1.4; margin-top:6px; padding:8px 10px; border-radius:10px; background:rgba(245,197,66,0.12); color:var(--nh-gold) !important; }
+.nh .nh-recs { margin-bottom:14px; display:flex; flex-direction:column; gap:8px; }
+.nh .nh-rec { border:1px solid var(--nh-line); border-radius:12px; padding:10px 12px; }
+.nh .nh-rec.earned { border-color:#16A34A; background:rgba(34,197,94,0.1); }
+.nh .nh-rec.active { border-color:var(--nh-bcol); background:rgba(255,138,61,0.12); }
+.nh .nh-rec-h { font-size:15px; font-weight:900; color:var(--nh-text) !important; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.nh .nh-rec-h em { font-style:normal; font-size:10px; font-weight:900; letter-spacing:1.5px; padding:3px 8px; border-radius:20px; background:var(--nh-line); color:var(--nh-muted) !important; }
+.nh .nh-rec.earned .nh-rec-h em { background:#16A34A; color:#fff !important; }
+.nh .nh-rec ul { list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:4px; }
+.nh .nh-rec li { display:flex; gap:8px; font-size:12.5px; line-height:1.35; color:var(--nh-sub) !important; }
+.nh .nh-rec li span { width:14px; flex-shrink:0; font-weight:900; }
+.nh .nh-rec li.ok span { color:var(--nh-green) !important; }
+.nh .nh-rec li.no span { color:var(--nh-red) !important; }
+.nh .nh-rec ul.alt li { font-size:12px; opacity:0.85; }
+.nh .nh-rec-alt { font-size:11px; font-weight:800; margin-top:8px; color:var(--nh-muted) !important; }
+.nh .nh-rec-s { font-size:13px; line-height:1.45; margin-top:6px; color:var(--nh-sub) !important; }
+.nh .nh-rec-btn { width:100%; height:44px; margin-top:10px; border-radius:12px; border:0; background:#16A34A; color:#fff !important; font-size:14px; font-weight:900; }
+.nh .nh-rec-btn.ghost { background:transparent; border:1px solid var(--nh-line); color:var(--nh-sub) !important; }
 .nh .nh-goal-form { display:grid; grid-template-columns:1fr; gap:8px; margin-top:10px; }
 .nh .nh-goal-form label { display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:800; letter-spacing:0.5px; color:var(--nh-muted) !important; }
 .nh .nh-goal-form input { height:42px; border-radius:10px; border:1px solid var(--nh-line); background:transparent; padding:0 10px; font-size:15px; font-family:inherit; color:var(--nh-text); }
@@ -384,18 +401,18 @@ export function renderHomeTab(deps) {
   const bfDates = Object.keys(bfByDate).sort();
 
   const daysBetween = (a, b) => Math.round((parseKey(b) - parseKey(a)) / 86400000);
-  function smoothedNow(byDate) {
-    const keys = Object.keys(byDate).filter(k => k <= todayKey).sort();
+  function smoothedNow(byDate, ref = todayKey) {
+    const keys = Object.keys(byDate).filter(k => k <= ref).sort();
     if (!keys.length) return null;
-    const win = keys.filter(k => k > addDaysKey(todayKey, -14));
+    const win = keys.filter(k => k > addDaysKey(ref, -14));
     if (win.length >= 3 && daysBetween(win[0], win[win.length - 1]) >= 4) {
-      const xs = win.map(k => daysBetween(todayKey, k)), ys = win.map(k => +byDate[k]);
+      const xs = win.map(k => daysBetween(ref, k)), ys = win.map(k => +byDate[k]);
       const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
       const den = xs.reduce((a, x) => a + (x - mx) ** 2, 0);
       const slope = den ? xs.reduce((a, x, j) => a + (x - mx) * (ys[j] - my), 0) / den : 0;
       return my + slope * (0 - mx); // value at today
     }
-    const w7 = keys.filter(k => k > addDaysKey(todayKey, -7));
+    const w7 = keys.filter(k => k > addDaysKey(ref, -7));
     if (w7.length) return w7.reduce((a, k) => a + +byDate[k], 0) / w7.length;
     return +byDate[keys[keys.length - 1]];
   }
@@ -458,7 +475,115 @@ export function renderHomeTab(deps) {
     return { today, target, weekly: target * 7, n: rows.length, avgDef: avgDef != null ? Math.round(avgDef) : null, avgBurn: avgBurn != null ? Math.round(avgBurn) : null, eatTarget, belowBmr: eatTarget != null && eatTarget < bmrNow, bmrNow: Math.round(bmrNow) };
   })();
 
-  const sundayTarget = goal ? +goal.wAt(targetSunKey).toFixed(1) : null;
+  // ── Refeeds & diet breaks — EARNED, based on actual progress only ─────────
+  // Plan: from CUT_START (settings.cutStart, default 9 Nov 2026 restart), the same
+  // pace model is run day by day from your smoothed weight/BF on that date, pausing
+  // on diet-break days. "On track" = today's smoothed weight is at or below that
+  // plan (+1 lb tolerance for scale noise).
+  // Adherence = last 7 cutting days: food logged on ≥ 5, average deficit ≥ 85% of
+  // target (refeed/break days excluded).
+  // REFEED DAY (max 2 per Mon–Sun week) needs: body fat < 20% · on track · adherent.
+  // DIET BREAK (1 week at maintenance) needs: ≥ 8 weeks cutting since start/last
+  //   break · on track · adherent.
+  //   Early break if STALLED: ≥ 4 weeks cutting · 21-day weight trend < 25% of the
+  //   target pace · 14-day adherence (food logged ≥ 10 days, avg deficit ≥ 90% of
+  //   target). That pattern = adaptation / burn overestimate, not slacking.
+  const CUT_START = settings.cutStart || '2026-11-09';
+  const breaks = (state.data?.dietBreaks || []).filter(b => b && b.start && b.end);
+  const isBreakDay = (k) => breaks.some(b => k >= b.start && k <= b.end);
+  const activeBreak = breaks.find(b => todayKey >= b.start && todayKey <= b.end) || null;
+  const isRefeed = (k) => !!(days[k] && days[k].refeed);
+  const dayDef = (k) => {
+    const h = health.find(e => e.date === k) || {}; const dd = days[k] || {};
+    const eaten = Number(h.calories) || 0; if (eaten <= 0) return null;
+    return (Number(h.bmr) || settings.defaultBmr || 2085) + (Number(h.gymCalories) || 0) + (Number(dd.gymCalEntry) || 0) + (Number(dd.treadmillCal) || 0) - eaten;
+  };
+  function slopePerWeek(byDate, nDays) {
+    const ks = Object.keys(byDate).filter(k => k <= todayKey && k > addDaysKey(todayKey, -nDays)).sort();
+    if (ks.length < 4 || daysBetween(ks[0], ks[ks.length - 1]) < nDays * 0.5) return null;
+    const xs = ks.map(k => daysBetween(todayKey, k)), ys = ks.map(k => +byDate[k]);
+    const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const den = xs.reduce((a, x) => a + (x - mx) ** 2, 0);
+    return den ? 7 * xs.reduce((a, x, j) => a + (x - mx) * (ys[j] - my), 0) / den : null;
+  }
+  const rec = (() => {
+    if (!goal || !deficit) return null;
+    // Plan path from cut start (pauses on break days)
+    const w0 = smoothedNow(weightByDate, CUT_START) ?? (weightDates.find(k => k >= CUT_START) ? weightByDate[weightDates.find(k => k >= CUT_START)] : null);
+    const bf0 = smoothedNow(bfByDate, CUT_START) ?? (bfDates.find(k => k >= CUT_START) ? bfByDate[bfDates.find(k => k >= CUT_START)] : null);
+    let planToday = null;
+    if (w0 != null && bf0 != null && todayKey >= CUT_START) {
+      const ffm0 = w0 * (1 - bf0 / 100), gw0 = ffm0 / (1 - GOAL_BF / 100);
+      let w = w0;
+      for (let k = addDaysKey(CUT_START, 1); k <= todayKey; k = addDaysKey(k, 1)) {
+        if (isBreakDay(k)) continue;
+        const bf = (w - ffm0) / w * 100;
+        if (bf <= GOAL_BF) break;
+        w = Math.max(gw0, w * Math.pow(1 - ratePct(bf) / 100, 1 / 7));
+      }
+      planToday = w;
+    }
+    const behind = planToday != null ? wNow - planToday : null; // + = behind plan
+    const onTrack = behind != null && behind <= 1.0;
+    // Cutting weeks since start or end of last finished break
+    const lastEnd = breaks.filter(b => b.end < todayKey).map(b => b.end).sort().slice(-1)[0];
+    const cutFrom = lastEnd && lastEnd > CUT_START ? lastEnd : CUT_START;
+    let cutDays = 0;
+    for (let k = addDaysKey(cutFrom, 1); k <= todayKey; k = addDaysKey(k, 1)) if (!isBreakDay(k)) cutDays++;
+    const cutWeeks = cutDays / 7;
+    // Adherence
+    const adher = (n) => {
+      const ds = [];
+      for (let i = 1, seen = 0; seen < n && i <= n + 14; i++) {
+        const k = addDaysKey(todayKey, -i);
+        if (k < CUT_START) break;
+        if (isBreakDay(k) || isRefeed(k)) continue;
+        seen++; const d = dayDef(k); if (d != null) ds.push(d);
+      }
+      return { logged: ds.length, avg: ds.length ? ds.reduce((a, b) => a + b, 0) / ds.length : null };
+    };
+    const a7 = adher(7), a14 = adher(14);
+    const tgt = deficit.target;
+    const adherent7 = a7.logged >= 5 && a7.avg != null && a7.avg >= tgt * 0.85;
+    const adherent14 = a14.logged >= 10 && a14.avg != null && a14.avg >= tgt * 0.9;
+    const slope21 = slopePerWeek(weightByDate, 21); // lb/week (negative = losing)
+    const stalled = slope21 != null && -slope21 < goal.lbPerWeekNow * 0.25;
+    // This week's refeeds
+    const refeedsThisWeek = thisWeek.filter(k => isRefeed(k)).length;
+    const conds = {
+      onTrack: { ok: onTrack, txt: behind == null ? 'On track vs plan: not enough data yet' : onTrack ? `On track vs plan (${behind <= 0 ? Math.abs(behind).toFixed(1) + ' lb ahead' : behind.toFixed(1) + ' lb behind, within 1 lb'})` : `${behind.toFixed(1)} lb behind plan` },
+      adherent: { ok: adherent7, txt: a7.logged < 5 ? `Food logged on ${a7.logged}/7 days (need 5)` : `7-day avg deficit ${Math.round(a7.avg).toLocaleString()} vs ${Math.round(tgt * 0.85).toLocaleString()} needed` },
+    };
+    const refeed = {
+      conds: [
+        { ok: bfNowS < 20, txt: bfNowS < 20 ? `Body fat under 20% (${bfNowS.toFixed(1)}%)` : `Unlocks under 20% body fat (now ${bfNowS.toFixed(1)}%)` },
+        conds.onTrack, conds.adherent,
+        { ok: refeedsThisWeek < 2, txt: `${refeedsThisWeek}/2 refeeds used this week` },
+      ],
+    };
+    refeed.earned = refeed.conds.every(c => c.ok) && !activeBreak && !isRefeed(todayKey);
+    const normal = {
+      conds: [{ ok: cutWeeks >= 8, txt: `${cutWeeks.toFixed(1)} of 8 weeks cutting${lastEnd ? ' since last break' : ''}` }, conds.onTrack, conds.adherent],
+    };
+    const stall = {
+      conds: [
+        { ok: cutWeeks >= 4, txt: `${cutWeeks.toFixed(1)} of 4 weeks cutting` },
+        { ok: stalled, txt: slope21 == null ? 'Weight trend: need 3 weeks of data' : `21-day trend ${slope21 > 0 ? '+' : ''}${slope21.toFixed(2)} lb/wk (stall = slower than ${(goal.lbPerWeekNow * 0.25).toFixed(2)})` },
+        { ok: adherent14, txt: a14.logged < 10 ? `Food logged ${a14.logged}/14 days (need 10)` : `14-day avg deficit ${Math.round(a14.avg).toLocaleString()} vs ${Math.round(tgt * 0.9).toLocaleString()} needed` },
+      ],
+    };
+    const brk = {
+      earned: !activeBreak && (normal.conds.every(c => c.ok) || stall.conds.every(c => c.ok)),
+      why: normal.conds.every(c => c.ok) ? 'scheduled' : stall.conds.every(c => c.ok) ? 'stall' : null,
+      conds: normal.conds, stallConds: stall.conds,
+    };
+    return { planToday, behind, onTrack, cutWeeks, refeed, brk, activeBreak, refeedToday: isRefeed(todayKey), stalled };
+  })();
+  // Today's mode: refeed day or diet-break week → deficit target is 0 (maintenance)
+  const recMode = rec && rec.activeBreak ? 'break' : rec && rec.refeedToday ? 'refeed' : null;
+  if (deficit && recMode) { deficit.cutTarget = deficit.target; deficit.target = 0; }
+
+  const sundayTarget = goal ? +(recMode === 'break' ? wNow : goal.wAt(targetSunKey)).toFixed(1) : null;
   const gap = current != null && sundayTarget != null ? +(current - sundayTarget).toFixed(1) : null;
 
   const fmtAsOf = (k) => {
@@ -665,7 +790,7 @@ export function renderHomeTab(deps) {
       </div>
     </div>`;
   const deltaTxt = delta7 == null ? '— 7d' : `${delta7 > 0 ? '+' : ''}${delta7} lb · 7d`;
-  const bfTarget = goal ? +goal.bfAt(targetSunKey).toFixed(1) : null;
+  const bfTarget = goal ? +(recMode === 'break' ? bfNowS : goal.bfAt(targetSunKey)).toFixed(1) : null;
   const bfGap = bfNow != null && bfTarget != null ? +(bfNow - bfTarget).toFixed(1) : null;
   const bfGapHtml = bfGap == null ? '' : bfGap <= 0
     ? `<div class="nh-w-target-gap good">Hit ✓ (${Math.abs(bfGap)}% under)</div>`
@@ -694,14 +819,14 @@ export function renderHomeTab(deps) {
         </div>
         ${goal ? `<div class="nh-goal-sub">≈ <b>${goal.goalWeight.toFixed(1)} lb</b> at your current lean mass (${goal.ffm.toFixed(1)} lb) · <b>${goal.fatToLose.toFixed(1)} lb</b> of fat to lose</div>
         <div class="nh-goal-pace">Pace now: <b>${goal.rateNow.toFixed(2)}% of body weight/week</b> (≈ ${goal.lbPerWeekNow.toFixed(1)} lb) · slows as you get leaner to protect muscle</div>
-        <div class="nh-goal-eta">On pace you reach ${GOAL_BF}% around <b>${parseKey(goal.etaKey).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</b> · ${Math.round(goal.daysToGoal / 7)} weeks</div>
+        <div class="nh-goal-eta">On pace you reach ${GOAL_BF}% around <b>${parseKey(goal.etaKey).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</b> · ${Math.round(goal.daysToGoal / 7)} weeks${goal.daysToGoal > 56 ? ` · <span style="white-space:nowrap">~${Math.floor(goal.daysToGoal / 56)} diet break${Math.floor(goal.daysToGoal / 56) === 1 ? '' : 's'} would add ${Math.floor(goal.daysToGoal / 56)} wk</span>` : ''}</div>
         ${deficit ? `
         <div class="nh-def">
           <div class="nh-def-vs">
             <div class="nh-def-col">
-              <div class="nh-def-k">TARGET DEFICIT</div>
+              <div class="nh-def-k">${recMode ? (recMode === 'break' ? 'DIET BREAK' : 'REFEED DAY') : 'TARGET DEFICIT'}</div>
               <div class="nh-def-v">${deficit.target.toLocaleString()}</div>
-              <div class="nh-def-s">kcal today</div>
+              <div class="nh-def-s">${recMode ? 'kcal · eat at maintenance' : 'kcal today'}</div>
             </div>
             <div class="nh-def-col ${deficit.today.def == null ? '' : deficit.today.def >= deficit.target ? 'ok' : deficit.today.def >= 0 ? 'close' : 'low'}">
               <div class="nh-def-k">TODAY'S DEFICIT</div>
@@ -717,8 +842,8 @@ export function renderHomeTab(deps) {
             <b>${deficit.avgDef >= 0 ? '' : '+'}${Math.abs(deficit.avgDef).toLocaleString()} kcal ${deficit.avgDef >= 0 ? 'deficit' : 'surplus'}/day</b>
           </div>
           <div class="nh-def-s">Average of ${deficit.n} day${deficit.n === 1 ? '' : 's'} with food logged · ${deficit.avgDef >= deficit.target ? 'on pace ✓' : `${(deficit.target - deficit.avgDef).toLocaleString()} kcal/day short`}</div>
-          <div class="nh-def-eat">On a typical day you burn ~${deficit.avgBurn.toLocaleString()} kcal → eat about <b>${deficit.eatTarget.toLocaleString()} kcal</b></div>
-          ${deficit.belowBmr ? `<div class="nh-def-warn">That's below your BMR (${deficit.bmrNow.toLocaleString()} kcal). Fine short-term at this body fat, but keep protein high and lift heavy. Don't go lower.</div>` : ''}` : `<div class="nh-def-s">Sync your food (dietary calories) to compare your actual deficit.</div>`}
+          <div class="nh-def-eat">On a typical day you burn ~${deficit.avgBurn.toLocaleString()} kcal → eat about <b>${(recMode ? deficit.avgBurn : deficit.eatTarget).toLocaleString()} kcal</b>${recMode ? ' (maintenance — extra from carbs)' : ''}</div>
+          ${deficit.belowBmr && !recMode ? `<div class="nh-def-warn">That's below your BMR (${deficit.bmrNow.toLocaleString()} kcal). Fine short-term at this body fat, but keep protein high and lift heavy. Don't go lower.</div>` : ''}` : `<div class="nh-def-s">Sync your food (dietary calories) to compare your actual deficit.</div>`}
         </div>` : ''}` : `<div class="nh-goal-sub">Needs weight and body fat readings to work out your targets.</div>`}
         ${state.homeGoalEdit ? `
         <div class="nh-goal-form">
@@ -726,6 +851,23 @@ export function renderHomeTab(deps) {
           <button onclick="homeSaveGoal()">Save goal</button>
         </div>` : ''}
       </div>
+      ${rec ? (() => {
+        const list = (cs) => cs.map(c => `<li class="${c.ok ? 'ok' : 'no'}"><span>${c.ok ? '✓' : '✗'}</span>${c.txt}</li>`).join('');
+        if (rec.activeBreak) {
+          const dayN = daysBetween(rec.activeBreak.start, todayKey) + 1, len = daysBetween(rec.activeBreak.start, rec.activeBreak.end) + 1;
+          return `<div class="nh-rec active"><div class="nh-rec-h">Diet break · day ${dayN} of ${len}</div>
+            <div class="nh-rec-s">Eat at maintenance (~${deficit && deficit.avgBurn ? deficit.avgBurn.toLocaleString() : '—'} kcal), extra calories mostly from carbs, keep protein 180–200 g and keep lifting. Weekly targets are paused: just hold your weight.</div>
+            <button class="nh-rec-btn ghost" onclick="homeEndDietBreak()">End break early</button></div>`;
+        }
+        const rf = rec.refeedToday
+          ? `<div class="nh-rec active"><div class="nh-rec-h">Refeed day ✓</div><div class="nh-rec-s">Eat at maintenance today, extra from carbs. Best on a heavy training day.</div><button class="nh-rec-btn ghost" onclick="homeUndoRefeed()">Undo</button></div>`
+          : `<div class="nh-rec ${rec.refeed.earned ? 'earned' : ''}"><div class="nh-rec-h">Refeed day <em>${rec.refeed.earned ? 'EARNED' : 'LOCKED'}</em></div><ul>${list(rec.refeed.conds)}</ul>${rec.refeed.earned ? `<button class="nh-rec-btn" onclick="homeTakeRefeed()">Take refeed today</button>` : ''}</div>`;
+        const bk = `<div class="nh-rec ${rec.brk.earned ? 'earned' : ''}"><div class="nh-rec-h">Diet break week <em>${rec.brk.earned ? (rec.brk.why === 'stall' ? 'EARNED · STALL' : 'EARNED') : 'LOCKED'}</em></div>
+          <ul>${list(rec.brk.conds)}</ul>
+          <div class="nh-rec-alt">Or early, if you've stalled despite hitting your deficit:</div><ul class="alt">${list(rec.brk.stallConds)}</ul>
+          ${rec.brk.earned ? `<button class="nh-rec-btn" onclick="homeStartDietBreak()">Start 7-day diet break</button>` : ''}</div>`;
+        return `<div class="nh-recs"><div class="nh-w-target-head">Refeeds & diet breaks · earned by results</div>${rf}${bk}</div>`;
+      })() : ''}
       <div class="nh-w-target-head">Target by Sun ${parseKey(targetSunKey).getDate()} ${parseKey(targetSunKey).toLocaleDateString('en-GB', { month: 'short' })}</div>
       <div class="nh-w-target-grid">
         <div class="nh-w-target-cell ${gap != null && gap <= 0 ? 'hit' : ''}">
