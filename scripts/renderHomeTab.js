@@ -185,6 +185,13 @@ body.light .nh {
 .nh .nh-def-eat { font-size:13px; margin-top:8px; color:var(--nh-sub) !important; }
 .nh .nh-def-eat b { font-size:15px; color:var(--nh-text) !important; }
 .nh .nh-def-warn { font-size:12px; line-height:1.4; margin-top:6px; padding:8px 10px; border-radius:10px; background:rgba(245,197,66,0.12); color:var(--nh-gold) !important; }
+.nh .nh-rec-toggle { display:flex; align-items:center; gap:8px; width:100%; min-height:44px; padding:8px 12px; border-radius:12px; border:1px solid var(--nh-line); background:transparent; text-align:left; }
+.nh .nh-rec-toggle-l { font-size:13px; font-weight:800; color:var(--nh-sub) !important; flex-shrink:0; }
+.nh .nh-rec-pills { display:flex; gap:6px; flex:1; justify-content:flex-end; flex-wrap:wrap; }
+.nh .nh-rec-pill { font-size:10px; font-weight:900; letter-spacing:1px; padding:4px 8px; border-radius:20px; background:var(--nh-line); color:var(--nh-muted) !important; white-space:nowrap; }
+.nh .nh-rec-pill.earned { background:#16A34A; color:#fff !important; }
+.nh .nh-rec-pill.on { background:var(--nh-bcol); color:#000 !important; }
+.nh .nh-rec-chev { font-size:14px; color:var(--nh-muted) !important; width:12px; text-align:center; }
 .nh .nh-recs { margin-bottom:14px; display:flex; flex-direction:column; gap:8px; }
 .nh .nh-rec { border:1px solid var(--nh-line); border-radius:12px; padding:10px 12px; }
 .nh .nh-rec.earned { border-color:#16A34A; background:rgba(34,197,94,0.1); }
@@ -866,7 +873,16 @@ export function renderHomeTab(deps) {
           <ul>${list(rec.brk.conds)}</ul>
           <div class="nh-rec-alt">Or early, if you've stalled despite hitting your deficit:</div><ul class="alt">${list(rec.brk.stallConds)}</ul>
           ${rec.brk.earned ? `<button class="nh-rec-btn" onclick="homeStartDietBreak()">Start 7-day diet break</button>` : ''}</div>`;
-        return `<div class="nh-recs"><div class="nh-w-target-head">Refeeds & diet breaks · earned by results</div>${rf}${bk}</div>`;
+        // Collapsible: compact one-line summary by default; remembered per device
+        let open = state.homeRecOpen;
+        if (open === undefined) { try { open = localStorage.getItem('homeRecOpen') === '1'; } catch (e) { open = false; } }
+        const pill = (label, earned, on) => `<span class="nh-rec-pill ${on ? 'on' : earned ? 'earned' : ''}">${label} ${on ? '· TODAY' : earned ? '✓' : '🔒'}</span>`;
+        const summary = `<button class="nh-rec-toggle" onclick="toggleHomeRec()" aria-expanded="${open}">
+          <span class="nh-rec-toggle-l">Refeeds & breaks</span>
+          <span class="nh-rec-pills">${pill('Refeed', rec.refeed.earned, rec.refeedToday)}${pill('Break', rec.brk.earned, false)}</span>
+          <span class="nh-rec-chev">${open ? '▾' : '▸'}</span>
+        </button>`;
+        return `<div class="nh-recs">${summary}${open ? rf + bk : (rec.refeedToday ? rf : '')}</div>`;
       })() : ''}
       <div class="nh-w-target-head">Target by Sun ${parseKey(targetSunKey).getDate()} ${parseKey(targetSunKey).toLocaleDateString('en-GB', { month: 'short' })}</div>
       <div class="nh-w-target-grid">

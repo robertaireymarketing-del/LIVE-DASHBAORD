@@ -440,6 +440,13 @@ window.homeSaveGoal = () => {
   saveData(); render();
 };
 // ── Refeeds & diet breaks (eligibility is enforced on the home page) ──
+window.toggleHomeRec = () => {
+  let open = state.homeRecOpen;
+  if (open === undefined) { try { open = localStorage.getItem('homeRecOpen') === '1'; } catch (e) { open = false; } }
+  state.homeRecOpen = !open;
+  try { localStorage.setItem('homeRecOpen', state.homeRecOpen ? '1' : '0'); } catch (e) {}
+  render();
+};
 window.homeTakeRefeed = () => { updateDayField(getToday(), 'refeed', true); };
 window.homeUndoRefeed = () => { updateDayField(getToday(), 'refeed', false); };
 window.homeStartDietBreak = () => {
