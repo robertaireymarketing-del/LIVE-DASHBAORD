@@ -72,6 +72,12 @@ export function createStorage({
     if (!state.user) return;
 
     // ── Optimistic paint: show cached data instantly while Firestore loads ──
+    // Health sync data is cached too — the Home Gym/Diet cards depend on it, and
+    // without it every refresh painted Diet red until the healthSync fetch landed.
+    try {
+      const hc = localStorage.getItem('tjm_health_cache');
+      if (hc && !(state.healthData && state.healthData.length)) state.healthData = JSON.parse(hc) || [];
+    } catch (e) { /* bad cache — the network load will fill it */ }
     try {
       const cached = localStorage.getItem('tjm_state_cache');
       if (cached && !state.data) {
@@ -130,7 +136,7 @@ export function createStorage({
     render();
   }
 
-  async function loadHealthData() {
+  async function loadHealthData(attempt = 1) {
     try {
       console.log('[HealthSync] Starting load from healthSync collection...');
       // Load the WHOLE collection. The old query (orderBy('date') + limit(90)) silently
@@ -230,6 +236,7 @@ export function createStorage({
       state.healthData = Object.values(byDate).sort((a, b) => b.date.localeCompare(a.date)); // newest first, as before
 
       console.log(`[HealthSync] Loaded ${state.healthData.length} entries. Most recent:`, state.healthData[0] || 'none');
+      try { localStorage.setItem('tjm_health_cache', JSON.stringify(state.healthData)); } catch (e) { /* storage full — non-fatal */ }
 
       state.days = state.data?.days || state.days || {};
       const todayStr = new Date().toISOString().slice(0,10);
@@ -250,6 +257,9 @@ export function createStorage({
     } catch (e) {
       console.error('[HealthSync] Load FAILED:', e);
       console.error('[HealthSync] This is likely a Firestore permissions error or wrong Firebase project. Check your firebase.js config and Firestore rules.');
+      // A dropped connection on load used to leave Home without sync data until a
+      // manual refresh. Retry a couple of times before giving up (cache still shows).
+      if (attempt < 3) { setTimeout(() => loadHealthData(attempt + 1), 3000 * attempt); return; }
     }
     // This resolves a second or two AFTER first paint. A render() here tears
     // down the DOM and blows away scroll position and focus — do not do it

@@ -977,7 +977,8 @@ onAuthStateChanged(auth, async (user) => {
   await loadData();          // core data (paints instantly from cache, then fresh)
   syncCalendarToDataMonth();
   render();                  // first meaningful paint happens here
-  // Health data only feeds the Health tab — load it in the background so it
-  // never blocks the first screen. It re-renders itself when it arrives.
+  // Health data feeds the Health tab and the Home Gym/Diet cards. It loads in the
+  // background so it never blocks the first screen; the last copy is cached in
+  // localStorage (painted by loadData) and this re-renders when fresh data lands.
   loadHealthData();
 });
