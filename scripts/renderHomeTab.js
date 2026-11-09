@@ -166,6 +166,12 @@ body.light .nh {
 .nh .nh-goal-eta { font-size:13px; margin-top:6px; padding:8px 10px; border-radius:10px; background:rgba(255,138,61,0.12); color:var(--nh-text) !important; }
 .nh .nh-goal-eta b { color:var(--nh-bcol) !important; }
 .nh .nh-def { margin-top:10px; padding:12px; border-radius:12px; border:1px solid var(--nh-line); }
+.nh .nh-def-vs { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px; }
+.nh .nh-def-col { border:1px solid var(--nh-line); border-radius:12px; padding:10px 12px; }
+.nh .nh-def-col.ok { background:#16A34A; border-color:#16A34A; }
+.nh .nh-def-col.close { background:rgba(245,197,66,0.16); border-color:var(--nh-gold); }
+.nh .nh-def-col.low { background:rgba(239,68,68,0.16); border-color:var(--nh-red); }
+.nh .nh-def-col.ok .nh-def-k, .nh .nh-def-col.ok .nh-def-v, .nh .nh-def-col.ok .nh-def-s { color:#FFFFFF !important; }
 .nh .nh-def-k { font-size:10px; font-weight:900; letter-spacing:1.5px; color:var(--nh-muted) !important; }
 .nh .nh-def-v { font-size:30px; font-weight:900; letter-spacing:-1px; margin-top:4px; color:var(--nh-text) !important; font-variant-numeric:tabular-nums; }
 .nh .nh-def-v span { font-size:14px; letter-spacing:0; color:var(--nh-muted) !important; }
@@ -443,7 +449,13 @@ export function renderHomeTab(deps) {
     const avgBurn = avg(rows.map(r => r.burn));
     const eatTarget = avgBurn != null ? Math.round((avgBurn - target) / 10) * 10 : null;
     const bmrNow = ([...health].filter(e => e.date <= todayKey && Number(e.bmr) > 0).sort((a, b) => b.date.localeCompare(a.date))[0] || {}).bmr || settings.defaultBmr || 2085; // latest synced BMR
-    return { target, weekly: target * 7, n: rows.length, avgDef: avgDef != null ? Math.round(avgDef) : null, avgBurn: avgBurn != null ? Math.round(avgBurn) : null, eatTarget, belowBmr: eatTarget != null && eatTarget < bmrNow, bmrNow: Math.round(bmrNow) };
+    // Today — same maths as the Health page's calorie card for today
+    const hT = health.find(e => e.date === todayKey) || {};
+    const dT = days[todayKey] || {};
+    const eatenT = Number(hT.calories) || 0;
+    const burnT = (Number(hT.bmr) || settings.defaultBmr || 2085) + (Number(hT.gymCalories) || 0) + (Number(dT.gymCalEntry) || 0) + (Number(dT.treadmillCal) || 0);
+    const today = { eaten: Math.round(eatenT), burn: Math.round(burnT), def: eatenT > 0 ? Math.round(burnT - eatenT) : null };
+    return { today, target, weekly: target * 7, n: rows.length, avgDef: avgDef != null ? Math.round(avgDef) : null, avgBurn: avgBurn != null ? Math.round(avgBurn) : null, eatTarget, belowBmr: eatTarget != null && eatTarget < bmrNow, bmrNow: Math.round(bmrNow) };
   })();
 
   const sundayTarget = goal ? +goal.wAt(targetSunKey).toFixed(1) : null;
@@ -685,8 +697,19 @@ export function renderHomeTab(deps) {
         <div class="nh-goal-eta">On pace you reach ${GOAL_BF}% around <b>${parseKey(goal.etaKey).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</b> · ${Math.round(goal.daysToGoal / 7)} weeks</div>
         ${deficit ? `
         <div class="nh-def">
-          <div class="nh-def-k">AIM FOR A DAILY DEFICIT OF</div>
-          <div class="nh-def-v">${deficit.target.toLocaleString()} <span>kcal/day</span></div>
+          <div class="nh-def-vs">
+            <div class="nh-def-col">
+              <div class="nh-def-k">TARGET DEFICIT</div>
+              <div class="nh-def-v">${deficit.target.toLocaleString()}</div>
+              <div class="nh-def-s">kcal today</div>
+            </div>
+            <div class="nh-def-col ${deficit.today.def == null ? '' : deficit.today.def >= deficit.target ? 'ok' : deficit.today.def >= 0 ? 'close' : 'low'}">
+              <div class="nh-def-k">TODAY'S DEFICIT</div>
+              <div class="nh-def-v">${deficit.today.def == null ? '—' : (deficit.today.def < 0 ? '+' : '') + Math.abs(deficit.today.def).toLocaleString()}</div>
+              <div class="nh-def-s">${deficit.today.def == null ? 'no food synced yet' : deficit.today.def < 0 ? 'kcal surplus' : deficit.today.def >= deficit.target ? 'kcal · on target ✓' : `kcal · ${(deficit.target - deficit.today.def).toLocaleString()} to go`}</div>
+            </div>
+          </div>
+          <div class="nh-def-s">Today: burned ${deficit.today.burn.toLocaleString()} − eaten ${deficit.today.eaten.toLocaleString()} kcal, same figures as the Health page. Updates as you sync.</div>
           <div class="nh-def-s">${deficit.weekly.toLocaleString()} kcal/week · ${goal.lbPerWeekNow.toFixed(1)} lb of fat × 3,500 ÷ 7 · updates daily</div>
           ${deficit.avgDef != null ? `
           <div class="nh-def-row ${deficit.avgDef >= deficit.target ? 'ok' : deficit.avgDef >= deficit.target * 0.8 ? 'close' : 'low'}">
