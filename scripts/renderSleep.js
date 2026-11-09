@@ -43,27 +43,27 @@ body.sleep-mode { background:#000 !important; }
 body.sleep-mode .header, body.sleep-mode .quote-card, body.sleep-mode .panic-trigger, body.sleep-mode .saving-badge { display:none !important; }
 body.sleep-mode .bottom-nav-app { opacity:0.18; transition:opacity 0.6s; filter:grayscale(1); }
 body.sleep-mode .bottom-nav-app:active, body.sleep-mode .bottom-nav-app:hover { opacity:0.6; }
-.slp { --amber:#B8733A; --dim:#6E4524; --faint:#3A2414; --line:#24160C;
+.slp { --amber:#C98245; --dim:#9A6234; --faint:#6A4424; --line:#24160C;
   min-height:calc(100vh - 140px); display:flex; flex-direction:column; gap:22px; padding:20px 4px 40px;
   color:var(--amber); font-family:-apple-system, BlinkMacSystemFont, sans-serif; transition:opacity 2s ease; }
 .slp.deep { opacity:0.35; }
 .slp * { box-sizing:border-box; color:inherit; }
 .slp button { font-family:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent; }
-.slp-title { font-size:22px; font-weight:600; letter-spacing:0.2px; color:var(--amber) !important; }
-.slp-sub { font-size:15px; line-height:1.55; margin-top:6px; color:var(--dim) !important; }
+.slp-title { font-size:30px; font-weight:600; letter-spacing:0.2px; color:var(--amber) !important; }
+.slp-sub { font-size:19px; line-height:1.55; margin-top:6px; color:var(--dim) !important; }
 .slp-steps { display:flex; gap:8px; }
-.slp-step { flex:1; height:44px; border-radius:22px; border:1px solid var(--line); background:transparent; font-size:14px; color:var(--dim) !important; }
+.slp-step { flex:1; height:54px; border-radius:27px; border:1px solid var(--line); background:transparent; font-size:17px; color:var(--dim) !important; }
 .slp-step.on { border-color:var(--dim); color:var(--amber) !important; background:#0d0805; }
 .slp-card { border:1px solid var(--line); border-radius:20px; padding:20px 18px; background:#060403; }
-.slp-h { font-size:17px; font-weight:600; color:var(--amber) !important; }
-.slp-p { font-size:15px; line-height:1.6; margin-top:8px; color:var(--dim) !important; }
+.slp-h { font-size:22px; font-weight:600; color:var(--amber) !important; }
+.slp-p { font-size:19px; line-height:1.6; margin-top:8px; color:var(--dim) !important; }
 .slp textarea { width:100%; min-height:150px; margin-top:14px; padding:14px; border-radius:14px; border:1px solid var(--line);
-  background:#000; color:var(--amber) !important; font-size:16px; line-height:1.6; font-family:inherit; resize:none; outline:none; }
+  background:#000; color:var(--amber) !important; font-size:20px; line-height:1.6; font-family:inherit; resize:none; outline:none; }
 .slp textarea::placeholder { color:var(--faint); }
-.slp-btn { width:100%; height:50px; margin-top:12px; border-radius:25px; border:1px solid var(--dim); background:transparent;
-  font-size:15px; color:var(--amber) !important; }
+.slp-btn { width:100%; height:58px; margin-top:12px; border-radius:29px; border:1px solid var(--dim); background:transparent;
+  font-size:19px; color:var(--amber) !important; }
 .slp-btn.ghost { border-color:var(--line); color:var(--dim) !important; }
-.slp-ok { font-size:14px; margin-top:12px; color:var(--dim) !important; text-align:center; }
+.slp-ok { font-size:18px; margin-top:12px; color:var(--dim) !important; text-align:center; }
 
 /* Breathing: 10 s cycle = 4 s in, 6 s out (~6 breaths/min) */
 .slp-breath { position:relative; width:240px; height:240px; margin:26px auto 6px; }
@@ -74,7 +74,7 @@ body.sleep-mode .bottom-nav-app:active, body.sleep-mode .bottom-nav-app:hover { 
   animation:slpRing 10s ease-in-out infinite; }
 @keyframes slpBreath { 0% { transform:scale(0.45); } 40% { transform:scale(1); } 100% { transform:scale(0.45); } }
 @keyframes slpRing { 0% { transform:scale(0.9); opacity:0.5; } 40% { transform:scale(1.8); opacity:0.9; } 100% { transform:scale(0.9); opacity:0.5; } }
-.slp-cue { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:17px; letter-spacing:2px; }
+.slp-cue { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:22px; letter-spacing:2px; }
 .slp-cue span { position:absolute; color:var(--amber) !important; }
 .slp-cue .in { animation:slpIn 10s linear infinite; }
 .slp-cue .out { animation:slpOut 10s linear infinite; }
@@ -83,16 +83,16 @@ body.sleep-mode .bottom-nav-app:active, body.sleep-mode .bottom-nav-app:hover { 
 @media (prefers-reduced-motion: reduce) { .slp-orb, .slp-ring { animation-duration:14s; } }
 
 /* Cognitive shuffle */
-.slp-letter { font-size:15px; letter-spacing:3px; text-align:center; margin-top:18px; color:var(--dim) !important; }
-.slp-word { font-size:34px; font-weight:300; text-align:center; margin:18px 0 8px; min-height:44px; color:var(--amber) !important; transition:opacity 1.2s ease; }
+.slp-letter { font-size:18px; letter-spacing:3px; text-align:center; margin-top:18px; color:var(--dim) !important; }
+.slp-word { font-size:46px; font-weight:400; text-align:center; margin:18px 0 8px; min-height:44px; color:var(--amber) !important; transition:opacity 1.2s ease; }
 .slp-word.fade { opacity:0; }
 
 .slp-sound { display:flex; gap:8px; margin-top:14px; }
-.slp-sound button { flex:1; height:44px; border-radius:22px; border:1px solid var(--line); background:transparent; font-size:14px; color:var(--dim) !important; }
+.slp-sound button { flex:1; height:54px; border-radius:27px; border:1px solid var(--line); background:transparent; font-size:16px; color:var(--dim) !important; }
 .slp-sound button.on { border-color:var(--dim); color:var(--amber) !important; background:#0d0805; }
 
 .slp-awake { border:1px dashed var(--dim); border-radius:20px; padding:18px; }
-.slp-goal { font-size:14px; line-height:1.6; text-align:center; color:var(--faint) !important; padding:0 12px; }
+.slp-goal { font-size:17px; line-height:1.6; text-align:center; color:var(--faint) !important; padding:0 12px; }
 </style>`;
 
 function esc(v = '') { return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -130,7 +130,7 @@ export function renderSleepTab({ state }) {
         <div class="slp-orb"></div><div class="slp-ring"></div>
         <div class="slp-cue"><span class="in">in</span><span class="out">out</span></div>
       </div>
-      <div class="slp-p" style="font-size:13px;">Around ten breaths, then move on whenever you like.</div>
+      <div class="slp-p" style="font-size:17px;">Around ten breaths, then move on whenever you like.</div>
       <button class="slp-btn ghost" onclick="sleepStep('drift')">Next → drift</button>
     </div>`;
   } else {
@@ -146,7 +146,7 @@ export function renderSleepTab({ state }) {
         <button class="${sound === 30 ? 'on' : ''}" onclick="sleepSound(30)">Noise · 30m</button>
         <button class="${sound === 60 ? 'on' : ''}" onclick="sleepSound(60)">Noise · 60m</button>
       </div>
-      <div class="slp-p" style="font-size:13px;">Soft brown noise that fades out by itself. Keep the volume low.</div>
+      <div class="slp-p" style="font-size:17px;">Soft brown noise that fades out by itself. Keep the volume low.</div>
     </div>`;
   }
 
