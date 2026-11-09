@@ -890,7 +890,7 @@ export function renderHomeTab(deps) {
         </div>
         ${goal ? `<div class="nh-goal-sub">≈ <b>${goal.goalWeight.toFixed(1)} lb</b> at your current lean mass (${goal.ffm.toFixed(1)} lb) · <b>${goal.fatToLose.toFixed(1)} lb</b> of fat to lose</div>
         <div class="nh-goal-pace">Pace now: <b>${goal.rateNow.toFixed(2)}% of body weight/week</b> (≈ ${goal.lbPerWeekNow.toFixed(1)} lb) · slows as you get leaner to protect muscle</div>
-        <div class="nh-goal-eta">On pace you reach ${GOAL_BF}% around <b>${parseKey(goal.etaKey).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</b> · ${Math.round(goal.daysToGoal / 7)} weeks${goal.daysToGoal > 56 ? ` · <span style="white-space:nowrap">~${Math.floor(goal.daysToGoal / 56)} diet break${Math.floor(goal.daysToGoal / 56) === 1 ? '' : 's'} would add ${Math.floor(goal.daysToGoal / 56)} wk</span>` : ''}</div>
+        <div class="nh-goal-eta">On pace you reach ${GOAL_BF}% in the <b>week of ${(() => { const e = parseKey(goal.etaKey); const mon = addDaysKey(goal.etaKey, -((e.getDay() + 6) % 7)); return parseKey(mon).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); })()}</b> · ${Math.round(goal.daysToGoal / 7)} weeks${goal.daysToGoal > 56 ? ` · <span style="white-space:nowrap">~${Math.floor(goal.daysToGoal / 56)} diet break${Math.floor(goal.daysToGoal / 56) === 1 ? '' : 's'} would add ${Math.floor(goal.daysToGoal / 56)} wk</span>` : ''}</div>
         ${deficit ? `
         <div class="nh-def">
           <div class="nh-def-vs">
