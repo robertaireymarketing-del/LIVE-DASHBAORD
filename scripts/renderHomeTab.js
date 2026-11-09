@@ -3,7 +3,9 @@
 // reachable from the More menu.
 //
 // Order, top to bottom:
-//   1. Shop lease countdown (ends 24 Sep 2031 — 5 years from 24 Sep 2026)
+//   1. Shop lease countdown (ends 24 Sep 2031 — 5 years from 24 Sep 2026).
+//      Tap to open the lease journey: timeline + quarterly check-ins
+//      (scripts/leaseJourney.js).
 //   2. 30th birthday countdown (12 Aug 2027)
 //   3. Weight: current, 7-day trend, target for Sunday
 //   4. Gym + Diet daily checks (flash red until done, green once done)
@@ -24,6 +26,8 @@
 //
 // All styles are scoped under .nh. Colours use CSS variables + !important
 // because app.css has `body.light p, span, div { color: inherit; }`.
+
+import { renderLeaseJourney, leaseJourneyStatus, LEASE_JOURNEY_CSS } from './leaseJourney.js';
 
 const LEASE_START = '2026-09-24';
 const LEASE_END = '2031-09-24';
@@ -328,8 +332,11 @@ export function renderHomeTab(deps) {
     : [passed.y ? plural(passed.y, 'year') : '', passed.m ? plural(passed.m, 'month') : '',
        passedWeeks ? plural(passedWeeks, 'week') : '', passedDays || (!passed.y && !passed.m && !passedWeeks) ? plural(passedDays, 'day') : ''].filter(Boolean).join(' ');
   const qEndLabel = parseKey(qEnd).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const lj = leaseJourneyStatus(state, todayKey);
+  const leaseOpen = !!state.leaseOpen;
   const leaseSection = `
   <section class="nh-lease" aria-label="Shop lease countdown">
+    <div class="nh-lease-tap" role="button" tabindex="0" aria-expanded="${leaseOpen}" onclick="toggleLeaseJourney()">
     <div class="nh-lease-head">
       <div class="nh-lease-title">Shop lease</div>
       <span class="nh-lease-chip">Q${qIdx + 1} / 20</span>
@@ -356,6 +363,15 @@ export function renderHomeTab(deps) {
         <div class="nh-lease-stat-s">Ends ${qEndLabel}</div>
       </div>
     </div>
+    <div class="nh-lease-foot">
+      <span class="nh-lease-foot-t">${leaseOpen ? 'Close the journey' : `The journey${lj.count ? ` · ${lj.count} ${lj.count === 1 ? 'entry' : 'entries'}` : ''}`}</span>
+      <span style="display:flex;align-items:center;gap:10px;">
+        ${lj.due ? `<span class="nh-lj-due-pill">Q${lj.curQ + 1} CHECK-IN DUE</span>` : ''}
+        <span class="nh-lease-foot-c ${leaseOpen ? 'open' : ''}" aria-hidden="true">▾</span>
+      </span>
+    </div>
+    </div>
+    ${leaseOpen ? renderLeaseJourney(state, todayKey) : ''}
   </section>`;
 
   // ── 2. 30th birthday countdown ──────────────────────────────────────────
@@ -1135,7 +1151,7 @@ export function renderHomeTab(deps) {
     <button class="nh-edit-link" style="margin-top:14px;" onclick="toggleHomeEdit()">Close</button>
   </section>`;
 
-  return HOME_CSS + `
+  return HOME_CSS + LEASE_JOURNEY_CSS + `
   <div class="nh">
     ${leaseSection}
     ${bdaySection}

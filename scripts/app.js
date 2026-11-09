@@ -12,6 +12,7 @@ import { initPanicButton } from './panicButton.js';
 import { renderTodayTab as renderTodayTabExternal } from './renderTodayTab.js';
 import { renderHomeTab as renderHomeTabExternal } from './renderHomeTab.js';
 import { renderSleepTab, initSleepTab, leaveSleepTab } from './renderSleep.js';
+import { initLeaseJourney } from './leaseJourney.js';
 import { renderBricksTab as renderBricksTabExternal, initBricksActions } from './bricks.js';
 import { renderMarchTab as renderMarchTabExternal } from './renderMarchTab.js';
 import { renderProgressTab as renderProgressTabExternal } from './renderProgressTab.js';
@@ -435,6 +436,8 @@ window.handleLogout = async () => { await signOut(auth); try { localStorage.remo
 window.setTab = (tab) => { if (state.activeTab === 'sleep' && tab !== 'sleep') { try { leaveSleepTab(); } catch(e) {} } state.activeTab = tab; state.selectedEditDate = null; state.moreMenuOpen = false; if (tab !== 'bricks') state.bricksViewDate = null; render(); };
 window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render(); };
 // ── New Home: past-day overrides for Gym / Diet (today can't be overridden) ──
+// ── Shop lease journey (timeline + quarterly check-ins) ──
+initLeaseJourney({ state, saveData, render });
 window.toggleHomeGoalEdit = () => { state.homeGoalEdit = !state.homeGoalEdit; render(); };
 window.homeSaveGoal = () => {
   const bf = parseFloat(document.getElementById('home-goal-bf')?.value);
