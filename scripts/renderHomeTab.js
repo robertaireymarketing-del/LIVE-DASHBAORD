@@ -165,6 +165,20 @@ body.light .nh {
 .nh .nh-goal-pace { font-size:13px; line-height:1.45; margin-top:4px; color:var(--nh-sub) !important; }
 .nh .nh-goal-eta { font-size:13px; margin-top:6px; padding:8px 10px; border-radius:10px; background:rgba(255,138,61,0.12); color:var(--nh-text) !important; }
 .nh .nh-goal-eta b { color:var(--nh-bcol) !important; }
+.nh .nh-def { margin-top:10px; padding:12px; border-radius:12px; border:1px solid var(--nh-line); }
+.nh .nh-def-k { font-size:10px; font-weight:900; letter-spacing:1.5px; color:var(--nh-muted) !important; }
+.nh .nh-def-v { font-size:30px; font-weight:900; letter-spacing:-1px; margin-top:4px; color:var(--nh-text) !important; font-variant-numeric:tabular-nums; }
+.nh .nh-def-v span { font-size:14px; letter-spacing:0; color:var(--nh-muted) !important; }
+.nh .nh-def-s { font-size:12px; line-height:1.4; margin-top:3px; color:var(--nh-muted) !important; }
+.nh .nh-def-row { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-top:10px; padding:8px 10px; border-radius:10px; font-size:13px; font-weight:700; }
+.nh .nh-def-row b { font-size:15px; font-weight:900; }
+.nh .nh-def-row.ok { background:rgba(34,197,94,0.14); color:var(--nh-green) !important; }
+.nh .nh-def-row.close { background:rgba(245,197,66,0.14); color:var(--nh-gold) !important; }
+.nh .nh-def-row.low { background:rgba(239,68,68,0.14); color:var(--nh-red) !important; }
+.nh .nh-def-row span, .nh .nh-def-row b { color:inherit !important; }
+.nh .nh-def-eat { font-size:13px; margin-top:8px; color:var(--nh-sub) !important; }
+.nh .nh-def-eat b { font-size:15px; color:var(--nh-text) !important; }
+.nh .nh-def-warn { font-size:12px; line-height:1.4; margin-top:6px; padding:8px 10px; border-radius:10px; background:rgba(245,197,66,0.12); color:var(--nh-gold) !important; }
 .nh .nh-goal-form { display:grid; grid-template-columns:1fr; gap:8px; margin-top:10px; }
 .nh .nh-goal-form label { display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:800; letter-spacing:0.5px; color:var(--nh-muted) !important; }
 .nh .nh-goal-form input { height:42px; border-radius:10px; border:1px solid var(--nh-line); background:transparent; padding:0 10px; font-size:15px; font-family:inherit; color:var(--nh-text); }
@@ -403,6 +417,35 @@ export function renderHomeTab(deps) {
       rateNow, lbPerWeekNow: wNow * rateNow / 100, etaKey: addDaysKey(todayKey, daysToGoal),
     };
   })();
+  // ── Daily deficit suggestion ────────────────────────────────────────────
+  // Target: today's pace (lb/week) × 3,500 kcal per lb of fat ÷ 7. Since the plan
+  // assumes the weight lost is fat (lean mass held), 3,500 kcal/lb is the right
+  // energy value. Recomputed daily with the goal model, so it tapers as you lean out.
+  // Actual: same maths as the Health page calorie tracker — burn = BMR (sync, else
+  // settings.defaultBmr, else 2085) + active energy (sync) + manual gym/treadmill
+  // entries; deficit = burn − eaten, only on days with dietary calories synced.
+  const KCAL_PER_LB_FAT = 3500;
+  const deficit = (() => {
+    if (!goal) return null;
+    const target = Math.round(goal.lbPerWeekNow * KCAL_PER_LB_FAT / 7);
+    const rows = [];
+    for (let i = 1; i <= 7; i++) { // last 7 complete days (yesterday back)
+      const k = addDaysKey(todayKey, -i);
+      const h = health.find(e => e.date === k) || {};
+      const dd = days[k] || {};
+      const eaten = Number(h.calories) || 0;
+      if (eaten <= 0) continue;
+      const burn = (Number(h.bmr) || settings.defaultBmr || 2085) + (Number(h.gymCalories) || 0) + (Number(dd.gymCalEntry) || 0) + (Number(dd.treadmillCal) || 0);
+      rows.push({ burn, eaten, def: burn - eaten });
+    }
+    const avg = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+    const avgDef = avg(rows.map(r => r.def));
+    const avgBurn = avg(rows.map(r => r.burn));
+    const eatTarget = avgBurn != null ? Math.round((avgBurn - target) / 10) * 10 : null;
+    const bmrNow = ([...health].filter(e => e.date <= todayKey && Number(e.bmr) > 0).sort((a, b) => b.date.localeCompare(a.date))[0] || {}).bmr || settings.defaultBmr || 2085; // latest synced BMR
+    return { target, weekly: target * 7, n: rows.length, avgDef: avgDef != null ? Math.round(avgDef) : null, avgBurn: avgBurn != null ? Math.round(avgBurn) : null, eatTarget, belowBmr: eatTarget != null && eatTarget < bmrNow, bmrNow: Math.round(bmrNow) };
+  })();
+
   const sundayTarget = goal ? +goal.wAt(targetSunKey).toFixed(1) : null;
   const gap = current != null && sundayTarget != null ? +(current - sundayTarget).toFixed(1) : null;
 
@@ -639,7 +682,21 @@ export function renderHomeTab(deps) {
         </div>
         ${goal ? `<div class="nh-goal-sub">≈ <b>${goal.goalWeight.toFixed(1)} lb</b> at your current lean mass (${goal.ffm.toFixed(1)} lb) · <b>${goal.fatToLose.toFixed(1)} lb</b> of fat to lose</div>
         <div class="nh-goal-pace">Pace now: <b>${goal.rateNow.toFixed(2)}% of body weight/week</b> (≈ ${goal.lbPerWeekNow.toFixed(1)} lb) · slows as you get leaner to protect muscle</div>
-        <div class="nh-goal-eta">On pace you reach ${GOAL_BF}% around <b>${parseKey(goal.etaKey).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</b> · ${Math.round(goal.daysToGoal / 7)} weeks</div>` : `<div class="nh-goal-sub">Needs weight and body fat readings to work out your targets.</div>`}
+        <div class="nh-goal-eta">On pace you reach ${GOAL_BF}% around <b>${parseKey(goal.etaKey).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</b> · ${Math.round(goal.daysToGoal / 7)} weeks</div>
+        ${deficit ? `
+        <div class="nh-def">
+          <div class="nh-def-k">AIM FOR A DAILY DEFICIT OF</div>
+          <div class="nh-def-v">${deficit.target.toLocaleString()} <span>kcal/day</span></div>
+          <div class="nh-def-s">${deficit.weekly.toLocaleString()} kcal/week · ${goal.lbPerWeekNow.toFixed(1)} lb of fat × 3,500 ÷ 7 · updates daily</div>
+          ${deficit.avgDef != null ? `
+          <div class="nh-def-row ${deficit.avgDef >= deficit.target ? 'ok' : deficit.avgDef >= deficit.target * 0.8 ? 'close' : 'low'}">
+            <span>Your last 7 days</span>
+            <b>${deficit.avgDef >= 0 ? '' : '+'}${Math.abs(deficit.avgDef).toLocaleString()} kcal ${deficit.avgDef >= 0 ? 'deficit' : 'surplus'}/day</b>
+          </div>
+          <div class="nh-def-s">Average of ${deficit.n} day${deficit.n === 1 ? '' : 's'} with food logged · ${deficit.avgDef >= deficit.target ? 'on pace ✓' : `${(deficit.target - deficit.avgDef).toLocaleString()} kcal/day short`}</div>
+          <div class="nh-def-eat">On a typical day you burn ~${deficit.avgBurn.toLocaleString()} kcal → eat about <b>${deficit.eatTarget.toLocaleString()} kcal</b></div>
+          ${deficit.belowBmr ? `<div class="nh-def-warn">That's below your BMR (${deficit.bmrNow.toLocaleString()} kcal). Fine short-term at this body fat, but keep protein high and lift heavy. Don't go lower.</div>` : ''}` : `<div class="nh-def-s">Sync your food (dietary calories) to compare your actual deficit.</div>`}
+        </div>` : ''}` : `<div class="nh-goal-sub">Needs weight and body fat readings to work out your targets.</div>`}
         ${state.homeGoalEdit ? `
         <div class="nh-goal-form">
           <label>Body fat goal (%)<input id="home-goal-bf" type="number" inputmode="decimal" step="0.5" min="5" max="40" value="${GOAL_BF}"></label>
