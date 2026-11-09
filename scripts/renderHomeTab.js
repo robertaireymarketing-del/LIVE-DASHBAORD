@@ -998,8 +998,25 @@ export function renderHomeTab(deps) {
   const gymCalT = Math.round(Number(dayData(todayKey).gymCalEntry) || 0);
   const tmCalT = Math.round(Number(dayData(todayKey).treadmillCal) || 0);
   const syncWkCal = Math.round(Number((syncFor(todayKey) || {}).workoutCalories) || 0);
+  // Split by workout type when the Shortcut sends workoutBreakdown ("Type:kcal;Type:kcal").
+  // Strength variants collapse to "Strength"; same-label workouts are added together.
+  const wkSplit = (() => {
+    const raw = String((syncFor(todayKey) || {}).workoutBreakdown || '').trim();
+    if (!raw) return [];
+    const by = {};
+    raw.split(/[;\n]+/).forEach(part => {
+      const i = part.lastIndexOf(':'); if (i < 0) return;
+      let name = part.slice(0, i).trim();
+      const kcal = parseFloat(part.slice(i + 1).replace(/[^0-9.]/g, ''));
+      if (!name || !(kcal > 0)) return;
+      if (/strength/i.test(name)) name = 'Strength';
+      else if (/treadmill/i.test(name)) name = 'Treadmill';
+      by[name] = (by[name] || 0) + kcal;
+    });
+    return Object.entries(by).map(([n, k]) => `${n} ${Math.round(k).toLocaleString()}`);
+  })();
   const wkBurn = syncWkCal > 0 ? syncWkCal : gymCalT + tmCalT;
-  const wkBurnSrc = syncWkCal > 0 ? `Garmin · ${wToday.count > 0 ? `${wToday.count} workout${wToday.count === 1 ? '' : 's'}` : 'synced'}`
+  const wkBurnSrc = syncWkCal > 0 ? (wkSplit.length ? wkSplit.join(' · ') : 'From Garmin')
     : gymCalT + tmCalT > 0 ? `Gym ${gymCalT.toLocaleString()} + Treadmill ${tmCalT.toLocaleString()}` : 'None synced or logged yet';
   const gymExp = `
         <div class="nh-habit-exp">
