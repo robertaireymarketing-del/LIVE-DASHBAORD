@@ -143,6 +143,11 @@ body.light .nh {
 .nh .nh-leg b { font-size:18px; font-weight:900; color:var(--nh-text) !important; font-variant-numeric:tabular-nums; }
 .nh .nh-leg em { white-space:nowrap; font-style:normal; font-size:13px; font-weight:700; color:var(--nh-muted) !important; }
 .nh .nh-leg i { width:12px; height:12px; border-radius:50%; flex-shrink:0; margin-top:6px; }
+.nh .nh-vs { margin-top:4px; padding:6px 10px; border-radius:10px; font-size:13px; font-weight:800; }
+.nh .nh-vs b { font-size:15px; }
+.nh .nh-vs.ahead { background:rgba(34,197,94,0.14); color:var(--nh-green) !important; }
+.nh .nh-vs.behind { background:rgba(239,68,68,0.14); color:var(--nh-red) !important; }
+.nh .nh-vs.ahead b, .nh .nh-vs.behind b { color:inherit !important; }
 .nh .nh-cal-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
 .nh .nh-cal-nav button { width:44px; height:44px; border-radius:12px; border:1px solid var(--nh-line); background:transparent; font-size:22px; font-weight:900; color:var(--nh-text) !important; }
 .nh .nh-cal-nav button:disabled { opacity:0.3; cursor:default; }
@@ -432,8 +437,24 @@ export function renderHomeTab(deps) {
     const weekLines = [7, 14, 21, 28].filter(d => d < nDays).map(d => `<line x1="${x(d).toFixed(1)}" x2="${x(d).toFixed(1)}" y1="${padT}" y2="${VH - padB}" stroke="var(--nh-line)" stroke-width="1"></line>`).join('');
     const todayLine = todayIdx >= 0 && todayIdx < nDays ? `<line x1="${x(todayIdx).toFixed(1)}" x2="${x(todayIdx).toFixed(1)}" y1="${padT - 4}" y2="${VH - padB}" stroke="var(--nh-muted)" stroke-width="1" stroke-dasharray="2 3"></line>` : '';
 
+    // On-target pace to month end, from the same weekly base as the Sunday targets:
+    // weight compounds −lossRate% per week; body fat drops lossRate points per week.
+    const weeksFrom = (k) => (parseKey(mEnd) - parseKey(k)) / (7 * 86400000);
+    const onTarget = {
+      Weight: weekBase != null && weekBaseKey ? +weekBase * Math.pow(1 - lossRate / 100, weeksFrom(weekBaseKey)) : null,
+      'Body fat': bfWeekBase != null && bfWeekBaseKey ? bfWeekBase - lossRate * weeksFrom(bfWeekBaseKey) : null,
+    };
     const legend = (label, ser, col, unit) => {
       const f = (v) => v.toFixed(1) + unit;
+      // Projection vs on-target (this month and future months only)
+      let vs = '';
+      const tgt = onTarget[label];
+      if (mOff >= 0 && tgt != null && ser.end != null) {
+        const diff = +(ser.end - tgt).toFixed(1); // lower is better for both
+        const cls = diff <= 0 ? 'ahead' : 'behind';
+        const txt = diff === 0 ? 'exactly on target' : diff < 0 ? `${Math.abs(diff)}${unit} ahead` : `${diff}${unit} behind`;
+        vs = `<div class="nh-vs ${cls}">On target: <b>${f(tgt)}</b> · ${txt}</div>`;
+      }
       let body;
       if (mOff < 0) {
         body = ser.actual.length
@@ -446,7 +467,7 @@ export function renderHomeTab(deps) {
           : `<b>${f(ser.last.v)}</b>${ser.end != null ? ` → <b>${f(ser.end)}</b> by ${nDays} ${monthShort}` : ' · not enough data to project'}`;
       }
       const wk = mOff >= 0 && ser.slope != null ? ` <em>(${ser.slope * 7 > 0 ? '+' : ''}${(ser.slope * 7).toFixed(1)}${unit}/wk)</em>` : '';
-      return `<div class="nh-leg"><i style="background:${col};"></i><span><span class="nh-leg-name">${label}</span> ${body}${wk}</span></div>`;
+      return `<div class="nh-leg"><i style="background:${col};"></i><span><span class="nh-leg-name">${label}</span> ${body}${wk}${vs}</span></div>`;
     };
     return nav + `
     <svg viewBox="0 0 ${VW} ${VH}" width="100%" height="${VH}" role="img" aria-label="Weight and body fat, ${monthLabel}" style="display:block;">
