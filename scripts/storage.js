@@ -222,12 +222,22 @@ export function createStorage({
             // (gaps up to 45 min stay in the same session). Only the LONGEST session
             // counts as last night; anything else (e.g. dozing in the evening) is
             // reported separately and not counted.
+            // Preferred format: real time stamps, "ISOstart~ISOend" (Shortcuts
+            // Format Date → ISO 8601). Converted to minutes since the epoch.
             const sv = parse(raw.sleepMinutes);
             if (!(typeof sv === 'string' && sv.includes('~'))) return {};
-            const ivs = [...sv.matchAll(/(-?\d+(?:\.\d+)?)\s*~\s*(-?\d+(?:\.\d+)?)/g)]
-              .map(m => { const a = Math.abs(+m[1]), b = Math.abs(+m[2]); return [Math.min(a, b), Math.max(a, b)]; })
-              .filter(([a, b]) => b > a)
-              .sort((x, y) => x[0] - y[0]);
+            let ivs;
+            if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(sv)) {
+              ivs = sv.split(/[,\n]+/).map(p => p.split('~').map(x => Date.parse(x.trim())))
+                .filter(p => p.length === 2 && !isNaN(p[0]) && !isNaN(p[1]))
+                .map(([a, b]) => [Math.min(a, b) / 60000, Math.max(a, b) / 60000]);
+            } else {
+              // Legacy: minutes after 18:00 the previous evening
+              ivs = [...sv.matchAll(/(-?\d+(?:\.\d+)?)\s*~\s*(-?\d+(?:\.\d+)?)/g)]
+                .map(m => { const a = Math.abs(+m[1]), b = Math.abs(+m[2]); return [Math.min(a, b), Math.max(a, b)]; });
+            }
+            const isEpoch = ivs.length && ivs[0][0] > 1e6;
+            ivs = ivs.filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]);
             const merged = [];
             for (const [a, b] of ivs) {
               const last = merged[merged.length - 1];
@@ -244,6 +254,7 @@ export function createStorage({
             const other = sessions.filter(x => x !== main).reduce((t, x) => t + x.mins, 0);
             return {
               sleepMinutes: Math.round(main.mins),
+              sleepEpoch: isEpoch,
               sleepMain: { start: Math.round(main.start), end: Math.round(main.end) },
               sleepOther: Math.round(other),
               sleepOtherSessions: sessions.filter(x => x !== main).map(x => ({ start: Math.round(x.start), end: Math.round(x.end), mins: Math.round(x.mins) })),

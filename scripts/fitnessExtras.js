@@ -188,7 +188,10 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
   const bedBy = toHHMM(bedM);
   const syncFor = (k) => health.find(e => e.date === k) || {};
   // Sleep interval times arrive as minutes after 18:00 the previous evening
-  const clk = (m) => toHHMM(18 * 60 + m);
+  // (or, with sleepEpoch, minutes since 1970 — shown in local time)
+  const clk = (m) => syncFor(todayKey).sleepEpoch
+    ? new Date(m * 60000).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+    : toHHMM(18 * 60 + m);
   const sleepFor = (k) => {
     const man = Number((days[k] || {}).sleepManual);
     if (man > 0) return { m: Math.round(man * 60), src: 'manual' };
