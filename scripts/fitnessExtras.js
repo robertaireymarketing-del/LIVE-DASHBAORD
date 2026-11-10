@@ -16,6 +16,9 @@
 //     one to stop.
 //
 //  2. SLEEP (card)
+//     Week view is Mon–Sun and swipeable (‹ › buttons too); week average and
+//     "short this week" follow the week shown. The fat vs muscle estimate always
+//     uses the rolling last 7 nights.
 //     Last night = health sync sleepMinutes for TODAY's date (night ending today).
 //     The Shortcut sends start~end minute pairs after 18:00 the previous evening;
 //     storage.js merges overlaps and keeps only the longest session (sleepMain),
@@ -95,6 +98,13 @@ export const FITNESS_CSS = `<style id="fitness-extras-css">
 .nh .fx-bar { height:8px; border-radius:4px; background:var(--nh-line); overflow:hidden; margin-top:10px; }
 .nh .fx-bar > i { display:block; height:100%; border-radius:4px; }
 .nh .fx-nights { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-top:12px; align-items:end; }
+.nh .fx-wk { margin-top:14px; touch-action:pan-y; user-select:none; -webkit-user-select:none; }
+.nh .fx-wk-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.nh .fx-wk-btn { width:40px; height:36px; border-radius:10px; border:1px solid var(--nh-line); background:transparent; font-size:22px; font-weight:700; line-height:1; color:var(--nh-sub) !important; }
+.nh .fx-wk-t { text-align:center; display:flex; flex-direction:column; gap:1px; }
+.nh .fx-wk-t b { font-size:13px; font-weight:900; color:var(--nh-text) !important; }
+.nh .fx-wk-t span { font-size:11px; font-weight:700; color:var(--nh-muted) !important; }
+.nh .fx-night.today span { color:var(--nh-gold) !important; font-weight:900; }
 .nh .fx-night { display:flex; flex-direction:column; align-items:center; gap:4px; }
 .nh .fx-night i { display:block; width:100%; max-width:26px; border-radius:5px 5px 2px 2px; min-height:3px; }
 .nh .fx-night span { font-size:10px; font-weight:800; color:var(--nh-muted) !important; }
@@ -202,12 +212,25 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
   const col = (m) => ({ ok: 'var(--nh-green)', close: 'var(--nh-gold)', low: 'var(--nh-red)' })[cls(m)] || 'var(--nh-line)';
 
   const last = sleepFor(todayKey);
-  const nights = Array.from({ length: 7 }, (_, i) => addDaysKey(todayKey, i - 6));
-  const vals = nights.map(k => sleepFor(k));
-  const have = vals.filter(Boolean);
+  // Rolling last 7 nights (today back) — drives the fat vs muscle estimate.
+  const rollVals = Array.from({ length: 7 }, (_, i) => sleepFor(addDaysKey(todayKey, i - 6)));
+  const have = rollVals.filter(Boolean);
   const avg = have.length ? Math.round(have.reduce((a, v) => a + v.m, 0) / have.length) : null;
-  const debt = have.reduce((a, v) => a + Math.max(0, goalM - v.m), 0);
-  const maxM = Math.max(goalM + 60, ...have.map(v => v.m));
+
+  // Week view (Mon–Sun), swipeable: state.fxSleepWeek = 0 this week, -1 last week,
+  // +1 next week. A night is dated by the morning it ends (Mon = Sun→Mon night).
+  const wkOff = Number(state.fxSleepWeek) || 0;
+  const wkMon = addDaysKey(mondayOf(todayKey), wkOff * 7);
+  const nights = Array.from({ length: 7 }, (_, i) => addDaysKey(wkMon, i));
+  const vals = nights.map(k => (k <= todayKey ? sleepFor(k) : null));
+  const wkHave = vals.filter(Boolean);
+  const wkAvg = wkHave.length ? Math.round(wkHave.reduce((a, v) => a + v.m, 0) / wkHave.length) : null;
+  const debt = wkHave.reduce((a, v) => a + Math.max(0, goalM - v.m), 0);
+  const wkPast = nights.filter(k => k <= todayKey).length;
+  const maxM = Math.max(goalM + 60, ...wkHave.map(v => v.m));
+  const fmtShort = (k) => parseKey(k).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const wkLabel = wkOff === 0 ? 'This week' : wkOff === -1 ? 'Last week' : wkOff === 1 ? 'Next week' : `Week of ${fmtShort(wkMon)}`;
+  const wkRange = `${fmtShort(wkMon)} – ${fmtShort(addDaysKey(wkMon, 6))}`;
 
   // Sleep cost estimate — Nedeltcheva et al. 2010 (Ann Intern Med), same calorie
   // deficit for 2 weeks. Measured ACTUAL sleep (not time in bed): ~7h15m vs ~5h15m.
@@ -230,10 +253,10 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
     };
   })();
   const costHtml = !sleepCost
-    ? `<div class="fx-s" style="margin-top:12px;">The fat vs muscle estimate needs 3 nights of sleep (${have.length}/3 so far).</div>`
+    ? `<div class="fx-s" style="margin-top:12px;">The fat vs muscle estimate needs 3 of the last 7 nights logged (${have.length}/3 so far).</div>`
     : sleepCost.lessFat <= 2
-      ? `<div class="fx-flag ok" style="margin-top:12px;">At ${hm(avg)} a night you're sleeping like the well-rested group in the study. No measurable cost to fat loss or muscle ✓</div>`
-      : `<div class="fx-flag ${sleepCost.lessFat >= 25 ? 'bad' : 'warn'}" style="margin-top:12px;">At ${hm(avg)} a night, each pound you lose is roughly <b>${sleepCost.lessFat}% less fat</b> and <b>${sleepCost.moreLean}% more muscle and water</b> than with 7¼ h. Another <b>${hm(sleepCost.extraNeeded)}</b> a night closes the gap.</div>`;
+      ? `<div class="fx-flag ok" style="margin-top:12px;">Last 7 nights averaged ${hm(avg)}: you're sleeping like the well-rested group in the study. No measurable cost to fat loss or muscle ✓</div>`
+      : `<div class="fx-flag ${sleepCost.lessFat >= 25 ? 'bad' : 'warn'}" style="margin-top:12px;">Last 7 nights averaged ${hm(avg)}. At that, each pound you lose is roughly <b>${sleepCost.lessFat}% less fat</b> and <b>${sleepCost.moreLean}% more muscle and water</b> than with 7¼ h. Another <b>${hm(sleepCost.extraNeeded)}</b> a night closes the gap.</div>`;
 
   // Tonight
   const now = new Date();
@@ -269,14 +292,23 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
       <label>Hours slept last night<input id="fx-sleep-h" type="number" inputmode="decimal" step="0.25" min="0" max="16" placeholder="e.g. 7.5" value="${last && last.src === 'manual' ? (last.m / 60) : ''}"></label>
       <button onclick="fxSaveSleep()">Save</button>
     </div>` : `<button class="fx-link" onclick="fxSleepEntry()">${last.src === 'manual' ? 'Change' : 'Wrong? Type it in'}</button>`}
-    <div class="fx-nights" aria-hidden="true">${nights.map((k, i) => {
-      const v = vals[i];
-      const h = v ? Math.max(4, Math.round((v.m / maxM) * 54)) : 3;
-      return `<div class="fx-night"><em>${v ? `${Math.floor(v.m / 60)}h${String(v.m % 60).padStart(2, '0')}` : '–'}</em><i style="height:${h}px;background:${v ? col(v.m) : 'var(--nh-line)'};"></i><span>${parseKey(k).toLocaleDateString('en-GB', { weekday: 'narrow' })}</span></div>`;
-    }).join('')}</div>
+    <div class="fx-wk" ontouchstart="fxSleepTouch(event,0)" ontouchend="fxSleepTouch(event,1)">
+      <div class="fx-wk-nav">
+        <button class="fx-wk-btn" onclick="fxSleepWeek(-1)" aria-label="Previous week">‹</button>
+        <div class="fx-wk-t"><b>${wkLabel}</b><span>${wkRange}</span></div>
+        <button class="fx-wk-btn" onclick="fxSleepWeek(1)" aria-label="Next week">›</button>
+      </div>
+      <div class="fx-nights" aria-hidden="true">${nights.map((k, i) => {
+        const v = vals[i];
+        const h = v ? Math.max(4, Math.round((v.m / maxM) * 54)) : 3;
+        const isToday = k === todayKey;
+        return `<div class="fx-night${isToday ? ' today' : ''}"><em>${v ? `${Math.floor(v.m / 60)}h${String(v.m % 60).padStart(2, '0')}` : '–'}</em><i style="height:${h}px;background:${v ? col(v.m) : 'var(--nh-line)'};"></i><span>${parseKey(k).toLocaleDateString('en-GB', { weekday: 'narrow' })}</span></div>`;
+      }).join('')}</div>
+      ${wkOff !== 0 ? `<button class="fx-link" style="display:block;margin:8px auto 0;" onclick="fxSleepWeek(0,true)">Back to this week</button>` : ''}
+    </div>
     <div class="fx-grid">
-      <div class="fx-tile"><div class="fx-tile-k">7-NIGHT AVERAGE</div><div class="fx-tile-v">${avg != null ? hm(avg) : '—'}</div><div class="fx-tile-s">${have.length}/7 nights logged</div></div>
-      <div class="fx-tile ${debt >= 300 ? 'warn' : debt >= 120 ? 'hot' : ''}"><div class="fx-tile-k">SHORT THIS WEEK</div><div class="fx-tile-v">${have.length ? hm(debt) : '—'}</div><div class="fx-tile-s">vs ${goalH}h a night</div></div>
+      <div class="fx-tile"><div class="fx-tile-k">WEEK AVERAGE</div><div class="fx-tile-v">${wkAvg != null ? hm(wkAvg) : '—'}</div><div class="fx-tile-s">${wkPast ? `${wkHave.length}/${wkPast} nights logged` : 'Week not started'}</div></div>
+      <div class="fx-tile ${debt >= 300 ? 'warn' : debt >= 120 ? 'hot' : ''}"><div class="fx-tile-k">${wkOff === 0 ? "SHORT THIS WEEK" : "SHORT THAT WEEK"}</div><div class="fx-tile-v">${wkHave.length ? hm(debt) : '—'}</div><div class="fx-tile-s">vs ${goalH}h a night</div></div>
     </div>
     ${costHtml}
     <div style="margin-top:10px;">${tonight}</div>
@@ -417,6 +449,15 @@ export function initFitnessExtras({ state, saveData, render, getSettings }) {
   };
   const val = (id) => parseFloat(document.getElementById(id)?.value);
 
+  window.fxSleepWeek = (d, reset) => { state.fxSleepWeek = reset ? 0 : (Number(state.fxSleepWeek) || 0) + d; render(); };
+  let sx = null, sy = null;
+  window.fxSleepTouch = (e, end) => {
+    const t = (e.changedTouches || [])[0]; if (!t) return;
+    if (!end) { sx = t.clientX; sy = t.clientY; return; }
+    if (sx == null) return;
+    const dx = t.clientX - sx, dy = t.clientY - sy; sx = sy = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) window.fxSleepWeek(dx < 0 ? 1 : -1);
+  };
   window.fxToggleSleepEdit = () => { state.fxSleepEdit = !state.fxSleepEdit; render(); };
   window.fxSleepEntry = () => { state.fxSleepEntry = true; render(); };
   window.fxSaveSleep = () => {
