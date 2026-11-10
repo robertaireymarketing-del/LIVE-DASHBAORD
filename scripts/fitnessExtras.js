@@ -209,6 +209,32 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
   const debt = have.reduce((a, v) => a + Math.max(0, goalM - v.m), 0);
   const maxM = Math.max(goalM + 60, ...have.map(v => v.m));
 
+  // Sleep cost estimate — Nedeltcheva et al. 2010 (Ann Intern Med), same calorie
+  // deficit for 2 weeks. Measured ACTUAL sleep (not time in bed): ~7h15m vs ~5h15m.
+  //   7h15m asleep → 56% of weight lost was fat, 44% lean
+  //   5h15m asleep → 25% fat, 75% lean
+  // Linear between those anchors, flat outside them (no data beyond). Shown
+  // RELATIVE to the well-slept group, because Robert's high protein + lifting
+  // protect muscle far more than in the study (no training, moderate protein),
+  // so the absolute shares don't transfer — the direction and size do.
+  const sleepCost = (() => {
+    if (have.length < 3) return null;
+    const h = avg / 60, HI = 7.25, LO = 5.25, FAT_HI = 0.56, FAT_LO = 0.25;
+    const t = Math.max(0, Math.min(1, (h - LO) / (HI - LO)));
+    const fat = FAT_LO + t * (FAT_HI - FAT_LO);
+    return {
+      h,
+      lessFat: Math.round((1 - fat / FAT_HI) * 100),
+      moreLean: Math.round(((1 - fat) / (1 - FAT_HI) - 1) * 100),
+      extraNeeded: Math.max(0, Math.round((HI * 60 - avg))),
+    };
+  })();
+  const costHtml = !sleepCost
+    ? `<div class="fx-s" style="margin-top:12px;">The fat vs muscle estimate needs 3 nights of sleep (${have.length}/3 so far).</div>`
+    : sleepCost.lessFat <= 2
+      ? `<div class="fx-flag ok" style="margin-top:12px;">At ${sleepCost.h.toFixed(1)} h a night you're sleeping like the well-rested group in the study. No measurable cost to fat loss or muscle ✓</div>`
+      : `<div class="fx-flag ${sleepCost.lessFat >= 25 ? 'bad' : 'warn'}" style="margin-top:12px;">At ${sleepCost.h.toFixed(1)} h a night, each pound you lose is roughly <b>${sleepCost.lessFat}% less fat</b> and <b>${sleepCost.moreLean}% more muscle and water</b> than with 7¼ h. Another <b>${hm(sleepCost.extraNeeded)}</b> a night closes the gap.</div>`;
+
   // Tonight
   const now = new Date();
   const nowM = now.getHours() * 60 + now.getMinutes();
@@ -252,6 +278,7 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
       <div class="fx-tile"><div class="fx-tile-k">7-NIGHT AVERAGE</div><div class="fx-tile-v">${avg != null ? (avg / 60).toFixed(1) : '—'}<span> h</span></div><div class="fx-tile-s">${have.length}/7 nights logged</div></div>
       <div class="fx-tile ${debt >= 300 ? 'warn' : debt >= 120 ? 'hot' : ''}"><div class="fx-tile-k">SHORT THIS WEEK</div><div class="fx-tile-v">${have.length ? hm(debt) : '—'}</div><div class="fx-tile-s">vs ${goalH}h a night</div></div>
     </div>
+    ${costHtml}
     <div style="margin-top:10px;">${tonight}</div>
     ${editOpen ? `
     <div class="fx-form">
@@ -260,7 +287,7 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
       <button onclick="fxSaveSleepSettings()">Save</button>
     </div>` : ''}
     ${shortcutTip}
-    <div class="fx-why">Same calorie deficit, two weeks: people sleeping 5.5 h instead of 8.5 h lost 55% less fat and 60% more muscle (Nedeltcheva et al. 2010).</div>
+    <div class="fx-why">Based on Nedeltcheva et al. (2010): same calorie deficit for 2 weeks, actual sleep about 5¼ h vs 7¼ h (5.5 vs 8.5 h in bed). The short sleepers lost 55% less fat and 60% more lean mass. It's one small study of 10 people who didn't lift, and your protein and training protect muscle better, so treat the numbers as direction and rough size, not precision.</div>
   </section>`;
 }
 
