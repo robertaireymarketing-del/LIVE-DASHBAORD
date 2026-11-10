@@ -120,6 +120,7 @@ export const FITNESS_CSS = `<style id="fitness-extras-css">
 .nh .fx-wk-t { text-align:center; display:flex; flex-direction:column; gap:1px; }
 .nh .fx-wk-t b { font-size:13px; font-weight:900; color:var(--nh-text) !important; }
 .nh .fx-wk-t span { font-size:11px; font-weight:700; color:var(--nh-muted) !important; }
+.nh .fx-night.picked .fx-bar-box { outline:2px solid var(--nh-gold); outline-offset:2px; border-radius:6px; }
 .nh .fx-night.today span { color:var(--nh-gold) !important; font-weight:900; }
 .nh .fx-night { display:flex; flex-direction:column; align-items:center; gap:4px; }
 .nh .fx-night i { display:block; width:100%; max-width:26px; border-radius:5px 5px 2px 2px; min-height:3px; }
@@ -357,9 +358,20 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
 }
 
 // ── 3. Steps ────────────────────────────────────────────────────────────────
-export function renderStepsCard({ state, settings, todayKey, health }) {
+// Known-bad synced step counts (iPhone + Garmin were added together before the
+// Shortcut's "Source is not iPhone" fix on 10 Nov 2026). Garmin's own figures.
+// A manual correction (days[date].stepsManual) still wins over these.
+const STEP_FIXES = { '2026-11-09': 11281 };
+
+export function renderStepsCard({ state, settings, todayKey, health, days = {} }) {
   const floor = Number(settings.stepFloor) > 0 ? Number(settings.stepFloor) : 8000;
-  const stepsFor = (k) => { const e = health.find(x => x.date === k); return e && Number(e.steps) > 0 ? Math.round(Number(e.steps)) : null; };
+  const stepsFor = (k) => {
+    const man = Number((days[k] || {}).stepsManual);
+    if (man > 0) return Math.round(man);
+    if (STEP_FIXES[k]) return STEP_FIXES[k];
+    const e = health.find(x => x.date === k); return e && Number(e.steps) > 0 ? Math.round(Number(e.steps)) : null;
+  };
+  const isFixed = (k) => Number((days[k] || {}).stepsManual) > 0 || !!STEP_FIXES[k];
   const today = stepsFor(todayKey);
   const range = (from, to) => { const out = []; for (let i = from; i <= to; i++) { const v = stepsFor(addDaysKey(todayKey, -i)); if (v != null) out.push(v); } return out; };
   const r7 = range(1, 7), r21 = range(8, 28);
@@ -416,10 +428,19 @@ export function renderStepsCard({ state, settings, todayKey, health }) {
           const v = wVals[i];
           const h = v != null ? Math.max(4, Math.round((v / wMax) * BAR_H)) : 3;
           const c = sCls(v);
-          return `<div class="fx-night${k === todayKey ? ' today' : ''}"><div class="fx-bar-box"><em class="${c}">${v != null ? `${c === 'star' ? '★ ' : ''}${kfmt(v)}` : '–'}</em><i class="${c}" style="height:${h}px;background:${v != null ? sCol(v) : 'var(--nh-line)'};"></i></div><span>${parseKey(k).toLocaleDateString('en-GB', { weekday: 'narrow' })}</span></div>`;
+          return `<div class="fx-night${k === todayKey ? ' today' : ''}${state.fxStepsPick === k ? ' picked' : ''}" ${k <= todayKey ? `onclick="fxStepsPick('${k}')" style="cursor:pointer;"` : ''}><div class="fx-bar-box"><em class="${c}">${v != null ? `${c === 'star' ? '★ ' : ''}${kfmt(v)}${isFixed(k) ? '*' : ''}` : '–'}</em><i class="${c}" style="height:${h}px;background:${v != null ? sCol(v) : 'var(--nh-line)'};"></i></div><span>${parseKey(k).toLocaleDateString('en-GB', { weekday: 'narrow' })}</span></div>`;
         }).join('')}
       </div>
       ${wkOff !== 0 ? `<button class="fx-link" style="display:block;margin:8px auto 0;" onclick="fxStepsWeek(0,true)">Back to this week</button>` : ''}
+      ${state.fxStepsPick && wDays.includes(state.fxStepsPick) ? (() => {
+        const pk = state.fxStepsPick, pv = stepsFor(pk);
+        const man = Number((days[pk] || {}).stepsManual) > 0;
+        return `<div class="fx-form" style="margin-top:12px;">
+          <label>Steps on ${parseKey(pk).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}<input id="fx-steps-fix" type="number" inputmode="numeric" min="0" max="100000" value="${pv != null ? pv : ''}" placeholder="e.g. 11281"></label>
+          <button onclick="fxSaveStepsFix('${pk}')">Save</button>
+        </div>
+        <div class="fx-s">Type the figure from Garmin Connect.${man ? ` <button class="fx-link" style="margin:0;" onclick="fxClearStepsFix('${pk}')">Use the synced figure again</button>` : ''}</div>`;
+      })() : `<div class="fx-s" style="text-align:center;font-size:11.5px;color:var(--nh-muted) !important;">Tap a day to correct its steps${wDays.some(isFixed) ? ' · * corrected' : ''}</div>`}
     </div>
     <div class="fx-grid">
       <div class="fx-tile ${wAvg != null && wAvg >= floor ? 'good' : ''}"><div class="fx-tile-k">WEEK AVERAGE</div><div class="fx-tile-v">${wAvg != null ? wAvg.toLocaleString() : '—'}<span> /day</span></div><div class="fx-tile-s">${wDone.length ? `${wDone.length} full day${wDone.length === 1 ? '' : 's'}${wkOff === 0 ? ', today not counted yet' : ''}` : wkOff === 0 ? 'Counts full days only' : 'No days logged'}</div></div>
@@ -557,6 +578,22 @@ export function initFitnessExtras({ state, saveData, render, getSettings }) {
     const dx = t.clientX - tx, dy = t.clientY - ty; tx = ty = null;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) window.fxStepsWeek(dx < 0 ? 1 : -1);
   };
+  const setDayKey = (k, field, value) => {
+    const d = (state.data.days && state.data.days[k]) || {};
+    const nd = { ...d };
+    if (value == null) delete nd[field]; else nd[field] = value;
+    state.data.days = { ...(state.data.days || {}), [k]: nd };
+    state.days = state.data.days;
+    saveData(); render();
+  };
+  window.fxStepsPick = (k) => { state.fxStepsPick = state.fxStepsPick === k ? null : k; render(); };
+  window.fxSaveStepsFix = (k) => {
+    const v = val('fx-steps-fix');
+    if (!(v >= 0 && v <= 100000)) { alert('Enter the step count, e.g. 11281'); return; }
+    state.fxStepsPick = null;
+    setDayKey(k, 'stepsManual', Math.round(v));
+  };
+  window.fxClearStepsFix = (k) => { state.fxStepsPick = null; setDayKey(k, 'stepsManual', null); };
   window.fxToggleStepsEdit = () => { state.fxStepsEdit = !state.fxStepsEdit; render(); };
   window.fxSaveStepFloor = () => {
     const f = val('fx-step-floor');
