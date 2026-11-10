@@ -237,7 +237,19 @@ export function createStorage({
                 .map(m => { const a = Math.abs(+m[1]), b = Math.abs(+m[2]); return [Math.min(a, b), Math.max(a, b)]; });
             }
             const isEpoch = ivs.length && ivs[0][0] > 1e6;
-            ivs = ivs.filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]);
+            ivs = ivs.filter(([a, b]) => b > a);
+            // Shortcuts' Find Health Samples date filter isn't reliable for sleep, so
+            // older nights can arrive too. Keep only sleep inside this date's window:
+            // 18:00 the previous evening → 12:00 midday on the date (local time).
+            const dKey = normDate(raw.date && typeof raw.date === 'object' && typeof raw.date.toDate === 'function' ? raw.date : parse(raw.date)) || normDate(d.id);
+            if (isEpoch && dKey) {
+              const noon = new Date(dKey + 'T12:00:00').getTime() / 60000;
+              const from = noon - 18 * 60;
+              ivs = ivs
+                .map(([a, b]) => [Math.max(a, from), Math.min(b, noon)])
+                .filter(([a, b]) => b > a);
+            }
+            ivs.sort((x, y) => x[0] - y[0]);
             const merged = [];
             for (const [a, b] of ivs) {
               const last = merged[merged.length - 1];
