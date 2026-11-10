@@ -202,7 +202,10 @@ export function createStorage({
           // Unit-proof: under 24 = hours, over 1,440 = seconds (Shortcuts sometimes
           // sums Health durations in seconds), otherwise minutes.
           sleepMinutes: (() => {
-            const mins = parseNum(raw.sleepMinutes) ?? parseNum(raw.asleepMinutes) ?? parseNum(raw.sleep_minutes) ?? parseNum(raw.timeAsleep);
+            // abs(): Shortcuts' "Get Time Between Dates" can return a negative
+            // number depending on the order of the two dates.
+            const rawMins = parseNum(raw.sleepMinutes) ?? parseNum(raw.asleepMinutes) ?? parseNum(raw.sleep_minutes) ?? parseNum(raw.timeAsleep);
+            const mins = rawMins == null ? null : Math.abs(rawMins);
             if (mins != null && mins > 0) return Math.round(mins < 24 ? mins * 60 : mins > 1440 ? mins / 60 : mins);
             const hrs = parseNum(raw.sleepHours) ?? parseNum(raw.sleep_hours) ?? parseNum(raw.hoursAsleep);
             if (hrs != null && hrs > 0) return Math.round(hrs * 60);
