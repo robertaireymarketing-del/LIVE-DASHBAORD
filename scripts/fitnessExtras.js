@@ -97,7 +97,22 @@ export const FITNESS_CSS = `<style id="fitness-extras-css">
 .nh .fx-tile-s { font-size:11.5px; font-weight:700; margin-top:2px; line-height:1.35; color:var(--nh-muted) !important; }
 .nh .fx-bar { height:8px; border-radius:4px; background:var(--nh-line); overflow:hidden; margin-top:10px; }
 .nh .fx-bar > i { display:block; height:100%; border-radius:4px; }
-.nh .fx-nights { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-top:12px; align-items:end; }
+.nh .fx-nights { position:relative; display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-top:12px; align-items:end; }
+.nh .fx-bar-box { height:64px; width:100%; display:flex; align-items:flex-end; justify-content:center; }
+.nh .fx-goal-line { position:absolute; left:0; right:0; border-top:1.5px dashed var(--nh-muted); opacity:0.55; pointer-events:none; z-index:1; }
+.nh .fx-goal-line span { position:absolute; right:0; top:-14px; font-size:9px; font-weight:900; color:var(--nh-muted) !important; }
+.nh .fx-night i.star { box-shadow:0 0 12px rgba(34,197,94,0.55); }
+.nh .fx-night em.star, .nh .fx-night em.ok { color:var(--nh-green) !important; }
+.nh .fx-wk-sum { text-align:center; font-size:12.5px; font-weight:700; margin-top:10px; color:var(--nh-sub) !important; }
+.nh .fx-wk-sum b { color:var(--nh-green) !important; }
+.nh .fx-badges { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.nh .fx-badges:empty { display:none; }
+.nh .fx-badge { font-size:11px; font-weight:900; letter-spacing:0.8px; padding:5px 10px; border-radius:20px; }
+.nh .fx-badge.star { background:#16A34A; color:#fff !important; box-shadow:0 0 14px rgba(34,197,94,0.45); }
+.nh .fx-badge.ok { background:rgba(34,197,94,0.15); color:var(--nh-green) !important; border:1px solid var(--nh-green); }
+.nh .fx-badge.fire { background:rgba(245,197,66,0.15); color:var(--nh-gold) !important; border:1px solid var(--nh-gold); letter-spacing:0.3px; }
+.nh .fx-tile.good { border-color:var(--nh-green); background:rgba(34,197,94,0.1); }
+.nh .fx-tile.good .fx-tile-v { color:var(--nh-green) !important; }
 .nh .fx-wk { margin-top:14px; touch-action:pan-y; user-select:none; -webkit-user-select:none; }
 .nh .fx-wk-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .nh .fx-wk-btn { width:40px; height:36px; border-radius:10px; border:1px solid var(--nh-line); background:transparent; font-size:22px; font-weight:700; line-height:1; color:var(--nh-sub) !important; }
@@ -208,14 +223,22 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
     const s = Number(syncFor(k).sleepMinutes);
     return s > 0 ? { m: s, src: 'sync' } : null;
   };
-  const cls = (m) => m == null ? '' : m >= goalM - 30 ? 'ok' : m >= goalM - 90 ? 'close' : 'low';
-  const col = (m) => ({ ok: 'var(--nh-green)', close: 'var(--nh-gold)', low: 'var(--nh-red)' })[cls(m)] || 'var(--nh-line)';
+  // Levels: star = goal hit; ok = well rested (≥ 7h15m asleep, the well-slept
+  // group in Nedeltcheva 2010, or within 45 min of the goal if that's higher);
+  // close = within 90 min of goal; low = below that.
+  const WELL = Math.max(goalM - 45, 435);
+  const cls = (m) => m == null ? '' : m >= goalM ? 'star' : m >= WELL ? 'ok' : m >= goalM - 90 ? 'close' : 'low';
+  const col = (m) => ({ star: 'var(--nh-green)', ok: 'var(--nh-green)', close: 'var(--nh-gold)', low: 'var(--nh-red)' })[cls(m)] || 'var(--nh-line)';
+  const good = (m) => m != null && m >= WELL;
 
   const last = sleepFor(todayKey);
   // Rolling last 7 nights (today back) — drives the fat vs muscle estimate.
   const rollVals = Array.from({ length: 7 }, (_, i) => sleepFor(addDaysKey(todayKey, i - 6)));
   const have = rollVals.filter(Boolean);
   const avg = have.length ? Math.round(have.reduce((a, v) => a + v.m, 0) / have.length) : null;
+  // Well-rested streak: consecutive nights ending last night at or above WELL
+  let streak = 0;
+  for (let k = todayKey, n = 0; n < 60; n++, k = addDaysKey(k, -1)) { const v = sleepFor(k); if (v && good(v.m)) streak++; else break; }
 
   // Week view (Mon–Sun), swipeable: state.fxSleepWeek = 0 this week, -1 last week,
   // +1 next week. A night is dated by the morning it ends (Mon = Sun→Mon night).
@@ -228,6 +251,7 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
   const debt = wkHave.reduce((a, v) => a + Math.max(0, goalM - v.m), 0);
   const wkPast = nights.filter(k => k <= todayKey).length;
   const maxM = Math.max(goalM + 60, ...wkHave.map(v => v.m));
+  const BAR_H = 64;
   const fmtShort = (k) => parseKey(k).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const wkLabel = wkOff === 0 ? 'This week' : wkOff === -1 ? 'Last week' : wkOff === 1 ? 'Next week' : `Week of ${fmtShort(wkMon)}`;
   const wkRange = `${fmtShort(wkMon)} – ${fmtShort(addDaysKey(wkMon, 6))}`;
@@ -282,8 +306,12 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
       <div class="nh-kicker">SLEEP · LAST NIGHT</div>
       <button class="fx-btn" onclick="fxToggleSleepEdit()">${editOpen ? 'Close' : 'Goal'}</button>
     </div>
-    ${last ? `<div class="fx-big ${cls(last.m)}">${Math.floor(last.m / 60)}<span>h</span> ${String(last.m % 60).padStart(2, '0')}<span>m</span></div>
-      <div class="fx-s">${last.m >= goalM ? `Goal hit (${goalH}h) ✓` : `${hm(goalM - last.m)} short of ${goalH}h`} · ${last.src === 'manual' ? 'typed in' : 'from Garmin'}</div>
+    ${last ? `<div class="fx-big ${cls(last.m) === 'star' ? 'ok' : cls(last.m)}">${Math.floor(last.m / 60)}<span>h</span> ${String(last.m % 60).padStart(2, '0')}<span>m</span></div>
+      <div class="fx-badges">
+        ${cls(last.m) === 'star' ? `<span class="fx-badge star">★ GOAL HIT</span>` : cls(last.m) === 'ok' ? `<span class="fx-badge ok">✓ WELL RESTED</span>` : ''}
+        ${streak >= 2 ? `<span class="fx-badge fire">🔥 ${streak} nights in a row</span>` : ''}
+      </div>
+      <div class="fx-s">${last.m >= goalM ? `${goalH}h goal hit` : `${hm(goalM - last.m)} short of ${goalH}h`} · ${last.src === 'manual' ? 'typed in' : 'from Garmin'}</div>
       ${last.src === 'sync' && syncFor(todayKey).sleepMain ? `<div class="fx-s">Asleep <b>${clk(syncFor(todayKey).sleepMain.start)} → ${clk(syncFor(todayKey).sleepMain.end)}</b> (main sleep only)</div>` : ''}
       ${last.src === 'sync' && Number(syncFor(todayKey).sleepOther) > 0 ? `<div class="fx-s" style="color:var(--nh-muted) !important;">Not counted: ${hm(syncFor(todayKey).sleepOther)} of separate sleep${(syncFor(todayKey).sleepOtherSessions || []).map(x => ` (${clk(x.start)}–${clk(x.end)})`).join('')}</div>` : ''}`
       : `<div class="fx-s" style="margin-top:10px;">No sleep logged for last night yet.</div>`}
@@ -298,16 +326,20 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
         <div class="fx-wk-t"><b>${wkLabel}</b><span>${wkRange}</span></div>
         <button class="fx-wk-btn" onclick="fxSleepWeek(1)" aria-label="Next week">›</button>
       </div>
-      <div class="fx-nights" aria-hidden="true">${nights.map((k, i) => {
+      <div class="fx-nights" aria-hidden="true">
+        <div class="fx-goal-line" style="bottom:${Math.round((goalM / maxM) * BAR_H) + 18}px;"><span>${goalH}h</span></div>
+        ${nights.map((k, i) => {
         const v = vals[i];
-        const h = v ? Math.max(4, Math.round((v.m / maxM) * 54)) : 3;
+        const h = v ? Math.max(4, Math.round((v.m / maxM) * BAR_H)) : 3;
         const isToday = k === todayKey;
-        return `<div class="fx-night${isToday ? ' today' : ''}"><em>${v ? `${Math.floor(v.m / 60)}h${String(v.m % 60).padStart(2, '0')}` : '–'}</em><i style="height:${h}px;background:${v ? col(v.m) : 'var(--nh-line)'};"></i><span>${parseKey(k).toLocaleDateString('en-GB', { weekday: 'narrow' })}</span></div>`;
+        const c = v ? cls(v.m) : '';
+        return `<div class="fx-night${isToday ? ' today' : ''}"><em class="${c}">${v ? `${c === 'star' ? '★ ' : ''}${Math.floor(v.m / 60)}h${String(v.m % 60).padStart(2, '0')}` : '–'}</em><div class="fx-bar-box"><i class="${c}" style="height:${h}px;background:${v ? col(v.m) : 'var(--nh-line)'};"></i></div><span>${parseKey(k).toLocaleDateString('en-GB', { weekday: 'narrow' })}</span></div>`;
       }).join('')}</div>
+      ${wkHave.length ? `<div class="fx-wk-sum">${wkHave.filter(v => good(v.m)).length ? `<b>${wkHave.filter(v => good(v.m)).length}/${wkHave.length}</b> nights well rested${wkHave.filter(v => v.m >= goalM).length ? ` · <b>${wkHave.filter(v => v.m >= goalM).length}</b> hit ${goalH}h ★` : ''}` : `No well-rested nights yet ${wkOff === 0 ? 'this' : 'that'} week`}</div>` : ''}
       ${wkOff !== 0 ? `<button class="fx-link" style="display:block;margin:8px auto 0;" onclick="fxSleepWeek(0,true)">Back to this week</button>` : ''}
     </div>
     <div class="fx-grid">
-      <div class="fx-tile"><div class="fx-tile-k">WEEK AVERAGE</div><div class="fx-tile-v">${wkAvg != null ? hm(wkAvg) : '—'}</div><div class="fx-tile-s">${wkPast ? `${wkHave.length}/${wkPast} nights logged` : 'Week not started'}</div></div>
+      <div class="fx-tile ${wkAvg != null && good(wkAvg) ? 'good' : ''}"><div class="fx-tile-k">WEEK AVERAGE</div><div class="fx-tile-v">${wkAvg != null ? hm(wkAvg) : '—'}</div><div class="fx-tile-s">${wkPast ? `${wkHave.length}/${wkPast} nights logged` : 'Week not started'}</div></div>
       <div class="fx-tile ${debt >= 300 ? 'warn' : debt >= 120 ? 'hot' : ''}"><div class="fx-tile-k">${wkOff === 0 ? "SHORT THIS WEEK" : "SHORT THAT WEEK"}</div><div class="fx-tile-v">${wkHave.length ? hm(debt) : '—'}</div><div class="fx-tile-s">vs ${goalH}h a night</div></div>
     </div>
     ${costHtml}
