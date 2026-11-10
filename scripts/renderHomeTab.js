@@ -179,6 +179,20 @@ body.light .nh {
 .nh .nh-goal-edit { height:36px; padding:0 12px; border-radius:10px; border:1px solid var(--nh-line); background:transparent; font-size:13px; font-weight:800; color:var(--nh-sub) !important; }
 .nh .nh-goal-sub { font-size:13px; line-height:1.45; margin-top:6px; color:var(--nh-sub) !important; }
 .nh .nh-goal-sub b, .nh .nh-goal-pace b { color:var(--nh-text) !important; }
+.nh .nh-ms { margin:12px 0 4px; border:1px solid var(--nh-line); border-radius:14px; overflow:hidden; }
+.nh .nh-ms-row { display:flex; align-items:center; gap:10px; padding:10px 12px; border-top:1px solid var(--nh-line); position:relative; }
+.nh .nh-ms-row:first-child { border-top:0; }
+.nh .nh-ms-dot { width:22px; height:22px; border-radius:50%; border:2px solid var(--nh-line); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:900; color:var(--nh-muted) !important; }
+.nh .nh-ms-bf { font-size:18px; font-weight:900; width:44px; font-variant-numeric:tabular-nums; color:var(--nh-text) !important; }
+.nh .nh-ms-t { flex:1; font-size:13.5px; font-weight:800; color:var(--nh-text) !important; }
+.nh .nh-ms-t span { font-weight:700; color:var(--nh-muted) !important; }
+.nh .nh-ms-tag { font-size:9.5px; font-weight:900; letter-spacing:1px; padding:3px 8px; border-radius:20px; background:#3B82F6; color:#fff !important; }
+.nh .nh-ms-tag.goal { background:var(--nh-line); color:var(--nh-sub) !important; }
+.nh .nh-ms-row.next { background:rgba(59,130,246,0.08); }
+.nh .nh-ms-row.next .nh-ms-dot { border-color:#3B82F6; }
+.nh .nh-ms-row.done .nh-ms-dot { background:var(--nh-green); border-color:var(--nh-green); color:#fff !important; }
+.nh .nh-ms-row.done .nh-ms-bf, .nh .nh-ms-row.done .nh-ms-t { color:var(--nh-green) !important; }
+.nh .nh-ms-row.goal .nh-ms-dot { border-color:var(--nh-green); color:var(--nh-green) !important; }
 .nh .nh-goal-pace { font-size:13px; line-height:1.45; margin-top:4px; color:var(--nh-sub) !important; }
 .nh .nh-goal-eta { font-size:13px; margin-top:6px; padding:8px 10px; border-radius:10px; background:rgba(255,138,61,0.12); color:var(--nh-text) !important; }
 .nh .nh-goal-eta b { color:var(--nh-bcol) !important; }
@@ -434,7 +448,7 @@ export function renderHomeTab(deps) {
   const delta7 = current != null && base7 != null ? +(current - base7).toFixed(1) : null;
 
   // ── Body-fat goal model (recomputed on every render → updates daily) ─────
-  // Goal: GOAL_BF % body fat (settings.bfGoal, default 13). No deadline — the pace
+  // Goal: GOAL_BF % body fat (settings.bfGoal, default 12). No deadline — the pace
   // is the fastest that research supports for keeping lean mass, and it slows
   // automatically as you get leaner:
   //   Loss rate (% of body weight per week) by current body fat:
@@ -455,7 +469,7 @@ export function renderHomeTab(deps) {
   //      BF% = (weight − FFM) ÷ weight. Stops at the goal BF%.
   //   So weight & BF targets always agree, and everything is re-worked daily.
   const settings = (deps.getSettings && deps.getSettings()) || {};
-  const GOAL_BF = +(settings.bfGoal || 13);
+  const GOAL_BF = +(settings.bfGoal || 12);
   const RATE_PTS = [[13, 0.4], [15, 0.5], [20, 0.7], [25, 0.8], [27.5, 0.9]];
   const ratePct = (bf) => {
     if (bf >= 27.5) return 0.9;
@@ -516,6 +530,16 @@ export function renderHomeTab(deps) {
     return {
       ffm, goalWeight, fatToLose: Math.max(0, wNow - goalWeight), wAt, bfAt, daysToGoal,
       rateNow, lbPerWeekNow: wNow * rateNow / 100, etaKey: addDaysKey(todayKey, daysToGoal),
+      // Milestones on the way down (settings.bfMilestones, default 25/20/16) + the goal.
+      // Each: first day on the projected path at or below that body fat.
+      milestones: [...new Set([...((settings.bfMilestones || [25, 20, 16]).map(Number)), GOAL_BF])]
+        .filter(m => m >= GOAL_BF).sort((a, b) => b - a)
+        .map(m => {
+          if (bfNowS <= m) return { bf: m, done: true };
+          const d = path.findIndex(ww => (ww - ffm) / ww * 100 <= m + 0.01);
+          const dd = d < 0 ? daysToGoal : d;
+          return { bf: m, done: false, days: dd, key: addDaysKey(todayKey, dd), weight: path[dd], goal: m === GOAL_BF };
+        }),
     };
   })();
   // ── Daily deficit suggestion ────────────────────────────────────────────
@@ -1029,6 +1053,16 @@ export function renderHomeTab(deps) {
         </div>
         ${goal ? `<div class="nh-goal-sub">≈ <b>${goal.goalWeight.toFixed(1)} lb</b> at your current lean mass (${goal.ffm.toFixed(1)} lb) · <b>${goal.fatToLose.toFixed(1)} lb</b> of fat to lose</div>
         <div class="nh-goal-pace">Pace now: <b>${goal.rateNow.toFixed(2)}% of body weight/week</b> (≈ ${goal.lbPerWeekNow.toFixed(1)} lb) · slows as you get leaner to protect muscle</div>
+        <div class="nh-ms" aria-label="Milestones">${(() => {
+          const next = goal.milestones.find(m => !m.done);
+          return goal.milestones.map(m => `
+          <div class="nh-ms-row ${m.done ? 'done' : m === next ? 'next' : ''} ${m.goal ? 'goal' : ''}">
+            <div class="nh-ms-dot">${m.done ? '✓' : m.goal ? '★' : ''}</div>
+            <div class="nh-ms-bf">${m.bf}%</div>
+            <div class="nh-ms-t">${m.done ? 'Reached ✓' : `${parseKey(m.key).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: parseKey(m.key).getFullYear() !== parseKey(todayKey).getFullYear() ? 'numeric' : undefined })}<span> · ${m.days < 14 ? `${m.days} days` : `${Math.round(m.days / 7)} wks`} · ~${Math.round(m.weight)} lb</span>`}</div>
+            ${m === next ? '<div class="nh-ms-tag">NEXT</div>' : m.goal ? '<div class="nh-ms-tag goal">GOAL</div>' : ''}
+          </div>`).join('');
+        })()}</div>
         <div class="nh-goal-eta">On pace you reach ${GOAL_BF}% in the <b>week of ${(() => { const e = parseKey(goal.etaKey); const mon = addDaysKey(goal.etaKey, -((e.getDay() + 6) % 7)); return parseKey(mon).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }); })()}</b> · ${Math.round(goal.daysToGoal / 7)} weeks${goal.daysToGoal > 56 ? ` · <span style="white-space:nowrap">~${Math.floor(goal.daysToGoal / 56)} diet break${Math.floor(goal.daysToGoal / 56) === 1 ? '' : 's'} would add ${Math.floor(goal.daysToGoal / 56)} wk</span>` : ''}</div>
         ${deficit ? `
         <div class="nh-def">
