@@ -438,10 +438,15 @@ export function renderHomeTab(deps) {
   // is the fastest that research supports for keeping lean mass, and it slows
   // automatically as you get leaner:
   //   Loss rate (% of body weight per week) by current body fat:
-  //     ≥ 25% → 1.0%/wk   (top of the 0.5–1.0%/wk range, Helms et al. 2014)
-  //     18%   → 0.7%/wk   (Garthe et al. 2011: 0.7%/wk kept more lean mass than 1.4%)
-  //     ≤ 13% → 0.5%/wk   (bottom of range: leaner = more muscle at risk)
-  //     linear in between.
+  //   Bands (Robert's chosen plan, Nov 2026; top of each band = fastest pace):
+  //     25%+    0.7–0.9%/wk
+  //     20–25%  0.6–0.8%/wk
+  //     15–20%  0.5–0.7%/wk
+  //     13–15%  0.4–0.5%/wk
+  //   One smooth line that stays inside every band, as fast as the bands allow:
+  //     27.5%+ 0.9 · 25% 0.8 · 20% 0.7 · 15% 0.5 · 13% 0.4  (linear between)
+  //   so the target eases off gradually instead of jumping at each band edge. Grounded in Helms et al. 2014 (0.5–1%/wk for
+  //     lean-mass retention) and Garthe et al. 2011 (slower loss kept more lean mass).
   // Method:
   //   1. Smoothed "now": least-squares trend over the last 14 days, evaluated at
   //      today (falls back to 7-day mean, then latest) — smooths scale/water noise.
@@ -451,7 +456,16 @@ export function renderHomeTab(deps) {
   //   So weight & BF targets always agree, and everything is re-worked daily.
   const settings = (deps.getSettings && deps.getSettings()) || {};
   const GOAL_BF = +(settings.bfGoal || 13);
-  const ratePct = (bf) => bf >= 25 ? 1.0 : bf >= 18 ? 0.7 + (bf - 18) * (0.3 / 7) : bf > 13 ? 0.5 + (bf - 13) * (0.2 / 5) : 0.5;
+  const RATE_PTS = [[13, 0.4], [15, 0.5], [20, 0.7], [25, 0.8], [27.5, 0.9]];
+  const ratePct = (bf) => {
+    if (bf >= 27.5) return 0.9;
+    if (bf <= 13) return 0.4;
+    for (let i = 1; i < RATE_PTS.length; i++) {
+      const [b1, r1] = RATE_PTS[i - 1], [b2, r2] = RATE_PTS[i];
+      if (bf <= b2) return r1 + (bf - b1) * ((r2 - r1) / (b2 - b1));
+    }
+    return 0.9;
+  };
   const thisWeek = weekDates(todayKey);
   // Weeks run Mon–Sun. Once today is Sunday and today's weigh-in is in, the week is
   // closed, so the next target is NEXT Sunday.
