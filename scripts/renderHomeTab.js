@@ -530,9 +530,9 @@ export function renderHomeTab(deps) {
     return {
       ffm, goalWeight, fatToLose: Math.max(0, wNow - goalWeight), wAt, bfAt, daysToGoal,
       rateNow, lbPerWeekNow: wNow * rateNow / 100, etaKey: addDaysKey(todayKey, daysToGoal),
-      // Milestones on the way down (settings.bfMilestones, default 25/22/18/16) + the goal.
+      // Milestones on the way down (settings.bfMilestones, default 24/22/18/16/14) + the goal.
       // Each: first day on the projected path at or below that body fat.
-      milestones: [...new Set([...((settings.bfMilestones || [25, 22, 18, 16]).map(Number)), GOAL_BF])]
+      milestones: [...new Set([...((settings.bfMilestones || [24, 22, 18, 16, 14]).map(Number)), GOAL_BF])]
         .filter(m => m >= GOAL_BF).sort((a, b) => b - a)
         .map(m => {
           if (bfNowS <= m) return { bf: m, done: true };
