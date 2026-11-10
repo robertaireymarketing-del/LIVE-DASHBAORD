@@ -30,6 +30,7 @@
 //     the short sleepers lost 55% less fat and 60% more lean mass.
 //
 //  3. STEPS (card)
+//     Mon–Sun swipeable week view like Sleep, with the floor as a dashed line.
 //     Today vs a daily floor (settings.stepFloor, default 8,000), and the last 7
 //     complete days vs the 21 days before. A drop of more than 15% flags falling
 //     NEAT (non-exercise movement), which quietly shrinks the deficit on a hard
@@ -98,7 +99,7 @@ export const FITNESS_CSS = `<style id="fitness-extras-css">
 .nh .fx-bar { height:8px; border-radius:4px; background:var(--nh-line); overflow:hidden; margin-top:10px; }
 .nh .fx-bar > i { display:block; height:100%; border-radius:4px; }
 .nh .fx-nights { position:relative; display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-top:12px; align-items:end; }
-.nh .fx-bar-box { height:64px; width:100%; display:flex; align-items:flex-end; justify-content:center; }
+.nh .fx-bar-box { height:80px; width:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:3px; }
 .nh .fx-goal-line { position:absolute; left:0; right:0; border-top:1.5px dashed var(--nh-muted); opacity:0.55; pointer-events:none; z-index:1; }
 .nh .fx-goal-line span { position:absolute; right:0; top:-14px; font-size:9px; font-weight:900; color:var(--nh-muted) !important; }
 .nh .fx-night i.star { box-shadow:0 0 12px rgba(34,197,94,0.55); }
@@ -333,7 +334,7 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
         const h = v ? Math.max(4, Math.round((v.m / maxM) * BAR_H)) : 3;
         const isToday = k === todayKey;
         const c = v ? cls(v.m) : '';
-        return `<div class="fx-night${isToday ? ' today' : ''}"><em class="${c}">${v ? `${c === 'star' ? '★ ' : ''}${Math.floor(v.m / 60)}h${String(v.m % 60).padStart(2, '0')}` : '–'}</em><div class="fx-bar-box"><i class="${c}" style="height:${h}px;background:${v ? col(v.m) : 'var(--nh-line)'};"></i></div><span>${parseKey(k).toLocaleDateString('en-GB', { weekday: 'narrow' })}</span></div>`;
+        return `<div class="fx-night${isToday ? ' today' : ''}"><div class="fx-bar-box"><em class="${c}">${v ? `${c === 'star' ? '★ ' : ''}${Math.floor(v.m / 60)}h${String(v.m % 60).padStart(2, '0')}` : '–'}</em><i class="${c}" style="height:${h}px;background:${v ? col(v.m) : 'var(--nh-line)'};"></i></div><span>${parseKey(k).toLocaleDateString('en-GB', { weekday: 'narrow' })}</span></div>`;
       }).join('')}</div>
       ${wkHave.length ? `<div class="fx-wk-sum">${wkHave.filter(v => good(v.m)).length ? `<b>${wkHave.filter(v => good(v.m)).length}/${wkHave.length}</b> nights well rested${wkHave.filter(v => v.m >= goalM).length ? ` · <b>${wkHave.filter(v => v.m >= goalM).length}</b> hit ${goalH}h ★` : ''}` : `No well-rested nights yet ${wkOff === 0 ? 'this' : 'that'} week`}</div>` : ''}
       ${wkOff !== 0 ? `<button class="fx-link" style="display:block;margin:8px auto 0;" onclick="fxSleepWeek(0,true)">Back to this week</button>` : ''}
@@ -370,6 +371,26 @@ export function renderStepsCard({ state, settings, todayKey, health }) {
   const editOpen = !!state.fxStepsEdit;
   const barCol = today == null ? 'var(--nh-line)' : today >= floor ? 'var(--nh-green)' : pct >= 60 ? 'var(--nh-gold)' : 'var(--nh-red)';
 
+  // Week view (Mon–Sun), swipeable like Sleep: state.fxStepsWeek 0 = this week.
+  const wkOff = Number(state.fxStepsWeek) || 0;
+  const wkMon = addDaysKey(mondayOf(todayKey), wkOff * 7);
+  const wDays = Array.from({ length: 7 }, (_, i) => addDaysKey(wkMon, i));
+  const wVals = wDays.map(k => (k <= todayKey ? stepsFor(k) : null));
+  // Today is still in progress: excluded from the week average and "floor hit" count
+  const wDone = wDays.map((k, i) => (k < todayKey ? wVals[i] : null)).filter(v => v != null);
+  const wAvg = mean(wDone);
+  const wHit = wDays.filter((k, i) => wVals[i] != null && wVals[i] >= floor).length;
+  const wPast = wDays.filter(k => k < todayKey).length + (wDays.includes(todayKey) && today != null && today >= floor ? 1 : 0);
+  const wMax = Math.max(floor * 1.25, ...wVals.filter(v => v != null));
+  const BAR_H = 64;
+  const fmtShort = (k) => parseKey(k).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const wkLabel = wkOff === 0 ? 'This week' : wkOff === -1 ? 'Last week' : wkOff === 1 ? 'Next week' : `Week of ${fmtShort(wkMon)}`;
+  const kfmt = (v) => v >= 10000 ? `${Math.round(v / 1000)}k` : `${(v / 1000).toFixed(1)}k`;
+  const sCls = (v) => v == null ? '' : v >= floor * 1.25 ? 'star' : v >= floor ? 'ok' : v >= floor * 0.6 ? 'close' : 'low';
+  const sCol = (v) => ({ star: 'var(--nh-green)', ok: 'var(--nh-green)', close: 'var(--nh-gold)', low: 'var(--nh-red)' })[sCls(v)] || 'var(--nh-line)';
+  let sStreak = 0;
+  for (let k = today != null && today >= floor ? todayKey : addDaysKey(todayKey, -1), n = 0; n < 60; n++, k = addDaysKey(k, -1)) { const v = stepsFor(k); if (v != null && v >= floor) sStreak++; else break; }
+
   return `
   <section class="nh-card fx-card" aria-label="Steps">
     <div class="fx-top">
@@ -378,10 +399,31 @@ export function renderStepsCard({ state, settings, todayKey, health }) {
     </div>
     <div class="fx-big ${today != null && today >= floor ? 'ok' : ''}">${today != null ? today.toLocaleString() : '—'}<span>/ ${floor.toLocaleString()}</span></div>
     <div class="fx-bar"><i style="width:${pct}%;background:${barCol};"></i></div>
-    <div class="fx-s">${today == null ? 'No steps synced yet today.' : today >= floor ? 'Floor hit ✓' : `${(floor - today).toLocaleString()} to go · updates as you sync`}</div>
+    <div class="fx-badges">
+      ${today != null && today >= floor ? `<span class="fx-badge ${today >= floor * 1.25 ? 'star' : 'ok'}">${today >= floor * 1.25 ? '★ SMASHED IT' : '✓ FLOOR HIT'}</span>` : ''}
+      ${sStreak >= 2 ? `<span class="fx-badge fire">🔥 ${sStreak} days in a row</span>` : ''}
+    </div>
+    <div class="fx-s">${today == null ? 'No steps synced yet today.' : today >= floor ? `${(today - floor).toLocaleString()} over your floor · updates as you sync` : `${(floor - today).toLocaleString()} to go · updates as you sync`}</div>
+    <div class="fx-wk" ontouchstart="fxStepsTouch(event,0)" ontouchend="fxStepsTouch(event,1)">
+      <div class="fx-wk-nav">
+        <button class="fx-wk-btn" onclick="fxStepsWeek(-1)" aria-label="Previous week">‹</button>
+        <div class="fx-wk-t"><b>${wkLabel}</b><span>${fmtShort(wkMon)} – ${fmtShort(addDaysKey(wkMon, 6))}</span></div>
+        <button class="fx-wk-btn" onclick="fxStepsWeek(1)" aria-label="Next week">›</button>
+      </div>
+      <div class="fx-nights" aria-hidden="true">
+        <div class="fx-goal-line" style="bottom:${Math.round((floor / wMax) * BAR_H) + 18}px;"><span>${kfmt(floor)}</span></div>
+        ${wDays.map((k, i) => {
+          const v = wVals[i];
+          const h = v != null ? Math.max(4, Math.round((v / wMax) * BAR_H)) : 3;
+          const c = sCls(v);
+          return `<div class="fx-night${k === todayKey ? ' today' : ''}"><div class="fx-bar-box"><em class="${c}">${v != null ? `${c === 'star' ? '★ ' : ''}${kfmt(v)}` : '–'}</em><i class="${c}" style="height:${h}px;background:${v != null ? sCol(v) : 'var(--nh-line)'};"></i></div><span>${parseKey(k).toLocaleDateString('en-GB', { weekday: 'narrow' })}</span></div>`;
+        }).join('')}
+      </div>
+      ${wkOff !== 0 ? `<button class="fx-link" style="display:block;margin:8px auto 0;" onclick="fxStepsWeek(0,true)">Back to this week</button>` : ''}
+    </div>
     <div class="fx-grid">
-      <div class="fx-tile ${dropping ? 'warn' : ''}"><div class="fx-tile-k">LAST 7 DAYS</div><div class="fx-tile-v">${avg7 != null ? avg7.toLocaleString() : '—'}<span> /day</span></div><div class="fx-tile-s">floor hit on ${hit7}/${r7.length || 7} days</div></div>
-      <div class="fx-tile"><div class="fx-tile-k">3 WEEKS BEFORE</div><div class="fx-tile-v">${prior != null ? prior.toLocaleString() : '—'}<span> /day</span></div><div class="fx-tile-s">${prior == null ? 'Needs 10+ days of history' : avg7 != null ? `${avg7 >= prior ? '+' : ''}${Math.round(((avg7 - prior) / prior) * 100)}% this week` : ''}</div></div>
+      <div class="fx-tile ${wAvg != null && wAvg >= floor ? 'good' : ''}"><div class="fx-tile-k">WEEK AVERAGE</div><div class="fx-tile-v">${wAvg != null ? wAvg.toLocaleString() : '—'}<span> /day</span></div><div class="fx-tile-s">${wDone.length ? `${wDone.length} full day${wDone.length === 1 ? '' : 's'}${wkOff === 0 ? ', today not counted yet' : ''}` : wkOff === 0 ? 'Counts full days only' : 'No days logged'}</div></div>
+      <div class="fx-tile ${wPast && wHit >= wPast ? 'good' : ''}"><div class="fx-tile-k">FLOOR HIT</div><div class="fx-tile-v">${wHit}<span> / ${wkOff > 0 ? 7 : wkOff === 0 ? wDays.filter(k => k <= todayKey).length : 7} days</span></div><div class="fx-tile-s">${kfmt(floor)}+ steps</div></div>
     </div>
     ${dropping ? `<div class="fx-flag warn">Your movement outside the gym is down ${Math.round((1 - avg7 / prior) * 100)}%. That's normal on a hard cut, but it eats into your deficit without showing up as a missed workout. Walk it back up to ${prior.toLocaleString()}.</div>` : ''}
     ${editOpen ? `
@@ -505,6 +547,15 @@ export function initFitnessExtras({ state, saveData, render, getSettings }) {
     if (!(g >= 5 && g <= 10)) { alert('Sleep goal should be between 5 and 10 hours.'); return; }
     state.fxSleepEdit = false;
     setSettings({ wakeTime: wake, sleepGoalH: g });
+  };
+  window.fxStepsWeek = (d, reset) => { state.fxStepsWeek = reset ? 0 : (Number(state.fxStepsWeek) || 0) + d; render(); };
+  let tx = null, ty = null;
+  window.fxStepsTouch = (e, end) => {
+    const t = (e.changedTouches || [])[0]; if (!t) return;
+    if (!end) { tx = t.clientX; ty = t.clientY; return; }
+    if (tx == null) return;
+    const dx = t.clientX - tx, dy = t.clientY - ty; tx = ty = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) window.fxStepsWeek(dx < 0 ? 1 : -1);
   };
   window.fxToggleStepsEdit = () => { state.fxStepsEdit = !state.fxStepsEdit; render(); };
   window.fxSaveStepFloor = () => {
