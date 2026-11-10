@@ -361,6 +361,8 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
 // Known-bad synced step counts (iPhone + Garmin were added together before the
 // Shortcut's "Source is not iPhone" fix on 10 Nov 2026). Garmin's own figures.
 // A manual correction (days[date].stepsManual) still wins over these.
+// Steps card in-progress colour (blue rather than the gold used elsewhere)
+const STEP_BLUE = '#3B82F6';
 const STEP_FIXES = { '2026-11-09': 11281 };
 
 export function renderStepsCard({ state, settings, todayKey, health, days = {} }) {
@@ -381,7 +383,7 @@ export function renderStepsCard({ state, settings, todayKey, health, days = {} }
   const pct = today != null ? Math.min(100, (today / floor) * 100) : 0;
   const dropping = avg7 != null && prior != null && r7.length >= 5 && r21.length >= 10 && avg7 < prior * 0.85;
   const editOpen = !!state.fxStepsEdit;
-  const barCol = today == null ? 'var(--nh-line)' : today >= floor ? 'var(--nh-green)' : pct >= 60 ? 'var(--nh-gold)' : 'var(--nh-red)';
+  const barCol = today == null ? 'var(--nh-line)' : today >= floor ? 'var(--nh-green)' : pct >= 60 ? STEP_BLUE : 'var(--nh-red)';
 
   // Week view (Mon–Sun), swipeable like Sleep: state.fxStepsWeek 0 = this week.
   const wkOff = Number(state.fxStepsWeek) || 0;
@@ -399,7 +401,7 @@ export function renderStepsCard({ state, settings, todayKey, health, days = {} }
   const wkLabel = wkOff === 0 ? 'This week' : wkOff === -1 ? 'Last week' : wkOff === 1 ? 'Next week' : `Week of ${fmtShort(wkMon)}`;
   const kfmt = (v) => v >= 10000 ? `${Math.round(v / 1000)}k` : `${(v / 1000).toFixed(1)}k`;
   const sCls = (v) => v == null ? '' : v >= floor * 1.25 ? 'star' : v >= floor ? 'ok' : v >= floor * 0.6 ? 'close' : 'low';
-  const sCol = (v) => ({ star: 'var(--nh-green)', ok: 'var(--nh-green)', close: 'var(--nh-gold)', low: 'var(--nh-red)' })[sCls(v)] || 'var(--nh-line)';
+  const sCol = (v) => ({ star: 'var(--nh-green)', ok: 'var(--nh-green)', close: STEP_BLUE, low: 'var(--nh-red)' })[sCls(v)] || 'var(--nh-line)';
   let sStreak = 0;
   for (let k = today != null && today >= floor ? todayKey : addDaysKey(todayKey, -1), n = 0; n < 60; n++, k = addDaysKey(k, -1)) { const v = stepsFor(k); if (v != null && v >= floor) sStreak++; else break; }
 
