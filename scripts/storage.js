@@ -202,6 +202,25 @@ export function createStorage({
           // Unit-proof: under 24 = hours, over 1,440 = seconds (Shortcuts sometimes
           // sums Health durations in seconds), otherwise minutes.
           sleepMinutes: (() => {
+            // Interval list: "start~end" pairs in minutes from a fixed anchor
+            // (e.g. "12~55, 55~143, ..."). Overlapping or duplicated periods
+            // (Apple Health keeps raw duplicate samples) are merged, so time
+            // is never counted twice. abs() because Shortcuts' date maths can
+            // return negatives depending on argument order.
+            const sv = parse(raw.sleepMinutes);
+            if (typeof sv === 'string' && sv.includes('~')) {
+              const ivs = [...sv.matchAll(/(-?\d+(?:\.\d+)?)\s*~\s*(-?\d+(?:\.\d+)?)/g)]
+                .map(m => { const a = Math.abs(+m[1]), b = Math.abs(+m[2]); return [Math.min(a, b), Math.max(a, b)]; })
+                .filter(([a, b]) => b > a)
+                .sort((x, y) => x[0] - y[0]);
+              let total = 0, cs = null, ce = null;
+              for (const [a, b] of ivs) {
+                if (cs === null || a > ce) { if (cs !== null) total += ce - cs; cs = a; ce = b; }
+                else ce = Math.max(ce, b);
+              }
+              if (cs !== null) total += ce - cs;
+              return total > 0 ? Math.round(total) : null;
+            }
             // abs(): Shortcuts' "Get Time Between Dates" can return a negative
             // number depending on the order of the two dates.
             const rawMins = parseNum(raw.sleepMinutes) ?? parseNum(raw.asleepMinutes) ?? parseNum(raw.sleep_minutes) ?? parseNum(raw.timeAsleep);
