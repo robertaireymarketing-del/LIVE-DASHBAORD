@@ -232,8 +232,8 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
   const costHtml = !sleepCost
     ? `<div class="fx-s" style="margin-top:12px;">The fat vs muscle estimate needs 3 nights of sleep (${have.length}/3 so far).</div>`
     : sleepCost.lessFat <= 2
-      ? `<div class="fx-flag ok" style="margin-top:12px;">At ${sleepCost.h.toFixed(1)} h a night you're sleeping like the well-rested group in the study. No measurable cost to fat loss or muscle ✓</div>`
-      : `<div class="fx-flag ${sleepCost.lessFat >= 25 ? 'bad' : 'warn'}" style="margin-top:12px;">At ${sleepCost.h.toFixed(1)} h a night, each pound you lose is roughly <b>${sleepCost.lessFat}% less fat</b> and <b>${sleepCost.moreLean}% more muscle and water</b> than with 7¼ h. Another <b>${hm(sleepCost.extraNeeded)}</b> a night closes the gap.</div>`;
+      ? `<div class="fx-flag ok" style="margin-top:12px;">At ${hm(avg)} a night you're sleeping like the well-rested group in the study. No measurable cost to fat loss or muscle ✓</div>`
+      : `<div class="fx-flag ${sleepCost.lessFat >= 25 ? 'bad' : 'warn'}" style="margin-top:12px;">At ${hm(avg)} a night, each pound you lose is roughly <b>${sleepCost.lessFat}% less fat</b> and <b>${sleepCost.moreLean}% more muscle and water</b> than with 7¼ h. Another <b>${hm(sleepCost.extraNeeded)}</b> a night closes the gap.</div>`;
 
   // Tonight
   const now = new Date();
@@ -272,10 +272,10 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
     <div class="fx-nights" aria-hidden="true">${nights.map((k, i) => {
       const v = vals[i];
       const h = v ? Math.max(4, Math.round((v.m / maxM) * 54)) : 3;
-      return `<div class="fx-night"><em>${v ? (v.m / 60).toFixed(1) : '–'}</em><i style="height:${h}px;background:${v ? col(v.m) : 'var(--nh-line)'};"></i><span>${parseKey(k).toLocaleDateString('en-GB', { weekday: 'narrow' })}</span></div>`;
+      return `<div class="fx-night"><em>${v ? `${Math.floor(v.m / 60)}h${String(v.m % 60).padStart(2, '0')}` : '–'}</em><i style="height:${h}px;background:${v ? col(v.m) : 'var(--nh-line)'};"></i><span>${parseKey(k).toLocaleDateString('en-GB', { weekday: 'narrow' })}</span></div>`;
     }).join('')}</div>
     <div class="fx-grid">
-      <div class="fx-tile"><div class="fx-tile-k">7-NIGHT AVERAGE</div><div class="fx-tile-v">${avg != null ? (avg / 60).toFixed(1) : '—'}<span> h</span></div><div class="fx-tile-s">${have.length}/7 nights logged</div></div>
+      <div class="fx-tile"><div class="fx-tile-k">7-NIGHT AVERAGE</div><div class="fx-tile-v">${avg != null ? hm(avg) : '—'}</div><div class="fx-tile-s">${have.length}/7 nights logged</div></div>
       <div class="fx-tile ${debt >= 300 ? 'warn' : debt >= 120 ? 'hot' : ''}"><div class="fx-tile-k">SHORT THIS WEEK</div><div class="fx-tile-v">${have.length ? hm(debt) : '—'}</div><div class="fx-tile-s">vs ${goalH}h a night</div></div>
     </div>
     ${costHtml}
