@@ -33,6 +33,7 @@
 import { renderLeaseJourney, leaseJourneyStatus, LEASE_JOURNEY_CSS } from './leaseJourney.js';
 import { renderHealthSyncStatus } from './healthSyncStatus.js';
 import { renderThirtyPlan, thirtySummary, thirtySummaryLine, THIRTY_CSS } from './thirtyPlan.js';
+import { BUILD } from './version.js';
 import { renderMissBanner, renderSleepCard, renderStepsCard, renderWaistCard, FITNESS_CSS } from './fitnessExtras.js';
 
 const LEASE_START = '2026-09-24';
@@ -1274,6 +1275,7 @@ export function renderHomeTab(deps) {
 
   return HOME_CSS + LEASE_JOURNEY_CSS + THIRTY_CSS + FITNESS_CSS + `
   <div class="nh">
+    <div style="text-align:center;font-size:11px;font-weight:700;letter-spacing:0.5px;color:var(--nh-muted);margin:-4px 0 -6px;">${BUILD}</div>
     ${missBanner}
     ${leaseSection}
     ${bdaySection}

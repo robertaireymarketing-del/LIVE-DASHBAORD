@@ -1,4 +1,5 @@
 [build]
   publish = "."
-  command = ""
+  # Stamp the deploy time + commit into scripts/version.js (shown at the top of Home)
+  command = "sed -i \"s|__BUILD__|Updated $(TZ=Europe/London date +'%a %d %b %H:%M') · ${COMMIT_REF:0:7}|\" scripts/version.js"
   functions = "netlify/functions"
