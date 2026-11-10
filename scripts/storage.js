@@ -202,25 +202,8 @@ export function createStorage({
           // Unit-proof: under 24 = hours, over 1,440 = seconds (Shortcuts sometimes
           // sums Health durations in seconds), otherwise minutes.
           sleepMinutes: (() => {
-            // Interval list: "start~end" pairs in minutes from a fixed anchor
-            // (e.g. "12~55, 55~143, ..."). Overlapping or duplicated periods
-            // (Apple Health keeps raw duplicate samples) are merged, so time
-            // is never counted twice. abs() because Shortcuts' date maths can
-            // return negatives depending on argument order.
-            const sv = parse(raw.sleepMinutes);
-            if (typeof sv === 'string' && sv.includes('~')) {
-              const ivs = [...sv.matchAll(/(-?\d+(?:\.\d+)?)\s*~\s*(-?\d+(?:\.\d+)?)/g)]
-                .map(m => { const a = Math.abs(+m[1]), b = Math.abs(+m[2]); return [Math.min(a, b), Math.max(a, b)]; })
-                .filter(([a, b]) => b > a)
-                .sort((x, y) => x[0] - y[0]);
-              let total = 0, cs = null, ce = null;
-              for (const [a, b] of ivs) {
-                if (cs === null || a > ce) { if (cs !== null) total += ce - cs; cs = a; ce = b; }
-                else ce = Math.max(ce, b);
-              }
-              if (cs !== null) total += ce - cs;
-              return total > 0 ? Math.round(total) : null;
-            }
+            // Interval lists are handled by the spread below (it overrides this key).
+            if (typeof parse(raw.sleepMinutes) === 'string' && String(parse(raw.sleepMinutes)).includes('~')) return null;
             // abs(): Shortcuts' "Get Time Between Dates" can return a negative
             // number depending on the order of the two dates.
             const rawMins = parseNum(raw.sleepMinutes) ?? parseNum(raw.asleepMinutes) ?? parseNum(raw.sleep_minutes) ?? parseNum(raw.timeAsleep);
@@ -231,6 +214,40 @@ export function createStorage({
             const bare = parseNum(raw.sleep) ?? parseNum(raw.sleepDuration);
             if (bare != null && bare > 0) return Math.round(bare < 24 ? bare * 60 : bare);
             return null;
+          })(),
+          ...(() => {
+            // Interval list from the Shortcut: "start~end" pairs, in minutes after
+            // 18:00 the previous evening (e.g. "180~223,223~301,..."). Overlaps are
+            // merged so nothing counts twice, then periods are grouped into sessions
+            // (gaps up to 45 min stay in the same session). Only the LONGEST session
+            // counts as last night; anything else (e.g. dozing in the evening) is
+            // reported separately and not counted.
+            const sv = parse(raw.sleepMinutes);
+            if (!(typeof sv === 'string' && sv.includes('~'))) return {};
+            const ivs = [...sv.matchAll(/(-?\d+(?:\.\d+)?)\s*~\s*(-?\d+(?:\.\d+)?)/g)]
+              .map(m => { const a = Math.abs(+m[1]), b = Math.abs(+m[2]); return [Math.min(a, b), Math.max(a, b)]; })
+              .filter(([a, b]) => b > a)
+              .sort((x, y) => x[0] - y[0]);
+            const merged = [];
+            for (const [a, b] of ivs) {
+              const last = merged[merged.length - 1];
+              if (last && a <= last[1]) last[1] = Math.max(last[1], b); else merged.push([a, b]);
+            }
+            const sessions = [];
+            for (const [a, b] of merged) {
+              const cur = sessions[sessions.length - 1];
+              if (cur && a - cur.end <= 45) { cur.end = b; cur.mins += b - a; }
+              else sessions.push({ start: a, end: b, mins: b - a });
+            }
+            if (!sessions.length) return {};
+            const main = sessions.reduce((x, y) => (y.mins > x.mins ? y : x));
+            const other = sessions.filter(x => x !== main).reduce((t, x) => t + x.mins, 0);
+            return {
+              sleepMinutes: Math.round(main.mins),
+              sleepMain: { start: Math.round(main.start), end: Math.round(main.end) },
+              sleepOther: Math.round(other),
+              sleepOtherSessions: sessions.filter(x => x !== main).map(x => ({ start: Math.round(x.start), end: Math.round(x.end), mins: Math.round(x.mins) })),
+            };
           })(),
           // Dietary energy — accept any field name the iOS Shortcut might use
           calories: parseNum(raw.calories) ?? parseNum(raw.dietaryEnergy) ?? parseNum(raw.dietaryCalories) ?? parseNum(raw.energy) ?? parseNum(raw.dietary_energy) ?? parseNum(raw.food),

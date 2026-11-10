@@ -16,7 +16,10 @@
 //     one to stop.
 //
 //  2. SLEEP (card)
-//     Last night = health sync sleepMinutes for TODAY's date (night ending today),
+//     Last night = health sync sleepMinutes for TODAY's date (night ending today).
+//     The Shortcut sends start~end minute pairs after 18:00 the previous evening;
+//     storage.js merges overlaps and keeps only the longest session (sleepMain),
+//     reporting any other sleep as sleepOther (shown, not counted),
 //     or a manual entry (days[date].sleepManual, hours), manual wins.
 //     Bed-by = wake time − sleep goal − 15 min to fall asleep
 //     (settings.wakeTime default 04:00, settings.sleepGoalH default 8).
@@ -184,6 +187,8 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
   const bedM = toMins(wake) - goalM - 15; // 15 min to fall asleep
   const bedBy = toHHMM(bedM);
   const syncFor = (k) => health.find(e => e.date === k) || {};
+  // Sleep interval times arrive as minutes after 18:00 the previous evening
+  const clk = (m) => toHHMM(18 * 60 + m);
   const sleepFor = (k) => {
     const man = Number((days[k] || {}).sleepManual);
     if (man > 0) return { m: Math.round(man * 60), src: 'manual' };
@@ -226,7 +231,9 @@ export function renderSleepCard({ state, settings, todayKey, days, health }) {
       <button class="fx-btn" onclick="fxToggleSleepEdit()">${editOpen ? 'Close' : 'Goal'}</button>
     </div>
     ${last ? `<div class="fx-big ${cls(last.m)}">${Math.floor(last.m / 60)}<span>h</span> ${String(last.m % 60).padStart(2, '0')}<span>m</span></div>
-      <div class="fx-s">${last.m >= goalM ? `Goal hit (${goalH}h) ✓` : `${hm(goalM - last.m)} short of ${goalH}h`} · ${last.src === 'manual' ? 'typed in' : 'from Garmin'}</div>`
+      <div class="fx-s">${last.m >= goalM ? `Goal hit (${goalH}h) ✓` : `${hm(goalM - last.m)} short of ${goalH}h`} · ${last.src === 'manual' ? 'typed in' : 'from Garmin'}</div>
+      ${last.src === 'sync' && syncFor(todayKey).sleepMain ? `<div class="fx-s">Asleep <b>${clk(syncFor(todayKey).sleepMain.start)} → ${clk(syncFor(todayKey).sleepMain.end)}</b> (main sleep only)</div>` : ''}
+      ${last.src === 'sync' && Number(syncFor(todayKey).sleepOther) > 0 ? `<div class="fx-s" style="color:var(--nh-muted) !important;">Not counted: ${hm(syncFor(todayKey).sleepOther)} of separate sleep${(syncFor(todayKey).sleepOtherSessions || []).map(x => ` (${clk(x.start)}–${clk(x.end)})`).join('')}</div>` : ''}`
       : `<div class="fx-s" style="margin-top:10px;">No sleep logged for last night yet.</div>`}
     ${needEntry ? `
     <div class="fx-form">
