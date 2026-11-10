@@ -367,11 +367,20 @@ const STEP_FIXES = { '2026-11-09': 11281 };
 
 export function renderStepsCard({ state, settings, todayKey, health, days = {} }) {
   const floor = Number(settings.stepFloor) > 0 ? Number(settings.stepFloor) : 8000;
-  const stepsFor = (k) => {
+  // Treadmill steps (days[date].manualSteps) are added on top of the watch figure:
+  // with an arm resting on the desk, Garmin doesn't count walking-pad steps. Same
+  // field the Health page's Manual Steps log uses, so both pages agree.
+  const tmFor = (k) => { const t = Number((days[k] || {}).manualSteps); return t > 0 ? Math.round(t) : 0; };
+  const watchFor = (k) => {
     const man = Number((days[k] || {}).stepsManual);
     if (man > 0) return Math.round(man);
     if (STEP_FIXES[k]) return STEP_FIXES[k];
     const e = health.find(x => x.date === k); return e && Number(e.steps) > 0 ? Math.round(Number(e.steps)) : null;
+  };
+  const stepsFor = (k) => {
+    const w = watchFor(k), t = tmFor(k);
+    if (w == null && !t) return null;
+    return (w || 0) + t;
   };
   const isFixed = (k) => Number((days[k] || {}).stepsManual) > 0 || !!STEP_FIXES[k];
   const today = stepsFor(todayKey);
@@ -418,6 +427,17 @@ export function renderStepsCard({ state, settings, todayKey, health, days = {} }
       ${sStreak >= 2 ? `<span class="fx-badge fire">🔥 ${sStreak} days in a row</span>` : ''}
     </div>
     <div class="fx-s">${today == null ? 'No steps synced yet today.' : today >= floor ? `${(today - floor).toLocaleString()} over your floor · updates as you sync` : `${(floor - today).toLocaleString()} to go · updates as you sync`}</div>
+    ${(() => {
+      const tmT = tmFor(todayKey), wT = watchFor(todayKey);
+      const split = tmT ? `<div class="fx-s" style="margin-top:4px;">Watch ${wT != null ? wT.toLocaleString() : '—'} + treadmill ${tmT.toLocaleString()}</div>` : '';
+      if (state.fxTmEntry) return `${split}
+    <div class="fx-form">
+      <label>Treadmill steps to add<input id="fx-tm-steps" type="number" inputmode="numeric" min="1" max="60000" placeholder="e.g. 3000"></label>
+      <button onclick="fxAddTreadmill('${todayKey}')">Add</button>
+    </div>
+    <div class="fx-s">Use the steps figure from the WalkingPad app. Each session adds to today's total.${tmT ? ` <button class="fx-link" style="margin:0;" onclick="fxClearTreadmill('${todayKey}')">Clear today's treadmill steps</button>` : ''} <button class="fx-link" style="margin:0;" onclick="fxTmEntry(false)">Cancel</button></div>`;
+      return `${split}<button class="fx-link" onclick="fxTmEntry(true)">+ Add treadmill steps</button>`;
+    })()}
     <div class="fx-wk" ontouchstart="fxStepsTouch(event,0)" ontouchend="fxStepsTouch(event,1)">
       <div class="fx-wk-nav">
         <button class="fx-wk-btn" onclick="fxStepsWeek(-1)" aria-label="Previous week">‹</button>
@@ -435,13 +455,18 @@ export function renderStepsCard({ state, settings, todayKey, health, days = {} }
       </div>
       ${wkOff !== 0 ? `<button class="fx-link" style="display:block;margin:8px auto 0;" onclick="fxStepsWeek(0,true)">Back to this week</button>` : ''}
       ${state.fxStepsPick && wDays.includes(state.fxStepsPick) ? (() => {
-        const pk = state.fxStepsPick, pv = stepsFor(pk);
+        const pk = state.fxStepsPick, pv = watchFor(pk), ptm = tmFor(pk);
         const man = Number((days[pk] || {}).stepsManual) > 0;
         return `<div class="fx-form" style="margin-top:12px;">
-          <label>Steps on ${parseKey(pk).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}<input id="fx-steps-fix" type="number" inputmode="numeric" min="0" max="100000" value="${pv != null ? pv : ''}" placeholder="e.g. 11281"></label>
+          <label>Watch steps on ${parseKey(pk).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}<input id="fx-steps-fix" type="number" inputmode="numeric" min="0" max="100000" value="${pv != null ? pv : ''}" placeholder="e.g. 11281"></label>
           <button onclick="fxSaveStepsFix('${pk}')">Save</button>
         </div>
-        <div class="fx-s">Type the figure from Garmin Connect.${man ? ` <button class="fx-link" style="margin:0;" onclick="fxClearStepsFix('${pk}')">Use the synced figure again</button>` : ''}</div>`;
+        <div class="fx-s">Type the figure from Garmin Connect.${man ? ` <button class="fx-link" style="margin:0;" onclick="fxClearStepsFix('${pk}')">Use the synced figure again</button>` : ''}</div>
+        <div class="fx-form">
+          <label>Treadmill steps<input id="fx-tm-fix" type="number" inputmode="numeric" min="0" max="60000" value="${ptm || ''}" placeholder="0"></label>
+          <button onclick="fxSetTreadmill('${pk}')">Save</button>
+        </div>
+        <div class="fx-s">Added on top of the watch figure.</div>`;
       })() : `<div class="fx-s" style="text-align:center;font-size:11.5px;color:var(--nh-muted) !important;">Tap a day to correct its steps${wDays.some(isFixed) ? ' · * corrected' : ''}</div>`}
     </div>
     ${(() => {
@@ -609,6 +634,27 @@ export function initFitnessExtras({ state, saveData, render, getSettings }) {
     setDayKey(k, 'stepsManual', Math.round(v));
   };
   window.fxClearStepsFix = (k) => { state.fxStepsPick = null; setDayKey(k, 'stepsManual', null); };
+  // Treadmill steps → days[date].manualSteps (shared with the Health page log)
+  window.fxTmEntry = (open) => { state.fxTmEntry = !!open; render(); };
+  window.fxAddTreadmill = (k) => {
+    const v = val('fx-tm-steps');
+    if (!(v >= 1 && v <= 60000)) { alert('Enter the treadmill steps, e.g. 3000'); return; }
+    const cur = Number(((state.data.days || {})[k] || {}).manualSteps) || 0;
+    state.fxTmEntry = false;
+    setDayKey(k, 'manualSteps', Math.round(cur + v));
+  };
+  window.fxSetTreadmill = (k) => {
+    const v = val('fx-tm-fix');
+    const n = Number.isFinite(v) ? Math.round(v) : 0;
+    if (!(n >= 0 && n <= 60000)) { alert('Enter the treadmill steps, e.g. 3000'); return; }
+    state.fxStepsPick = null;
+    setDayKey(k, 'manualSteps', n > 0 ? n : null);
+  };
+  window.fxClearTreadmill = (k) => {
+    if (!confirm("Clear today's treadmill steps?")) return;
+    state.fxTmEntry = false;
+    setDayKey(k, 'manualSteps', null);
+  };
   window.fxToggleStepsEdit = () => { state.fxStepsEdit = !state.fxStepsEdit; render(); };
   window.fxSaveStepFloor = () => {
     const f = val('fx-step-floor');
