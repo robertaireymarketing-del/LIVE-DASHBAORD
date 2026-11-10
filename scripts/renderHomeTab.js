@@ -526,14 +526,23 @@ export function renderHomeTab(deps) {
   // so a mid-day sync is only part of the day. You burn the full BMR by midnight,
   // so for TODAY use the larger of the synced value and the latest complete day's
   // BMR (else settings.defaultBmr, else 2085). Past days use their synced total.
+  // A day's synced BMR is only complete if the last sync happened late in that
+  // day; a morning-only sync leaves a partial figure (e.g. 1,158 at 10am). So the
+  // full-day BMR is the MEDIAN of the last 14 days' synced values that look like
+  // whole days (≥ 1,500 kcal), else settings.defaultBmr, else 2085.
   const fullDayBmr = (() => {
-    const last = health.filter(e => e.date < todayKey && Number(e.bmr) >= 1200).sort((a, b) => b.date.localeCompare(a.date))[0];
-    return Number(last && last.bmr) || settings.defaultBmr || 2085;
+    const from = addDaysKey(todayKey, -14);
+    const vals = health.filter(e => e.date < todayKey && e.date >= from && Number(e.bmr) >= 1500)
+      .map(e => Number(e.bmr)).sort((a, b) => a - b);
+    if (vals.length) return vals[Math.floor(vals.length / 2)];
+    return Number(settings.defaultBmr) || 2085;
   })();
   const bmrFor = (k) => {
     const h = health.find(e => e.date === k) || {};
     const synced = Number(h.bmr) || 0;
-    return k === todayKey ? Math.max(synced, fullDayBmr) : (synced || settings.defaultBmr || 2085);
+    // Today: full day up front. Past days: their synced total if it looks like a
+    // whole day, otherwise the typical full-day BMR (morning-only syncs are partial).
+    return k === todayKey ? Math.max(synced, fullDayBmr) : (synced >= 1500 ? synced : fullDayBmr);
   };
   const deviceBurn = (k) => {
     const h = health.find(e => e.date === k) || {}; const dd = days[k] || {};
@@ -586,7 +595,7 @@ export function renderHomeTab(deps) {
     const avgDef = avg(rows.map(r => r.def));
     const avgBurn = avg(rows.map(r => r.burn));
     const eatTarget = avgBurn != null ? Math.round((avgBurn - target) / 10) * 10 : null;
-    const bmrNow = ([...health].filter(e => e.date <= todayKey && Number(e.bmr) > 0).sort((a, b) => b.date.localeCompare(a.date))[0] || {}).bmr || settings.defaultBmr || 2085; // latest synced BMR
+    const bmrNow = fullDayBmr; // typical full-day BMR
     // Today — same maths as the Health page's calorie card for today
     const hT = health.find(e => e.date === todayKey) || {};
     const dT = days[todayKey] || {};
@@ -1170,9 +1179,7 @@ export function renderHomeTab(deps) {
     if (calsToday <= 0) return null;
     const hT = syncFor(todayKey) || {};
     const dT = dayData(todayKey);
-    const lastFull = [...health].filter(e => e.date < todayKey && Number(e.bmr) > 0).sort((a, b) => b.date.localeCompare(a.date))[0];
-    const fullBmr = Number(lastFull && lastFull.bmr) || settings.defaultBmr || 2085;
-    const bmr = Math.max(Number(hT.bmr) || 0, fullBmr);
+    const bmr = Math.max(Number(hT.bmr) || 0, fullDayBmr); // full day up front
     const active = (Number(hT.gymCalories) || 0) + (Number(dT.gymCalEntry) || 0) + (Number(dT.treadmillCal) || 0);
     return { def: Math.round(bmr + active - calsToday), bmr: Math.round(bmr), active: Math.round(active) };
   })();
@@ -1180,7 +1187,7 @@ export function renderHomeTab(deps) {
         <div class="nh-habit-exp">
           <div class="nh-habit-exp-k">EXPECTED ${expDef.def < 0 ? 'SURPLUS' : 'DEFICIT'}</div>
           <div class="nh-habit-exp-v">${Math.abs(expDef.def).toLocaleString()}<span> kcal</span></div>
-          <div class="nh-habit-exp-s">${expDef.bmr.toLocaleString()} BMR + ${expDef.active.toLocaleString()} active − ${Math.round(calsToday).toLocaleString()} eaten</div>
+          <div class="nh-habit-exp-s">${expDef.bmr.toLocaleString()} BMR (full day) + ${expDef.active.toLocaleString()} active − ${Math.round(calsToday).toLocaleString()} eaten</div>
         </div>` : '';
 
   const habitsSection = `
