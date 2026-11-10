@@ -14,6 +14,7 @@ import { renderHomeTab as renderHomeTabExternal } from './renderHomeTab.js';
 import { renderSleepTab, initSleepTab, leaveSleepTab } from './renderSleep.js';
 import { initLeaseJourney } from './leaseJourney.js';
 import { initThirtyPlan } from './thirtyPlan.js';
+import { initFitnessExtras } from './fitnessExtras.js';
 import { renderBricksTab as renderBricksTabExternal, initBricksActions } from './bricks.js';
 import { renderMarchTab as renderMarchTabExternal } from './renderMarchTab.js';
 import { renderProgressTab as renderProgressTabExternal } from './renderProgressTab.js';
@@ -441,6 +442,7 @@ window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render
 initLeaseJourney({ state, saveData, render });
 // ── Road to 30 plan (At-30 → quarterly → monthly goals) ──
 initThirtyPlan({ state, saveData, render });
+initFitnessExtras({ state, saveData, render, getSettings });
 window.toggleHomeGoalEdit = () => { state.homeGoalEdit = !state.homeGoalEdit; render(); };
 window.homeSaveGoal = () => {
   const bf = parseFloat(document.getElementById('home-goal-bf')?.value);

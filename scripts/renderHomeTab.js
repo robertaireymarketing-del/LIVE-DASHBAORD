@@ -10,6 +10,9 @@
 //   3. Weight: current, 7-day trend, target for Sunday
 //   4. Gym + Diet daily checks (flash red until done, green once done)
 //      with Mon–Sun streak dots
+//   + From scripts/fitnessExtras.js: "Don't miss twice" banner (very top, only
+//     when a habit was missed yesterday), Sleep and Steps cards (after Gym/Diet),
+//     weekly Waist card (after Weight & Body Fat).
 //
 // Data:
 //   Weight   → state.healthData (health sync), fallback state.data.days[*].weight
@@ -30,6 +33,7 @@
 import { renderLeaseJourney, leaseJourneyStatus, LEASE_JOURNEY_CSS } from './leaseJourney.js';
 import { renderHealthSyncStatus } from './healthSyncStatus.js';
 import { renderThirtyPlan, thirtySummary, thirtySummaryLine, THIRTY_CSS } from './thirtyPlan.js';
+import { renderMissBanner, renderSleepCard, renderStepsCard, renderWaistCard, FITNESS_CSS } from './fitnessExtras.js';
 
 const LEASE_START = '2026-09-24';
 const LEASE_END = '2031-09-24';
@@ -1263,12 +1267,21 @@ export function renderHomeTab(deps) {
     <button class="nh-edit-link" style="margin-top:14px;" onclick="toggleHomeEdit()">Close</button>
   </section>`;
 
-  return HOME_CSS + LEASE_JOURNEY_CSS + THIRTY_CSS + `
+  // ── 6. Fitness extras (scripts/fitnessExtras.js) ────────────────────────
+  const fxCtx = { state, settings, todayKey, days, health, bfByDate, cutStart: CUT_START, gymDone, dietDone };
+  const safe = (fn, label) => { try { return fn(fxCtx); } catch (e) { console.error(label, e); return ''; } };
+  const missBanner = safe(renderMissBanner, 'Miss banner');
+
+  return HOME_CSS + LEASE_JOURNEY_CSS + THIRTY_CSS + FITNESS_CSS + `
   <div class="nh">
+    ${missBanner}
     ${leaseSection}
     ${bdaySection}
     ${habitsSection}
+    ${safe(renderSleepCard, 'Sleep card')}
+    ${safe(renderStepsCard, 'Steps card')}
     ${editSection}
     ${weightSection}
+    ${safe(renderWaistCard, 'Waist card')}
   </div>`;
 }

@@ -196,6 +196,18 @@ export function createStorage({
           bodyFat: parseNum(raw.bodyFat),
           bmr: (rawBmr && rawBmr > 0) ? rawBmr : null,
           steps: parseNum(raw.steps),
+          // Sleep for the night ENDING on this date (Garmin → Apple Health → Shortcut).
+          // Minutes preferred (sleepMinutes); hours fields are converted. A bare
+          // "sleep" value under 24 is read as hours, otherwise minutes.
+          sleepMinutes: (() => {
+            const mins = parseNum(raw.sleepMinutes) ?? parseNum(raw.asleepMinutes) ?? parseNum(raw.sleep_minutes) ?? parseNum(raw.timeAsleep);
+            if (mins != null && mins > 0) return Math.round(mins);
+            const hrs = parseNum(raw.sleepHours) ?? parseNum(raw.sleep_hours) ?? parseNum(raw.hoursAsleep);
+            if (hrs != null && hrs > 0) return Math.round(hrs * 60);
+            const bare = parseNum(raw.sleep) ?? parseNum(raw.sleepDuration);
+            if (bare != null && bare > 0) return Math.round(bare < 24 ? bare * 60 : bare);
+            return null;
+          })(),
           // Dietary energy — accept any field name the iOS Shortcut might use
           calories: parseNum(raw.calories) ?? parseNum(raw.dietaryEnergy) ?? parseNum(raw.dietaryCalories) ?? parseNum(raw.energy) ?? parseNum(raw.dietary_energy) ?? parseNum(raw.food),
           // Active energy — accept any field name the iOS Shortcut might use

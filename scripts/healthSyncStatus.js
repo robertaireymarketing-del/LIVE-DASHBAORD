@@ -68,6 +68,7 @@ export function renderHealthSyncStatus(state, todayStr, isLight) {
     ['Food', today && has(today.calories)],
     ['Protein', today && has(today.protein)],
     ['Steps', today && has(today.steps)],
+    ['Sleep', today && has(today.sleepMinutes)],
     ['Workouts', today && (has(today.workoutCount) || has(today.workoutMinutes) || has(today.workoutCalories))],
   ];
   const chip = ([l, ok]) => `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:4px 8px;border-radius:20px;
