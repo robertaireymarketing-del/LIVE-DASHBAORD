@@ -444,6 +444,19 @@ export function renderStepsCard({ state, settings, todayKey, health, days = {} }
         <div class="fx-s">Type the figure from Garmin Connect.${man ? ` <button class="fx-link" style="margin:0;" onclick="fxClearStepsFix('${pk}')">Use the synced figure again</button>` : ''}</div>`;
       })() : `<div class="fx-s" style="text-align:center;font-size:11.5px;color:var(--nh-muted) !important;">Tap a day to correct its steps${wDays.some(isFixed) ? ' · * corrected' : ''}</div>`}
     </div>
+    ${(() => {
+      // Week total includes today's steps so far; target = floor × 7
+      const tot = wVals.reduce((a, v) => a + (v || 0), 0);
+      const tgt = floor * 7;
+      const p = Math.min(100, (tot / tgt) * 100);
+      const done = tot >= tgt;
+      return `<div class="fx-tile ${done ? 'good' : ''}" style="margin-top:12px;">
+        <div class="fx-top"><div class="fx-tile-k">WEEK TOTAL</div><div class="fx-tile-s" style="margin:0;">${done ? 'Weekly target hit ✓' : `${(tgt - tot).toLocaleString()} to ${kfmt(tgt)}`}</div></div>
+        <div class="fx-tile-v">${tot.toLocaleString()}<span> / ${tgt.toLocaleString()} steps</span></div>
+        <div class="fx-bar" style="margin-top:8px;"><i style="width:${p}%;background:${done ? 'var(--nh-green)' : STEP_BLUE};"></i></div>
+        ${wkOff === 0 && !done ? `<div class="fx-tile-s">Includes today so far · ${kfmt(floor)} a day × 7</div>` : ''}
+      </div>`;
+    })()}
     <div class="fx-grid">
       <div class="fx-tile ${wAvg != null && wAvg >= floor ? 'good' : ''}"><div class="fx-tile-k">WEEK AVERAGE</div><div class="fx-tile-v">${wAvg != null ? wAvg.toLocaleString() : '—'}<span> /day</span></div><div class="fx-tile-s">${wDone.length ? `${wDone.length} full day${wDone.length === 1 ? '' : 's'}${wkOff === 0 ? ', today not counted yet' : ''}` : wkOff === 0 ? 'Counts full days only' : 'No days logged'}</div></div>
       <div class="fx-tile ${wPast && wHit >= wPast ? 'good' : ''}"><div class="fx-tile-k">FLOOR HIT</div><div class="fx-tile-v">${wHit}<span> / ${wkOff > 0 ? 7 : wkOff === 0 ? wDays.filter(k => k <= todayKey).length : 7} days</span></div><div class="fx-tile-s">${kfmt(floor)}+ steps</div></div>
