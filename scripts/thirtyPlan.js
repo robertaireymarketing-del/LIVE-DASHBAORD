@@ -14,6 +14,8 @@
 //
 // Data: state.data.thirtyPlan.items = { <rungKey>: [{ id, h (heading?), t (text paragraph?), text, done, doneAt (YYYY-MM-DD), note }] }
 //   rungKey: 'life' · 'q:1' (12 May) / 'q:0' (12 Feb) · 'm:0' (12 Dec) … 'm:8' · 'w:<Monday>'
+//   Steps whose date has passed drop off the ladder and show in "Past steps" at the bottom
+//   (read-only: what you wrote, what you ticked and when, your notes). Nothing carries forward.
 //   Old free-text notes (thirtyPlan.notes) convert to rows the first time a step is shown:
 //   lines starting with # or ending with : or in CAPITALS become headings.
 
@@ -129,6 +131,19 @@ export const THIRTY_CSS = `<style id="thirty-css">
 .nh .nh-30-det input, .nh .nh-30-det textarea { width:100%; box-sizing:border-box; border:1px solid var(--nh-line) !important; border-radius:8px; background:transparent !important; color:var(--nh-text) !important; font:inherit; font-size:14px; padding:8px 10px; -webkit-appearance:none; appearance:none; }
 .nh .nh-30-det textarea { min-height:60px; resize:vertical; }
 .nh .nh-30-x { flex:0 0 28px; height:28px; margin-top:4px; border:0; background:transparent; font-size:16px; color:var(--nh-muted) !important; cursor:pointer; padding:0; }
+.nh .nh-30-hist-btn { width:100%; margin-top:18px; height:40px; border-radius:10px; border:1px solid var(--nh-line); background:transparent; font-size:13px; font-weight:800; color:var(--nh-sub) !important; cursor:pointer; }
+.nh .nh-30-hist { display:flex; flex-direction:column; gap:14px; margin-top:12px; }
+.nh .nh-30-past { border:1px solid var(--nh-line); border-radius:12px; padding:10px 12px; opacity:0.92; }
+.nh .nh-30-past-h { display:flex; justify-content:space-between; gap:8px; font-size:11px; font-weight:900; letter-spacing:1.2px; color:var(--nh-text) !important; margin-bottom:6px; }
+.nh .nh-30-past-h span { color:var(--nh-muted) !important; letter-spacing:0; font-weight:700; }
+.nh .nh-30-pr { font-size:14px; line-height:1.4; padding:3px 0; color:var(--nh-text) !important; white-space:pre-wrap; word-break:break-word; }
+.nh .nh-30-pr.h { font-size:11px; font-weight:900; letter-spacing:1.5px; text-transform:uppercase; color:var(--nh-gold) !important; padding-top:8px; }
+.nh .nh-30-pr.t { color:var(--nh-sub) !important; }
+.nh .nh-30-pr.c { display:flex; gap:8px; }
+.nh .nh-30-pr.c b { flex:0 0 18px; font-weight:900; }
+.nh .nh-30-pr.c.done b { color:var(--nh-green) !important; } .nh .nh-30-pr.c.miss b { color:var(--nh-muted) !important; }
+.nh .nh-30-pr.c.miss { color:var(--nh-muted) !important; }
+.nh .nh-30-pr small { display:block; font-size:11px; font-weight:700; color:var(--nh-muted) !important; }
 .nh .nh-30-adds { display:flex; gap:8px; padding:6px 0 4px; }
 .nh .nh-30-add { flex:1; height:34px; border-radius:9px; border:1px dashed var(--nh-line); background:transparent; font-size:12px; font-weight:800; color:var(--nh-sub) !important; cursor:pointer; }
 </style>`;
@@ -164,6 +179,38 @@ function renderRow(state, key, x, i) {
     </div>`;
 }
 
+// Steps whose date has passed (newest first)
+function keyEnd(k) {
+  if (k === 'life') return BIRTHDAY;
+  const [t, v] = k.split(':');
+  return t === 'q' ? quarterRange(+v).end : t === 'm' ? monthRange(+v).end : t === 'w' ? addDaysKey(v, 7) : null;
+}
+function pastSteps(state, todayKey) {
+  const items = state.data?.thirtyPlan?.items || {};
+  const live = new Set(ladder(todayKey).map(r => r.key));
+  return Object.keys(items)
+    .filter(k => !live.has(k) && Array.isArray(items[k]) && items[k].some(x => String(x.text || '').trim()))
+    .map(k => ({ k, end: keyEnd(k) })).filter(x => x.end && x.end <= todayKey)
+    .sort((a, b) => b.end.localeCompare(a.end) || (a.k.startsWith('w') ? 1 : -1));
+}
+function renderHistory(state, todayKey) {
+  const past = pastSteps(state, todayKey);
+  if (!past.length) return '';
+  const open = !!state.thirtyHistOpen;
+  const body = !open ? '' : `<div class="nh-30-hist">${past.map(({ k, end }) => {
+    const list = state.data.thirtyPlan.items[k].filter(x => String(x.text || '').trim());
+    const boxes = list.filter(x => !x.h && !x.t);
+    const title = k.startsWith('w:') ? `WEEK OF ${fmt(k.slice(2)).toUpperCase()}` : `BY ${fmtY(end).toUpperCase()}`;
+    return `<div class="nh-30-past">
+      <div class="nh-30-past-h">${title}${boxes.length ? `<span>${boxes.filter(x => x.done).length}/${boxes.length} done</span>` : ''}</div>
+      ${list.map(x => x.h ? `<div class="nh-30-pr h">${esc(x.text)}</div>`
+        : x.t ? `<div class="nh-30-pr t">${esc(x.text)}</div>`
+        : `<div class="nh-30-pr c ${x.done ? 'done' : 'miss'}"><b>${x.done ? '✓' : '–'}</b><div>${esc(x.text)}${x.done ? `<small>Done ${x.doneAt ? fmt(x.doneAt) : ''}${x.note ? ' · ' + esc(x.note) : ''}</small>` : ''}</div></div>`).join('')}
+    </div>`;
+  }).join('')}</div>`;
+  return `<button class="nh-30-hist-btn" onclick="thirtyHist()">${open ? 'Hide past steps ▴' : `Past steps (${past.length}) ▾`}</button>${body}`;
+}
+
 export function renderThirtyPlan(state, todayKey = localKey()) {
   const rungs = ladder(todayKey);
   const daysTo = (k) => Math.max(0, Math.round((parseKey(k) - parseKey(todayKey)) / 86400000));
@@ -186,6 +233,7 @@ export function renderThirtyPlan(state, todayKey = localKey()) {
         </div>
       </div>`;
     }).join('')}</div>
+    ${renderHistory(state, todayKey)}
   </div>`;
 }
 
@@ -219,6 +267,7 @@ export function initThirtyPlan({ state, saveData, saveDataQuiet, render }) {
     state.thirtyOpen = !state.thirtyOpen; state.thirtyOpenItem = null;
     render(); if (state.thirtyOpen) setTimeout(growAll, 0);
   };
+  window.thirtyHist = () => { state.thirtyHistOpen = !state.thirtyHistOpen; render(); };
   window.thirtyAdd = (key, kind) => { const r = newRow(kind); list(key).push(r); saveNow(); rerender(r.id); };
   // Text paragraphs keep line breaks; headings and checkboxes are single-line
   window.thirtyText = (key, id, el) => { const x = item(key, id); if (!x) return; x.text = x.t ? el.value : el.value.replace(/\n/g, ' '); grow(el); saveSoon(); };
