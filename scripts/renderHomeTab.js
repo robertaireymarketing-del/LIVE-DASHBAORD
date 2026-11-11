@@ -32,7 +32,7 @@
 
 import { renderLeaseJourney, leaseJourneyStatus, LEASE_JOURNEY_CSS } from './leaseJourney.js';
 import { renderHealthSyncStatus } from './healthSyncStatus.js';
-import { renderThirtyPlan, thirtySummary, thirtySummaryLine, THIRTY_CSS } from './thirtyPlan.js';
+import { renderThirtyPlan, renderThirtyWeekHome, thirtySummary, thirtySummaryLine, THIRTY_CSS } from './thirtyPlan.js';
 import { BUILD } from './version.js';
 import { renderMissBanner, renderSleepCard, renderStepsCard, renderWaistCard, FITNESS_CSS } from './fitnessExtras.js';
 
@@ -429,6 +429,7 @@ export function renderHomeTab(deps) {
     </div>`}
     </div>
     ${t30Open && !bday.past ? renderThirtyPlan(state, todayKey) : ''}
+    ${!t30Open && !bday.past ? renderThirtyWeekHome(state, todayKey) : ''}
   </section>`;
 
   // ── 3. Weight ───────────────────────────────────────────────────────────
