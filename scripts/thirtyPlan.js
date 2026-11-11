@@ -7,12 +7,12 @@
 //   Today (Nov 2026) that's: 12 Aug · 12 May · 12 Feb · 12 Jan · 12 Dec · this week.
 //   The ladder rolls forward by itself as dates pass (ladder() below).
 //
-// Each rung is a list of rows: headings and tick-box items (type freely, Enter = new
+// Each rung is a list of rows: headings, text paragraphs and tick-box items (type freely, Enter = new
 // item, Backspace on an empty row = delete it). Ticking stamps today's date; tap the
 // date to change it or add completion notes.
 // Typing saves quietly (debounced, no re-render) so the keyboard stays up.
 //
-// Data: state.data.thirtyPlan.items = { <rungKey>: [{ id, h (heading?), text, done, doneAt (YYYY-MM-DD), note }] }
+// Data: state.data.thirtyPlan.items = { <rungKey>: [{ id, h (heading?), t (text paragraph?), text, done, doneAt (YYYY-MM-DD), note }] }
 //   rungKey: 'life' · 'q:1' (12 May) / 'q:0' (12 Feb) · 'm:0' (12 Dec) … 'm:8' · 'w:<Monday>'
 //   Old free-text notes (thirtyPlan.notes) convert to rows the first time a step is shown:
 //   lines starting with # or ending with : or in CAPITALS become headings.
@@ -80,7 +80,7 @@ function rows(state, key) {
 // Collapsed-card summary (used by renderHomeTab)
 export function thirtySummary(state, todayKey = localKey()) {
   const rungs = ladder(todayKey);
-  const tasks = (r) => rows(state, r.key).filter(x => !x.h && String(x.text || '').trim());
+  const tasks = (r) => rows(state, r.key).filter(x => !x.h && !x.t && String(x.text || '').trim());
   const life = rungs.find(r => r.key === 'life');
   const week = rungs.find(r => r.week);
   const wt = week ? tasks(week) : [];
@@ -119,6 +119,7 @@ export const THIRTY_CSS = `<style id="thirty-css">
 .nh .nh-30-in { display:block; width:100%; box-sizing:border-box; border:0 !important; background:transparent !important; color:var(--nh-text) !important; font:inherit; font-size:15px; line-height:1.4; padding:6px 0; resize:none; overflow:hidden; -webkit-appearance:none; appearance:none; }
 .nh .nh-30-in:focus { outline:none; }
 .nh .nh-30-in::placeholder { color:var(--nh-muted); opacity:0.8; }
+.nh .nh-30-row.t .nh-30-in { font-size:14px; color:var(--nh-sub) !important; }
 .nh .nh-30-row.h .nh-30-in { font-size:11px; font-weight:900; letter-spacing:1.5px; text-transform:uppercase; color:var(--nh-gold) !important; }
 .nh .nh-30-row.done .nh-30-in { text-decoration:line-through; color:var(--nh-muted) !important; }
 .nh .nh-30-meta { display:inline-block; font-size:11px; font-weight:800; color:var(--nh-green) !important; margin-bottom:4px; cursor:pointer; background:none; border:0; padding:0; text-align:left; line-height:1.4; }
@@ -133,6 +134,11 @@ export const THIRTY_CSS = `<style id="thirty-css">
 </style>`;
 
 function renderRow(state, key, x, i) {
+  if (x.t) return `
+    <div class="nh-30-row t">
+      <div class="nh-30-main"><textarea rows="1" class="nh-30-in" id="t30-${x.id}" placeholder="Write anything…" oninput="thirtyText('${key}','${x.id}',this)" onkeydown="thirtyKey(event,'${key}','${x.id}')">${esc(x.text)}</textarea></div>
+      <button class="nh-30-x" aria-label="Delete text" onclick="thirtyDel('${key}','${x.id}')">✕</button>
+    </div>`;
   if (x.h) return `
     <div class="nh-30-row h">
       <div class="nh-30-main"><textarea rows="1" class="nh-30-in" id="t30-${x.id}" placeholder="Heading" oninput="thirtyText('${key}','${x.id}',this)" onkeydown="thirtyKey(event,'${key}','${x.id}')">${esc(x.text)}</textarea></div>
@@ -173,8 +179,9 @@ export function renderThirtyPlan(state, todayKey = localKey()) {
         <div class="nh-30-rows">
           ${list.map((x, j) => renderRow(state, r.key, x, j)).join('')}
           <div class="nh-30-adds">
-            <button class="nh-30-add" onclick="thirtyAdd('${r.key}', false)">+ Item</button>
-            <button class="nh-30-add" onclick="thirtyAdd('${r.key}', true)">+ Heading</button>
+            <button class="nh-30-add" onclick="thirtyAdd('${r.key}', 'h')">+ Heading</button>
+            <button class="nh-30-add" onclick="thirtyAdd('${r.key}', 't')">+ Text</button>
+            <button class="nh-30-add" onclick="thirtyAdd('${r.key}', 'c')">+ Checkbox</button>
           </div>
         </div>
       </div>`;
@@ -206,19 +213,20 @@ export function initThirtyPlan({ state, saveData, saveDataQuiet, render }) {
       if (el) { el.focus({ preventScroll: false }); if (atEnd) { const n = el.value.length; el.setSelectionRange(n, n); } }
     }, 0);
   };
-  const newRow = (h) => ({ id: uid(), h: !!h, text: '', done: false, doneAt: null, note: '' });
+  const newRow = (kind) => ({ id: uid(), h: kind === 'h', t: kind === 't', text: '', done: false, doneAt: null, note: '' });
 
   window.toggleThirtyPlan = () => {
     state.thirtyOpen = !state.thirtyOpen; state.thirtyOpenItem = null;
     render(); if (state.thirtyOpen) setTimeout(growAll, 0);
   };
-  window.thirtyAdd = (key, h) => { const r = newRow(h); list(key).push(r); saveNow(); rerender(r.id); };
-  window.thirtyText = (key, id, el) => { const x = item(key, id); if (!x) return; x.text = el.value.replace(/\n/g, ' '); grow(el); saveSoon(); };
+  window.thirtyAdd = (key, kind) => { const r = newRow(kind); list(key).push(r); saveNow(); rerender(r.id); };
+  // Text paragraphs keep line breaks; headings and checkboxes are single-line
+  window.thirtyText = (key, id, el) => { const x = item(key, id); if (!x) return; x.text = x.t ? el.value : el.value.replace(/\n/g, ' '); grow(el); saveSoon(); };
   window.thirtyKey = (e, key, id) => {
     const l = list(key), i = l.findIndex(x => x.id === id); if (i < 0) return;
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !l[i].t) {
       e.preventDefault();
-      const r = newRow(false); l.splice(i + 1, 0, r); saveNow(); rerender(r.id);
+      const r = newRow('c'); l.splice(i + 1, 0, r); saveNow(); rerender(r.id);
     } else if (e.key === 'Backspace' && !e.target.value) {
       e.preventDefault();
       l.splice(i, 1); saveNow();
@@ -228,7 +236,7 @@ export function initThirtyPlan({ state, saveData, saveDataQuiet, render }) {
   window.thirtyDel = (key, id) => {
     const l = list(key), i = l.findIndex(x => x.id === id); if (i < 0) return;
     const x = l[i];
-    if ((x.text || x.note) && !confirm('Delete this ' + (x.h ? 'heading' : 'item') + '?')) return;
+    if ((x.text || x.note) && !confirm('Delete this ' + (x.h ? 'heading' : x.t ? 'text' : 'item') + '?')) return;
     l.splice(i, 1); saveNow(); rerender(null);
   };
   window.thirtyTick = (key, id) => {
