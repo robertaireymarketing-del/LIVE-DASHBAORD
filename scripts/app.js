@@ -988,7 +988,7 @@ onAuthStateChanged(auth, async (user) => {
   // Health data feeds the Health tab and the Home Gym/Diet cards. It loads in the
   // background so it never blocks the first screen; the last copy is cached in
   // localStorage (painted by loadData) and this re-renders when fresh data lands.
-  loadHealthData();
+  if (state.healthSyncRunning) recheckAfterShortcut(); else loadHealthData();
 });
 
 // Health sync: "Check again" button on Home, plus an automatic re-check whenever you
@@ -999,8 +999,52 @@ window.refreshHealthSync = () => {
   if (state.activeTab === 'today') render();
   loadHealthData();
 };
+// "Sync now": runs the TJM Health Sync Shortcut from the dashboard.
+// • In a Safari tab: x-callback-url brings you straight back here when it finishes
+//   (with ?healthsync=1, which triggers a fresh check on load).
+// • From the Home Screen app: iOS would send x-success to Safari instead of back to
+//   the app, so it runs the Shortcut plainly — tap "◀ Dashboard" (top-left) to return.
+// Either way, coming back forces a re-check (skips the 20 s throttle below), and if
+// nothing new has landed yet it checks once more 6 s later in case the write was slow.
+const HEALTH_SHORTCUT = 'TJM Health Sync';
+window.runHealthSync = () => {
+  const standalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+  const name = encodeURIComponent(HEALTH_SHORTCUT);
+  let url = `shortcuts://run-shortcut?name=${name}`;
+  if (!standalone) {
+    const back = new URL(window.location.href);
+    back.searchParams.set('healthsync', '1');
+    const ret = encodeURIComponent(back.toString());
+    url = `shortcuts://x-callback-url/run-shortcut?name=${name}&x-success=${ret}&x-cancel=${ret}&x-error=${ret}`;
+  }
+  state.healthSyncRunning = true; state.healthSyncChange = null;
+  if (state.activeTab === 'today') render();
+  window.location.href = url;
+  // If Shortcuts never opened (e.g. on a computer), drop the "Running…" state again
+  setTimeout(() => {
+    if (document.visibilityState === 'visible' && state.healthSyncRunning) {
+      state.healthSyncRunning = false;
+      if (state.activeTab === 'today') render();
+    }
+  }, 2500);
+};
+const recheckAfterShortcut = async () => {
+  state.healthSyncRunning = false;
+  state.healthLoading = true; state.healthSyncChange = null;
+  if (state.activeTab === 'today') render();
+  await loadHealthData();
+  if (state.healthSyncChange === 'same') setTimeout(() => { if (!state.healthLoading) loadHealthData(); }, 6000);
+};
+// Came back via the x-success link → clean the URL and check for fresh data
+if (new URLSearchParams(window.location.search).has('healthsync')) {
+  const clean = new URL(window.location.href); clean.searchParams.delete('healthsync');
+  history.replaceState(null, '', clean.toString());
+  state.healthSyncRunning = true; // makes the first check after sign-in a forced one
+}
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible' || !state.user || state.healthLoading) return;
+  if (document.visibilityState !== 'visible' || !state.user) return;
+  if (state.healthSyncRunning) { recheckAfterShortcut(); return; }
+  if (state.healthLoading) return;
   if (state.healthLoadedAt && Date.now() - state.healthLoadedAt < 20000) return;
   loadHealthData();
 });

@@ -15,6 +15,9 @@
 // The app re-checks automatically when you switch back to it (visibilitychange in
 // app.js), so: run the Shortcut → come back → this card updates by itself.
 // state.healthSyncChange = 'new' | 'same' after a manual/auto re-check.
+//
+// "Sync now" runs the TJM Health Sync Shortcut straight from the card
+// (window.runHealthSync in app.js) and re-checks as soon as you come back.
 
 const STALE_HOURS = 3;
 
@@ -36,14 +39,15 @@ export function renderHealthSyncStatus(state, todayStr, isLight) {
   const last = [...health].sort((a, b) => b.date.localeCompare(a.date))[0] || null;
 
   let kind, title, sub;
-  if (state.healthLoading && !today) { kind = 'wait'; title = 'Checking for new data…'; sub = 'Fetching the latest from your Health Sync.'; }
+  if (state.healthSyncRunning) { kind = 'wait'; title = 'Running TJM Health Sync…'; sub = 'When the Shortcut finishes, come back here and the new data loads by itself.'; }
+  else if (state.healthLoading && !today) { kind = 'wait'; title = 'Checking for new data…'; sub = 'Fetching the latest from your Health Sync.'; }
   else if (state.healthLoadError) { kind = 'bad'; title = 'Couldn’t connect'; sub = 'Showing the last saved copy. Check your signal and tap Check again.'; }
   else if (!today) {
     kind = 'bad'; title = 'No sync yet today';
-    sub = last ? `Last data is from ${new Date(last.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}. Run Health Sync on your phone.` : 'Run Health Sync on your phone.';
+    sub = last ? `Last data is from ${new Date(last.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}. Tap Sync now.` : 'Tap Sync now.';
   } else if (ageH != null && ageH > STALE_HOURS) {
     kind = 'warn'; title = `Last sync ${hhmm(devTime)}`;
-    sub = `${ago(devTime)}. Open Garmin Connect, then run Health Sync to bring it up to date.`;
+    sub = `${ago(devTime)}. Open Garmin Connect, then tap Sync now.`;
   } else {
     kind = 'ok'; title = 'All up to date';
     sub = devTime ? `Health Sync ran at ${hhmm(devTime)} (${ago(devTime)}).` : 'Today’s data has arrived.';
@@ -88,7 +92,10 @@ export function renderHealthSyncStatus(state, todayStr, isLight) {
         <div style="font-size:9px;font-weight:900;letter-spacing:2px;color:${pal.fg};">HEALTH SYNC</div>
         <div style="font-size:19px;font-weight:900;color:${txt};line-height:1.2;margin-top:2px;">${title}</div>
       </div>
-      <button onclick="refreshHealthSync()" ${state.healthLoading ? 'disabled' : ''} style="flex:0 0 auto;height:36px;padding:0 12px;border-radius:10px;border:0;background:#C9A84C;color:#000;font-size:12px;font-weight:900;cursor:pointer;opacity:${state.healthLoading ? 0.5 : 1};">${state.healthLoading ? 'Checking…' : 'Check again'}</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button onclick="runHealthSync()" style="flex:1;height:42px;border-radius:10px;border:0;background:#C9A84C;color:#000;font-size:14px;font-weight:900;cursor:pointer;">⟳ Sync now</button>
+      <button onclick="refreshHealthSync()" ${state.healthLoading ? 'disabled' : ''} style="flex:0 0 auto;height:42px;padding:0 14px;border-radius:10px;border:1px solid ${pal.bd};background:transparent;color:${txt};font-size:12px;font-weight:800;cursor:pointer;opacity:${state.healthLoading ? 0.5 : 1};">${state.healthLoading ? 'Checking…' : 'Check again'}</button>
     </div>
     <div style="font-size:12px;line-height:1.4;margin-top:8px;color:${txt};opacity:0.85;">${sub}</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;">${fields.map(chip).join('')}</div>
