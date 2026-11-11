@@ -6,8 +6,15 @@
 //   Q2 = 12 Feb – 11 May 2027 · Q3 = 12 May – 11 Aug 2027
 //   9 months, each 12th → 11th (Month 1 starts 9 Nov).
 //
-// Goals cascade:  At 30 (level 'life')  →  quarter ('q', p = 0–2)  →  month ('m', p = 0–8)
-//   Each child links to a parent (parentId). Children inherit the parent's area.
+// Reverse-engineered ladder (work backwards from 30, Paul McKenna style):
+//   AT 30 (12 Aug 2027)  →  3 months before (12 May)  →  6 months before (12 Feb)
+//   →  each month's 12th between now and the next quarter mark  →  THIS WEEK (Mon–Sun).
+//   Today (Nov 2026) that's: 12 Aug · 12 May · 12 Feb · 12 Jan · 12 Dec · this week.
+//   The ladder rolls forward by itself as dates pass (ladder() below).
+// Levels: 'life' · 'q' (p = 0–2, ends 12 Feb / 12 May / 12 Aug) · 'm' (p = 0–8, ends on
+//   the 12th) · 'w' (p = Monday's date key). Each goal can link to ANY goal on a rung
+//   above it (parentId) — "what has to be true by then so that this happens?".
+//   Children inherit the parent's area.
 //
 // Progress (0–1):
 //   • done → 1
@@ -71,9 +78,34 @@ function goals(state) {
   const g = state.data?.thirtyPlan?.goals;
   return Array.isArray(g) ? g : [];
 }
-const rangeFor = (g) => g.level === 'life' ? lifeRange() : g.level === 'q' ? quarterRange(g.p) : monthRange(g.p);
-const childLevel = { life: 'q', q: 'm' };
-function children(all, g) { return childLevel[g.level] ? all.filter(c => c.parentId === g.id && c.level === childLevel[g.level]) : []; }
+export function weekStart(k) { const d = parseKey(k); return addDaysKey(k, -((d.getDay() + 6) % 7)); }
+// Milestones are "by" dates, so a quarter/month milestone counts from when you set it
+// (not from the start of its month) — that's what makes "on track" work going backwards.
+function rangeFor(g) {
+  if (g.level === 'life') return lifeRange();
+  if (g.level === 'w') return { start: g.p, end: addDaysKey(g.p, 7) };
+  const r = g.level === 'q' ? quarterRange(g.p) : monthRange(g.p);
+  const made = g.createdAt ? localKey(new Date(g.createdAt)) : r.start;
+  const start = made < r.start ? (made < PLAN_START ? PLAN_START : made) : r.start;
+  return { start: start < r.end ? start : r.start, end: r.end };
+}
+function children(all, g) { return all.filter(c => c.parentId === g.id); }
+
+// The rungs, top (30) to bottom (this week). end = milestone date (exclusive range end).
+export function ladder(todayKey = localKey()) {
+  const m = Math.max(0, monthOf(todayKey));
+  if (m > 8) return [];
+  const q = Math.floor(m / 3);
+  const rungs = [{ level: 'life', p: null, end: BIRTHDAY, label: 'AT 30' }];
+  for (let qq = 1; qq >= q; qq--) rungs.push({ level: 'q', p: qq, end: quarterRange(qq).end, label: qq === 1 ? '3 MONTHS BEFORE' : '6 MONTHS BEFORE' });
+  for (let i = q * 3 + 1; i >= m; i--) { const n = i - m + 1; rungs.push({ level: 'm', p: i, end: monthRange(i).end, label: `${n} MONTH${n > 1 ? 'S' : ''} OUT` }); }
+  const ws = weekStart(todayKey);
+  rungs.push({ level: 'w', p: ws, end: addDaysKey(ws, 7), label: 'THIS WEEK' });
+  return rungs;
+}
+const inRung = (g, r) => g.level === r.level && (r.level === 'life' || g.p === r.p);
+const rungDate = (r) => r.level === 'w' ? `by Sun ${fmt(addDaysKey(r.end, -1))}` : fmtY(r.end);
+const pv = (p) => p == null ? 'null' : typeof p === 'string' ? `'${p}'` : p;
 
 function progress(all, g, seen = new Set()) {
   if (g.done) return 1;
@@ -104,25 +136,25 @@ const STATUS = {
 // Collapsed-card summary (used by renderHomeTab)
 export function thirtySummary(state, todayKey = localKey()) {
   const all = goals(state);
-  const m = monthOf(todayKey);
-  const q = m >= 0 && m < 9 ? Math.floor(m / 3) : null;
-  const life = all.filter(g => g.level === 'life');
-  const mGoals = all.filter(g => g.level === 'm' && g.p === m);
-  const qGoals = all.filter(g => g.level === 'q' && g.p === q);
+  const rungs = ladder(todayKey);
   const count = (list) => list.reduce((a, g) => { const s = status(all, g, todayKey); a[s] = (a[s] || 0) + 1; return a; }, {});
-  return { m, q, life: life.length, month: mGoals.length, quarter: qGoals.length, mc: count(mGoals), qc: count(qGoals),
-    need: !life.length ? 'SET YOUR 30 GOALS' : !qGoals.length ? `PLAN Q${q + 1}` : !mGoals.length ? 'PLAN THIS MONTH' : null };
+  const week = rungs.find(r => r.level === 'w');
+  const next = rungs.filter(r => r.level === 'm').slice(-1)[0] || rungs.filter(r => r.level === 'q').slice(-1)[0] || rungs[0];
+  const wGoals = week ? all.filter(g => inRung(g, week)) : [];
+  const nGoals = next ? all.filter(g => inRung(g, next)) : [];
+  const empty = rungs.find(r => !all.some(g => inRung(g, r)));
+  const need = !empty ? null : empty.level === 'life' ? 'SET YOUR 30 GOALS' : empty.level === 'w' ? 'PLAN THIS WEEK' : `PLAN ${fmt(empty.end).toUpperCase()}`;
+  return { m: monthOf(todayKey), next, nc: count(nGoals), nN: nGoals.length, wN: wGoals.length, wDone: wGoals.filter(g => status(all, g, todayKey) === 'done').length, need, life: all.filter(g => g.level === 'life').length };
 }
 export function thirtySummaryLine(sum) {
-  if (sum.m < 0 || sum.m > 8) return '';
-  const parts = [];
-  const c = { ...sum.mc };
+  if (sum.m > 8 || !sum.next) return '';
+  const c = sum.nc, parts = [];
   if (c.done) parts.push(`${c.done} done`);
   if (c.on) parts.push(`${c.on} on track`);
   if (c.open) parts.push(`${c.open} in progress`);
   if (c.behind) parts.push(`<b class="w">${c.behind} behind</b>`);
   if (c.off || c.missed) parts.push(`<b class="r">${(c.off || 0) + (c.missed || 0)} off track</b>`);
-  return `Q${sum.q + 1} · Month ${sum.m + 1} of 9${sum.month ? ' · ' + parts.join(' · ') : ''}`;
+  return [sum.nN ? `By ${fmt(sum.next.end)}: ${parts.join(' · ')}` : '', sum.wN ? `This week ${sum.wDone}/${sum.wN} done` : ''].filter(Boolean).join(' · ');
 }
 
 export const THIRTY_CSS = `<style id="thirty-css">
@@ -189,11 +221,19 @@ export const THIRTY_CSS = `<style id="thirty-css">
 .nh .nh-30-actions { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; align-items:center; }
 .nh .nh-30-confirm { font-size:12px; font-weight:800; color:var(--nh-red) !important; margin-right:auto; }
 .nh .nh-30-back { align-self:flex-start; }
+.nh .nh-30-intro { font-size:12px; line-height:1.45; color:var(--nh-sub) !important; }
+.nh .nh-30-ladder { position:relative; display:flex; flex-direction:column; gap:18px; padding-left:22px; }
+.nh .nh-30-ladder::before { content:''; position:absolute; left:6px; top:6px; bottom:6px; width:2px; background:linear-gradient(var(--nh-gold), var(--nh-line)); border-radius:1px; }
+.nh .nh-30-rung { position:relative; }
+.nh .nh-30-node { position:absolute; left:-22px; top:2px; width:14px; height:14px; border-radius:50%; border:2px solid var(--nh-gold); background:var(--nh-card, #fff); }
+.nh .nh-30-rung.top .nh-30-node { background:var(--nh-gold); }
+.nh .nh-30-rung.now .nh-30-node { background:var(--nh-gold); box-shadow:0 0 0 4px rgba(201,168,76,0.25); }
+.nh .nh-30-q-ask { font-size:12px; line-height:1.4; font-style:italic; margin-bottom:8px; color:var(--nh-sub) !important; }
 </style>`;
 
 function areaCol(a) { return (AREAS[a] || AREAS.personal).col; }
 
-function renderGoal(state, all, g, todayKey) {
+function renderGoal(state, all, g, todayKey, next = null) {
   const st = status(all, g, todayKey);
   const [pl, pc] = STATUS[st];
   const p = progress(all, g);
@@ -209,11 +249,11 @@ function renderGoal(state, all, g, todayKey) {
   const val = (v) => (pre ? esc(g.unit) : '') + fmtNum(v) + unit;
   const sub = [
     parent ? `↳ ${esc(parent.title)}` : (g.level === 'life' ? esc((AREAS[g.area] || AREAS.personal).label) : ''),
-    kids.length ? `${kids.filter(k => status(all, k, todayKey) === 'done').length}/${kids.length} ${g.level === 'life' ? 'quarterly' : 'monthly'} goals done` : '',
+    kids.length ? `${kids.filter(k => status(all, k, todayKey) === 'done').length}/${kids.length} steps done` : '',
   ].filter(Boolean).join(' · ');
   const bar = p != null && !(tickable) ? `
       <div class="nh-30-bar"><i style="width:${Math.round(p * 100)}%"></i>${todayKey >= r.start && todayKey < r.end ? `<b style="left:calc(${(exp * 100).toFixed(1)}% - 1px)" title="where you should be"></b>` : ''}</div>
-      <div class="nh-30-nums"><span>${measurable ? `${val(num(g.current) ?? num(g.start))} of ${val(num(g.target))}` : `${Math.round(p * 100)}% from ${kids.length} goals`}</span><span>${Math.round(p * 100)}% · should be ${Math.round(exp * 100)}%</span></div>` : '';
+      <div class="nh-30-nums"><span>${measurable ? `${val(num(g.current) ?? num(g.start))} of ${val(num(g.target))}` : `${Math.round(p * 100)}% from ${kids.length} steps`}</span><span>${Math.round(p * 100)}% · should be ${Math.round(exp * 100)}%</span></div>` : '';
   const det = open ? `
       <div class="nh-30-det" onclick="event.stopPropagation()">
         ${measurable ? `
@@ -221,11 +261,11 @@ function renderGoal(state, all, g, todayKey) {
           <input id="t30-upd-${g.id}" class="nh-30-in" type="number" inputmode="decimal" step="any" placeholder="Now: ${val(num(g.current) ?? num(g.start))}">
           <button class="nh-30-btn" onclick="thirtyUpdate('${g.id}')">Update</button>
         </div>
-        <div class="nh-30-hint">Started at ${val(num(g.start))} → target ${val(num(g.target))} by ${fmtY(addDaysKey(r.end, -1))}${g.updatedAt ? ` · last updated ${fmt(localKey(new Date(g.updatedAt)))}` : ''}</div>` : ''}
+        <div class="nh-30-hint">Started at ${val(num(g.start))} → target ${val(num(g.target))} by ${g.level === 'w' ? fmtY(addDaysKey(r.end, -1)) : fmtY(r.end)}${g.updatedAt ? ` · last updated ${fmt(localKey(new Date(g.updatedAt)))}` : ''}</div>` : ''}
         ${g.why ? `<div class="nh-30-hint"><b style="color:var(--nh-text)">Why:</b> ${esc(g.why)}</div>` : ''}
         <div class="nh-30-actions">
           ${!tickable ? `<button class="nh-30-btn ghost small" onclick="thirtyToggleDone('${g.id}')">${g.done ? 'Mark not done' : 'Mark done'}</button>` : ''}
-          ${childLevel[g.level] ? `<button class="nh-30-btn ghost small" onclick="thirtyOpenForm('${childLevel[g.level]}', null, '${g.id}')">+ ${g.level === 'life' ? 'Quarterly' : 'Monthly'} goal</button>` : ''}
+          ${next ? `<button class="nh-30-btn ghost small" onclick="thirtyOpenForm('${next.level}', null, '${g.id}', ${pv(next.p)})">+ Step ${next.level === 'w' ? 'this week' : 'by ' + fmt(next.end)}</button>` : ''}
           <button class="nh-30-btn ghost small" onclick="thirtyOpenForm('${g.level}', '${g.id}')">Edit</button>
         </div>
       </div>` : '';
@@ -248,22 +288,27 @@ function renderForm(state, all, todayKey) {
   const f = state.thirtyForm;
   const d = state.thirtyDraft || {};
   const lvl = f.level;
-  const parents = lvl === 'q' ? all.filter(g => g.level === 'life') : lvl === 'm' ? all.filter(g => g.level === 'q' && g.p === Math.floor(f.p / 3)) : [];
+  const rungs = ladder(todayKey);
+  const idx = rungs.findIndex(r => r.level === lvl && (lvl === 'life' || r.p === f.p));
+  const above = idx > 0 ? rungs.slice(0, idx) : (lvl === 'life' ? [] : rungs.filter(r => r.level !== 'w' && r.level !== lvl));
+  const groups = above.map(r => ({ r, gs: all.filter(g => inRung(g, r) && g.id !== f.id) })).filter(x => x.gs.length);
   const parent = d.parentId ? all.find(g => g.id === d.parentId) : null;
   const area = parent ? parent.area : (d.area || 'business');
-  const per = lvl === 'life' ? `by ${fmtY(addDaysKey(BIRTHDAY, -1))}` : lvl === 'q' ? `Q${f.p + 1} · ${rangeLabel(quarterRange(f.p))}` : `Month ${f.p + 1} · ${rangeLabel(monthRange(f.p))}`;
+  const rung = rungs[idx];
+  const per = rung ? `${rung.label.toLowerCase()} · ${rungDate(rung)}` : '';
   const inp = (k) => `oninput="thirtyDraftInput('${k}', this.value)"`;
   const confirming = f.id && state.thirtyDelete === f.id;
-  const ph = lvl === 'life' ? 'e.g. TJM turning over £20k a month' : lvl === 'q' ? 'e.g. TJM website relaunched with 200 products' : 'e.g. Photograph and list 60 products';
+  const ph = lvl === 'life' ? 'e.g. TJM turning over £20k a month' : lvl === 'q' ? 'e.g. TJM website relaunched with 200 products'
+    : lvl === 'm' ? 'e.g. Photograph and list 60 products' : 'e.g. Shoot and edit 15 product photos';
   return `
   <div class="nh-30-form" onclick="event.stopPropagation()">
-    <div class="nh-30-form-h">${f.id ? 'Edit' : 'New'} ${lvl === 'life' ? 'goal for 30' : lvl === 'q' ? 'quarterly goal' : 'monthly goal'} <span style="font-weight:700;color:var(--nh-muted)">· ${per}</span></div>
+    <div class="nh-30-form-h">${f.id ? 'Edit' : 'New'} ${lvl === 'life' ? 'goal for 30' : lvl === 'w' ? 'goal for this week' : 'milestone'} <span style="font-weight:700;color:var(--nh-muted)">· ${per}</span></div>
     <div><label class="nh-30-lbl" for="t30-title">GOAL</label>
       <input id="t30-title" class="nh-30-in" type="text" placeholder="${ph}" value="${esc(d.title || '')}" ${inp('title')}></div>
-    ${parents.length ? `<div><label class="nh-30-lbl" for="t30-parent">PART OF</label>
+    ${groups.length ? `<div><label class="nh-30-lbl" for="t30-parent">THIS MAKES IT HAPPEN</label>
       <select id="t30-parent" class="nh-30-in" onchange="thirtyDraftInput('parentId', this.value, true)">
         <option value="">— not linked —</option>
-        ${parents.map(g => `<option value="${g.id}" ${d.parentId === g.id ? 'selected' : ''}>${esc(g.title)}</option>`).join('')}
+        ${groups.map(({ r, gs }) => `<optgroup label="${r.label} · ${rungDate(r)}">${gs.map(g => `<option value="${g.id}" ${d.parentId === g.id ? 'selected' : ''}>${esc(g.title)}</option>`).join('')}</optgroup>`).join('')}
       </select></div>` : ''}
     ${!parent ? `<div><span class="nh-30-lbl">AREA</span><div class="nh-30-areas">
       ${Object.entries(AREAS).map(([k, a]) => `<button class="nh-30-area ${area === k ? 'sel' : ''}" style="--a:${a.col}" onclick="thirtyDraftInput('area', '${k}', true)">${a.label}</button>`).join('')}
@@ -275,7 +320,7 @@ function renderForm(state, all, todayKey) {
         <input id="t30-unit" class="nh-30-in" type="text" placeholder="Unit (£, lb…)" value="${esc(d.unit || '')}" ${inp('unit')}>
       </div>
       ${f.id && num(d.start) != null ? `<div style="margin-top:8px"><label class="nh-30-lbl" for="t30-current">WHERE YOU ARE NOW</label><input id="t30-current" class="nh-30-in" type="number" inputmode="decimal" step="any" value="${esc(d.current ?? '')}" ${inp('current')}></div>` : ''}
-      <div class="nh-30-hint" style="margin-top:6px">Leave blank for a tick-box goal.${lvl !== 'm' ? ' Without a number, progress comes from the goals linked under it.' : ''}</div>
+      <div class="nh-30-hint" style="margin-top:6px">Leave blank for a tick-box goal.${lvl !== 'w' ? ' Without a number, progress comes from the steps linked under it.' : ''}</div>
     </div>
     ${lvl === 'life' ? `<div><label class="nh-30-lbl" for="t30-why">WHY IT MATTERS (OPTIONAL)</label>
       <textarea id="t30-why" class="nh-30-in" placeholder="What changes when you hit this?" ${inp('why')}>${esc(d.why || '')}</textarea></div>` : ''}
@@ -292,63 +337,39 @@ function renderForm(state, all, todayKey) {
 
 export function renderThirtyPlan(state, todayKey = localKey()) {
   const all = goals(state);
-  const curM = monthOf(todayKey);
-  const selM = state.thirtySel != null ? state.thirtySel : Math.max(0, Math.min(8, curM));
-  const selQ = Math.floor(selM / 3);
-  const isNow = selM === curM;
+  const rungs = ladder(todayKey);
   const f = state.thirtyForm;
+  const daysTo = (k) => Math.max(0, Math.round((parseKey(k) - parseKey(todayKey)) / 86400000));
+  const list = (arr, next) => arr.map(g => renderGoal(state, all, g, todayKey, next)).join('');
+  const formIn = (r) => f && f.level === r.level && (r.level === 'life' || f.p === r.p);
+  const formPlaced = f && rungs.some(formIn);
 
-  // Month strip
-  const strip = [0, 1, 2].map(q => `
-    <div class="nh-30-q ${Math.floor(curM / 3) === q ? 'cur' : ''}">
-      <div class="nh-30-q-l">Q${q + 1}</div>
-      <div class="nh-30-ms">${[0, 1, 2].map(j => {
-        const i = q * 3 + j; const r = monthRange(i);
-        const fill = todayKey >= r.end ? 100 : todayKey >= r.start ? Math.round(elapsed(r, todayKey) * 100) : 0;
-        const has = all.some(g => g.level === 'm' && g.p === i);
-        const lbl = parseKey(r.start < '2026-11-12' ? '2026-11-12' : r.start).toLocaleDateString('en-GB', { month: 'short' });
-        return `<button class="nh-30-m ${i < curM ? 'past' : ''} ${i === curM ? 'cur' : ''} ${i === selM ? 'sel' : ''}" onclick="event.stopPropagation(); thirtySelect(${i})" aria-label="Month ${i + 1}">
-          <i style="width:${fill}%"></i><span>${lbl}</span>${has ? '<em class="dot"></em>' : ''}</button>`;
-      }).join('')}</div>
-    </div>`).join('');
+  const ask = (r, i) => {
+    if (r.level === 'life') return 'It’s 12 Aug 2027 and the year went brilliantly. What’s true? Business, health, money, family, personal. Make them measurable where you can.';
+    const up = rungs[i - 1];
+    const upTxt = up.level === 'life' ? 'your 30 goals land' : `you hit ${fmt(up.end)}`;
+    return r.level === 'w' ? `What will you get done this week so ${upTxt}?` : `What has to be true by ${fmt(r.end)} so ${upTxt}?`;
+  };
 
-  const formAt = (lvl) => f && f.level === lvl && (lvl === 'life' || (lvl === 'q' && f.p === selQ) || (lvl === 'm' && f.p === selM)) ? renderForm(state, all, todayKey) : '';
-  const list = (arr) => arr.map(g => renderGoal(state, all, g, todayKey)).join('');
-  const addBtn = (lvl, p, txt) => f ? '' : `<button class="nh-30-add" onclick="event.stopPropagation(); thirtyOpenForm('${lvl}', null, null, ${p})">${txt}</button>`;
-
-  const mGoals = all.filter(g => g.level === 'm' && g.p === selM);
-  const qGoals = all.filter(g => g.level === 'q' && g.p === selQ);
-  const life = all.filter(g => g.level === 'life');
-  const mR = monthRange(selM), qR = quarterRange(selQ);
-  const daysLeft = (r) => Math.max(0, Math.round((parseKey(r.end) - parseKey(todayKey)) / 86400000));
-
-  const monthSec = `
-    <div>
-      <div class="nh-30-sec-h"><span class="nh-30-sec-t">${isNow ? 'THIS MONTH' : `MONTH ${selM + 1}`}</span><span class="nh-30-sec-s">${rangeLabel(mR)}${todayKey >= mR.start && todayKey < mR.end ? ` · ${daysLeft(mR)} days left` : ''}</span></div>
-      <div class="nh-30-list">${list(mGoals)}${formAt('m')}</div>
-      ${!mGoals.length && !formAt('m') ? `<div class="nh-30-empty">${qGoals.length ? 'Break this quarter’s goals into what you’ll get done this month.' : 'Set the quarter’s goals first, then break them into monthly ones.'}</div>` : ''}
-      ${addBtn('m', selM, '+ Monthly goal')}
+  const rungHtml = rungs.map((r, i) => {
+    const gs = all.filter(g => inRung(g, r));
+    const next = rungs[i + 1] || null;
+    const days = r.level === 'w' ? daysTo(r.end) - 1 : daysTo(r.end);
+    return `
+    <div class="nh-30-rung ${i === 0 ? 'top' : ''} ${r.level === 'w' ? 'now' : ''}">
+      <span class="nh-30-node"></span>
+      <div class="nh-30-sec-h"><span class="nh-30-sec-t">${r.label}</span><span class="nh-30-sec-s">${rungDate(r)} · ${days} day${days === 1 ? '' : 's'}${r.level === 'w' ? ' left' : ''}</span></div>
+      ${!gs.length || formIn(r) ? `<div class="nh-30-q-ask">${ask(r, i)}</div>` : ''}
+      <div class="nh-30-list">${list(gs, next)}${formIn(r) ? renderForm(state, all, todayKey) : ''}</div>
+      ${f ? '' : `<button class="nh-30-add" onclick="event.stopPropagation(); thirtyOpenForm('${r.level}', null, null, ${pv(r.p)})">+ ${r.level === 'life' ? 'Goal for 30' : r.level === 'w' ? 'This week' : 'Milestone by ' + fmt(r.end)}</button>`}
     </div>`;
-  const quarterSec = `
-    <div>
-      <div class="nh-30-sec-h"><span class="nh-30-sec-t">${Math.floor(curM / 3) === selQ ? 'THIS QUARTER' : `QUARTER ${selQ + 1}`} · Q${selQ + 1}</span><span class="nh-30-sec-s">${rangeLabel(qR)}${todayKey >= qR.start && todayKey < qR.end ? ` · ${daysLeft(qR)} days left` : ''}</span></div>
-      <div class="nh-30-list">${list(qGoals)}${formAt('q')}</div>
-      ${!qGoals.length && !formAt('q') ? `<div class="nh-30-empty">${life.length ? 'What has to be true by the end of this quarter to stay on course for your 30 goals?' : 'Set your goals for 30 first.'}</div>` : ''}
-      ${addBtn('q', selQ, '+ Quarterly goal')}
-    </div>`;
-  const lifeSec = `
-    <div>
-      <div class="nh-30-sec-h"><span class="nh-30-sec-t">AT 30</span><span class="nh-30-sec-s">${fmtY(BIRTHDAY)}</span></div>
-      <div class="nh-30-list">${list(life)}${formAt('life')}</div>
-      ${!life.length && !formAt('life') ? `<div class="nh-30-empty">Who do you want to be on 12 Aug 2027? Pick 3–5 goals across business, health, money, family and personal life, and make them measurable where you can.</div>` : ''}
-      ${addBtn('life', 'null', '+ Goal for 30')}
-    </div>`;
+  }).join('');
 
   return `
   <div class="nh-30" onclick="event.stopPropagation()">
-    <div class="nh-30-strip">${strip}</div>
-    ${!isNow ? `<button class="nh-30-btn ghost small nh-30-back" onclick="thirtySelect(null)">← Back to now</button>` : ''}
-    ${life.length ? monthSec + quarterSec + lifeSec : lifeSec + quarterSec + monthSec}
+    <div class="nh-30-intro">Work backwards. Start with who you are at 30, then ask what has to be true 3 months before, and keep stepping back to this week. Tap a goal to add the step before it.</div>
+    ${f && !formPlaced ? renderForm(state, all, todayKey) : ''}
+    <div class="nh-30-ladder">${rungHtml}</div>
   </div>`;
 }
 
@@ -378,19 +399,8 @@ export function initThirtyPlan({ state, saveData, render }) {
     const all = plan().goals;
     const g = id ? all.find(x => x.id === id) : null;
     const par = parentId ? all.find(x => x.id === parentId) : null;
-    const cur = Math.max(0, Math.min(8, monthOf(localKey())));
-    const sel = state.thirtySel != null ? state.thirtySel : cur;
-    let period = g ? g.p : p;
-    if (period == null && level === 'q') period = Math.floor(sel / 3);
-    if (period == null && level === 'm') {
-      period = par && par.level === 'q'
-        ? (Math.floor(sel / 3) === par.p ? sel : (Math.floor(cur / 3) === par.p ? cur : par.p * 3))
-        : sel;
-    }
-    // Move the view to the period being planned so the form appears in place
-    if (level === 'q' && Math.floor(sel / 3) !== period) state.thirtySel = period === Math.floor(cur / 3) ? null : period * 3;
-    if (level === 'm') state.thirtySel = period === cur ? null : period;
-    state.thirtyForm = { level, id: id || null, p: level === 'life' ? null : period };
+    if (level === 'w' && p == null) p = weekStart(localKey());
+    state.thirtyForm = { level, id: id || null, p: level === 'life' ? null : (g ? g.p : p) };
     state.thirtyDraft = g ? { title: g.title, parentId: g.parentId || '', area: g.area, start: g.start ?? '', target: g.target ?? '', unit: g.unit || '', current: g.current ?? '', why: g.why || '' }
       : { title: '', parentId: par ? par.id : '', area: par ? par.area : 'business', start: '', target: '', unit: '', current: '', why: '' };
     persist(); render();
@@ -426,7 +436,8 @@ export function initThirtyPlan({ state, saveData, render }) {
         const cur = num(d.current);
         all[i] = { ...all[i], ...rec, current: s == null ? null : (cur != null ? cur : (all[i].current ?? s)), updatedAt: now };
         // area change on a parent flows down to its children
-        all.filter(c => c.parentId === f.id).forEach(c => { c.area = all[i].area; all.filter(m => m.parentId === c.id).forEach(m => { m.area = all[i].area; }); });
+        const flow = (pid, seen = new Set()) => all.filter(c => c.parentId === pid && !seen.has(c.id)).forEach(c => { seen.add(c.id); c.area = all[i].area; flow(c.id, seen); });
+        flow(f.id);
       }
     } else {
       const id = 't30_' + now.toString(36) + Math.random().toString(36).slice(2, 6);
