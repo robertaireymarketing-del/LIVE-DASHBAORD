@@ -7,12 +7,15 @@
 //   Today (Nov 2026) that's: 12 Aug · 12 May · 12 Feb · 12 Jan · 12 Dec · this week.
 //   The ladder rolls forward by itself as dates pass (ladder() below).
 //
-// Each rung is just a free-text box — write your own headings and notes.
-// Saved as you type (debounced, quiet save — no re-render, so the keyboard stays up).
+// Each rung is a list of rows: headings and tick-box items (type freely, Enter = new
+// item, Backspace on an empty row = delete it). Ticking stamps today's date; tap the
+// date to change it or add completion notes.
+// Typing saves quietly (debounced, no re-render) so the keyboard stays up.
 //
-// Data: state.data.thirtyPlan.notes = { 'life': text, 'q:1': text, 'm:0': text, 'w:2026-11-09': text }
-//   q = quarter mark (0 → 12 Feb, 1 → 12 May) · m = month index (0 → 12 Dec … 8 → 12 Aug)
-//   w = Monday of the week. (Older structured goals in thirtyPlan.goals are left untouched.)
+// Data: state.data.thirtyPlan.items = { <rungKey>: [{ id, h (heading?), text, done, doneAt (YYYY-MM-DD), note }] }
+//   rungKey: 'life' · 'q:1' (12 May) / 'q:0' (12 Feb) · 'm:0' (12 Dec) … 'm:8' · 'w:<Monday>'
+//   Old free-text notes (thirtyPlan.notes) convert to rows the first time a step is shown:
+//   lines starting with # or ending with : or in CAPITALS become headings.
 
 export const PLAN_START = '2026-11-09';
 export const BIRTHDAY = '2027-08-12';
@@ -57,21 +60,37 @@ export function ladder(todayKey = localKey()) {
 }
 const rungDate = (r) => r.week ? `by Sun ${fmt(addDaysKey(r.end, -1))}` : fmtY(r.end);
 
-function notes(state) { return state.data?.thirtyPlan?.notes || {}; }
-const filled = (t) => !!String(t || '').trim();
+const uid = () => 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+function fromText(t) {
+  return String(t || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const h = /^#/.test(l) || /:$/.test(l) || (/[A-Z]/.test(l) && l === l.toUpperCase() && l.length < 40);
+    const text = h ? l.replace(/^#+\s*/, '').replace(/:$/, '') : l.replace(/^([-*•]|\[ ?\])\s*/, '');
+    return { id: uid(), h, text, done: false, doneAt: null, note: '' };
+  });
+}
+// Rows for a rung (converts old free text on first read)
+function rows(state, key) {
+  const plan = state.data?.thirtyPlan;
+  if (!plan) return [];
+  if (!plan.items) plan.items = {};
+  if (!Array.isArray(plan.items[key]) && plan.notes && String(plan.notes[key] || '').trim()) plan.items[key] = fromText(plan.notes[key]);
+  return plan.items[key] || [];
+}
 
 // Collapsed-card summary (used by renderHomeTab)
 export function thirtySummary(state, todayKey = localKey()) {
-  const n = notes(state);
   const rungs = ladder(todayKey);
+  const tasks = (r) => rows(state, r.key).filter(x => !x.h && String(x.text || '').trim());
   const life = rungs.find(r => r.key === 'life');
   const week = rungs.find(r => r.week);
-  const need = rungs.length && !filled(n.life) ? 'SET YOUR 30 GOALS' : week && !filled(n[week.key]) ? 'PLAN THIS WEEK' : null;
-  return { m: monthOf(todayKey), done: rungs.filter(r => filled(n[r.key])).length, total: rungs.length, need, life };
+  const wt = week ? tasks(week) : [];
+  const need = life && !rows(state, 'life').length ? 'SET YOUR 30 GOALS' : week && !wt.length ? 'PLAN THIS WEEK' : null;
+  const all = rungs.flatMap(tasks);
+  return { m: monthOf(todayKey), total: rungs.length, need, wN: wt.length, wDone: wt.filter(x => x.done).length, n: all.length, done: all.filter(x => x.done).length };
 }
 export function thirtySummaryLine(sum) {
   if (sum.m > 8 || !sum.total) return '';
-  return `Road to 30 · ${sum.done} of ${sum.total} steps written`;
+  return ['Road to 30', sum.wN ? `This week ${sum.wDone}/${sum.wN} done` : '', sum.n ? `${sum.done}/${sum.n} overall` : ''].filter(Boolean).join(' · ');
 }
 
 export const THIRTY_CSS = `<style id="thirty-css">
@@ -91,25 +110,73 @@ export const THIRTY_CSS = `<style id="thirty-css">
 .nh .nh-30-sec-h { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:8px; }
 .nh .nh-30-sec-t { font-size:11px; font-weight:900; letter-spacing:1.5px; color:var(--nh-text) !important; }
 .nh .nh-30-sec-s { font-size:11px; font-weight:700; color:var(--nh-muted) !important; text-align:right; }
-.nh .nh-30-txt { display:block; width:100%; box-sizing:border-box; min-height:88px; border-radius:12px; border:1px solid var(--nh-line) !important; background:transparent !important; color:var(--nh-text) !important; padding:10px 12px; font:inherit; font-size:15px; line-height:1.45; resize:none; overflow:hidden; -webkit-appearance:none; appearance:none; }
-.nh .nh-30-txt:focus { outline:none; border-color:var(--nh-gold) !important; }
-.nh .nh-30-txt::placeholder { color:var(--nh-muted); opacity:0.8; }
+.nh .nh-30-rows { display:flex; flex-direction:column; border:1px solid var(--nh-line); border-radius:12px; padding:4px 10px; }
+.nh .nh-30-row { display:flex; align-items:flex-start; gap:8px; padding:4px 0; }
+.nh .nh-30-row.h { padding-top:10px; }
+.nh .nh-30-chk { flex:0 0 24px; height:24px; margin-top:6px; border-radius:7px; border:2px solid var(--nh-line); background:transparent; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:900; color:#fff !important; cursor:pointer; padding:0; }
+.nh .nh-30-chk.on { background:var(--nh-green); border-color:var(--nh-green); }
+.nh .nh-30-main { flex:1; min-width:0; }
+.nh .nh-30-in { display:block; width:100%; box-sizing:border-box; border:0 !important; background:transparent !important; color:var(--nh-text) !important; font:inherit; font-size:15px; line-height:1.4; padding:6px 0; resize:none; overflow:hidden; -webkit-appearance:none; appearance:none; }
+.nh .nh-30-in:focus { outline:none; }
+.nh .nh-30-in::placeholder { color:var(--nh-muted); opacity:0.8; }
+.nh .nh-30-row.h .nh-30-in { font-size:11px; font-weight:900; letter-spacing:1.5px; text-transform:uppercase; color:var(--nh-gold) !important; }
+.nh .nh-30-row.done .nh-30-in { text-decoration:line-through; color:var(--nh-muted) !important; }
+.nh .nh-30-meta { display:inline-block; font-size:11px; font-weight:800; color:var(--nh-green) !important; margin-bottom:4px; cursor:pointer; background:none; border:0; padding:0; text-align:left; line-height:1.4; }
+.nh .nh-30-meta span { color:var(--nh-muted) !important; font-weight:700; }
+.nh .nh-30-det { display:flex; flex-direction:column; gap:6px; margin:4px 0 8px; padding:8px; border-radius:10px; background:rgba(127,127,127,0.08); }
+.nh .nh-30-det label { font-size:10px; font-weight:900; letter-spacing:1.2px; color:var(--nh-muted) !important; }
+.nh .nh-30-det input, .nh .nh-30-det textarea { width:100%; box-sizing:border-box; border:1px solid var(--nh-line) !important; border-radius:8px; background:transparent !important; color:var(--nh-text) !important; font:inherit; font-size:14px; padding:8px 10px; -webkit-appearance:none; appearance:none; }
+.nh .nh-30-det textarea { min-height:60px; resize:vertical; }
+.nh .nh-30-x { flex:0 0 28px; height:28px; margin-top:4px; border:0; background:transparent; font-size:16px; color:var(--nh-muted) !important; cursor:pointer; padding:0; }
+.nh .nh-30-adds { display:flex; gap:8px; padding:6px 0 4px; }
+.nh .nh-30-add { flex:1; height:34px; border-radius:9px; border:1px dashed var(--nh-line); background:transparent; font-size:12px; font-weight:800; color:var(--nh-sub) !important; cursor:pointer; }
 </style>`;
 
+function renderRow(state, key, x, i) {
+  if (x.h) return `
+    <div class="nh-30-row h">
+      <div class="nh-30-main"><textarea rows="1" class="nh-30-in" id="t30-${x.id}" placeholder="Heading" oninput="thirtyText('${key}','${x.id}',this)" onkeydown="thirtyKey(event,'${key}','${x.id}')">${esc(x.text)}</textarea></div>
+      <button class="nh-30-x" aria-label="Delete heading" onclick="thirtyDel('${key}','${x.id}')">✕</button>
+    </div>`;
+  const open = state.thirtyOpenItem === x.id;
+  const meta = x.done ? `<button class="nh-30-meta" onclick="thirtyDetails('${x.id}')">✓ Done ${x.doneAt ? fmt(x.doneAt) : ''}${x.note ? ' · <span>' + esc(x.note.length > 40 ? x.note.slice(0, 40) + '…' : x.note) + '</span>' : ' · <span>add note</span>'}</button>` : '';
+  const det = x.done && open ? `
+      <div class="nh-30-det">
+        <label for="t30d-${x.id}">COMPLETED ON</label>
+        <input id="t30d-${x.id}" type="date" value="${esc(x.doneAt || '')}" onchange="thirtyField('${key}','${x.id}','doneAt',this.value)">
+        <label for="t30n-${x.id}">COMPLETION NOTES</label>
+        <textarea id="t30n-${x.id}" placeholder="How did it go?" oninput="thirtyField('${key}','${x.id}','note',this.value,true)">${esc(x.note || '')}</textarea>
+      </div>` : '';
+  return `
+    <div class="nh-30-row ${x.done ? 'done' : ''}">
+      <button class="nh-30-chk ${x.done ? 'on' : ''}" aria-label="${x.done ? 'Mark not done' : 'Mark done'}" onclick="thirtyTick('${key}','${x.id}')">${x.done ? '✓' : ''}</button>
+      <div class="nh-30-main">
+        <textarea rows="1" class="nh-30-in" id="t30-${x.id}" placeholder="New item" oninput="thirtyText('${key}','${x.id}',this)" onkeydown="thirtyKey(event,'${key}','${x.id}')">${esc(x.text)}</textarea>
+        ${meta}${det}
+      </div>
+      <button class="nh-30-x" aria-label="Delete item" onclick="thirtyDel('${key}','${x.id}')">✕</button>
+    </div>`;
+}
+
 export function renderThirtyPlan(state, todayKey = localKey()) {
-  const n = notes(state);
   const rungs = ladder(todayKey);
   const daysTo = (k) => Math.max(0, Math.round((parseKey(k) - parseKey(todayKey)) / 86400000));
   return `
   <div class="nh-30" onclick="event.stopPropagation()">
     <div class="nh-30-ladder">${rungs.map((r, i) => {
       const days = r.week ? daysTo(r.end) - 1 : daysTo(r.end);
-      const ph = i === 0 ? 'Who are you at 30?' : r.week ? 'This week…' : `By ${fmt(r.end)}…`;
+      const list = rows(state, r.key);
       return `
       <div class="nh-30-rung ${i === 0 ? 'top' : ''} ${r.week ? 'now' : ''}">
         <span class="nh-30-node"></span>
         <div class="nh-30-sec-h"><span class="nh-30-sec-t">${r.label}</span><span class="nh-30-sec-s">${rungDate(r)} · ${days} day${days === 1 ? '' : 's'}${r.week ? ' left' : ''}</span></div>
-        <textarea class="nh-30-txt" data-key="${r.key}" placeholder="${esc(ph)}" oninput="thirtyNote(this)">${esc(n[r.key] || '')}</textarea>
+        <div class="nh-30-rows">
+          ${list.map((x, j) => renderRow(state, r.key, x, j)).join('')}
+          <div class="nh-30-adds">
+            <button class="nh-30-add" onclick="thirtyAdd('${r.key}', false)">+ Item</button>
+            <button class="nh-30-add" onclick="thirtyAdd('${r.key}', true)">+ Heading</button>
+          </div>
+        </div>
       </div>`;
     }).join('')}</div>
   </div>`;
@@ -119,22 +186,69 @@ export function renderThirtyPlan(state, todayKey = localKey()) {
 export function initThirtyPlan({ state, saveData, saveDataQuiet, render }) {
   const quiet = saveDataQuiet || saveData;
   let timer = null;
-  const grow = (el) => { el.style.height = 'auto'; el.style.height = Math.max(88, el.scrollHeight + 2) + 'px'; };
-  const growAll = () => document.querySelectorAll('.nh-30-txt').forEach(grow);
+  const saveSoon = () => { clearTimeout(timer); timer = setTimeout(() => quiet(), 800); };
+  const saveNow = () => { clearTimeout(timer); quiet(); };
+  const grow = (el) => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; };
+  const growAll = () => document.querySelectorAll('.nh-30-in').forEach(grow);
+  const list = (key) => {
+    if (!state.data.thirtyPlan || typeof state.data.thirtyPlan !== 'object') state.data.thirtyPlan = {};
+    const plan = state.data.thirtyPlan;
+    if (!plan.items) plan.items = {};
+    if (!Array.isArray(plan.items[key])) plan.items[key] = rows(state, key).slice();
+    return plan.items[key];
+  };
+  const item = (key, id) => list(key).find(x => x.id === id);
+  const rerender = (focusId, atEnd = true) => {
+    render();
+    setTimeout(() => {
+      growAll();
+      const el = focusId && document.getElementById('t30-' + focusId);
+      if (el) { el.focus({ preventScroll: false }); if (atEnd) { const n = el.value.length; el.setSelectionRange(n, n); } }
+    }, 0);
+  };
+  const newRow = (h) => ({ id: uid(), h: !!h, text: '', done: false, doneAt: null, note: '' });
 
   window.toggleThirtyPlan = () => {
-    state.thirtyOpen = !state.thirtyOpen; render();
-    if (state.thirtyOpen) setTimeout(growAll, 0);
+    state.thirtyOpen = !state.thirtyOpen; state.thirtyOpenItem = null;
+    render(); if (state.thirtyOpen) setTimeout(growAll, 0);
   };
-  window.thirtyNote = (el) => {
-    if (!state.data.thirtyPlan || typeof state.data.thirtyPlan !== 'object') state.data.thirtyPlan = {};
-    if (!state.data.thirtyPlan.notes) state.data.thirtyPlan.notes = {};
-    state.data.thirtyPlan.notes[el.dataset.key] = el.value;
-    grow(el);
-    clearTimeout(timer);
-    timer = setTimeout(() => quiet(), 800);
+  window.thirtyAdd = (key, h) => { const r = newRow(h); list(key).push(r); saveNow(); rerender(r.id); };
+  window.thirtyText = (key, id, el) => { const x = item(key, id); if (!x) return; x.text = el.value.replace(/\n/g, ' '); grow(el); saveSoon(); };
+  window.thirtyKey = (e, key, id) => {
+    const l = list(key), i = l.findIndex(x => x.id === id); if (i < 0) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const r = newRow(false); l.splice(i + 1, 0, r); saveNow(); rerender(r.id);
+    } else if (e.key === 'Backspace' && !e.target.value) {
+      e.preventDefault();
+      l.splice(i, 1); saveNow();
+      const prev = l[i - 1]; rerender(prev ? prev.id : null);
+    }
   };
-  // Re-size boxes after any re-render of Home
+  window.thirtyDel = (key, id) => {
+    const l = list(key), i = l.findIndex(x => x.id === id); if (i < 0) return;
+    const x = l[i];
+    if ((x.text || x.note) && !confirm('Delete this ' + (x.h ? 'heading' : 'item') + '?')) return;
+    l.splice(i, 1); saveNow(); rerender(null);
+  };
+  window.thirtyTick = (key, id) => {
+    const x = item(key, id); if (!x) return;
+    x.done = !x.done;
+    if (x.done) { x.doneAt = localKey(); state.thirtyOpenItem = null; }
+    else { x.doneAt = null; if (state.thirtyOpenItem === id) state.thirtyOpenItem = null; }
+    saveNow(); rerender(null);
+  };
+  window.thirtyDetails = (id) => {
+    state.thirtyOpenItem = state.thirtyOpenItem === id ? null : id;
+    render();
+    setTimeout(() => { growAll(); const n = document.getElementById('t30n-' + id); if (n && state.thirtyOpenItem === id && !n.value) n.focus(); }, 0);
+  };
+  window.thirtyField = (key, id, f, v, soft = false) => {
+    const x = item(key, id); if (!x) return;
+    x[f] = f === 'doneAt' ? (v || localKey()) : v;
+    if (soft) saveSoon(); else { saveNow(); rerender(null); }
+  };
+  // Re-size rows after any re-render of Home
   new MutationObserver(() => { if (state.thirtyOpen) growAll(); })
     .observe(document.body, { childList: true, subtree: true });
 }
