@@ -441,7 +441,7 @@ window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render
 // ── Shop lease journey (timeline + quarterly check-ins) ──
 initLeaseJourney({ state, saveData, render });
 // ── Road to 30 plan (At-30 → quarterly → monthly goals) ──
-initThirtyPlan({ state, saveData, render });
+initThirtyPlan({ state, saveData, saveDataQuiet, render });
 initFitnessExtras({ state, saveData, render, getSettings });
 window.toggleHomeGoalEdit = () => { state.homeGoalEdit = !state.homeGoalEdit; render(); };
 window.homeSaveGoal = () => {
