@@ -161,6 +161,15 @@ body.light .nh {
 .nh .nh-leg em { white-space:nowrap; font-style:normal; font-size:13px; font-weight:700; color:var(--nh-muted) !important; }
 .nh .nh-leg i { width:12px; height:12px; border-radius:50%; flex-shrink:0; margin-top:6px; }
 .nh .nh-leg-key { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:var(--nh-muted) !important; margin-top:2px; }
+.nh .nh-wtab { width:100%; border-collapse:collapse; margin-top:12px; font-variant-numeric:tabular-nums; }
+.nh .nh-wtab th, .nh .nh-wtab td { padding:8px 4px; text-align:right; vertical-align:top; border-top:1px solid var(--nh-line); }
+.nh .nh-wtab thead th { border-top:0; padding-top:0; font-size:11px; font-weight:800; letter-spacing:0.5px; text-transform:uppercase; color:var(--nh-muted) !important; }
+.nh .nh-wtab tbody th { text-align:left; font-size:14px; font-weight:800; color:var(--nh-sub) !important; white-space:nowrap; }
+.nh .nh-wtab tbody th i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; }
+.nh .nh-wtab td { font-size:17px; font-weight:900; color:var(--nh-text) !important; }
+.nh .nh-wtab small { display:block; font-size:12px; font-weight:700; color:var(--nh-muted) !important; }
+.nh .nh-wtab .nh-good { color:var(--nh-green) !important; }
+.nh .nh-wtab .nh-bad { color:var(--nh-red) !important; }
 .nh .nh-vs { margin-top:4px; padding:6px 10px; border-radius:10px; font-size:13px; font-weight:800; }
 .nh .nh-vs b { font-size:15px; }
 .nh .nh-vs.ahead { background:rgba(34,197,94,0.14); color:var(--nh-green) !important; }
@@ -901,7 +910,7 @@ export function renderHomeTab(deps) {
       for (let i = 0; i < nDays; i++) {
         const k = addDaysKey(mStart, i);
         if (k <= todayKey) continue;
-        if (parseKey(k).getDay() === 0 || i === nDays - 1) pts.push({ i, v: fn(k), sunday: parseKey(k).getDay() === 0 });
+        if (i === nDays - 1) pts.push({ i, v: fn(k), sunday: parseKey(k).getDay() === 0 });
       }
       return pts;
     };
@@ -932,10 +941,10 @@ export function renderHomeTab(deps) {
           ? `<rect x="${(cx - 4.5).toFixed(1)}" y="${(cy - 4.5).toFixed(1)}" width="9" height="9" transform="rotate(45 ${cx.toFixed(1)} ${cy.toFixed(1)})" fill="var(--nh-card)" stroke="${col}" stroke-width="2"></rect>`
           : `<rect x="${(cx - 4).toFixed(1)}" y="${(cy - 4).toFixed(1)}" width="8" height="8" fill="var(--nh-card)" stroke="${col}" stroke-width="2" opacity="0.8"></rect>`;
       }).join('');
-      return `${ser.tgt.length > 1 ? `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.5" stroke-dasharray="1 4" stroke-linecap="round" opacity="0.7"></polyline>` : ''}${mk}`;
+      return mk;
     };
     // 6 evenly spaced ticks per side, with faint horizontal gridlines
-    const TICKS = 6;
+    const TICKS = 3;
     const tickVals = (sc) => Array.from({ length: TICKS }, (_, j) => sc.hi - (j / (TICKS - 1)) * (sc.hi - sc.lo));
     const gridLines = Array.from({ length: TICKS }, (_, j) => { const y = padT + (j / (TICKS - 1)) * (VH - padT - padB); return `<line x1="${padL}" x2="${VW - padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--nh-line)" stroke-width="1" opacity="0.6"></line>`; }).join('');
     const axis = (sc, side, col, fmt) => !sc ? '' : tickVals(sc).map(v => `<text x="${side === 'l' ? 0 : VW}" y="${(sc.y(v) + 4).toFixed(1)}" text-anchor="${side === 'l' ? 'start' : 'end'}" font-size="12" font-weight="800" fill="${col}">${fmt(v)}</text>`).join('');
@@ -944,44 +953,51 @@ export function renderHomeTab(deps) {
       if (!sc) return '';
       const out = [];
       if (ser.last) out.push(`<text x="${x(ser.last.i).toFixed(1)}" y="${(sc.y(ser.last.v) + (below ? 20 : -10)).toFixed(1)}" text-anchor="${ser.last.i > nDays * 0.8 ? 'end' : ser.last.i < 3 ? 'start' : 'middle'}" font-size="12" font-weight="900" fill="${col}" stroke="var(--nh-card)" stroke-width="3" paint-order="stroke">${fmt(ser.last.v)}</text>`);
-      if (ser.proj.length) out.push(`<text x="${x(nDays - 1).toFixed(1)}" y="${(sc.y(ser.end) + (below ? 20 : -10)).toFixed(1)}" text-anchor="end" font-size="12" font-weight="900" fill="${col}" stroke="var(--nh-card)" stroke-width="3" paint-order="stroke">${fmt(ser.end)}</text>`);
       return out.join('');
     };
     const weekLines = [7, 14, 21, 28].filter(d => d < nDays).map(d => `<line x1="${x(d).toFixed(1)}" x2="${x(d).toFixed(1)}" y1="${padT}" y2="${VH - padB}" stroke="var(--nh-line)" stroke-width="1"></line>`).join('');
     const todayLine = todayIdx >= 0 && todayIdx < nDays ? `<line x1="${x(todayIdx).toFixed(1)}" x2="${x(todayIdx).toFixed(1)}" y1="${padT - 4}" y2="${VH - padB}" stroke="var(--nh-muted)" stroke-width="1" stroke-dasharray="2 3"></line>` : '';
 
     // On-target month end = where the 13% goal path says you should be
+    // Simple summary table: one row per measure.
+    // This/future months: Now | Trend by month end | Target.  Past months: Start | End | Change.
     const onTarget = { Weight: goal ? goal.wAt(mEnd) : null, 'Body fat': goal ? goal.bfAt(mEnd) : null };
-    const legend = (label, ser, col, unit) => {
-      const f = (v) => v.toFixed(1) + unit;
-      // Projection vs on-target (this month and future months only)
-      let vs = '';
-      const tgt = onTarget[label];
-      if (mOff >= 0 && tgt != null && ser.end != null) {
-        const diff = +(ser.end - tgt).toFixed(1); // lower is better for both
-        const cls = diff <= 0 ? 'ahead' : 'behind';
-        const txt = diff === 0 ? 'exactly on target' : diff < 0 ? `${Math.abs(diff)}${unit} ahead` : `${diff}${unit} behind`;
-        vs = `<div class="nh-vs ${cls}">On target: <b>${f(tgt)}</b> · ${txt}</div>`;
-      }
-      let body;
+    const endLbl = `${nDays} ${monthShort}`;
+    const head = mOff < 0 ? ['Start', 'End', 'Change'] : [mOff === 0 ? 'Now' : 'Start', `Trend ${endLbl}`, 'Target'];
+    const row = (label, ser, col, unit) => {
+      const f = (v) => v == null ? '–' : v.toFixed(1) + (unit === '%' ? '%' : '');
+      let c1, c2, c3;
       if (mOff < 0) {
-        body = ser.actual.length
-          ? `<b>${f(ser.actual[0].v)}</b> → <b>${f(ser.last.v)}</b> <em>(${ser.last.v - ser.actual[0].v > 0 ? '+' : ''}${(ser.last.v - ser.actual[0].v).toFixed(1)}${unit})</em>`
-          : 'no readings';
-      } else if (mOff > 0) {
-        body = ser.proj.length ? `<b>${f(ser.start)}</b> → <b>${f(ser.end)}</b> by ${nDays} ${monthShort}` : 'not enough data to project';
+        const a = ser.actual[0], z = ser.last;
+        const d = a && z ? +(z.v - a.v).toFixed(1) : null;
+        c1 = f(a ? a.v : null); c2 = f(z ? z.v : null);
+        c3 = d == null ? '–' : `<span class="${d <= 0 ? 'nh-good' : 'nh-bad'}">${d > 0 ? '+' : ''}${d}${unit === '%' ? '%' : ''}</span>`;
       } else {
-        body = !ser.last ? 'no readings this month'
-          : `<b>${f(ser.last.v)}</b>${ser.end != null ? ` → <b>${f(ser.end)}</b> by ${nDays} ${monthShort}` : ' · not enough data to project'}`;
+        c1 = f(mOff === 0 ? (ser.last ? ser.last.v : null) : ser.start);
+        const wk = ser.slope != null ? `<small>${ser.slope * 7 > 0 ? '+' : ''}${(ser.slope * 7).toFixed(1)}/wk</small>` : '';
+        c2 = `${f(ser.end)}${wk}`;
+        const tgt = onTarget[label];
+        let gap = '';
+        if (tgt != null && ser.end != null) {
+          const diff = +(ser.end - tgt).toFixed(1); // lower is better for both
+          gap = `<small class="${diff <= 0 ? 'nh-good' : 'nh-bad'}">${diff === 0 ? 'on target' : `${Math.abs(diff)} ${diff < 0 ? 'ahead' : 'behind'}`}</small>`;
+        }
+        c3 = `${f(tgt)}${gap}`;
       }
-      const wk = mOff >= 0 && ser.slope != null ? ` <em>(${ser.slope * 7 > 0 ? '+' : ''}${(ser.slope * 7).toFixed(1)}${unit}/wk)</em>` : '';
-      return `<div class="nh-leg"><i style="background:${col};"></i><span><span class="nh-leg-name">${label}</span> ${body}${wk}${vs}</span></div>`;
+      return `<tr><th><i style="background:${col};"></i>${label}</th><td>${c1}</td><td>${c2}</td><td>${c3}</td></tr>`;
     };
+    const unitNote = 'Weight in lb';
+    const table = `
+    <table class="nh-wtab">
+      <thead><tr><th></th>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${row('Weight', W, WC, ' lb')}${row('Body fat', B, BC, '%')}</tbody>
+    </table>
+    <div class="nh-leg-key">Solid = actual · dashed = trend${mOff >= 0 && (W.tgt.length || B.tgt.length) ? ' · □ = target' : ''} · ${unitNote}</div>`;
     return nav + `
     <svg viewBox="0 0 ${VW} ${VH}" width="100%" height="${VH}" role="img" aria-label="Weight and body fat, ${monthLabel}" style="display:block;">
       ${weekLines}${todayLine}
       ${gridLines}
-      ${axis(sw, 'l', WC, v => v.toFixed(1))}${axis(sb, 'r', BC, v => v.toFixed(1) + '%')}
+      ${axis(sw, 'l', WC, v => v.toFixed(0))}${axis(sb, 'r', BC, v => v.toFixed(1) + '%')}
       ${targets(B, sb, BC)}${targets(W, sw, WC)}
       ${line(B, sb, BC)}${line(W, sw, WC)}
       ${tag(B, sb, BC, v => v.toFixed(1) + '%', false)}${tag(W, sw, WC, v => v.toFixed(1), true)}
@@ -989,11 +1005,7 @@ export function renderHomeTab(deps) {
     <div class="nh-w-days" aria-hidden="true" style="position:relative;height:16px;display:block;">
       ${[1, 8, 15, 22, 29].map(d => `<span style="position:absolute;left:${(x(d - 1) / VW * 100).toFixed(2)}%;transform:translateX(-50%);">${d}</span>`).join('')}
     </div>
-    <div class="nh-legend">
-      ${legend('Weight', W, WC, ' lb')}
-      ${legend('Body fat', B, BC, '%')}
-      ${mOff >= 0 && (W.tgt.length || B.tgt.length) ? `<div class="nh-leg-key"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="3" y="3" width="8" height="8" transform="rotate(45 7 7)" fill="none" stroke="currentColor" stroke-width="2"></rect></svg> Weekly target (each Sunday) · solid = actual · dashed = trend</div>` : ''}
-    </div>`;
+    ${table}`;
   }
 
   const deltaCls = delta7 == null ? 'flat' : delta7 < 0 ? 'down' : delta7 > 0 ? 'up' : 'flat';
