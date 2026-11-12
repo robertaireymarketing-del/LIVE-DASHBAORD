@@ -833,27 +833,47 @@ export function renderHomeTab(deps) {
     const monthLabel = mDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
     const monthShort = mDate.toLocaleDateString('en-GB', { month: 'short' });
 
+    // Trend = straight-line fit through this month's readings, drawn from the start
+    // of the month to month end. November 2026 starts on the 10th (the restart).
+    const TREND_RESTART = '2026-11-10';
+    const curMonthStart = localKey(new Date(now.getFullYear(), now.getMonth(), 1, 12));
+    const trendStart = curMonthStart > TREND_RESTART ? curMonthStart : TREND_RESTART;
+    const daysFromNow = (k) => Math.round((parseKey(k) - now) / 86400000);
+    const fitLine = (ks, byDate) => {
+      const xs = ks.map(daysFromNow), ys = ks.map(k => +byDate[k]);
+      const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+      const num = xs.reduce((a, x, j) => a + (x - mx) * (ys[j] - my), 0);
+      const den = xs.reduce((a, x) => a + (x - mx) ** 2, 0);
+      if (!den) return null;
+      const slope = num / den; // per day
+      return { slope, at: (d) => my + slope * (d - mx) }; // d = days from today
+    };
+
     function build(byDate) {
       const keys = Object.keys(byDate).sort();
       const actual = keys.filter(k => k >= mStart && k <= mEnd && k <= todayKey).map(k => ({ i: dayIdx(k), v: +byDate[k], k }));
-      const win = keys.filter(k => k >= addDaysKey(todayKey, -27) && k <= todayKey);
-      let slope = null;
-      if (win.length >= 3) {
-        const xs = win.map(k => Math.round((parseKey(k) - now) / 86400000));
-        if (xs[xs.length - 1] - xs[0] >= 5) {
-          const ys = win.map(k => +byDate[k]);
-          const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
-          const num = xs.reduce((a, x, j) => a + (x - mx) * (ys[j] - my), 0);
-          const den = xs.reduce((a, x) => a + (x - mx) ** 2, 0);
-          slope = den ? num / den : null; // per day
+      const latestKey = keys.filter(k => k <= todayKey).slice(-1)[0];
+      // Main: fit this month's readings (from trendStart). Fallback (e.g. 1st of a
+      // month with <2 readings yet): last 28 days' slope, anchored at the latest reading.
+      let fit = null, fitFrom = null;
+      const monthKeys = keys.filter(k => k >= trendStart && k <= todayKey);
+      if (monthKeys.length >= 2) { fit = fitLine(monthKeys, byDate); fitFrom = trendStart; }
+      if (!fit && latestKey) {
+        const win = keys.filter(k => k >= addDaysKey(todayKey, -27) && k <= todayKey);
+        if (win.length >= 3 && daysFromNow(win[win.length - 1]) - daysFromNow(win[0]) >= 5) {
+          const f = fitLine(win, byDate);
+          if (f) {
+            const aD = daysFromNow(latestKey), aV = +byDate[latestKey];
+            fit = { slope: f.slope, at: (d) => aV + f.slope * (d - aD) };
+            fitFrom = latestKey;
+          }
         }
       }
-      const latestKey = keys.filter(k => k <= todayKey).slice(-1)[0];
-      const anchor = latestKey ? { i: dayIdx(latestKey), v: +byDate[latestKey] } : null;
-      const valAt = (i) => anchor.v + slope * (i - anchor.i);
+      const slope = fit ? fit.slope : null;
+      const valAt = (i) => fit.at(i - todayIdx);
       let proj = [];
-      if (anchor && slope != null && mEnd > latestKey) {
-        const i0 = Math.max(anchor.i, 0);
+      if (fit && latestKey && mEnd > latestKey) {
+        const i0 = Math.max(dayIdx(fitFrom), 0);
         proj = [{ i: i0, v: valAt(i0) }, { i: nDays - 1, v: valAt(nDays - 1) }];
       }
       const last = actual[actual.length - 1] || null;
