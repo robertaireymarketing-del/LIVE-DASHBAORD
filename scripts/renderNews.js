@@ -31,6 +31,7 @@
 //   votes:   [{ t, tag, src, v:1|-1, d }]   (newest first, capped)
 //   ai:      { week, items:[{id,title,link,source,ts,kind,what,try,v,done}], generatedAt, model, note },
 //   aiVotes: [{ t, v }],  aiTried: [{ t, d }]
+//   aiSaved: [{ key, title, link, source, kind, what, try, savedAt, done }]  (kept across weeks)
 //   briefing: { date, text, words, builtAt, failed }, lessons: [names] (newest first)
 // }
 
@@ -178,6 +179,30 @@ async function buildAi(state, saveDataQuiet, render) {
   if (state.activeTab === 'news') render();
 }
 
+function aiKey(it) { return (it.link || it.title || '').slice(0, 300); }
+function aiSaved(state) { const n = news(state); n.aiSaved = n.aiSaved || []; return n.aiSaved; }
+function isSaved(state, it) { const k = aiKey(it); return aiSaved(state).some(x => x.key === k); }
+
+function renderAiSaved(state) {
+  const list = aiSaved(state);
+  const cards = list.map((it, idx) => `
+    <div class="nws-card nws-story ${it.done ? 'nws-done' : ''}">
+      <div class="nws-meta"><span class="nws-tag">${esc(it.kind || 'Tool')}</span><span>${esc(it.source || '')}</span><span>· saved ${new Date(it.savedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></div>
+      <a class="nws-h" href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.title)}</a>
+      ${it.what ? `<div class="nws-sum">${esc(it.what)}</div>` : ''}
+      ${it.try ? `<div class="nws-try"><div class="nws-try-l">Try this in TJM</div>${esc(it.try)}</div>` : ''}
+      <div class="nws-acts">
+        <button class="nws-vote tried ${it.done ? 'on' : ''}" onclick="newsSavedTried(${idx})">${it.done ? '✅ Tried' : '☐ Tried it'}</button>
+        <button class="nws-vote" onclick="newsSavedRemove(${idx})">Remove</button>
+      </div>
+    </div>`).join('');
+  return `${NEWS_CSS}<div class="nws">
+    <button class="nws-back" onclick="newsView('ai')">← AI for TJM</button>
+    <div class="nws-head"><div><div class="nws-title">📁 Saved</div><div class="nws-sub">${list.length ? `${list.length} saved · ${list.filter(x => x.done).length} tried` : 'Nothing saved yet'} · AI ideas to come back to</div></div></div>
+    ${cards || `<div class="nws-card nws-gate"><p>Tap 📁 Save on any AI for TJM item and it'll live here until you remove it.</p></div>`}
+  </div>`;
+}
+
 function aiEntryCard(state) {
   const ed = aiEdition(state);
   const done = ed ? ed.items.filter(i => i.done).length : 0;
@@ -205,13 +230,14 @@ function renderAi(state) {
         <div class="nws-try"><div class="nws-try-l">Try this in TJM</div>${esc(it.try)}</div>
         <div class="nws-acts">
           <button class="nws-vote tried ${it.done ? 'on' : ''}" onclick="newsAiTried('${it.id}')">${it.done ? '✅ Tried' : '☐ Tried it'}</button>
+          <button class="nws-vote save ${isSaved(state, it) ? 'on' : ''}" onclick="newsAiSave('${it.id}')">${isSaved(state, it) ? '📁 Saved' : '📁 Save'}</button>
           <button class="nws-vote up ${it.v > 0 ? 'on' : ''}" onclick="newsAiVote('${it.id}',1)">👍</button>
           <button class="nws-vote down ${it.v < 0 ? 'on' : ''}" onclick="newsAiVote('${it.id}',-1)">👎</button>
         </div>
       </div>`).join('') + `<div class="nws-note" style="text-align:center;padding:6px 10px;">That's everything worth knowing this week. Trying one of these properly puts you ahead of people reading about fifty.</div>`;
   }
   return `${NEWS_CSS}<div class="nws">
-    ${back}
+    <div style="display:flex;justify-content:space-between;align-items:center;">${back}<button class="nws-back" onclick="newsView('aisaved')">📁 Saved (${aiSaved(state).length})</button></div>
     <div class="nws-head"><div><div class="nws-title">🤖 AI for TJM</div><div class="nws-sub">Week of ${new Date(weekKey()).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · what's new that you can use now, and one thing to try with each</div></div></div>
     ${body}
   </div>`;
@@ -408,6 +434,8 @@ const NEWS_CSS = `<style id="news-css">
 .nws-vote.tried { flex:1.6; }
 .nws-vote.tried.on { background:rgba(212,175,55,0.14); border-color:rgba(212,175,55,0.5); color:var(--gold); }
 .nws-done { opacity:0.65; }
+.nws-vote.save { flex:1.3; }
+.nws-vote.save.on { background:rgba(212,175,55,0.14); border-color:rgba(212,175,55,0.5); color:var(--gold); }
 body.light .nws-try { color:#5a4610; }
 .nws-preview summary { cursor:pointer; font-size:14px; font-weight:700; color:var(--gold); }
 .nws-script { margin-top:12px; font-size:14px; line-height:1.65; color:#ddd; }
@@ -440,6 +468,7 @@ function untilMidnight() {
 export function renderNewsTab({ state }) {
   if (N.view === 'ai') return renderAi(state);
   if (N.view === 'brief') return renderBrief(state);
+  if (N.view === 'aisaved') return renderAiSaved(state);
   const n = news(state);
   const left = secsLeft(state);
   const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
@@ -589,9 +618,28 @@ export function initNewsTab({ state, saveDataQuiet, render }) {
   window.newsAiTried = (id) => {
     const n = news(state); const it = aiItem(id); if (!it) return;
     it.done = !it.done;
+    const sv = aiSaved(state).find(x => x.key === aiKey(it)); if (sv) sv.done = it.done;
     n.aiTried = (n.aiTried || []).filter(x => x.t !== it.try);
     if (it.done) n.aiTried.unshift({ t: it.try, d: todayKey() });
     n.aiTried = n.aiTried.slice(0, 60);
+    saveDataQuiet(); render();
+  };
+  window.newsAiSave = (id) => {
+    const it = aiItem(id); if (!it) return;
+    const list = aiSaved(state); const k = aiKey(it);
+    const i = list.findIndex(x => x.key === k);
+    if (i >= 0) list.splice(i, 1);
+    else list.unshift({ key: k, title: it.title, link: it.link, source: it.source, kind: it.kind, what: it.what, try: it.try, savedAt: Date.now(), done: !!it.done });
+    saveDataQuiet(); render();
+  };
+  window.newsSavedTried = (idx) => {
+    const x = aiSaved(state)[idx]; if (!x) return;
+    x.done = !x.done;
+    const it = (aiEdition(state)?.items || []).find(i => aiKey(i) === x.key); if (it) it.done = x.done;
+    saveDataQuiet(); render();
+  };
+  window.newsSavedRemove = (idx) => {
+    aiSaved(state).splice(idx, 1);
     saveDataQuiet(); render();
   };
   window.newsAiVote = (id, v) => {
