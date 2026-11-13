@@ -180,13 +180,13 @@ function renderChallengeModal() { return renderChallengeModalExternal(renderMore
 
 // ── Bottom nav (6 tabs — permanent on every page) ─────────────────────────
 function renderBottomNav() {
-  const moreActive = state.moreMenuOpen || ['march','vault','roadmap','fire','vision','clarity','scenes','habits','oldhome','sleep','news'].includes(state.activeTab);
+  const moreActive = state.moreMenuOpen || ['march','vault','roadmap','fire','vision','clarity','scenes','habits','oldhome','sleep','progress'].includes(state.activeTab);
   return `
   <nav class="bottom-nav-app">
     <button data-tab="today"    class="bottom-nav-app-btn ${state.activeTab==='today'?'active':''}"    onclick="setTab('today')"><span class="nav-icon">🏠</span>Today</button>
     <button data-tab="journal"  class="bottom-nav-app-btn ${state.activeTab==='journal'?'active':''}"  onclick="setTab('journal')"><span class="nav-icon">📓</span>Journal</button>
     <button data-tab="planner"  class="bottom-nav-app-btn ${state.activeTab==='planner'?'active':''}"  onclick="setTab('planner')"><span class="nav-icon">✏️</span>Planner</button>
-    <button data-tab="progress" class="bottom-nav-app-btn ${state.activeTab==='progress'?'active':''}" onclick="setTab('progress')"><span class="nav-icon">❤️</span>Health</button>
+    <button data-tab="news"     class="bottom-nav-app-btn ${state.activeTab==='news'?'active':''}"     onclick="setTab('news')"><span class="nav-icon">📰</span>News</button>
     <button data-tab="straightline" class="bottom-nav-app-btn ${state.activeTab==='straightline'?'active':''}" onclick="setTab('straightline')"><span class="nav-icon">📐</span>The Line</button>
     <button data-tab="more"     class="bottom-nav-app-btn ${moreActive?'active':''}" onclick="toggleMoreMenu()" style="position:relative;"><span class="nav-icon">⋯</span>More</button>
   </nav>`;
@@ -282,7 +282,7 @@ function render() {
         <button class="mobile-more-sheet-btn ${state.activeTab==='habits'?'active':''}" onclick="setTab('habits');toggleMoreMenu()">✅ Habits</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='scenes'?'active':''}" onclick="setTab('scenes');toggleMoreMenu()">🎬 Scenes</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='sleep'?'active':''}" onclick="setTab('sleep')">🌙 Sleep</button>
-        <button class="mobile-more-sheet-btn ${state.activeTab==='news'?'active':''}" onclick="setTab('news')">📰 News</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab==='progress'?'active':''}" onclick="setTab('progress')">❤️ Health</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='oldhome'?'active':''}" onclick="setTab('oldhome')">🗂 Old Home</button>
         <button class="mobile-more-sheet-btn danger" onclick="handleLogout()">Sign Out</button>
       </div>
