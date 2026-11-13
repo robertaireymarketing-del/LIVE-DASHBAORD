@@ -12,6 +12,7 @@ import { initPanicButton } from './panicButton.js';
 import { renderTodayTab as renderTodayTabExternal } from './renderTodayTab.js';
 import { renderHomeTab as renderHomeTabExternal } from './renderHomeTab.js';
 import { renderSleepTab, initSleepTab, leaveSleepTab } from './renderSleep.js';
+import { renderNewsTab, initNewsTab, leaveNewsTab } from './renderNews.js';
 import { initLeaseJourney } from './leaseJourney.js';
 import { initThirtyPlan } from './thirtyPlan.js';
 import { initFitnessExtras } from './fitnessExtras.js';
@@ -179,7 +180,7 @@ function renderChallengeModal() { return renderChallengeModalExternal(renderMore
 
 // ── Bottom nav (6 tabs — permanent on every page) ─────────────────────────
 function renderBottomNav() {
-  const moreActive = state.moreMenuOpen || ['march','vault','roadmap','fire','vision','clarity','scenes','habits','oldhome','sleep'].includes(state.activeTab);
+  const moreActive = state.moreMenuOpen || ['march','vault','roadmap','fire','vision','clarity','scenes','habits','oldhome','sleep','news'].includes(state.activeTab);
   return `
   <nav class="bottom-nav-app">
     <button data-tab="today"    class="bottom-nav-app-btn ${state.activeTab==='today'?'active':''}"    onclick="setTab('today')"><span class="nav-icon">🏠</span>Today</button>
@@ -238,7 +239,7 @@ function render() {
     <div class="day-badge" onclick="openChallengeSetup()" style="cursor:pointer;">DAY ${getDayNumber()}/${getSettings().challengeDays||90}</div>
     </div>
     </div>
-    <button class="panic-trigger" onclick="openPanic()" style="margin-bottom:12px;margin-top:4px;${['today','oldhome','journal','planner','progress','scenes','bricks','clarity','straightline','habits','sleep'].includes(state.activeTab) ? 'display:none;' : ''}"><span>🆘</span> PANIC BUTTON</button>
+    <button class="panic-trigger" onclick="openPanic()" style="margin-bottom:12px;margin-top:4px;${['today','oldhome','journal','planner','progress','scenes','bricks','clarity','straightline','habits','sleep','news'].includes(state.activeTab) ? 'display:none;' : ''}"><span>🆘</span> PANIC BUTTON</button>
     ${(state.activeTab === 'oldhome' || state.activeTab === 'journal') ? `
     <div class="quote-card">
     <div class="quote-icon">✦</div>
@@ -254,6 +255,7 @@ function render() {
       return renderHomeTab();
     } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">HOME ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'sleep' ? renderSleepTab({ state }) : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">SLEEP ERROR: ' + e.message + '</div>'; }})()}
+    ${(() => { try { return state.activeTab === 'news' ? renderNewsTab({ state }) : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">NEWS ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'oldhome' ? renderTodayTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">OLD HOME ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'march' ? renderMarchTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">MAR ERROR: ' + e.message + '</div>'; }})()}
     ${(() => { try { return state.activeTab === 'progress' ? renderProgressTab() : ''; } catch(e) { return '<div style="color:#e74c3c;padding:20px;font-size:12px;">BODY ERROR: ' + e.message + '</div>'; }})()}
@@ -280,6 +282,7 @@ function render() {
         <button class="mobile-more-sheet-btn ${state.activeTab==='habits'?'active':''}" onclick="setTab('habits');toggleMoreMenu()">✅ Habits</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='scenes'?'active':''}" onclick="setTab('scenes');toggleMoreMenu()">🎬 Scenes</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='sleep'?'active':''}" onclick="setTab('sleep')">🌙 Sleep</button>
+        <button class="mobile-more-sheet-btn ${state.activeTab==='news'?'active':''}" onclick="setTab('news')">📰 News</button>
         <button class="mobile-more-sheet-btn ${state.activeTab==='oldhome'?'active':''}" onclick="setTab('oldhome')">🗂 Old Home</button>
         <button class="mobile-more-sheet-btn danger" onclick="handleLogout()">Sign Out</button>
       </div>
@@ -348,6 +351,7 @@ function render() {
     if (state.activeTab === 'planner') setTimeout(() => { try { initWeeklyTabExternal(); } catch(e) { console.error('Weekly init error:', e); } }, 0);
     if (state.activeTab === 'vision') setTimeout(() => { try { renderVisionTabExternal({ db, user: state.user }); } catch(e) { console.error('Vision init error:', e); } }, 0);
     if (state.activeTab === 'clarity') setTimeout(() => { try { initClarityTabExternal({ state, saveData, saveDataQuiet, render }); } catch(e) { console.error('Clarity init error:', e); } }, 0);
+    if (state.activeTab === 'news') setTimeout(() => { try { initNewsTab({ state, saveDataQuiet, render }); } catch(e) { console.error('News init error:', e); } }, 0);
     if (state.activeTab === 'sleep') setTimeout(() => { try { initSleepTab({ state, saveData, render }); } catch(e) { console.error('Sleep init error:', e); } }, 0);
     if (state.activeTab === 'habits') setTimeout(() => { try { initHabitsTabExternal({ state, saveData, saveDataQuiet, render }); } catch(e) { console.error('Habits init error:', e); } }, 0);
     if (state.activeTab === 'straightline') setTimeout(() => { try { initStraightLineTabExternal({ state, saveData, saveDataQuiet, render }); } catch(e) { console.error('Line init error:', e); } }, 0);
@@ -435,7 +439,7 @@ initBricksActions({ state, saveData, saveDataQuiet, render });
 // ── Core window functions ──────────────────────────────────────────────────
 window.handleLogin = async () => { try { await signInWithPopup(auth, provider); } catch (e) { console.error('Login failed:', e); } };
 window.handleLogout = async () => { await signOut(auth); try { localStorage.removeItem('tjm_state_cache'); } catch(e) {} state.user = null; state.data = null; render(); };
-window.setTab = (tab) => { if (state.activeTab === 'sleep' && tab !== 'sleep') { try { leaveSleepTab(); } catch(e) {} } state.activeTab = tab; state.selectedEditDate = null; state.moreMenuOpen = false; if (tab !== 'bricks') state.bricksViewDate = null; render(); };
+window.setTab = (tab) => { if (state.activeTab === 'sleep' && tab !== 'sleep') { try { leaveSleepTab(); } catch(e) {} } if (state.activeTab === 'news' && tab !== 'news') { try { leaveNewsTab({ saveDataQuiet }); } catch(e) {} } state.activeTab = tab; state.selectedEditDate = null; state.moreMenuOpen = false; if (tab !== 'bricks') state.bricksViewDate = null; render(); };
 window.toggleMoreMenu = () => { state.moreMenuOpen = !state.moreMenuOpen; render(); };
 // ── New Home: past-day overrides for Gym / Diet (today can't be overridden) ──
 // ── Shop lease journey (timeline + quarterly check-ins) ──
