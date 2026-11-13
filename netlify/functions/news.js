@@ -211,17 +211,41 @@ function parseRanked(text, ids) {
   return out;
 }
 
+// Thinking is switched off: these are short formatting jobs, and on models that
+// think by default the thinking can eat the whole token budget and leave an
+// empty answer. If a model rejects the thinking flag, retry once without it.
+// An empty answer throws, so the caller moves on to the next model.
 async function callClaude(key, model, system, user, maxTokens) {
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model, max_tokens: maxTokens || 900, system, messages: [{ role: 'user', content: user }] }),
-  });
-  const raw = await r.text();
-  if (!r.ok) { const e = new Error('Anthropic ' + r.status + ': ' + raw.slice(0, 200)); e.status = r.status; throw e; }
-  const data = JSON.parse(raw);
-  return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+  const send = async (withThinkingOff) => {
+    const body = { model, max_tokens: maxTokens || 1500, system, messages: [{ role: 'user', content: user }] };
+    if (withThinkingOff) body.thinking = { type: 'disabled' };
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify(body),
+    });
+    const raw = await r.text();
+    if (!r.ok) { const e = new Error('Anthropic ' + r.status + ' (' + model + '): ' + raw.slice(0, 200)); e.status = r.status; e.raw = raw; throw e; }
+    return JSON.parse(raw);
+  };
+  let data;
+  try { data = await send(true); }
+  catch (e) {
+    if (e.status === 400 && /thinking/i.test(e.raw || '')) data = await send(false);
+    else throw e;
+  }
+  const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+  if (!text) {
+    const e = new Error('Empty reply from ' + model + ' (stop: ' + (data.stop_reason || '?') + ', blocks: ' + (data.content || []).map(b => b.type).join(',') + ')');
+    e.empty = true; throw e;
+  }
+  return text;
 }
+
+// Current models first; older names kept as fallbacks. Override with NEWS_MODEL.
+const MODELS = (envName) => [process.env[envName], 'claude-haiku-5-5', 'claude-haiku-4-5-20251001', 'claude-sonnet-5-5', 'claude-sonnet-5'].filter(Boolean);
+// Stop trying other models only for problems that no model would fix.
+const fatal = (e) => e && (e.status === 401 || e.status === 403 || e.status === 429);
 
 async function actionRank(payload) {
   const key = process.env.ANTHROPIC_API_KEY;
@@ -235,7 +259,7 @@ async function actionRank(payload) {
   const { system, user } = buildPrompt(items, clean(payload.liked), clean(payload.disliked));
   const ids = new Set(items.map(x => x.id));
 
-  const models = [process.env.NEWS_MODEL, 'claude-haiku-4-5-20251001', 'claude-sonnet-5'].filter(Boolean);
+  const models = MODELS('NEWS_MODEL');
   let lastErr = null;
   for (const m of models) {
     try {
@@ -247,7 +271,7 @@ async function actionRank(payload) {
     } catch (e) {
       lastErr = e;
       // Only fall through to the next model when this one isn't available.
-      if (e.status && e.status !== 404 && e.status !== 400) break;
+      if (fatal(e)) break;
     }
   }
   return respond(502, { error: String(lastErr && lastErr.message || 'Ranking failed').slice(0, 300) });
@@ -301,7 +325,7 @@ async function actionAiRank(payload) {
   const clean = arr => (Array.isArray(arr) ? arr : []).slice(0, 30).map(x => ({ t: String(x.t || '').slice(0, 200) })).filter(x => x.t);
   const { system, user } = buildAiPrompt(items, clean(payload.liked), clean(payload.disliked), clean(payload.tried));
   const ids = new Set(items.map(x => x.id));
-  const models = [process.env.NEWS_MODEL, 'claude-haiku-4-5-20251001', 'claude-sonnet-5'].filter(Boolean);
+  const models = MODELS('NEWS_MODEL');
   let lastErr = null;
   for (const m of models) {
     try {
@@ -312,7 +336,7 @@ async function actionAiRank(payload) {
       lastErr = new Error('The AI reply couldn\'t be read (' + items.length + ' stories sent). It said: "' + text.replace(/\s+/g, ' ').slice(0, 160) + '"');
     } catch (e) {
       lastErr = e;
-      if (e.status && e.status !== 404 && e.status !== 400) break;
+      if (fatal(e)) break;
     }
   }
   return respond(502, { error: String(lastErr && lastErr.message || 'Ranking failed').slice(0, 300) });
@@ -390,7 +414,7 @@ async function actionBrief(payload) {
   const pr = briefPrompt(p);
   if (!pr) return respond(400, { error: 'Unknown briefing part' });
   const words = Math.max(120, Math.min(650, parseInt(p.words, 10) || 400));
-  const models = [process.env.NEWS_BRIEF_MODEL, 'claude-haiku-4-5-20251001', 'claude-sonnet-5'].filter(Boolean);
+  const models = MODELS('NEWS_BRIEF_MODEL');
   let lastErr = null;
   for (const m of models) {
     try {
@@ -403,7 +427,7 @@ async function actionBrief(payload) {
       lastErr = new Error('Empty section');
     } catch (e) {
       lastErr = e;
-      if (e.status && e.status !== 404 && e.status !== 400) break;
+      if (fatal(e)) break;
     }
   }
   return respond(502, { error: String(lastErr && lastErr.message || 'Briefing failed').slice(0, 300) });
