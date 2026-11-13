@@ -12,6 +12,12 @@
 //   POST { action:'airank', items, liked, disliked, tried }
 //     → the weekly "AI for TJM" picks: what's new + one thing to try in TJM.
 //
+//   POST { action:'brief', part:'intro'|'story'|'learn'|'ai'|'close', ... }
+//     → one section of the spoken daily briefing (~20-30 min in total). The page
+//       asks for every section in parallel, so each call stays short enough for
+//       Netlify's time limit. 'story' also reads the article itself so the
+//       deep-dive is based on what the piece actually says.
+//
 //   POST { action:'rank', items:[{id,title,summary,source}], liked:[], disliked:[] }
 //     → asks Claude to pick the stories that actually affect Robert's life and
 //       goals, score them, tag them and say in one line why each matters.
@@ -187,11 +193,11 @@ function parseRanked(text, ids) {
   return out;
 }
 
-async function callClaude(key, model, system, user) {
+async function callClaude(key, model, system, user, maxTokens) {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model, max_tokens: 900, system, messages: [{ role: 'user', content: user }] }),
+    body: JSON.stringify({ model, max_tokens: maxTokens || 900, system, messages: [{ role: 'user', content: user }] }),
   });
   const raw = await r.text();
   if (!r.ok) { const e = new Error('Anthropic ' + r.status + ': ' + raw.slice(0, 200)); e.status = r.status; throw e; }
@@ -291,6 +297,97 @@ async function actionAiRank(payload) {
   return respond(502, { error: String(lastErr && lastErr.message || 'Ranking failed').slice(0, 300) });
 }
 
+// ── Spoken daily briefing ──────────────────────────────────────────
+async function articleText(url) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 2500);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15', Accept: 'text/html' } });
+    if (!r.ok) return '';
+    const html = (await r.text()).replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, '');
+    const paras = (html.match(/<p[\s>][\s\S]*?<\/p>/gi) || []).map(decode).filter(x => x.length > 60);
+    return paras.join('\n').slice(0, 9000);
+  } catch (e) { return ''; } finally { clearTimeout(t); }
+}
+
+const SPOKEN_RULES = [
+  'This text will be read aloud by a text-to-speech app while he commutes or eats breakfast. Write for the ear:',
+  '- Plain flowing prose, conversational, like a sharp, well-informed friend briefing him. British English.',
+  '- No markdown, no headings, no bullet points, no emojis, no URLs, no brackets, no tables.',
+  '- Short-to-medium sentences. Say numbers the way you would say them out loud ("two point five billion pounds").',
+  '- Accuracy first: only state facts about the news that appear in the material given. Background and explanation must be well-established general knowledge. If a detail is not in the material, don\'t invent it — say what is known and what to watch for.',
+  '- No hype, no fear-mongering, no filler like "in today\'s fast-paced world". Be direct and specific.',
+].join('\n');
+
+function briefPrompt(p) {
+  const who = 'WHO HE IS:\n' + PROFILE + '\n\n' + SPOKEN_RULES + '\n\n';
+  const words = Math.max(120, Math.min(650, parseInt(p.words, 10) || 400));
+  const heads = (p.headlines || []).map((h, i) => (i + 1) + '. ' + h.title + (h.why ? ' — ' + h.why : '')).join('\n');
+  if (p.part === 'intro') {
+    return { system: 'You are writing the opening of Robert\'s personal daily audio briefing.\n\n' + who,
+      user: 'Today is ' + p.dateLabel + '. Write the opening, about ' + words + ' words. Greet him by name, then give a quick spoken rundown of what\'s coming: one sentence per story below, saying why it is worth his attention. End by saying there\'s a short lesson and a quick recall quiz at the end. Do not go into detail yet.\n\nToday\'s stories, in order:\n' + heads };
+  }
+  if (p.part === 'story') {
+    const st = p.story || {};
+    return { system: 'You are writing one segment of Robert\'s personal daily audio briefing: a deep dive on a single story that educates him, not just informs him.\n\n' + who,
+      user: 'Write about ' + words + ' words on this story. Do NOT start with "story one" or any numbering, and do not greet him — the segment is introduced for you. Structure it naturally as spoken prose:\n'
+        + '1) What happened, clearly and concretely.\n2) The background he needs to really understand it — explain any concept, mechanism or term as if teaching a smart person who is not a specialist (e.g. how something works, why it happens, the history in a sentence or two).\n'
+        + '3) Why it matters to him specifically — his money, TJM, his plans, his health — and, if there is one, a practical thing he could do or watch for.\n'
+        + '4) One sentence on what would change the picture, or the other side of the argument, so he thinks rather than just absorbs.\n\n'
+        + 'HEADLINE: ' + (st.title || '') + '\nSOURCE: ' + (st.source || '') + '\nWHY IT WAS PICKED FOR HIM: ' + (st.why || '') + '\nFEED SUMMARY: ' + (st.summary || '')
+        + '\n\nARTICLE TEXT (may be partial or empty):\n' + (p.article || '(not available — work from the headline and summary only, and keep factual claims to what they say)') };
+  }
+  if (p.part === 'learn') {
+    return { system: 'You are writing the "lesson of the day" segment of Robert\'s personal daily audio briefing. Its job is to sharpen his thinking and build lasting knowledge.\n\n' + who,
+      user: 'Pick ONE durable idea that connects to today\'s stories and is useful to someone building a business and his own finances — e.g. a concept from economics, finance, accounting, pricing, marketing, consumer psychology, negotiation, decision-making, or the science of habits and health. Avoid repeating these recent topics: ' + ((p.avoid || []).join('; ') || 'none') + '.\n'
+        + 'Write about ' + words + ' words: start with "Today\'s lesson is" and name the idea; explain it clearly with one vivid everyday example; show how it applies to one of today\'s stories; then give him one specific way to use it in TJM or his life this week. On the very last line, write LESSON: followed by the idea\'s name in under six words (this line will be removed before reading).\n\nToday\'s stories:\n' + heads };
+  }
+  if (p.part === 'ai') {
+    const a = p.ai || {};
+    return { system: 'You are writing a short segment of Robert\'s personal daily audio briefing about using AI in his business.\n\n' + who,
+      user: 'About ' + words + ' words. Remind him of this week\'s AI experiment he hasn\'t tried yet, explain briefly what the tool or feature does, and talk him through exactly how to do the experiment today, step by step in spoken form, and what result would tell him it\'s worth keeping. Don\'t start with a greeting.\n\nWHAT\'S NEW: ' + (a.title || '') + ' — ' + (a.what || '') + '\nTHE EXPERIMENT: ' + (a.try || '') };
+  }
+  if (p.part === 'close') {
+    return { system: 'You are writing the closing segment of Robert\'s personal daily audio briefing. It uses active recall, because testing yourself makes information stick far better than re-reading.\n\n' + who,
+      user: 'About ' + words + ' words. First, a quick recall quiz: ask three short questions about today\'s stories below, one at a time. After each question write "Have a think." then on the next sentence give the answer. Questions must be answerable from the story lines below. Then give him one reflection question to think about on his way in, linked to his goals. End with a brief, grounded sign-off — no motivational clichés.\n\nToday\'s stories:\n' + heads };
+  }
+  return null;
+}
+
+async function actionBrief(payload) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return respond(500, { error: 'Server is missing ANTHROPIC_API_KEY.' });
+  const clip = (v, n) => String(v == null ? '' : v).slice(0, n);
+  const p = {
+    part: clip(payload.part, 10), words: payload.words, dateLabel: clip(payload.dateLabel, 40),
+    headlines: (Array.isArray(payload.headlines) ? payload.headlines : []).slice(0, 12).map(h => ({ title: clip(h.title, 220), why: clip(h.why, 220) })),
+    story: payload.story ? { title: clip(payload.story.title, 220), source: clip(payload.story.source, 40), why: clip(payload.story.why, 220), summary: clip(payload.story.summary, 400), link: clip(payload.story.link, 500) } : null,
+    ai: payload.ai ? { title: clip(payload.ai.title, 220), what: clip(payload.ai.what, 260), try: clip(payload.ai.try, 320) } : null,
+    avoid: (Array.isArray(payload.avoid) ? payload.avoid : []).slice(0, 20).map(x => clip(x, 60)),
+  };
+  if (p.part === 'story' && p.story && /^https?:\/\//.test(p.story.link)) p.article = await articleText(p.story.link);
+  const pr = briefPrompt(p);
+  if (!pr) return respond(400, { error: 'Unknown briefing part' });
+  const words = Math.max(120, Math.min(650, parseInt(p.words, 10) || 400));
+  const models = [process.env.NEWS_BRIEF_MODEL, 'claude-haiku-4-5-20251001', 'claude-sonnet-5'].filter(Boolean);
+  let lastErr = null;
+  for (const m of models) {
+    try {
+      let text = (await callClaude(key, m, pr.system, pr.user, Math.round(words * 1.9) + 80)).trim();
+      let lesson = null;
+      const lm = text.match(/\n?\s*LESSON:\s*(.+)\s*$/i);
+      if (lm) { lesson = lm[1].trim().slice(0, 60); text = text.slice(0, lm.index).trim(); }
+      text = text.replace(/[*#_`]/g, '').replace(/^\s*[-•]\s+/gm, '').trim();
+      if (text) return respond(200, { text, lesson, model: m, hadArticle: !!p.article });
+      lastErr = new Error('Empty section');
+    } catch (e) {
+      lastErr = e;
+      if (e.status && e.status !== 404 && e.status !== 400) break;
+    }
+  }
+  return respond(502, { error: String(lastErr && lastErr.message || 'Briefing failed').slice(0, 300) });
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return respond(200, { ok: true });
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
@@ -299,6 +396,7 @@ exports.handler = async function (event) {
   try {
     if (payload.action === 'feeds') return await actionFeeds(payload.set);
     if (payload.action === 'airank') return await actionAiRank(payload);
+    if (payload.action === 'brief') return await actionBrief(payload);
     if (payload.action === 'rank') return await actionRank(payload);
     return respond(400, { error: 'Unknown action' });
   } catch (e) {

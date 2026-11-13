@@ -19,12 +19,19 @@
 //    specific thing to try in TJM and a "Tried it" tick. The point is that this
 //    is the whole list — nothing else to keep up with that week.
 //
+//  • 🎧 Daily audio briefing — a 20–30 minute spoken script built from today's
+//    edition: intro, a deep dive on each story (what happened, the background,
+//    why it matters to you, the other side), this week's untried AI experiment,
+//    a lesson of the day, and a recall quiz. One Copy button → paste into
+//    Speechify. Also outside the 5-minute limit (you're listening, not scrolling).
+//
 // Data: state.data.news = {
 //   usage:   { date:'YYYY-MM-DD', secs },
 //   edition: { date, items:[{id,title,link,source,summary,tag,score,why,v}], generatedAt, model },
 //   votes:   [{ t, tag, src, v:1|-1, d }]   (newest first, capped)
 //   ai:      { week, items:[{id,title,link,source,ts,kind,what,try,v,done}], generatedAt, model, note },
 //   aiVotes: [{ t, v }],  aiTried: [{ t, d }]
+//   briefing: { date, text, words, builtAt, failed }, lessons: [names] (newest first)
 // }
 
 const DAILY_SECS = 5 * 60;
@@ -207,6 +214,127 @@ function renderAi(state) {
   </div>`;
 }
 
+// ── Daily audio briefing ───────────────────────────────────────────────────
+const WPM = 160;                               // typical TTS speed at 1x
+function briefing(state) { const n = news(state); return n.briefing && n.briefing.date === todayKey() ? n.briefing : null; }
+
+async function postRetry(body) {
+  try { return await post(body); } catch (e) { return await post(body); }
+}
+
+async function buildBriefing(state, saveDataQuiet, render) {
+  if (N.briefLoading) return;
+  N.briefLoading = true; N.briefError = null; N.briefDone = 0; N.briefTotal = 0; N.copied = false;
+  if (state.activeTab === 'news') render();
+  try {
+    const n = news(state);
+    while (N.loading) await new Promise(r => setTimeout(r, 400));   // daily edition already building
+    if (!(n.edition && n.edition.date === todayKey())) {
+      N.briefStage = 'Picking today\'s stories…';
+      if (state.activeTab === 'news') render();
+      await buildEdition(state, saveDataQuiet, render);
+    }
+    const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
+    if (!ed) throw new Error(N.error || 'Couldn\'t build today\'s edition.');
+
+    const stories = ed.items.slice(0, 6);
+    const headlines = stories.map(it => ({ title: it.title, why: it.why }));
+    const per = stories.length ? Math.max(300, Math.min(480, Math.round(2700 / stories.length))) : 0;
+    const ai = (aiEdition(state)?.items || []).find(i => !i.done) || null;
+    const dateLabel = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+
+    const jobs = [
+      { key: 'intro', body: { part: 'intro', words: 200, dateLabel, headlines } },
+      ...stories.map((st, i) => ({ key: 'story' + i, st, i, body: { part: 'story', words: per, story: st } })),
+      ...(ai ? [{ key: 'ai', body: { part: 'ai', words: 230, ai } }] : []),
+      { key: 'learn', body: { part: 'learn', words: stories.length >= 4 ? 550 : 650, headlines, avoid: (n.lessons || []).slice(0, 20) } },
+      { key: 'close', body: { part: 'close', words: 380, headlines } },
+    ];
+    N.briefTotal = jobs.length; N.briefStage = 'Writing your briefing…';
+    if (state.activeTab === 'news') render();
+
+    const out = await Promise.all(jobs.map(j => postRetry({ action: 'brief', ...j.body })
+      .then(r => { N.briefDone++; updateBriefProgress(); return { ...j, ok: true, text: r.text, lesson: r.lesson }; })
+      .catch(e => { N.briefDone++; updateBriefProgress(); return { ...j, ok: false, err: e.message }; })));
+
+    const get = k => out.find(o => o.key === k);
+    const parts = [];
+    const intro = get('intro');
+    parts.push(intro.ok ? intro.text : `Good morning Robert. It's ${dateLabel}. Here's your briefing.`);
+    stories.forEach((st, i) => {
+      const o = get('story' + i);
+      const lead = `Story ${i + 1} of ${stories.length}. From ${st.source}. ${st.title}.`;
+      parts.push(lead + '\n\n' + (o.ok ? o.text : (st.why || st.summary || '')));
+    });
+    const a = get('ai');
+    if (a && a.ok) parts.push('Now, this week\'s AI experiment.\n\n' + a.text);
+    const l = get('learn');
+    if (l.ok) parts.push(l.text);
+    const c = get('close');
+    if (c.ok) parts.push('Time for your recall quiz.\n\n' + c.text);
+
+    const text = parts.join('\n\n\n');
+    const failed = out.filter(o => !o.ok).length;
+    n.briefing = { date: todayKey(), text, words: text.split(/\s+/).filter(Boolean).length, builtAt: Date.now(), failed };
+    if (l.ok && l.lesson) n.lessons = [l.lesson, ...(n.lessons || []).filter(x => x !== l.lesson)].slice(0, 40);
+    saveDataQuiet();
+  } catch (e) {
+    N.briefError = e.message || String(e);
+  }
+  N.briefLoading = false; N.briefStage = null;
+  if (state.activeTab === 'news') render();
+}
+function updateBriefProgress() {
+  const el = document.getElementById('brief-progress');
+  if (el) el.textContent = `Writing section ${Math.min(N.briefDone + 1, N.briefTotal)} of ${N.briefTotal}…`;
+  const b = document.getElementById('brief-bar');
+  if (b && N.briefTotal) b.style.width = `${(N.briefDone / N.briefTotal) * 100}%`;
+}
+
+function briefEntryCard(state) {
+  const b = briefing(state);
+  const sub = b ? `Ready · about ${Math.round(b.words / WPM)} minutes · tap to copy` : 'About 25 minutes · for your commute and breakfast';
+  return `<button class="nws-card nws-ai-entry" onclick="newsView('brief')">
+    <div><div class="nws-ai-t">🎧 Today's audio briefing</div><div class="nws-note">${esc(sub)}</div></div>
+    <div class="nws-ai-arrow">→</div>
+  </button>`;
+}
+
+function renderBrief(state) {
+  const b = briefing(state);
+  const back = `<button class="nws-back" onclick="newsView(null)">← News</button>`;
+  let body;
+  if (N.briefLoading) {
+    body = `<div class="nws-card nws-gate">
+      <p id="brief-progress">${esc(N.briefStage || 'Writing your briefing…')}</p>
+      <div class="nws-bar" style="margin-top:14px;"><div id="brief-bar" style="width:${N.briefTotal ? (N.briefDone / N.briefTotal) * 100 : 3}%"></div></div>
+      <p style="font-size:12px;">Takes about half a minute. Each story gets read in full and turned into a proper explainer.</p>
+    </div>`;
+  } else if (!b) {
+    body = `<div class="nws-card nws-gate">
+      <div class="big">🎧</div>
+      <p>A 20–30 minute spoken briefing built from today's stories: what happened, the background you need to understand it, why it matters to you, this week's AI experiment, a lesson of the day and a quick recall quiz.</p>
+      ${N.briefError ? `<div class="nws-err">${esc(N.briefError)}</div>` : ''}
+      <button class="nws-btn" onclick="newsBriefBuild()">${N.briefError ? 'Try again' : 'Build today\'s briefing'}</button>
+    </div>`;
+  } else {
+    const mins = Math.round(b.words / WPM);
+    body = `<div class="nws-card nws-gate">
+      <div class="big">${mins} min</div>
+      <div class="lbl">${b.words.toLocaleString()} words · at normal speed</div>
+      <button class="nws-btn" onclick="newsBriefCopy()">${N.copied ? '✓ Copied — paste into Speechify' : 'Copy briefing'}</button>
+      ${N.copyFail ? `<div class="nws-err">Couldn't copy automatically — open "Read the script" below, select all and copy.</div>` : ''}
+      ${b.failed ? `<div class="nws-note" style="margin-top:10px;">${b.failed} section${b.failed === 1 ? '' : 's'} couldn't be written, so ${b.failed === 1 ? 'it was' : 'they were'} shortened. <a href="#" onclick="newsBriefBuild();return false;" style="color:var(--gold);">Rebuild</a></div>` : ''}
+    </div>
+    <details class="nws-card nws-preview"><summary>Read the script</summary><div class="nws-script">${esc(b.text).replace(/\n/g, '<br>')}</div></details>`;
+  }
+  return `${NEWS_CSS}<div class="nws">
+    ${back}
+    <div class="nws-head"><div><div class="nws-title">🎧 Daily briefing</div><div class="nws-sub">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · copy it, paste into Speechify, press play</div></div></div>
+    ${body}
+  </div>`;
+}
+
 // ── Render ─────────────────────────────────────────────────────────────────
 const NEWS_CSS = `<style id="news-css">
 .nws { --gold:#D4AF37; --card:#111214; --line:rgba(255,255,255,0.08); --mut:rgba(255,255,255,0.55); --faint:rgba(255,255,255,0.35);
@@ -258,6 +386,9 @@ const NEWS_CSS = `<style id="news-css">
 .nws-vote.tried.on { background:rgba(212,175,55,0.14); border-color:rgba(212,175,55,0.5); color:var(--gold); }
 .nws-done { opacity:0.65; }
 body.light .nws-try { color:#5a4610; }
+.nws-preview summary { cursor:pointer; font-size:14px; font-weight:700; color:var(--gold); }
+.nws-script { margin-top:12px; font-size:14px; line-height:1.65; color:#ddd; }
+body.light .nws-script { color:#0A1628; }
 body.light .nws { --card:#fff; --line:rgba(10,22,40,0.1); --mut:rgba(10,22,40,0.6); --faint:rgba(10,22,40,0.45); --gold:#B08D2E; }
 body.light .nws-title, body.light .nws-h { color:#0A1628; }
 body.light .nws-why { color:#5a4610; }
@@ -285,6 +416,7 @@ function untilMidnight() {
 
 export function renderNewsTab({ state }) {
   if (N.view === 'ai') return renderAi(state);
+  if (N.view === 'brief') return renderBrief(state);
   const n = news(state);
   const left = secsLeft(state);
   const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
@@ -299,6 +431,7 @@ export function renderNewsTab({ state }) {
         <div class="lbl">Locked until midnight</div>
         <p>Tomorrow's edition unlocks in <b>${untilMidnight()}</b>. You've got what matters for today, so get back to the work that actually moves things.</p>
       </div>
+      ${briefEntryCard(state)}
       ${aiEntryCard(state)}
       ${likedToday.length ? `<div class="nws-card"><div class="nws-tag" style="display:inline-block;">Useful today</div>
         <ul class="nws-list">${likedToday.map(it => `<li>${esc(it.title)}</li>`).join('')}</ul></div>` : ''}
@@ -330,6 +463,7 @@ export function renderNewsTab({ state }) {
         <button class="nws-btn" onclick="newsStart()" ${ed && !N.loading ? '' : 'disabled'}>${started ? 'Resume' : 'Start'}</button>
         <p style="font-size:12px;">The clock runs while you read here or in an article you open. It pauses if you switch to another page in the dashboard.</p>
       </div>
+      ${briefEntryCard(state)}
       ${aiEntryCard(state)}
       ${n.votes.length ? `<div class="nws-card"><div class="nws-note">Tuned to you from ${n.votes.length} vote${n.votes.length === 1 ? '' : 's'}:</div>${learnedChips(n.votes)}</div>` : ''}
     </div>`;
@@ -362,7 +496,7 @@ export function renderNewsTab({ state }) {
 export function initNewsTab({ state, saveDataQuiet, render }) {
   const n = news(state);   // re-read inside handlers too: state.data can be swapped by a reload
   const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
-  if (N.view !== 'ai' && !ed && !N.loading && !N.error && secsLeft(state) > 0) buildEdition(state, saveDataQuiet, render);
+  if (!N.view && !ed && !N.loading && !N.error && secsLeft(state) > 0) buildEdition(state, saveDataQuiet, render);
   if (N.view === 'ai' && !aiEdition(state) && !N.aiLoading && !N.aiError) buildAi(state, saveDataQuiet, render);
 
   // Counting: wall-clock between ticks, so time spent in an article you opened
@@ -410,6 +544,22 @@ export function initNewsTab({ state, saveDataQuiet, render }) {
     saveDataQuiet(); render();
   };
   window.newsAiOpen = () => { N.view = 'ai'; render(); window.scrollTo(0, 0); };
+  window.newsView = (v) => { N.view = v; N.copied = false; N.copyFail = false; render(); window.scrollTo(0, 0); };
+  window.newsBriefBuild = () => { buildBriefing(state, saveDataQuiet, render); };
+  window.newsBriefCopy = async () => {
+    const b = briefing(state); if (!b) return;
+    let ok = false;
+    try { await navigator.clipboard.writeText(b.text); ok = true; } catch (e) {}
+    if (!ok) {                                   // older iOS fallback
+      const ta = document.createElement('textarea');
+      ta.value = b.text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, ta.value.length);
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      ta.remove();
+    }
+    N.copied = ok; N.copyFail = !ok;
+    render();
+  };
   window.newsAiClose = () => { N.view = null; render(); window.scrollTo(0, 0); };
   window.newsAiRetry = () => { N.aiError = null; buildAi(state, saveDataQuiet, render); };
   const aiItem = (id) => { const e = aiEdition(state); return e ? e.items.find(x => x.id === id) : null; };
