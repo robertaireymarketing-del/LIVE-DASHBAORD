@@ -36,6 +36,8 @@
 //     NEAT (non-exercise movement), which quietly shrinks the deficit on a hard
 //     cut (Levine et al. 1999; Rosenbaum & Leibel 2010 on adaptive thermogenesis).
 //
+//  5. CALORIE DEFICIT (card, after Sleep) — see renderDeficitCard below.
+//
 //  4. WAIST (card, under Weight & Body Fat)
 //     Weekly tape measure (days[date].waist, inches), due on Sundays. Over ~4 weeks
 //     it's compared with the scale's body-fat reading: bioimpedance swings with
@@ -496,6 +498,115 @@ export function renderStepsCard({ state, settings, todayKey, health, days = {} }
   </section>`;
 }
 
+// ── 5. Calorie deficit (card) ───────────────────────────────────────────────
+// Same layout as Sleep: Mon–Sun swipeable week (state.fxDefWeek), a bar per day
+// with the daily target as a dashed line, week average + shortfall tiles.
+// A day's deficit = (Garmin burn × scale correction, once Real Burn is ready) −
+// eaten, only on days with food synced; identical to the Weight card's figures
+// (dayDef in renderHomeTab.js). Today is still in progress, so it's drawn but
+// not counted in the week average (like Steps).
+// Target per day = the goal model's target (lb/week × 3,500 ÷ 7); refeed and
+// diet-break days have a target of 0 (maintenance).
+// Pace note uses the rolling last 7 complete days (like Sleep's fat vs muscle
+// estimate): lb/week ≈ avg deficit × 7 ÷ 3,500, and the 12% date is stretched
+// by target ÷ actual (same path, slower or faster).
+export function renderDeficitCard({ state, todayKey, defFor, targetFor, baseTarget, goal, goalBf, wNow, scaleCorrected }) {
+  if (!defFor || !baseTarget) return '';
+  const KCAL = 3500;
+  const fmtK = (n) => Math.abs(Math.round(n)).toLocaleString();
+  const fmtShort = (k) => parseKey(k).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const fmtLong = (k) => parseKey(k).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const lvl = (d, t) => d == null ? '' : t <= 0 ? (d >= -150 ? 'ok' : 'low') : d >= t ? 'ok' : d >= t * 0.8 ? 'close' : 'low';
+  const col = (c) => ({ ok: 'var(--nh-green)', close: 'var(--nh-gold)', low: 'var(--nh-red)' })[c] || 'var(--nh-line)';
+
+  // Week view
+  const wkOff = Number(state.fxDefWeek) || 0;
+  const wkMon = addDaysKey(mondayOf(todayKey), wkOff * 7);
+  const wDays = Array.from({ length: 7 }, (_, i) => addDaysKey(wkMon, i));
+  const wVals = wDays.map(k => (k <= todayKey ? defFor(k) : null));
+  const done = wDays.map((k, i) => ({ k, d: wVals[i], t: targetFor(k) })).filter(r => r.k < todayKey && r.d != null);
+  const wAvg = done.length ? Math.round(done.reduce((a, r) => a + r.d, 0) / done.length) : null;
+  const wTgt = done.length ? Math.round(done.reduce((a, r) => a + r.t, 0) / done.length) : baseTarget;
+  const wShort = done.reduce((a, r) => a + Math.max(0, r.t - r.d), 0);
+  const wHit = done.filter(r => lvl(r.d, r.t) === 'ok').length;
+  const wPast = wDays.filter(k => k < todayKey).length;
+  const BAR_H = 64;
+  const maxV = Math.max(baseTarget * 1.3, ...wVals.filter(v => v != null && v > 0));
+  const wkLabel = wkOff === 0 ? 'This week' : wkOff === -1 ? 'Last week' : wkOff === 1 ? 'Next week' : `Week of ${fmtShort(wkMon)}`;
+  const wkRange = `${fmtShort(wkMon)} – ${fmtShort(addDaysKey(wkMon, 6))}`;
+
+  // Rolling last 7 complete days → pace note
+  const roll = [];
+  for (let i = 1; i <= 7; i++) { const k = addDaysKey(todayKey, -i); const d = defFor(k); if (d != null) roll.push({ d, t: targetFor(k) }); }
+  const rAvg = roll.length ? roll.reduce((a, r) => a + r.d, 0) / roll.length : null;
+  const rTgt = roll.length ? roll.reduce((a, r) => a + r.t, 0) / roll.length : baseTarget;
+  let pace;
+  if (roll.length < 3) {
+    pace = `<div class="fx-s" style="margin-top:12px;">The pace note needs 3 of the last 7 days with food logged (${roll.length}/3 so far).</div>`;
+  } else {
+    const lbWk = rAvg * 7 / KCAL;
+    const planLb = goal ? goal.lbPerWeekNow : rTgt * 7 / KCAL;
+    const head = `Last 7 days averaged <b>${rAvg < 0 ? '+' : '−'}${fmtK(rAvg)} kcal/day</b> (aim −${fmtK(rTgt)})`;
+    if (rAvg <= 0) {
+      pace = `<div class="fx-flag bad" style="margin-top:12px;">${head}. That's a surplus: roughly <b>+${Math.abs(lbWk).toFixed(1)} lb/week</b> instead of −${planLb.toFixed(1)}. The ${goalBf}% date isn't getting any closer until this goes back below zero.</div>`;
+    } else {
+      const ratio = rAvg / Math.max(1, rTgt);
+      const monthGap = (rTgt - rAvg) * 30 / KCAL; // lb of fat per month vs plan (+ = behind)
+      let eta = '';
+      if (goal && goal.daysToGoal > 0) {
+        const daysAt = Math.round(goal.daysToGoal / ratio);
+        const etaAt = addDaysKey(todayKey, daysAt);
+        const diffWk = Math.round((daysAt - goal.daysToGoal) / 7);
+        eta = Math.abs(diffWk) < 1
+          ? ` Keep this up and you reach ${goalBf}% around <b>${fmtLong(etaAt)}</b>, right on plan.`
+          : ` Keep this up and you reach ${goalBf}% around <b>${fmtLong(etaAt)}</b>, <b>${Math.abs(diffWk)} week${Math.abs(diffWk) === 1 ? '' : 's'} ${diffWk > 0 ? 'later' : 'sooner'}</b> than plan (${fmtLong(goal.etaKey)}).`;
+      }
+      const tooFast = wNow && lbWk > wNow * 0.01;
+      if (ratio >= 0.95 && !tooFast) {
+        pace = `<div class="fx-flag ok" style="margin-top:12px;">${head}. That's about <b>−${lbWk.toFixed(1)} lb/week</b> of fat vs −${planLb.toFixed(1)} planned ✓${eta}</div>`;
+      } else if (tooFast) {
+        pace = `<div class="fx-flag warn" style="margin-top:12px;">${head}. That's about <b>−${lbWk.toFixed(1)} lb/week</b>, over 1% of your body weight a week (plan −${planLb.toFixed(1)}).${eta} Faster than this tends to cost muscle (Helms et al. 2014; Garthe et al. 2011), so eat a bit more rather than less.</div>`;
+      } else {
+        pace = `<div class="fx-flag ${ratio >= 0.8 ? 'warn' : 'bad'}" style="margin-top:12px;">${head}. That's about <b>−${lbWk.toFixed(1)} lb/week</b> vs −${planLb.toFixed(1)} planned, so <b>~${monthGap.toFixed(1)} lb less fat a month</b>.${eta} Closing the ${fmtK(rTgt - rAvg)} kcal/day gap gets you back on plan.</div>`;
+      }
+    }
+  }
+
+  return `
+  <section class="nh-card fx-card" aria-label="Calorie deficit">
+    <div class="fx-top">
+      <div class="nh-kicker">CALORIE DEFICIT · WEEK</div>
+      ${wkOff === 0 && defFor(todayKey) != null ? `<span class="fx-due idle">TODAY ${defFor(todayKey) < 0 ? '+' : '−'}${fmtK(defFor(todayKey))} so far</span>` : ''}
+    </div>
+    <div class="fx-wk" style="margin-top:10px;" ontouchstart="fxDefTouch(event,0)" ontouchend="fxDefTouch(event,1)">
+      <div class="fx-wk-nav">
+        <button class="fx-wk-btn" onclick="fxDefWeek(-1)" aria-label="Previous week">‹</button>
+        <div class="fx-wk-t"><b>${wkLabel}</b><span>${wkRange}</span></div>
+        <button class="fx-wk-btn" onclick="fxDefWeek(1)" aria-label="Next week">›</button>
+      </div>
+      <div class="fx-nights" aria-hidden="true">
+        <div class="fx-goal-line" style="bottom:${Math.round((baseTarget / maxV) * BAR_H) + 18}px;"><span>−${fmtK(baseTarget)}</span></div>
+        ${wDays.map((k, i) => {
+        const v = wVals[i];
+        const isToday = k === todayKey;
+        const c = v == null ? '' : isToday ? '' : lvl(v, targetFor(k));
+        const h = v == null ? 3 : v <= 0 ? 4 : Math.max(4, Math.round((v / maxV) * BAR_H));
+        const bg = v == null ? 'var(--nh-line)' : isToday ? 'var(--nh-muted)' : v <= 0 ? 'var(--nh-red)' : col(c);
+        const lab = v == null ? '–' : (v < 0 ? '+' : '') + Math.abs(Math.round(v)).toLocaleString();
+        return `<div class="fx-night${isToday ? ' today' : ''}"><div class="fx-bar-box"><em class="${c === 'ok' ? 'ok' : ''}">${lab}</em><i style="height:${h}px;background:${bg};${isToday ? 'opacity:0.5;' : ''}"></i></div><span>${parseKey(k).toLocaleDateString('en-GB', { weekday: 'narrow' })}</span></div>`;
+      }).join('')}</div>
+      ${done.length ? `<div class="fx-wk-sum">${wHit ? `<b>${wHit}/${done.length}</b> days on target` : `No days on target ${wkOff === 0 ? 'this' : 'that'} week yet`}${wkOff === 0 && wDays.includes(todayKey) ? ' · today counts tomorrow' : ''}</div>` : ''}
+      ${wkOff !== 0 ? `<button class="fx-link" style="display:block;margin:8px auto 0;" onclick="fxDefWeek(0,true)">Back to this week</button>` : ''}
+    </div>
+    <div class="fx-grid">
+      <div class="fx-tile ${wAvg == null ? '' : lvl(wAvg, wTgt) === 'ok' ? 'good' : lvl(wAvg, wTgt) === 'close' ? 'hot' : 'warn'}"><div class="fx-tile-k">WEEK AVERAGE</div><div class="fx-tile-v">${wAvg != null ? `${wAvg < 0 ? '+' : '−'}${fmtK(wAvg)}` : '—'}<span> kcal/day</span></div><div class="fx-tile-s">${wPast ? `${done.length}/${wPast} days logged · aim −${fmtK(wTgt)}` : 'Week not started'}</div></div>
+      <div class="fx-tile ${wShort >= baseTarget * 2 ? 'warn' : wShort >= baseTarget * 0.75 ? 'hot' : ''}"><div class="fx-tile-k">${wkOff === 0 ? 'SHORT THIS WEEK' : 'SHORT THAT WEEK'}</div><div class="fx-tile-v">${done.length ? fmtK(wShort) : '—'}<span> kcal</span></div><div class="fx-tile-s">${done.length ? `≈ ${(wShort / KCAL).toFixed(2)} lb of fat not lost` : 'vs daily target'}</div></div>
+    </div>
+    ${pace}
+    <div class="fx-why">${scaleCorrected ? 'Burn is Garmin corrected against your scale (Real Burn).' : "Burn is Garmin's raw estimate until Real Burn has 14 logged days, and wrist trackers can be 20–30% out (Shcherbina et al. 2017)."} 1 lb of fat ≈ 3,500 kcal, so the pace note is direction and rough size: water and glycogen make the scale move differently week to week. Refeed and diet-break days aim for 0.</div>
+  </section>`;
+}
+
 // ── 4. Waist ────────────────────────────────────────────────────────────────
 export function renderWaistCard({ state, todayKey, days, bfByDate }) {
   const entries = Object.keys(days).filter(k => Number((days[k] || {}).waist) > 0 && k <= todayKey).sort()
@@ -661,6 +772,15 @@ export function initFitnessExtras({ state, saveData, render, getSettings }) {
     if (!(f >= 2000 && f <= 30000)) { alert('Enter a floor between 2,000 and 30,000.'); return; }
     state.fxStepsEdit = false;
     setSettings({ stepFloor: Math.round(f) });
+  };
+  window.fxDefWeek = (d, reset) => { state.fxDefWeek = reset ? 0 : (Number(state.fxDefWeek) || 0) + d; render(); };
+  let dx0 = null, dy0 = null;
+  window.fxDefTouch = (e, end) => {
+    const t = (e.changedTouches || [])[0]; if (!t) return;
+    if (!end) { dx0 = t.clientX; dy0 = t.clientY; return; }
+    if (dx0 == null) return;
+    const dx = t.clientX - dx0, dy = t.clientY - dy0; dx0 = dy0 = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) window.fxDefWeek(dx < 0 ? 1 : -1);
   };
   window.fxWaistEntry = () => { state.fxWaistEntry = true; render(); };
   window.fxSaveWaist = () => {

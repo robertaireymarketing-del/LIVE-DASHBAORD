@@ -11,7 +11,8 @@
 //   4. Gym + Diet daily checks (flash red until done, green once done)
 //      with Mon–Sun streak dots
 //   + From scripts/fitnessExtras.js: "Don't miss twice" banner (very top, only
-//     when a habit was missed yesterday), Sleep and Steps cards (after Gym/Diet),
+//     when a habit was missed yesterday), Sleep, Calorie Deficit and Steps cards
+//     (after Gym/Diet),
 //     weekly Waist card (after Weight & Body Fat).
 //
 // Data:
@@ -34,7 +35,7 @@ import { renderLeaseJourney, leaseJourneyStatus, LEASE_JOURNEY_CSS } from './lea
 import { renderHealthSyncStatus } from './healthSyncStatus.js';
 import { renderThirtyPlan, renderThirtyWeekHome, thirtySummary, thirtySummaryLine, THIRTY_CSS } from './thirtyPlan.js';
 import { BUILD } from './version.js';
-import { renderMissBanner, renderSleepCard, renderStepsCard, renderWaistCard, FITNESS_CSS } from './fitnessExtras.js';
+import { renderMissBanner, renderSleepCard, renderStepsCard, renderWaistCard, renderDeficitCard, FITNESS_CSS } from './fitnessExtras.js';
 
 const LEASE_START = '2026-09-24';
 const LEASE_END = '2031-09-24';
@@ -1357,7 +1358,12 @@ export function renderHomeTab(deps) {
   </section>`;
 
   // ── 6. Fitness extras (scripts/fitnessExtras.js) ────────────────────────
-  const fxCtx = { state, settings, todayKey, days, health, bfByDate, cutStart: CUT_START, gymDone, dietDone };
+  const baseDefTarget = deficit ? (deficit.cutTarget != null ? deficit.cutTarget : deficit.target) : null;
+  const fxCtx = { state, settings, todayKey, days, health, bfByDate, cutStart: CUT_START, gymDone, dietDone,
+    // Calorie deficit card: same per-day deficit as the Weight card (scale-corrected once ready)
+    defFor: (k) => { const d = dayDef(k); return d == null ? null : Math.round(d); },
+    targetFor: (k) => (isBreakDay(k) || isRefeed(k) ? 0 : baseDefTarget),
+    baseTarget: baseDefTarget, goal, goalBf: GOAL_BF, wNow, scaleCorrected: !!realBurn.ready };
   const safe = (fn, label) => { try { return fn(fxCtx); } catch (e) { console.error(label, e); return ''; } };
   const missBanner = safe(renderMissBanner, 'Miss banner');
 
@@ -1369,6 +1375,7 @@ export function renderHomeTab(deps) {
     ${bdaySection}
     ${habitsSection}
     ${safe(renderSleepCard, 'Sleep card')}
+    ${safe(renderDeficitCard, 'Deficit card')}
     ${safe(renderStepsCard, 'Steps card')}
     ${editSection}
     ${weightSection}
