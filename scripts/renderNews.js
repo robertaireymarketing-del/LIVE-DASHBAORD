@@ -14,10 +14,17 @@
 //  • 👍 / 👎 on any story teaches it. Your votes go into tomorrow's ranking (as
 //    examples for the AI editor) and also nudge whole topics and sources up or down.
 //
+//  • 🤖 AI for TJM — a separate weekly edition (Sunday to Sunday), outside the
+//    5-minute limit: 3–5 AI releases/tools you can use now, each with one
+//    specific thing to try in TJM and a "Tried it" tick. The point is that this
+//    is the whole list — nothing else to keep up with that week.
+//
 // Data: state.data.news = {
 //   usage:   { date:'YYYY-MM-DD', secs },
 //   edition: { date, items:[{id,title,link,source,summary,tag,score,why,v}], generatedAt, model },
 //   votes:   [{ t, tag, src, v:1|-1, d }]   (newest first, capped)
+//   ai:      { week, items:[{id,title,link,source,ts,kind,what,try,v,done}], generatedAt, model, note },
+//   aiVotes: [{ t, v }],  aiTried: [{ t, d }]
 // }
 
 const DAILY_SECS = 5 * 60;
@@ -127,6 +134,79 @@ async function buildEdition(state, saveDataQuiet, render) {
   if (state.activeTab === 'news') render();
 }
 
+// ── Weekly AI for TJM ──────────────────────────────────────────────────────
+function weekKey() {                         // Sunday-to-Sunday week, keyed by its Sunday
+  const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - d.getDay());
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function aiEdition(state) { const n = news(state); return n.ai && n.ai.week === weekKey() ? n.ai : null; }
+
+async function buildAi(state, saveDataQuiet, render) {
+  if (N.aiLoading) return;
+  N.aiLoading = true; N.aiError = null;
+  if (state.activeTab === 'news') render();
+  try {
+    const n = news(state);
+    n.aiVotes = n.aiVotes || []; n.aiTried = n.aiTried || [];
+    const { items } = await post({ action: 'feeds', set: 'ai' });
+    if (!items || !items.length) throw new Error('No AI stories came back from the feeds. Try again in a minute.');
+    const r = await post({
+      action: 'airank',
+      items: items.map(({ id, title, summary, source }) => ({ id, title, summary, source })),
+      liked: n.aiVotes.filter(x => x.v > 0).slice(0, 30),
+      disliked: n.aiVotes.filter(x => x.v < 0).slice(0, 30),
+      tried: n.aiTried.slice(0, 30),
+    });
+    const byId = Object.fromEntries(items.map(it => [it.id, it]));
+    const picked = (r.ranked || []).map(x => { const it = byId[x.id]; return it ? { id: x.id, title: it.title, link: it.link, source: it.source, ts: it.ts, kind: x.kind, what: x.what, try: x.try } : null; }).filter(Boolean);
+    n.ai = { week: weekKey(), items: picked, generatedAt: Date.now(), model: r.model || null };
+    saveDataQuiet();
+  } catch (e) {
+    N.aiError = e.message || String(e);
+  }
+  N.aiLoading = false;
+  if (state.activeTab === 'news') render();
+}
+
+function aiEntryCard(state) {
+  const ed = aiEdition(state);
+  const done = ed ? ed.items.filter(i => i.done).length : 0;
+  const sub = ed ? (ed.items.length ? `Tried ${done} of ${ed.items.length} this week` : 'Nothing worth your time this week') : 'This week\'s edition is ready to build';
+  return `<button class="nws-card nws-ai-entry" onclick="newsAiOpen()">
+    <div><div class="nws-ai-t">🤖 AI for TJM · this week</div><div class="nws-note">${esc(sub)} · doesn't use your 5 minutes</div></div>
+    <div class="nws-ai-arrow">→</div>
+  </button>`;
+}
+
+function renderAi(state) {
+  const ed = aiEdition(state);
+  const back = `<button class="nws-back" onclick="newsAiClose()">← News</button>`;
+  let body = '';
+  if (N.aiLoading) body = `<div class="nws-card nws-gate"><p>Reading this week's AI news and picking what you can actually use…</p><div class="nws-spin"></div></div>`;
+  else if (!ed && N.aiError) body = `<div class="nws-card nws-gate"><div class="nws-err">${esc(N.aiError)}</div><button class="nws-btn ghost" onclick="newsAiRetry()">Try again</button></div>`;
+  else if (ed && !ed.items.length) body = `<div class="nws-card nws-gate"><p>Nothing released this week is worth changing how you work. You're not missing anything.</p></div>`;
+  else if (ed) {
+    const done = ed.items.filter(i => i.done).length;
+    body = `<div class="nws-bar"><div style="width:${(done / ed.items.length) * 100}%"></div></div>` + ed.items.map(it => `
+      <div class="nws-card nws-story ${it.done ? 'nws-done' : ''}">
+        <div class="nws-meta"><span class="nws-tag">${esc(it.kind)}</span><span>${esc(it.source)}</span>${it.ts ? `<span>· ${ago(it.ts)}</span>` : ''}</div>
+        <a class="nws-h" href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.title)}</a>
+        <div class="nws-sum">${esc(it.what)}</div>
+        <div class="nws-try"><div class="nws-try-l">Try this in TJM</div>${esc(it.try)}</div>
+        <div class="nws-acts">
+          <button class="nws-vote tried ${it.done ? 'on' : ''}" onclick="newsAiTried('${it.id}')">${it.done ? '✅ Tried' : '☐ Tried it'}</button>
+          <button class="nws-vote up ${it.v > 0 ? 'on' : ''}" onclick="newsAiVote('${it.id}',1)">👍</button>
+          <button class="nws-vote down ${it.v < 0 ? 'on' : ''}" onclick="newsAiVote('${it.id}',-1)">👎</button>
+        </div>
+      </div>`).join('') + `<div class="nws-note" style="text-align:center;padding:6px 10px;">That's everything worth knowing this week. Trying one of these properly puts you ahead of people reading about fifty.</div>`;
+  }
+  return `${NEWS_CSS}<div class="nws">
+    ${back}
+    <div class="nws-head"><div><div class="nws-title">🤖 AI for TJM</div><div class="nws-sub">Week of ${new Date(weekKey()).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · what's new that you can use now, and one thing to try with each</div></div></div>
+    ${body}
+  </div>`;
+}
+
 // ── Render ─────────────────────────────────────────────────────────────────
 const NEWS_CSS = `<style id="news-css">
 .nws { --gold:#D4AF37; --card:#111214; --line:rgba(255,255,255,0.08); --mut:rgba(255,255,255,0.55); --faint:rgba(255,255,255,0.35);
@@ -168,6 +248,16 @@ const NEWS_CSS = `<style id="news-css">
 .nws-list { margin:10px 0 0; padding-left:18px; font-size:14px; line-height:1.55; color:#ddd; }
 .nws-spin { width:22px; height:22px; border:2px solid rgba(212,175,55,0.25); border-top-color:var(--gold); border-radius:50%; margin:16px auto 0; animation:nwsSpin 0.9s linear infinite; }
 @keyframes nwsSpin { to { transform:rotate(360deg); } }
+.nws-ai-entry { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; text-align:left; cursor:pointer; font-family:inherit; border-color:rgba(212,175,55,0.3); }
+.nws-ai-t { font-size:15px; font-weight:800; color:var(--gold); margin-bottom:3px; }
+.nws-ai-arrow { font-size:20px; color:var(--gold); }
+.nws-back { align-self:flex-start; background:none; border:none; color:var(--gold); font-size:14px; font-weight:700; padding:4px 0; cursor:pointer; font-family:inherit; }
+.nws-try { font-size:14px; line-height:1.5; color:#e9dcae; background:rgba(212,175,55,0.07); border:1px solid rgba(212,175,55,0.22); border-radius:10px; padding:10px 12px; }
+.nws-try-l { font-size:10px; font-weight:800; letter-spacing:1px; text-transform:uppercase; color:var(--gold); margin-bottom:4px; }
+.nws-vote.tried { flex:1.6; }
+.nws-vote.tried.on { background:rgba(212,175,55,0.14); border-color:rgba(212,175,55,0.5); color:var(--gold); }
+.nws-done { opacity:0.65; }
+body.light .nws-try { color:#5a4610; }
 body.light .nws { --card:#fff; --line:rgba(10,22,40,0.1); --mut:rgba(10,22,40,0.6); --faint:rgba(10,22,40,0.45); --gold:#B08D2E; }
 body.light .nws-title, body.light .nws-h { color:#0A1628; }
 body.light .nws-why { color:#5a4610; }
@@ -194,6 +284,7 @@ function untilMidnight() {
 }
 
 export function renderNewsTab({ state }) {
+  if (N.view === 'ai') return renderAi(state);
   const n = news(state);
   const left = secsLeft(state);
   const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
@@ -208,6 +299,7 @@ export function renderNewsTab({ state }) {
         <div class="lbl">Locked until midnight</div>
         <p>Tomorrow's edition unlocks in <b>${untilMidnight()}</b>. You've got what matters for today, so get back to the work that actually moves things.</p>
       </div>
+      ${aiEntryCard(state)}
       ${likedToday.length ? `<div class="nws-card"><div class="nws-tag" style="display:inline-block;">Useful today</div>
         <ul class="nws-list">${likedToday.map(it => `<li>${esc(it.title)}</li>`).join('')}</ul></div>` : ''}
       ${n.votes.length ? `<div class="nws-card"><div class="nws-note">What it's learned from your ${n.votes.length} vote${n.votes.length === 1 ? '' : 's'}:</div>${learnedChips(n.votes)}</div>` : ''}
@@ -238,6 +330,7 @@ export function renderNewsTab({ state }) {
         <button class="nws-btn" onclick="newsStart()" ${ed && !N.loading ? '' : 'disabled'}>${started ? 'Resume' : 'Start'}</button>
         <p style="font-size:12px;">The clock runs while you read here or in an article you open. It pauses if you switch to another page in the dashboard.</p>
       </div>
+      ${aiEntryCard(state)}
       ${n.votes.length ? `<div class="nws-card"><div class="nws-note">Tuned to you from ${n.votes.length} vote${n.votes.length === 1 ? '' : 's'}:</div>${learnedChips(n.votes)}</div>` : ''}
     </div>`;
   }
@@ -269,7 +362,8 @@ export function renderNewsTab({ state }) {
 export function initNewsTab({ state, saveDataQuiet, render }) {
   const n = news(state);   // re-read inside handlers too: state.data can be swapped by a reload
   const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
-  if (!ed && !N.loading && !N.error && secsLeft(state) > 0) buildEdition(state, saveDataQuiet, render);
+  if (N.view !== 'ai' && !ed && !N.loading && !N.error && secsLeft(state) > 0) buildEdition(state, saveDataQuiet, render);
+  if (N.view === 'ai' && !aiEdition(state) && !N.aiLoading && !N.aiError) buildAi(state, saveDataQuiet, render);
 
   // Counting: wall-clock between ticks, so time spent in an article you opened
   // from here (app in background) still counts when you come back.
@@ -315,6 +409,27 @@ export function initNewsTab({ state, saveDataQuiet, render }) {
     news(state).usage.secs = DAILY_SECS;          // done means done — locks for today
     saveDataQuiet(); render();
   };
+  window.newsAiOpen = () => { N.view = 'ai'; render(); window.scrollTo(0, 0); };
+  window.newsAiClose = () => { N.view = null; render(); window.scrollTo(0, 0); };
+  window.newsAiRetry = () => { N.aiError = null; buildAi(state, saveDataQuiet, render); };
+  const aiItem = (id) => { const e = aiEdition(state); return e ? e.items.find(x => x.id === id) : null; };
+  window.newsAiTried = (id) => {
+    const n = news(state); const it = aiItem(id); if (!it) return;
+    it.done = !it.done;
+    n.aiTried = (n.aiTried || []).filter(x => x.t !== it.try);
+    if (it.done) n.aiTried.unshift({ t: it.try, d: todayKey() });
+    n.aiTried = n.aiTried.slice(0, 60);
+    saveDataQuiet(); render();
+  };
+  window.newsAiVote = (id, v) => {
+    const n = news(state); const it = aiItem(id); if (!it) return;
+    it.v = it.v === v ? 0 : v;
+    const key = it.title + ' — ' + it.what;
+    n.aiVotes = (n.aiVotes || []).filter(x => x.t !== key);
+    if (it.v) n.aiVotes.unshift({ t: key, v: it.v });
+    n.aiVotes = n.aiVotes.slice(0, 120);
+    saveDataQuiet(); render();
+  };
   window.newsRetry = () => { N.error = null; buildEdition(state, saveDataQuiet, render); };
   window.newsVote = (id, v) => {
     const n = news(state);
@@ -331,7 +446,7 @@ export function initNewsTab({ state, saveDataQuiet, render }) {
 // Called when you switch to another dashboard page: count up to now, pause.
 export function leaveNewsTab({ saveDataQuiet } = {}) {
   if (N.flush) N.flush();
-  N.running = false; N.lastTick = null;
+  N.running = false; N.lastTick = null; N.view = null;
   clearInterval(N.timer);
   if (saveDataQuiet) saveDataQuiet();
 }
