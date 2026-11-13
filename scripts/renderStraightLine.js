@@ -138,6 +138,16 @@ function _slSeed(d) {
 }
 
 function _slToday() { return new Date().toISOString().slice(0, 10); }
+
+/* Read-only: today's card for other pages (e.g. the News audio briefing).
+   Matches what The Line shows today without writing anything. */
+export function getTodaysSllCard(state) {
+  const d = (state && state.data && state.data.straightLine) || {};
+  const today = _slToday();
+  let idx = (d.lastDaily === today && d.todayCh != null) ? d.todayCh : null;
+  if (idx == null) { const dayNum = Math.floor(Date.parse(today) / 86400000); idx = ((dayNum % SLL_DECK.length) + SLL_DECK.length) % SLL_DECK.length; }
+  return SLL_DECK[idx] || SLL_DECK[0];
+}
 function _slNow() { return Date.now(); }
 function _slDeckIndexById(id) { return SLL_DECK.findIndex(c => c.id === id); }
 function _slDueDaysToTs(days) { return _slNow() + days * 86400000; }
