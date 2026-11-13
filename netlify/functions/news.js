@@ -57,6 +57,8 @@ const AI_FEEDS = [
   { src: 'TechCrunch AI',   url: 'https://techcrunch.com/category/artificial-intelligence/feed/' },
   { src: 'The Verge AI',    url: 'https://www.theverge.com/rss/ai-artificial-intelligence/index.xml' },
   { src: 'Simon Willison',  url: 'https://simonwillison.net/atom/everything/' },
+  { src: 'Ars Technica AI', url: 'https://arstechnica.com/ai/feed/' },
+  { src: 'BBC Technology',  url: 'https://feeds.bbci.co.uk/news/technology/rss.xml' },
   { src: 'Shopify',         url: 'https://www.shopify.com/news/feed' },
   { src: 'Modern Retail',   url: 'https://www.modernretail.co/feed/' },
 ];
@@ -137,10 +139,12 @@ async function actionFeeds(set) {
   const failed = [];
   let all = [];
   results.forEach((r, i) => { if (r.status === 'fulfilled') all = all.concat(r.value.slice(0, 30)); else failed.push(list[i].src); });
-  const cutoff = Date.now() - (ai ? 7 * 24 : 48) * 3600 * 1000;
+  all.sort((a, b) => b.ts - a.ts);
+  // AI: last 7 days, widened to 14 if that's thin.
+  let cutoff = Date.now() - (ai ? 7 * 24 : 48) * 3600 * 1000;
+  if (ai && all.filter(it => !it.ts || it.ts >= cutoff).length < 15) cutoff = Date.now() - 14 * 24 * 3600 * 1000;
   const seen = new Set();
   const items = [];
-  all.sort((a, b) => b.ts - a.ts);
   for (const it of all) {
     if (it.ts && it.ts < cutoff) continue;
     const k = normTitle(it.title);
@@ -171,19 +175,33 @@ function buildPrompt(items, liked, disliked) {
     + 'ID | SCORE | TAG | WHY\n'
     + 'TAG must be one of: ' + TAGS.join(', ') + '.\n'
     + 'WHY is max 22 words, addressed to him ("you"), saying specifically how it affects him or what he could do. No hype.\n'
-    + 'No other text, no headings, no markdown.';
+    + 'Plain lines only: no table, no header row, no leading pipe, no numbering, no other text.';
   const list = items.map(it => it.id + ' | ' + it.source + ' | ' + it.title + (it.summary ? ' — ' + it.summary.slice(0, 160) : '')).join('\n');
   return { system: s, user: 'Today\'s stories:\n' + list };
+}
+
+// Tolerant line splitter: copes with markdown tables (leading/trailing pipes),
+// bullets, numbering, bold and separator rows. Returns [id, ...fields] or null.
+function splitRow(line, ids) {
+  let l = String(line || '').replace(/\*\*|`/g, '').trim();
+  if (!l || /^[|\s:-]+$/.test(l)) return null;                 // table separator row
+  l = l.replace(/^[-•*]\s+/, '').replace(/^\d+[.)]\s+/, '').replace(/^\|/, '').replace(/\|\s*$/, '');
+  const p = l.split('|').map(x => x.trim());
+  if (p.length < 4) return null;
+  const m = p[0].match(/([as]\d{1,3})/i);
+  const id = m ? m[1].toLowerCase() : '';
+  if (!ids.has(id)) return null;
+  return [id, ...p.slice(1)];
 }
 
 function parseRanked(text, ids) {
   const out = [];
   const seen = new Set();
-  String(text || '').replace(/\*\*/g, '').split('\n').forEach(line => {
-    const p = line.split('|').map(x => x.trim());
-    if (p.length < 4) return;
-    const id = p[0].replace(/[^a-z0-9]/gi, '');
-    if (!ids.has(id) || seen.has(id)) return;
+  String(text || '').split('\n').forEach(line => {
+    const p = splitRow(line, ids);
+    if (!p) return;
+    const id = p[0];
+    if (seen.has(id)) return;
     const score = Math.max(0, Math.min(10, parseFloat(p[1]) || 0));
     const tg = TAGS.find(t => t.toLowerCase() === p[2].toLowerCase()) || 'UK';
     const why = p.slice(3).join(' | ').slice(0, 220);
@@ -224,7 +242,8 @@ async function actionRank(payload) {
       const text = await callClaude(key, m, system, user);
       const ranked = parseRanked(text, ids);
       if (ranked.length) return respond(200, { ranked, model: m });
-      lastErr = new Error('Empty ranking');
+      console.error('[news rank] unparsed reply:', text.slice(0, 800));
+      lastErr = new Error('The AI reply couldn\'t be read. It said: "' + text.replace(/\s+/g, ' ').slice(0, 160) + '"');
     } catch (e) {
       lastErr = e;
       // Only fall through to the next model when this one isn't available.
@@ -239,7 +258,7 @@ function buildAiPrompt(items, liked, disliked, tried) {
   let s = 'You write a short weekly "AI for my business" briefing for one person. Your job is to stop him feeling he is falling behind on AI, by showing him only the few things from this week he can actually use now, each with one concrete thing to try.\n\n';
   s += 'WHO HE IS:\n' + PROFILE + '\nHe is comfortable with ChatGPT/Claude-style chat tools and builds small web apps with AI help. He is not a developer by trade and has a part-time assistant for content.\n\n';
   s += 'HOW TO CHOOSE:\n'
-    + '- Pick 3 to 5 items (never pad; fewer is fine) that a one-person UK online jewellery business could start using THIS WEEK: new tools, new features in tools he likely uses, model releases that change what is possible, marketplace/e-commerce AI features, or a proven practical tactic.\n'
+    + '- Pick the 3 to 5 most useful items. Always return at least 3: on a quiet week, choose the most practical ones available. Prefer things a one-person UK online jewellery business could start using THIS WEEK: new tools, new features in tools he likely uses, model releases that change what is possible, marketplace/e-commerce AI features, or a proven practical tactic.\n'
     + '- Skip: funding rounds, valuations, lawsuits, company drama, chip/stock news, research papers, enterprise-only or US-only products, speculation about AGI, and anything that only matters to developers.\n'
     + '- Favour things that save him time or make money: product photos and descriptions, listings (website, Vinted, eBay, Etsy, TikTok Shop), short video and TikTok lives, customer service, email marketing, ads, bookkeeping, planning, and getting more out of his assistant.\n'
     + '- Learn from his feedback below.\n\n';
@@ -251,7 +270,7 @@ function buildAiPrompt(items, liked, disliked, tried) {
     + 'KIND is one of: ' + AI_KINDS.join(', ') + '.\n'
     + 'WHAT: max 22 words, plain English: what is new and what it does. No hype words.\n'
     + 'TRY: max 30 words, addressed to him ("you"), one specific 15-30 minute experiment in TJM, naming the tool and the exact task (e.g. "Paste 5 Vinted listings into X and ask it to rewrite the titles for search; compare views next week").\n'
-    + 'No other text, no headings, no markdown.';
+    + 'Plain lines only: no table, no header row, no leading pipe, no numbering, no other text.';
   const list = items.map(it => it.id + ' | ' + it.source + ' | ' + it.title + (it.summary ? ' — ' + it.summary.slice(0, 180) : '')).join('\n');
   return { system: s, user: 'This week\'s AI stories:\n' + list };
 }
@@ -259,11 +278,11 @@ function buildAiPrompt(items, liked, disliked, tried) {
 function parseAi(text, ids) {
   const out = [];
   const seen = new Set();
-  String(text || '').replace(/\*\*/g, '').split('\n').forEach(line => {
-    const p = line.split('|').map(x => x.trim());
-    if (p.length < 4) return;
-    const id = p[0].replace(/[^a-z0-9]/gi, '');
-    if (!ids.has(id) || seen.has(id)) return;
+  String(text || '').split('\n').forEach(line => {
+    const p = splitRow(line, ids);
+    if (!p) return;
+    const id = p[0];
+    if (seen.has(id)) return;
     const kind = AI_KINDS.find(k => k.toLowerCase() === p[1].toLowerCase()) || 'Tool';
     seen.add(id);
     out.push({ id, kind, what: p[2].slice(0, 220), try: p.slice(3).join(' | ').slice(0, 300) });
@@ -286,9 +305,11 @@ async function actionAiRank(payload) {
   let lastErr = null;
   for (const m of models) {
     try {
-      const ranked = parseAi(await callClaude(key, m, system, user), ids);
+      const text = await callClaude(key, m, system, user);
+      const ranked = parseAi(text, ids);
       if (ranked.length) return respond(200, { ranked, model: m });
-      lastErr = new Error('Nothing usable this week');
+      console.error('[news airank] unparsed reply:', text.slice(0, 800));
+      lastErr = new Error('The AI reply couldn\'t be read (' + items.length + ' stories sent). It said: "' + text.replace(/\s+/g, ' ').slice(0, 160) + '"');
     } catch (e) {
       lastErr = e;
       if (e.status && e.status !== 404 && e.status !== 400) break;
