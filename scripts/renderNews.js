@@ -34,6 +34,9 @@
 //   briefing: { date, text, words, builtAt, failed }, lessons: [names] (newest first)
 // }
 
+import { STOIC_QUOTES } from './constants.js';
+import { getTodaysSllCard } from './renderStraightLine.js';
+
 const DAILY_SECS = 5 * 60;
 const MAX_STORIES = 10;
 const ENDPOINT = '/.netlify/functions/news';
@@ -243,8 +246,18 @@ async function buildBriefing(state, saveDataQuiet, render) {
     const ai = (aiEdition(state)?.items || []).find(i => !i.done) || null;
     const dateLabel = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
+    // Same Stoic quote the dashboard shows today (journal quote card)
+    const now = new Date();
+    const doy = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
+    const stoic = STOIC_QUOTES[doy % STOIC_QUOTES.length];
+    let sll = null;
+    try { sll = getTodaysSllCard(state); } catch (e) {}
+
     const jobs = [
-      { key: 'intro', body: { part: 'intro', words: 200, dateLabel, headlines } },
+      { key: 'stoic', body: { part: 'stoic', words: 620, stoic } },
+      ...(sll ? [{ key: 'sll', body: { part: 'sll', words: 620, sll } }] : []),
+      { key: 'success', body: { part: 'success', words: 620, avoid: (n.successUsed || []).slice(0, 30) } },
+      { key: 'intro', body: { part: 'intro', words: 170, dateLabel, headlines, noGreeting: true } },
       ...stories.map((st, i) => ({ key: 'story' + i, st, i, body: { part: 'story', words: per, story: st } })),
       ...(ai ? [{ key: 'ai', body: { part: 'ai', words: 230, ai } }] : []),
       { key: 'learn', body: { part: 'learn', words: stories.length >= 4 ? 550 : 650, headlines, avoid: (n.lessons || []).slice(0, 20) } },
@@ -259,8 +272,17 @@ async function buildBriefing(state, saveDataQuiet, render) {
 
     const get = k => out.find(o => o.key === k);
     const parts = [];
+    parts.push(`Good morning Robert. It's ${dateLabel}. We'll start with your mindset: a piece of Stoic wisdom, today's Straight Line principle, and a success habit worth stealing. Then the news that matters to you, a lesson, and a quick quiz.`);
+    const st = get('stoic');
+    if (st.ok) parts.push('First, your Stoic wisdom for today.\n\n' + st.text);
+    else parts.push(`First, your Stoic wisdom for today. ${stoic.author} wrote: ${stoic.text} ${stoic.interpretation}`);
+    const sl = get('sll');
+    if (sl && sl.ok) parts.push('Next, your Straight Line principle.\n\n' + sl.text);
+    else if (sll) parts.push(`Next, your Straight Line principle: ${sll.name || sll.sl}. ${sll.essence} ${sll.mine} ${sll.apply}`);
+    const sc = get('success');
+    if (sc.ok) parts.push('Now, a success habit worth stealing.\n\n' + sc.text);
     const intro = get('intro');
-    parts.push(intro.ok ? intro.text : `Good morning Robert. It's ${dateLabel}. Here's your briefing.`);
+    parts.push(intro.ok ? intro.text : `Now, today's news.`);
     stories.forEach((st, i) => {
       const o = get('story' + i);
       const lead = `Story ${i + 1} of ${stories.length}. From ${st.source}. ${st.title}.`;
@@ -277,6 +299,7 @@ async function buildBriefing(state, saveDataQuiet, render) {
     const failed = out.filter(o => !o.ok).length;
     n.briefing = { date: todayKey(), text, words: text.split(/\s+/).filter(Boolean).length, builtAt: Date.now(), failed };
     if (l.ok && l.lesson) n.lessons = [l.lesson, ...(n.lessons || []).filter(x => x !== l.lesson)].slice(0, 40);
+    if (sc.ok && sc.lesson) n.successUsed = [sc.lesson, ...(n.successUsed || []).filter(x => x !== sc.lesson)].slice(0, 60);
     saveDataQuiet();
   } catch (e) {
     N.briefError = e.message || String(e);
@@ -293,7 +316,7 @@ function updateBriefProgress() {
 
 function briefEntryCard(state) {
   const b = briefing(state);
-  const sub = b ? `Ready · about ${Math.round(b.words / WPM)} minutes · tap to copy` : 'About 25 minutes · for your commute and breakfast';
+  const sub = b ? `Ready · about ${Math.round(b.words / WPM)} minutes · tap to copy` : 'About 35–40 minutes · mindset first, then the news';
   return `<button class="nws-card nws-ai-entry" onclick="newsView('brief')">
     <div><div class="nws-ai-t">🎧 Today's audio briefing</div><div class="nws-note">${esc(sub)}</div></div>
     <div class="nws-ai-arrow">→</div>
@@ -308,12 +331,12 @@ function renderBrief(state) {
     body = `<div class="nws-card nws-gate">
       <p id="brief-progress">${esc(N.briefStage || 'Writing your briefing…')}</p>
       <div class="nws-bar" style="margin-top:14px;"><div id="brief-bar" style="width:${N.briefTotal ? (N.briefDone / N.briefTotal) * 100 : 3}%"></div></div>
-      <p style="font-size:12px;">Takes about half a minute. Each story gets read in full and turned into a proper explainer.</p>
+      <p style="font-size:12px;">Takes about half a minute. Every section is written at the same time; each story gets read in full and turned into a proper explainer.</p>
     </div>`;
   } else if (!b) {
     body = `<div class="nws-card nws-gate">
       <div class="big">🎧</div>
-      <p>A 20–30 minute spoken briefing built from today's stories: what happened, the background you need to understand it, why it matters to you, this week's AI experiment, a lesson of the day and a quick recall quiz.</p>
+      <p>A 35–40 minute spoken briefing. It opens with your mindset — today's Stoic wisdom, your Straight Line principle and a success habit — then today's stories: what happened, the background you need to understand it, why it matters to you, this week's AI experiment, a lesson of the day and a quick recall quiz.</p>
       ${N.briefError ? `<div class="nws-err">${esc(N.briefError)}</div>` : ''}
       <button class="nws-btn" onclick="newsBriefBuild()">${N.briefError ? 'Try again' : 'Build today\'s briefing'}</button>
     </div>`;

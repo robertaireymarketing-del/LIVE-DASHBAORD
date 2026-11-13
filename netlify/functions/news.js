@@ -370,7 +370,9 @@ function briefPrompt(p) {
   const heads = (p.headlines || []).map((h, i) => (i + 1) + '. ' + h.title + (h.why ? ' — ' + h.why : '')).join('\n');
   if (p.part === 'intro') {
     return { system: 'You are writing the opening of Robert\'s personal daily audio briefing.\n\n' + who,
-      user: 'Today is ' + p.dateLabel + '. Write the opening, about ' + words + ' words. Greet him by name, then give a quick spoken rundown of what\'s coming: one sentence per story below, saying why it is worth his attention. End by saying there\'s a short lesson and a quick recall quiz at the end. Do not go into detail yet.\n\nToday\'s stories, in order:\n' + heads };
+      user: 'Today is ' + p.dateLabel + '. Write the opening of the news section, about ' + words + ' words. '
+        + (p.noGreeting ? 'He has already been greeted and has just heard his mindset segments, so do NOT greet him; begin with "Now, today\'s news." ' : 'Greet him by name. ')
+        + 'Then give a quick spoken rundown of what\'s coming: one sentence per story below, saying why it is worth his attention. End by saying there\'s a short lesson and a quick recall quiz at the end. Do not go into detail yet.\n\nToday\'s stories, in order:\n' + heads };
   }
   if (p.part === 'story') {
     const st = p.story || {};
@@ -381,6 +383,26 @@ function briefPrompt(p) {
         + '4) One sentence on what would change the picture, or the other side of the argument, so he thinks rather than just absorbs.\n\n'
         + 'HEADLINE: ' + (st.title || '') + '\nSOURCE: ' + (st.source || '') + '\nWHY IT WAS PICKED FOR HIM: ' + (st.why || '') + '\nFEED SUMMARY: ' + (st.summary || '')
         + '\n\nARTICLE TEXT (may be partial or empty):\n' + (p.article || '(not available — work from the headline and summary only, and keep factual claims to what they say)') };
+  }
+  if (p.part === 'stoic') {
+    const q = p.stoic || {};
+    return { system: 'You are writing the Stoic wisdom segment that opens Robert\'s personal daily audio briefing. It should leave him calmer, clearer and more resolved for the day — practical philosophy, not a lecture.\n\n' + who,
+      user: 'About ' + words + ' words, based on today\'s quote. Do not greet him. Start by reading the quote and saying who said it. Then: a little about the person and the situation they were writing from, kept to well-established facts; what the idea really means, in plain language; then apply it concretely to four parts of his life — the man he is becoming (character, discipline, how he treats the people closest to him), as a leader (leading his small team and himself), growing TJM, and his health and habits. Finish with one specific way to practise it today, something he can actually do before tonight. You may quote other Stoics only with short, well-known lines you are sure of; otherwise paraphrase.\n\n'
+        + 'QUOTE: "' + (q.text || '') + '" — ' + (q.author || '') + '\nHIS DASHBOARD\'S TAKE ON IT (use as a starting point, don\'t just repeat it): ' + (q.interpretation || '') };
+  }
+  if (p.part === 'sll') {
+    const c = p.sll || {};
+    const title = c.name || ((c.sl || '') + (c.trap ? ' versus ' + c.trap : ''));
+    return { system: 'You are writing the Straight Line Leadership segment of Robert\'s personal daily audio briefing. He is working through Dusan Djukich\'s book Straight-Line Leadership, one principle a day, and wants to turn it into action, not just understanding.\n\n' + who
+        + '\nDo not quote the book or claim exact wording from it; explain the ideas in your own words.\n',
+      user: 'About ' + words + ' words on today\'s principle. Do not greet him. Begin with "Today\'s Straight Line principle is" and name it. Explain the distinction clearly with an everyday example; describe exactly how the wrong side shows up in a normal day of his — the self-talk, the behaviour, the moment it happens; then apply the straight-line side to leading his small team, to TJM sales and content, and to his own standards. Make it direct and a little challenging. End by putting today\'s question to him and telling him the one move to make today.\n\n'
+        + 'PRINCIPLE: ' + title + '\nESSENCE: ' + (c.essence || '') + '\nDEEPER: ' + (c.deep || '') + '\nHOW THE WRONG SIDE SHOWS UP: ' + (c.effect || '') + '\nTHE MOVE: ' + (c.move || '') + '\nFOR HIM: ' + (c.mine || '') + '\nTODAY\'S QUESTION: ' + (c.apply || '') };
+  }
+  if (p.part === 'success') {
+    return { system: 'You are writing the "success habit" segment of Robert\'s personal daily audio briefing.\n\n' + who
+        + '\nAccuracy rule: only attribute habits, practices and facts to a person when they are well documented (their own books, interviews, biographies). Never invent quotes; if you are not sure of exact wording, paraphrase and say "he has said that" or "she describes". If you are unsure about a detail, leave it out.\n',
+      user: 'About ' + words + ' words. Pick ONE specific, well-documented habit, practice or principle used by someone genuinely and verifiably successful — a founder, retailer, investor, athlete, creator or leader — that would help Robert a lot right now, given his goals and his stated struggle with strong starts followed by inconsistency. Vary the kind of person and the area over time (sales, focus, consistency, leadership, money, health, learning, decision-making). Do not use any of these recent picks: ' + ((p.avoid || []).join('; ') || 'none') + '.\n'
+        + 'Do not greet him. Start with "Today\'s success habit comes from" and name the person. Say who they are and what they built, describe the habit exactly as they practise it, explain why it works (cite the mechanism or research where there is solid evidence), then give him a concrete way to adapt it to his life and TJM this week, starting today, and how he will know it is working. On the very last line, write TOPIC: followed by the habit and the person in under eight words (this line will be removed before reading).' };
   }
   if (p.part === 'learn') {
     return { system: 'You are writing the "lesson of the day" segment of Robert\'s personal daily audio briefing. Its job is to sharpen his thinking and build lasting knowledge.\n\n' + who,
@@ -404,9 +426,12 @@ async function actionBrief(payload) {
   if (!key) return respond(500, { error: 'Server is missing ANTHROPIC_API_KEY.' });
   const clip = (v, n) => String(v == null ? '' : v).slice(0, n);
   const p = {
-    part: clip(payload.part, 10), words: payload.words, dateLabel: clip(payload.dateLabel, 40),
+    part: clip(payload.part, 12), words: payload.words, dateLabel: clip(payload.dateLabel, 40),
     headlines: (Array.isArray(payload.headlines) ? payload.headlines : []).slice(0, 12).map(h => ({ title: clip(h.title, 220), why: clip(h.why, 220) })),
     story: payload.story ? { title: clip(payload.story.title, 220), source: clip(payload.story.source, 40), why: clip(payload.story.why, 220), summary: clip(payload.story.summary, 400), link: clip(payload.story.link, 500) } : null,
+    noGreeting: !!payload.noGreeting,
+    stoic: payload.stoic ? { text: clip(payload.stoic.text, 400), author: clip(payload.stoic.author, 60), interpretation: clip(payload.stoic.interpretation, 500) } : null,
+    sll: payload.sll ? { name: clip(payload.sll.name, 80), sl: clip(payload.sll.sl, 60), trap: clip(payload.sll.trap, 60), essence: clip(payload.sll.essence, 300), deep: clip(payload.sll.deep, 600), effect: clip(payload.sll.effect, 400), move: clip(payload.sll.move, 300), mine: clip(payload.sll.mine, 400), apply: clip(payload.sll.apply, 300) } : null,
     ai: payload.ai ? { title: clip(payload.ai.title, 220), what: clip(payload.ai.what, 260), try: clip(payload.ai.try, 320) } : null,
     avoid: (Array.isArray(payload.avoid) ? payload.avoid : []).slice(0, 20).map(x => clip(x, 60)),
   };
@@ -420,7 +445,7 @@ async function actionBrief(payload) {
     try {
       let text = (await callClaude(key, m, pr.system, pr.user, Math.round(words * 1.9) + 80)).trim();
       let lesson = null;
-      const lm = text.match(/\n?\s*LESSON:\s*(.+)\s*$/i);
+      const lm = text.match(/\n?\s*(?:LESSON|TOPIC):\s*(.+)\s*$/i);
       if (lm) { lesson = lm[1].trim().slice(0, 60); text = text.slice(0, lm.index).trim(); }
       text = text.replace(/[*#_`]/g, '').replace(/^\s*[-•]\s+/gm, '').trim();
       if (text) return respond(200, { text, lesson, model: m, hadArticle: !!p.article });
