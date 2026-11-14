@@ -827,7 +827,8 @@ function renderBrief(state) {
       <button class="nws-btn" onclick="newsBriefCopy()">${N.copied ? '✓ Copied — paste into Speechify' : 'Copy briefing'}</button>
       ${N.copyFail ? `<div class="nws-err">Couldn't copy automatically — open "Read the script" below, select all and copy.</div>` : ''}
       ${b.failed ? `<div class="nws-note" style="margin-top:10px;">${b.failed} section${b.failed === 1 ? '' : 's'} couldn't be written, so ${b.failed === 1 ? 'it was' : 'they were'} shortened. <a href="#" onclick="newsBriefBuild();return false;" style="color:var(--gold);">Rebuild</a></div>` : ''}
-      <div class="nws-note" style="margin-top:12px;">Built ${new Date(b.builtAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} · <a href="#" onclick="if(confirm('Rebuild today\'s briefing with the latest sections and your current stats? This replaces the one built earlier.'))newsBriefBuild();return false;" style="color:var(--gold);">Rebuild with latest</a></div>
+      <div class="nws-note" style="margin-top:12px;">Built ${new Date(b.builtAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
+      <button class="nws-btn ghost" style="margin-top:10px;" onclick="newsRebuild()">${N.rebuildArm ? 'Tap again to replace it with a fresh build' : 'Rebuild with latest'}</button>
     </div>
     ${renderTop3(b)}
     ${renderBriefSummary(b, news(state).edition && news(state).edition.date === todayKey() ? news(state).edition : null, news(state).briefRatings)}
@@ -1092,6 +1093,11 @@ export function initNewsTab({ state, saveDataQuiet, render, homeText }) {
   window.newsAiOpen = () => { N.view = 'ai'; render(); window.scrollTo(0, 0); };
   window.newsView = (v) => { N.view = v; N.copied = false; N.copyFail = false; render(); window.scrollTo(0, 0); };
   window.newsPast = (d) => { N.view = 'briefpast'; N.copied = false; N.copyFail = false; window.scrollTo(0, 0); loadPast(state, d, render); };
+  window.newsRebuild = () => {
+    if (!N.rebuildArm) { N.rebuildArm = true; render(); clearTimeout(N.armT); N.armT = setTimeout(() => { N.rebuildArm = false; if (state.activeTab === 'news') render(); }, 5000); return; }
+    N.rebuildArm = false; clearTimeout(N.armT);
+    buildBriefing(state, saveDataQuiet, render);
+  };
   window.newsBriefBuild = () => { buildBriefing(state, saveDataQuiet, render); };
   window.newsBriefCopy = async () => {
     const b = N.view === 'briefpast' ? N.past : briefing(state); if (!b) return;
