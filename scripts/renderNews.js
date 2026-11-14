@@ -827,6 +827,7 @@ function renderBrief(state) {
       <button class="nws-btn" onclick="newsBriefCopy()">${N.copied ? '✓ Copied — paste into Speechify' : 'Copy briefing'}</button>
       ${N.copyFail ? `<div class="nws-err">Couldn't copy automatically — open "Read the script" below, select all and copy.</div>` : ''}
       ${b.failed ? `<div class="nws-note" style="margin-top:10px;">${b.failed} section${b.failed === 1 ? '' : 's'} couldn't be written, so ${b.failed === 1 ? 'it was' : 'they were'} shortened. <a href="#" onclick="newsBriefBuild();return false;" style="color:var(--gold);">Rebuild</a></div>` : ''}
+      <div class="nws-note" style="margin-top:12px;">Built ${new Date(b.builtAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} · <a href="#" onclick="if(confirm('Rebuild today\'s briefing with the latest sections and your current stats? This replaces the one built earlier.'))newsBriefBuild();return false;" style="color:var(--gold);">Rebuild with latest</a></div>
     </div>
     ${renderTop3(b)}
     ${renderBriefSummary(b, news(state).edition && news(state).edition.date === todayKey() ? news(state).edition : null, news(state).briefRatings)}
