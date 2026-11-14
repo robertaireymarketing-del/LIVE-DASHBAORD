@@ -51,6 +51,7 @@
 
 import { STOIC_QUOTES } from './constants.js';
 import { getTodaysSllCard } from './renderStraightLine.js';
+import { ladder } from './thirtyPlan.js';
 
 const DAILY_SECS = 5 * 60;
 const MAX_STORIES = 10;
@@ -305,6 +306,67 @@ function renderAi(state) {
   </div>`;
 }
 
+// ── Personal context for the briefing ──────────────────────────────────────
+function normDays(state) {
+  const days = {};
+  Object.entries(state.data?.days || {}).forEach(([k, v]) => {
+    const m = String(k).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) days[`${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`] = v;
+  });
+  return days;
+}
+function shiftKey(k, n) { const d = new Date(k + 'T12:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+// Consecutive ticked days, counting back from today (or yesterday if today isn't ticked yet).
+function streakOf(state, field) {
+  const days = normDays(state);
+  let k = todayKey();
+  if (!days[k]?.[field]) k = shiftKey(k, -1);
+  let n = 0;
+  while (days[k]?.[field]) { n++; k = shiftKey(k, -1); }
+  const last14 = Array.from({ length: 14 }, (_, i) => shiftKey(todayKey(), -i - 1)).filter(x => days[x]?.[field]).length;
+  return { streak: n, tickedToday: !!days[todayKey()]?.[field], last14 };
+}
+function retentionContext(state) {
+  const s = streakOf(state, 'retention');
+  const log = Object.entries(state.data?.retentionLog || {}).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 7)
+    .map(([d, e]) => `${d} (day ${e.streakDay ?? '?'}): energy ${e.energy ?? '-'}, focus ${e.focus ?? '-'}, mood ${e.mood ?? '-'}, confidence ${e.confidence ?? '-'}, urges ${e.libido ?? '-'} /10${e.notes ? ' — "' + String(e.notes).slice(0, 160) + '"' : ''}`);
+  return { ...s, log };
+}
+// Road to 30 plan as plain text: each step, its headings, what's ticked and what isn't.
+function goalsContext(state) {
+  const items = state.data?.thirtyPlan?.items || {};
+  const out = [];
+  try {
+    ladder(todayKey()).forEach(r => {
+      const list = (items[r.key] || []).filter(x => String(x.text || '').trim());
+      if (!list.length) return;
+      out.push(`${r.label} (by ${r.end}):`);
+      list.slice(0, 25).forEach(x => out.push(x.h ? `  ## ${x.text}` : x.t ? `  ${x.text}` : `  [${x.done ? 'x' : ' '}] ${x.text}${x.done && x.doneAt ? ' (done ' + x.doneAt + ')' : ''}`));
+    });
+  } catch (e) {}
+  const id = state.data?.identityLock;
+  if (id && (id.headline || id.coreIdentity)) out.unshift(`IDENTITY: ${id.headline || ''} ${id.coreIdentity || ''} ${id.dailyCommand || ''}`.trim());
+  return out.join('\n').slice(0, 5000);
+}
+// The Home page as text (habits, sleep, deficit, steps, weight/body fat, waist).
+function htmlToText(html) {
+  try {
+    const d = new DOMParser().parseFromString(html, 'text/html');
+    d.querySelectorAll('style,script,svg,button,input,textarea,select').forEach(e => e.remove());
+    d.querySelectorAll('div,section,p,li,br,h1,h2,h3,h4,tr').forEach(e => e.append('\n'));
+    return d.body.textContent.split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean)
+      .filter((l, i, a) => l !== a[i - 1]).join('\n').slice(0, 7000);
+  } catch (e) { return ''; }
+}
+
+// TJM playbook: two areas a day, rotating so every part of the business gets covered.
+const TJM_AREAS = [
+  'sales and converting browsers into buyers', 'TikTok lives and short-form video', 'listings on Vinted, eBay and the website',
+  'email marketing and repeat customers', 'pricing, margins and stock buying', 'product photography and presentation',
+  'getting more out of your assistant and systems', 'customer service, reviews and trust', 'paid ads and promotions on a small budget',
+  'Christmas and seasonal peaks', 'time, focus and doing the highest-value work', 'partnerships, gifting and local reach',
+];
+
 // ── Daily audio briefing ───────────────────────────────────────────────────
 const WPM = 160;                               // typical TTS speed at 1x
 function briefing(state) { const n = news(state); return n.briefing && n.briefing.date === todayKey() ? n.briefing : null; }
@@ -330,7 +392,7 @@ async function buildBriefing(state, saveDataQuiet, render) {
 
     const stories = visibleItems(ed).slice(0, 6);
     const headlines = stories.map(it => ({ title: it.title, why: it.why }));
-    const per = stories.length ? Math.max(300, Math.min(480, Math.round(2700 / stories.length))) : 0;
+    const per = stories.length ? Math.max(320, Math.min(520, Math.round(3100 / stories.length))) : 0;
     const ai = (aiEdition(state)?.items || []).find(i => !i.done) || null;
     const dateLabel = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -342,13 +404,25 @@ async function buildBriefing(state, saveDataQuiet, render) {
     try { sll = getTodaysSllCard(state); } catch (e) {}
 
     const R = k => ratingsOf(state, k);
+    const ret = retentionContext(state);
+    const gym = streakOf(state, 'gym');
+    const goals = goalsContext(state);
+    let home = '';
+    try { home = N.homeText ? htmlToText(N.homeText()) : ''; } catch (e) {}
+    const a1 = TJM_AREAS[doy % TJM_AREAS.length], a2 = TJM_AREAS[(doy + 5) % TJM_AREAS.length];
+    const tjmAvoid = (n.tjmUsed || []).slice(0, 30);
     const jobs = [
       { key: 'stoic', body: { part: 'stoic', words: 620, stoic, rated: R('stoic') } },
       ...(sll ? [{ key: 'sll', body: { part: 'sll', words: 620, sll, rated: R('sll') } }] : []),
       { key: 'success', body: { part: 'success', words: 620, avoid: (n.successUsed || []).slice(0, 30), rated: R('success') } },
+      { key: 'retention', body: { part: 'retention', words: 550, ret, rated: R('retention') } },
+      { key: 'goals', body: { part: 'goals', words: 480, goals, dateLabel, rated: R('goals') } },
+      { key: 'gym', body: { part: 'gym', words: 650, home, gym, ret: { streak: ret.streak }, rated: R('gym') } },
       { key: 'intro', body: { part: 'intro', words: 170, dateLabel, headlines, noGreeting: true } },
       ...stories.map((st, i) => ({ key: 'story' + i, st, i, body: { part: 'story', words: per, story: st, rated: R('story') } })),
       ...(ai ? [{ key: 'ai', body: { part: 'ai', words: 230, ai, rated: R('ai') } }] : []),
+      { key: 'tjm1', body: { part: 'tjm', words: 650, focus: a1, avoid: tjmAvoid, goals: goals.slice(0, 1500), rated: R('tjm') } },
+      { key: 'tjm2', body: { part: 'tjm', words: 650, focus: a2, avoid: tjmAvoid, goals: goals.slice(0, 1500), rated: R('tjm') } },
       { key: 'learn', body: { part: 'learn', words: stories.length >= 4 ? 550 : 650, headlines, avoid: (n.lessons || []).slice(0, 20), rated: R('lesson') } },
       { key: 'close', body: { part: 'close', words: 380, headlines, rated: R('quiz') } },
     ];
@@ -361,7 +435,7 @@ async function buildBriefing(state, saveDataQuiet, render) {
 
     const get = k => out.find(o => o.key === k);
     const parts = [];
-    parts.push(`Good morning Robert. It's ${dateLabel}. We'll start with your mindset: a piece of Stoic wisdom, today's Straight Line principle, and a success habit worth stealing. Then the news that matters to you, a lesson, and a quick quiz.`);
+    parts.push(`Good morning Robert. It's ${dateLabel}. We'll start with your mindset: a piece of Stoic wisdom, today's Straight Line principle, a success habit worth stealing, and your retention check-in. Then a reminder of what you're working towards and where your training and body are at. Then the news that matters to you, two practical plays for TJM, a lesson, and a quick quiz.`);
     const st = get('stoic');
     if (st.ok) parts.push('First, your Stoic wisdom for today.\n\n' + st.text);
     else parts.push(`First, your Stoic wisdom for today. ${stoic.author} wrote: ${stoic.text} ${stoic.interpretation}`);
@@ -370,6 +444,12 @@ async function buildBriefing(state, saveDataQuiet, render) {
     else if (sll) parts.push(`Next, your Straight Line principle: ${sll.name || sll.sl}. ${sll.essence} ${sll.mine} ${sll.apply}`);
     const sc = get('success');
     if (sc.ok) parts.push('Now, a success habit worth stealing.\n\n' + sc.text);
+    const rt = get('retention');
+    if (rt.ok) parts.push('Now, your retention check-in.\n\n' + rt.text);
+    const gl = get('goals');
+    if (gl.ok) parts.push('Now, a reminder of what you\'re working towards.\n\n' + gl.text);
+    const gy = get('gym');
+    if (gy.ok) parts.push('Now, your gym and body progress.\n\n' + gy.text);
     const intro = get('intro');
     parts.push(intro.ok ? intro.text : `Now, today's news.`);
     stories.forEach((st, i) => {
@@ -379,6 +459,9 @@ async function buildBriefing(state, saveDataQuiet, render) {
     });
     const a = get('ai');
     if (a && a.ok) parts.push('Now, this week\'s AI experiment.\n\n' + a.text);
+    const t1 = get('tjm1'), t2 = get('tjm2');
+    if (t1.ok) parts.push('Now, your TJM playbook.\n\n' + t1.text);
+    if (t2.ok) parts.push('Your second TJM play.\n\n' + t2.text);
     const l = get('learn');
     if (l.ok) parts.push(l.text);
     const c = get('close');
@@ -388,6 +471,8 @@ async function buildBriefing(state, saveDataQuiet, render) {
     const failed = out.filter(o => !o.ok).length;
     n.briefing = { date: todayKey(), text, words: text.split(/\s+/).filter(Boolean).length, builtAt: Date.now(), failed };
     if (l.ok && l.lesson) n.lessons = [l.lesson, ...(n.lessons || []).filter(x => x !== l.lesson)].slice(0, 40);
+    const plays = [t1, t2].filter(x => x.ok && x.lesson).map(x => x.lesson);
+    if (plays.length) n.tjmUsed = [...plays, ...(n.tjmUsed || []).filter(x => !plays.includes(x))].slice(0, 60);
     if (sc.ok && sc.lesson) n.successUsed = [sc.lesson, ...(n.successUsed || []).filter(x => x !== sc.lesson)].slice(0, 60);
     saveDataQuiet();
     archiveBriefing(state, n.briefing, saveDataQuiet);
@@ -436,6 +521,10 @@ function briefSections(b, ed) {
     else if (/^Now, this week's AI experiment/i.test(t)) { icon = '🤖'; label = 'AI experiment'; kind = 'ai'; gist = firstSentence(strip(t, /^Now, this week's AI experiment\.\s*/i)); }
     else if (/^Today's lesson is/i.test(t)) { icon = '🧠'; label = 'Lesson of the day'; kind = 'lesson'; gist = firstSentence(t); }
     else if (/^Time for your recall quiz/i.test(t)) { icon = '❓'; label = 'Recall quiz & sign-off'; kind = 'quiz'; gist = 'Three questions on today\'s stories, a reflection question for the day, then the sign-off.'; }
+    else if (/^Now, your retention check-in/i.test(t)) { icon = '🛡'; label = 'Retention check-in'; kind = 'retention'; gist = firstSentence(strip(t, /^Now, your retention check-in\.\s*/i)); }
+    else if (/^Now, a reminder of what you're working towards/i.test(t)) { icon = '🎯'; label = 'Your goals'; kind = 'goals'; gist = firstSentence(strip(t, /^Now, a reminder of what you're working towards\.\s*/i)); }
+    else if (/^Now, your gym and body progress/i.test(t)) { icon = '🏋️'; label = 'Gym & body progress'; kind = 'gym'; gist = firstSentence(strip(t, /^Now, your gym and body progress\.\s*/i)); }
+    else if (/^(Now, your TJM playbook|Your second TJM play)/i.test(t)) { icon = '💎'; label = /^Your second/i.test(t) ? 'TJM play 2' : 'TJM play 1'; kind = 'tjm'; gist = firstSentence(strip(t, /^(Now, your TJM playbook|Your second TJM play)\.\s*/i)); }
     else if (/^Now, today's news/i.test(t) || i <= 4 && /today's news/i.test(t.slice(0, 120))) { icon = '🗞'; label = 'News rundown'; gist = 'A quick run-through of today\'s stories before the deep dives.'; }
     else gist = firstSentence(t);
     out.push({ icon, label, html: esc(gist), words: words(t), text: t, kind, title: kind === 'quiz' ? 'Recall quiz and sign-off' : gist });
@@ -552,7 +641,7 @@ function renderBriefPast(state) {
 
 function briefEntryCard(state) {
   const b = briefing(state);
-  const sub = b ? `Ready · about ${Math.round(b.words / WPM)} minutes · tap to copy` : 'About 35–40 minutes · mindset first, then the news';
+  const sub = b ? `Ready · about ${Math.round(b.words / WPM)} minutes · tap to copy` : 'About 55–60 minutes · mindset, goals and gym, then news and TJM plays';
   return `<button class="nws-card nws-ai-entry" onclick="newsView('brief')">
     <div><div class="nws-ai-t">🎧 Today's audio briefing</div><div class="nws-note">${esc(sub)}</div></div>
     <div class="nws-ai-arrow">→</div>
@@ -568,12 +657,12 @@ function renderBrief(state) {
     body = `<div class="nws-card nws-gate">
       <p id="brief-progress">${esc(N.briefStage || 'Writing your briefing…')}</p>
       <div class="nws-bar" style="margin-top:14px;"><div id="brief-bar" style="width:${N.briefTotal ? (N.briefDone / N.briefTotal) * 100 : 3}%"></div></div>
-      <p style="font-size:12px;">Takes about half a minute. Every section is written at the same time; each story gets read in full and turned into a proper explainer.</p>
+      <p style="font-size:12px;">Takes up to a minute. Every section is written at the same time; each story gets read in full and turned into a proper explainer.</p>
     </div>`;
   } else if (!b) {
     body = `<div class="nws-card nws-gate">
       <div class="big">🎧</div>
-      <p>A 35–40 minute spoken briefing. It opens with your mindset — today's Stoic wisdom, your Straight Line principle and a success habit — then today's stories: what happened, the background you need to understand it, why it matters to you, this week's AI experiment, a lesson of the day and a quick recall quiz.</p>
+      <p>A 55–60 minute spoken briefing. It opens with your mindset — today's Stoic wisdom, your Straight Line principle, a success habit and your retention check-in — then a reminder of your Road to 30 goals and your gym and body numbers from Home. Then today's stories explained properly, this week's AI experiment, two practical TJM plays with steps to take today, a lesson of the day and a quick recall quiz.</p>
       ${N.briefError ? `<div class="nws-err">${esc(N.briefError)}</div>` : ''}
       <button class="nws-btn" onclick="newsBriefBuild()">${N.briefError ? 'Try again' : 'Build today\'s briefing'}</button>
     </div>`;
@@ -786,7 +875,8 @@ export function renderNewsTab({ state }) {
 }
 
 // ── Behaviour ──────────────────────────────────────────────────────────────
-export function initNewsTab({ state, saveDataQuiet, render }) {
+export function initNewsTab({ state, saveDataQuiet, render, homeText }) {
+  if (homeText) N.homeText = homeText;
   const n = news(state);   // re-read inside handlers too: state.data can be swapped by a reload
   const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
   if (!N.view && !ed && !N.loading && !N.error && secsLeft(state) > 0) buildEdition(state, saveDataQuiet, render);

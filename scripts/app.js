@@ -351,7 +351,7 @@ function render() {
     if (state.activeTab === 'planner') setTimeout(() => { try { initWeeklyTabExternal(); } catch(e) { console.error('Weekly init error:', e); } }, 0);
     if (state.activeTab === 'vision') setTimeout(() => { try { renderVisionTabExternal({ db, user: state.user }); } catch(e) { console.error('Vision init error:', e); } }, 0);
     if (state.activeTab === 'clarity') setTimeout(() => { try { initClarityTabExternal({ state, saveData, saveDataQuiet, render }); } catch(e) { console.error('Clarity init error:', e); } }, 0);
-    if (state.activeTab === 'news') setTimeout(() => { try { initNewsTab({ state, saveDataQuiet, render }); } catch(e) { console.error('News init error:', e); } }, 0);
+    if (state.activeTab === 'news') setTimeout(() => { try { initNewsTab({ state, saveDataQuiet, render, homeText: renderHomeTab }); } catch(e) { console.error('News init error:', e); } }, 0);
     if (state.activeTab === 'sleep') setTimeout(() => { try { initSleepTab({ state, saveData, render }); } catch(e) { console.error('Sleep init error:', e); } }, 0);
     if (state.activeTab === 'habits') setTimeout(() => { try { initHabitsTabExternal({ state, saveData, saveDataQuiet, render }); } catch(e) { console.error('Habits init error:', e); } }, 0);
     if (state.activeTab === 'straightline') setTimeout(() => { try { initStraightLineTabExternal({ state, saveData, saveDataQuiet, render }); } catch(e) { console.error('Line init error:', e); } }, 0);
