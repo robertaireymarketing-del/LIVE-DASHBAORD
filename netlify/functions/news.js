@@ -431,7 +431,7 @@ function briefPrompt(p) {
     const g = p.gym || {};
     return { system: 'You are writing the gym and body progress segment of Robert\'s personal daily audio briefing. It is built from the live stats on his dashboard\'s home page. He wants direct, evidence-based coaching: numbers, what they mean, what to do.\n\n' + who
         + '\nAccuracy: only use numbers that appear in the home page text below. Do not invent figures. If a figure is missing, skip it. Round sensibly when speaking.\n',
-      user: 'About ' + words + ' words. Do not greet him. His gym streak is ' + (g.streak || 0) + ' day' + (g.streak === 1 ? '' : 's') + ' and he trained on ' + (g.last14 || 0) + ' of the last 14 days. Using the home page stats below, cover: where his weight and body fat are versus his goal and the projected pace, and whether he is on track; his calorie deficit this week and what that pace means for results; sleep, steps and waist trends if shown; and any don\'t-miss-twice warning. Explain the why briefly where it helps (e.g. why weekly averages beat single weigh-ins, why sleep affects fat loss and hunger). Then give him today\'s two or three specific actions for training, food and recovery. Tie it back to his goal for 30 in one sentence. No lift-by-lift advice; he logs workouts in a separate app.\n\n'
+      user: (p.weekly ? 'It is Sunday, so frame this as the week: how the week went for training, food, sleep and steps, and what next week needs. ' : '') + 'About ' + words + ' words. Do not greet him. His gym streak is ' + (g.streak || 0) + ' day' + (g.streak === 1 ? '' : 's') + ' and he trained on ' + (g.last14 || 0) + ' of the last 14 days. Using the home page stats below, cover: where his weight and body fat are versus his goal and the projected pace, and whether he is on track; his calorie deficit this week and what that pace means for results; sleep, steps and waist trends if shown; and any don\'t-miss-twice warning. Explain the why briefly where it helps (e.g. why weekly averages beat single weigh-ins, why sleep affects fat loss and hunger). Then give him today\'s two or three specific actions for training, food and recovery. Tie it back to his goal for 30 in one sentence. No lift-by-lift advice; he logs workouts in a separate app.\n\n'
         + 'HIS HOME PAGE STATS (as shown on his dashboard today):\n' + (p.home || '(not available — say the stats could not be read today and keep this short and general)') };
   }
   if (p.part === 'tjm') {
@@ -441,6 +441,34 @@ function briefPrompt(p) {
         + 'Structure, as spoken prose: name the play in one line; why it works (the mechanism: buyer psychology, maths or platform behaviour); the exact steps to do it today or this week, numbered out loud as first, second, third, with any wording he can use word for word; how long it takes; what result to look for and when to judge it; and one common mistake to avoid. If it can be handed to his assistant, say exactly what to hand over. Link it to his goals where it genuinely fits.\n'
         + 'On the very last line, write TOPIC: followed by the play in under eight words (this line will be removed before reading).\n\n'
         + 'HIS GOALS (for context):\n' + (p.goals || '') };
+  }
+  if (p.part === 'followup') {
+    return { system: 'You are writing the "yesterday\'s follow-through" segment of Robert\'s personal daily audio briefing. Its job is accountability: what he said he would do yesterday versus what he actually did. Direct and honest, never harsh or shaming. He wants science-based reasoning, not motivational fluff.\n\n' + who,
+      user: 'About ' + words + ' words. Do not greet him. Using only the data below, say plainly what got done and what didn\'t yesterday. Credit what was done in one sentence, no gushing. For anything planned and missed, ask the useful question — was it too big, scheduled at a bad time, blocked, or avoided — and say exactly when it should happen now (today, at a specific time, or moved to a named day this week). If nothing was planned for a specific time, say so and explain briefly why writing a day and time next to a task (an implementation intention) roughly doubles follow-through in studies, and tell him to do that for today. Finish with one line linking yesterday to today.\n\n'
+        + 'DATA:\n' + (p.follow || '(nothing recorded)') };
+  }
+  if (p.part === 'top3') {
+    return { system: 'You are writing the "today\'s top three" segment near the end of Robert\'s personal daily audio briefing. It decides the three things that matter most today so he starts the day with them already chosen.\n\n' + who,
+      user: 'About ' + words + ' words. Do not greet him. Choose exactly three things for today from his own plan below — prefer what is planned for today, then what slipped yesterday, then the open weekly items that move him most toward his goals. At least one should grow TJM revenue. '
+        + (p.sunday ? 'It is Sunday: one of the three should be writing next week\'s Road to 30 steps with a day and time for each, and one should be recovery or time with family. ' : '')
+        + 'Say each one as a clear action with when he will do it, and one sentence on why it is in the top three. Keep it tight. End with: "Do the first one before you open anything else."\n'
+        + 'On the very last line, write TOP: followed by the three actions separated by " | " (each under 12 words; this line is removed before reading).\n\n'
+        + 'HIS PLAN:\n' + (p.top || '(empty)') + '\n\nYESTERDAY:\n' + (p.follow || '') };
+  }
+  if (p.part === 'weekreview') {
+    return { system: 'You are writing the "week in review" segment of Robert\'s Sunday audio briefing. Honest, numbers-first, direct. He wants science-based reasoning, not motivational narrative.\n\n' + who
+        + '\nOnly use numbers that appear in the data below. Do not invent figures.\n',
+      user: 'About ' + words + ' words. Do not greet him. Give him his week in numbers: gym, retention, meditation, his Road to 30 steps ticked against planned, and how that compares with earlier weeks. Then the pattern behind the numbers — which days slipped and what they have in common, if anything. If he wrote his own review, use his words and build on them. Mention which parts of his briefings he rated highest this week, if given. Then the single biggest lesson from this week, and the one thing to change next week. Be honest if it was a weak week; say what a strong week would have looked like in numbers.\n\n'
+        + 'THIS WEEK:\n' + (p.week || '(no data)') };
+  }
+  if (p.part === 'weeknext') {
+    return { system: 'You are writing the "setting up next week" segment of Robert\'s Sunday audio briefing. It helps him plan next week\'s Road to 30 steps so the week is decided before it starts.\n\n' + who,
+      user: 'About ' + words + ' words. Do not greet him. Start from his next milestone on the ladder and how many weeks are left to it. Propose five to seven specific steps for next week that would put him on track — a mix of TJM revenue work, training and body, and life — each with a suggested day and time. Use his own goals and wording; build on what was missed this week rather than starting over; keep the total realistic for a week where he also works in his father\'s shop daily. If he already has steps planned for next week, review them instead and tighten them. Tell him to put them into the This-week step of his Road to 30 plan today, with the day and time on each.\n\n'
+        + 'NEXT WEEK AND HIS PLAN:\n' + (p.next || '') + '\n\nTHIS WEEK FOR CONTEXT:\n' + (p.week || '') };
+  }
+  if (p.part === 'weekclose') {
+    return { system: 'You are writing the closing segment of Robert\'s Sunday audio briefing.\n\n' + who,
+      user: 'About ' + words + ' words. Do not greet him. Ask him three reflection questions, one at a time, with a pause after each ("Take a moment."): what got done this week, what didn\'t and why, and the one priority that moves him closest to 30 next week. Tell him to write his answers into the weekly review in his Road to 30 plan today. Then a short, grounded sign-off for the week — rest, family and getting ready for Monday. No motivational clichés.' };
   }
   if (p.part === 'learn') {
     return { system: 'You are writing the "lesson of the day" segment of Robert\'s personal daily audio briefing. Its job is to sharpen his thinking and build lasting knowledge.\n\n' + who,
@@ -464,7 +492,7 @@ async function actionBrief(payload) {
   if (!key) return respond(500, { error: 'Server is missing ANTHROPIC_API_KEY.' });
   const clip = (v, n) => String(v == null ? '' : v).slice(0, n);
   const p = {
-    part: clip(payload.part, 12), words: payload.words, dateLabel: clip(payload.dateLabel, 40),
+    part: clip(payload.part, 16), words: payload.words, dateLabel: clip(payload.dateLabel, 40),
     headlines: (Array.isArray(payload.headlines) ? payload.headlines : []).slice(0, 12).map(h => ({ title: clip(h.title, 220), why: clip(h.why, 220) })),
     story: payload.story ? { title: clip(payload.story.title, 220), source: clip(payload.story.source, 40), why: clip(payload.story.why, 220), summary: clip(payload.story.summary, 400), link: clip(payload.story.link, 500) } : null,
     noGreeting: !!payload.noGreeting,
@@ -477,6 +505,12 @@ async function actionBrief(payload) {
     goals: clip(payload.goals, 5000),
     home: clip(payload.home, 7000),
     focus: clip(payload.focus, 80),
+    follow: clip(payload.follow, 3000),
+    top: clip(payload.top, 3000),
+    week: clip(payload.week, 6000),
+    next: clip(payload.next, 6000),
+    sunday: !!payload.sunday,
+    weekly: !!payload.weekly,
   };
   if (p.part === 'story' && p.story && /^https?:\/\//.test(p.story.link)) p.article = await articleText(p.story.link);
   const pr = briefPrompt(p);
@@ -492,11 +526,13 @@ async function actionBrief(payload) {
   for (const m of models) {
     try {
       let text = (await callClaude(key, m, pr.system, pr.user, Math.round(words * 1.9) + 80)).trim();
-      let lesson = null;
+      let lesson = null, top = null;
+      const tm = text.match(/\n?\s*TOP:\s*(.+)\s*$/i);
+      if (tm) { top = tm[1].split('|').map(x => x.trim().replace(/^\d+[.)]\s*/, '')).filter(Boolean).slice(0, 3); text = text.slice(0, tm.index).trim(); }
       const lm = text.match(/\n?\s*(?:LESSON|TOPIC):\s*(.+)\s*$/i);
       if (lm) { lesson = lm[1].trim().slice(0, 60); text = text.slice(0, lm.index).trim(); }
       text = text.replace(/[*#_`]/g, '').replace(/^\s*[-•]\s+/gm, '').trim();
-      if (text) return respond(200, { text, lesson, model: m, hadArticle: !!p.article });
+      if (text) return respond(200, { text, lesson, top, model: m, hadArticle: !!p.article });
       lastErr = new Error('Empty section');
     } catch (e) {
       lastErr = e;

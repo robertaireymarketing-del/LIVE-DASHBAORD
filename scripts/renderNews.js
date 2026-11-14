@@ -51,7 +51,7 @@
 
 import { STOIC_QUOTES } from './constants.js';
 import { getTodaysSllCard } from './renderStraightLine.js';
-import { ladder } from './thirtyPlan.js';
+import { ladder, weekStart } from './thirtyPlan.js';
 
 const DAILY_SECS = 5 * 60;
 const MAX_STORIES = 10;
@@ -317,14 +317,21 @@ function normDays(state) {
 }
 function shiftKey(k, n) { const d = new Date(k + 'T12:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 // Consecutive ticked days, counting back from today (or yesterday if today isn't ticked yet).
+// Gym counts the way the Home page does (Garmin sync + overrides) when Home has
+// been rendered this session; otherwise the manual tick.
+function ticked(state, days, k, field) {
+  if (field === 'gym' && typeof state._homeGymDone === 'function') { try { return !!state._homeGymDone(k); } catch (e) {} }
+  return !!days[k]?.[field];
+}
 function streakOf(state, field) {
   const days = normDays(state);
+  const T = (k) => ticked(state, days, k, field);
   let k = todayKey();
-  if (!days[k]?.[field]) k = shiftKey(k, -1);
+  if (!T(k)) k = shiftKey(k, -1);
   let n = 0;
-  while (days[k]?.[field]) { n++; k = shiftKey(k, -1); }
-  const last14 = Array.from({ length: 14 }, (_, i) => shiftKey(todayKey(), -i - 1)).filter(x => days[x]?.[field]).length;
-  return { streak: n, tickedToday: !!days[todayKey()]?.[field], last14 };
+  while (T(k) && n < 2000) { n++; k = shiftKey(k, -1); }
+  const last14 = Array.from({ length: 14 }, (_, i) => shiftKey(todayKey(), -i - 1)).filter(T).length;
+  return { streak: n, tickedToday: T(todayKey()), last14 };
 }
 function retentionContext(state) {
   const s = streakOf(state, 'retention');
@@ -359,6 +366,86 @@ function htmlToText(html) {
   } catch (e) { return ''; }
 }
 
+// Yesterday: what was planned vs what got ticked.
+const DAYN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const dowOf = (k) => (new Date(k + 'T12:00:00').getDay() + 6) % 7;     // Mon = 0
+function weekItems(state, k) {
+  const list = state.data?.thirtyPlan?.items?.['w:' + weekStart(k)] || [];
+  return list.filter(x => !x.h && !x.t && String(x.text || '').trim());
+}
+function dayLine(state, k) {
+  const days = normDays(state);
+  const d = { ...(days[k] || {}) };
+  d.gym = ticked(state, days, k, 'gym');
+  const hab = ['gym', 'retention', 'meditation'].map(f => `${f} ${d[f] ? '✓' : '✗'}`).join(', ');
+  const objs = (d.objectives || []).filter(o => String(o.text || '').trim());
+  return { hab, objs, d };
+}
+function followContext(state) {
+  const y = shiftKey(todayKey(), -1);
+  const { hab, objs } = dayLine(state, y);
+  const items = weekItems(state, y);
+  const planned = items.filter(x => x.day !== '' && x.day != null && +x.day === dowOf(y));
+  const doneY = items.filter(x => x.done && x.doneAt === y);
+  const out = [`YESTERDAY (${y}, ${DAYN[dowOf(y)]}): habits — ${hab}`];
+  if (objs.length) out.push('Day objectives: ' + objs.map(o => `[${o.done ? 'x' : ' '}] ${o.text}`).join('; '));
+  if (planned.length) out.push('Road to 30 items planned for yesterday: ' + planned.map(x => `[${x.done ? 'x' : ' '}] ${x.time ? x.time + ' ' : ''}${x.text}`).join('; '));
+  if (doneY.length) out.push('Ticked off yesterday: ' + doneY.map(x => x.text).join('; '));
+  const open = items.filter(x => !x.done);
+  if (open.length) out.push('Still open this week: ' + open.slice(0, 12).map(x => `${x.text}${x.day !== '' && x.day != null ? ' (planned ' + DAYN[+x.day] + (x.time ? ' ' + x.time : '') + ')' : ''}`).join('; '));
+  if (!planned.length && !objs.length && !doneY.length) out.push('Nothing was planned for a specific time yesterday.');
+  return out.join('\n');
+}
+// Candidates for today's top 3.
+function top3Context(state) {
+  const t = todayKey();
+  const items = weekItems(state, t);
+  const open = items.filter(x => !x.done);
+  const today = open.filter(x => x.day !== '' && x.day != null && +x.day === dowOf(t));
+  const { objs } = dayLine(state, t);
+  const out = [];
+  if (today.length) out.push('PLANNED FOR TODAY: ' + today.map(x => `${x.time ? x.time + ' ' : ''}${x.text}`).join('; '));
+  if (objs.length) out.push('TODAY\'S OBJECTIVES ALREADY SET: ' + objs.map(o => o.text).join('; '));
+  if (open.length) out.push('OPEN THIS WEEK: ' + open.slice(0, 15).map(x => x.text).join('; '));
+  out.push('DAYS LEFT THIS WEEK (incl. today): ' + (7 - dowOf(t)));
+  return out.join('\n');
+}
+// Sunday: the whole week in numbers.
+function weekContext(state) {
+  const t = todayKey(), ws = weekStart(t);
+  const lines = [];
+  let g = 0, r = 0, m = 0, oD = 0, oN = 0;
+  for (let i = 0; i < 7; i++) {
+    const k = shiftKey(ws, i); if (k > t) break;
+    const { d, objs } = dayLine(state, k);
+    g += d.gym ? 1 : 0; r += d.retention ? 1 : 0; m += d.meditation ? 1 : 0;
+    oN += objs.length; oD += objs.filter(o => o.done).length;
+    lines.push(`${DAYN[i]}: gym ${d.gym ? '✓' : '✗'}, retention ${d.retention ? '✓' : '✗'}, meditation ${d.meditation ? '✓' : '✗'}${objs.length ? `, objectives ${objs.filter(o => o.done).length}/${objs.length}` : ''}`);
+  }
+  const items = weekItems(state, t);
+  const out = [`WEEK COMMENCING ${ws}`, ...lines, `TOTALS: gym ${g}/7, retention ${r}/7, meditation ${m}/7${oN ? `, day objectives ${oD}/${oN}` : ''}`];
+  if (items.length) out.push(`ROAD TO 30 THIS WEEK: ${items.filter(x => x.done).length}/${items.length} ticked\n` + items.map(x => `  [${x.done ? 'x' : ' '}] ${x.text}`).join('\n'));
+  else out.push('ROAD TO 30 THIS WEEK: no steps were written for this week.');
+  const prev = [];
+  for (let n = 1; n <= 4; n++) { const wk = shiftKey(ws, -7 * n); const b = weekItems(state, wk); if (b.length) prev.push(`w/c ${wk}: ${Math.round(b.filter(x => x.done).length / b.length * 100)}%`); }
+  if (prev.length) out.push('FOLLOW-THROUGH IN EARLIER WEEKS: ' + prev.join(', '));
+  const rv = state.data?.thirtyPlan?.reviews?.[ws];
+  if (rv && (rv.done || rv.missed || rv.next)) out.push(`HIS OWN REVIEW: done — ${rv.done || '-'}; missed — ${rv.missed || '-'}; next week's priority — ${rv.next || '-'}`);
+  const rt = (news(state).briefRatings || []).filter(x => x.d >= ws);
+  if (rt.length) {
+    const by = {}; rt.forEach(x => { (by[x.k] = by[x.k] || []).push(x.r); });
+    out.push('BRIEFING RATINGS THIS WEEK (avg/10): ' + Object.entries(by).map(([k, v]) => `${k} ${(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1)}`).join(', '));
+    const best = [...rt].sort((a, b) => b.r - a.r).slice(0, 3).map(x => `${x.r}/10 ${x.t}`);
+    out.push('HIGHEST RATED: ' + best.join('; '));
+  }
+  return out.join('\n').slice(0, 6000);
+}
+function nextWeekContext(state) {
+  const t = todayKey(), nextWs = shiftKey(weekStart(t), 7);
+  const planned = weekItems(state, nextWs);
+  return (planned.length ? `ALREADY PLANNED FOR NEXT WEEK: ${planned.map(x => x.text).join('; ')}\n` : 'NEXT WEEK HAS NO STEPS WRITTEN YET.\n') + goalsContext(state);
+}
+
 // TJM playbook: two areas a day, rotating so every part of the business gets covered.
 const TJM_AREAS = [
   'sales and converting browsers into buyers', 'TikTok lives and short-form video', 'listings on Vinted, eBay and the website',
@@ -381,16 +468,17 @@ async function buildBriefing(state, saveDataQuiet, render) {
   if (state.activeTab === 'news') render();
   try {
     const n = news(state);
+    const isSun = new Date().getDay() === 0;
     while (N.loading) await new Promise(r => setTimeout(r, 400));   // daily edition already building
-    if (!(n.edition && n.edition.date === todayKey())) {
+    if (!isSun && !(n.edition && n.edition.date === todayKey())) {
       N.briefStage = 'Picking today\'s stories…';
       if (state.activeTab === 'news') render();
       await buildEdition(state, saveDataQuiet, render);
     }
     const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
-    if (!ed) throw new Error(N.error || 'Couldn\'t build today\'s edition.');
+    if (!ed && !isSun) throw new Error(N.error || 'Couldn\'t build today\'s edition.');
 
-    const stories = visibleItems(ed).slice(0, 6);
+    const stories = isSun ? [] : visibleItems(ed).slice(0, 6);
     const headlines = stories.map(it => ({ title: it.title, why: it.why }));
     const per = stories.length ? Math.max(320, Math.min(520, Math.round(3100 / stories.length))) : 0;
     const ai = (aiEdition(state)?.items || []).find(i => !i.done) || null;
@@ -411,11 +499,28 @@ async function buildBriefing(state, saveDataQuiet, render) {
     try { home = N.homeText ? htmlToText(N.homeText()) : ''; } catch (e) {}
     const a1 = TJM_AREAS[doy % TJM_AREAS.length], a2 = TJM_AREAS[(doy + 5) % TJM_AREAS.length];
     const tjmAvoid = (n.tjmUsed || []).slice(0, 30);
-    const jobs = [
+    const sunday = new Date().getDay() === 0;
+    const follow = followContext(state);
+    const top = top3Context(state);
+    const jobs = sunday ? [
+      { key: 'stoic', body: { part: 'stoic', words: 620, stoic, rated: R('stoic') } },
+      ...(sll ? [{ key: 'sll', body: { part: 'sll', words: 620, sll, rated: R('sll') } }] : []),
+      { key: 'success', body: { part: 'success', words: 620, avoid: (n.successUsed || []).slice(0, 30), rated: R('success') } },
+      { key: 'retention', body: { part: 'retention', words: 500, ret, rated: R('retention') } },
+      { key: 'followup', body: { part: 'followup', words: 380, follow, rated: R('followup') } },
+      { key: 'weekreview', body: { part: 'weekreview', words: 650, week: weekContext(state), rated: R('weekreview') } },
+      { key: 'gym', body: { part: 'gym', words: 650, home, gym, ret: { streak: ret.streak }, rated: R('gym'), weekly: true } },
+      { key: 'goals', body: { part: 'goals', words: 480, goals, dateLabel, rated: R('goals') } },
+      { key: 'weeknext', body: { part: 'weeknext', words: 650, next: nextWeekContext(state), week: weekContext(state).slice(0, 2500), rated: R('weeknext') } },
+      { key: 'tjm1', body: { part: 'tjm', words: 650, focus: a1, avoid: tjmAvoid, goals: goals.slice(0, 1500), rated: R('tjm') } },
+      { key: 'top3', body: { part: 'top3', words: 300, top, follow, sunday: true, rated: R('top3') } },
+      { key: 'weekclose', body: { part: 'weekclose', words: 350, rated: R('quiz') } },
+    ] : [
       { key: 'stoic', body: { part: 'stoic', words: 620, stoic, rated: R('stoic') } },
       ...(sll ? [{ key: 'sll', body: { part: 'sll', words: 620, sll, rated: R('sll') } }] : []),
       { key: 'success', body: { part: 'success', words: 620, avoid: (n.successUsed || []).slice(0, 30), rated: R('success') } },
       { key: 'retention', body: { part: 'retention', words: 550, ret, rated: R('retention') } },
+      { key: 'followup', body: { part: 'followup', words: 380, follow, rated: R('followup') } },
       { key: 'goals', body: { part: 'goals', words: 480, goals, dateLabel, rated: R('goals') } },
       { key: 'gym', body: { part: 'gym', words: 650, home, gym, ret: { streak: ret.streak }, rated: R('gym') } },
       { key: 'intro', body: { part: 'intro', words: 170, dateLabel, headlines, noGreeting: true } },
@@ -424,18 +529,48 @@ async function buildBriefing(state, saveDataQuiet, render) {
       { key: 'tjm1', body: { part: 'tjm', words: 650, focus: a1, avoid: tjmAvoid, goals: goals.slice(0, 1500), rated: R('tjm') } },
       { key: 'tjm2', body: { part: 'tjm', words: 650, focus: a2, avoid: tjmAvoid, goals: goals.slice(0, 1500), rated: R('tjm') } },
       { key: 'learn', body: { part: 'learn', words: stories.length >= 4 ? 550 : 650, headlines, avoid: (n.lessons || []).slice(0, 20), rated: R('lesson') } },
+      { key: 'top3', body: { part: 'top3', words: 300, top, follow, rated: R('top3') } },
       { key: 'close', body: { part: 'close', words: 380, headlines, rated: R('quiz') } },
     ];
     N.briefTotal = jobs.length; N.briefStage = 'Writing your briefing…';
     if (state.activeTab === 'news') render();
 
     const out = await Promise.all(jobs.map(j => postRetry({ action: 'brief', ...j.body })
-      .then(r => { N.briefDone++; updateBriefProgress(); return { ...j, ok: true, text: r.text, lesson: r.lesson }; })
+      .then(r => { N.briefDone++; updateBriefProgress(); return { ...j, ok: true, text: r.text, lesson: r.lesson, top: r.top }; })
       .catch(e => { N.briefDone++; updateBriefProgress(); return { ...j, ok: false, err: e.message }; })));
 
-    const get = k => out.find(o => o.key === k);
+    const get = k => out.find(o => o.key === k) || { ok: false };
     const parts = [];
-    parts.push(`Good morning Robert. It's ${dateLabel}. We'll start with your mindset: a piece of Stoic wisdom, today's Straight Line principle, a success habit worth stealing, and your retention check-in. Then a reminder of what you're working towards and where your training and body are at. Then the news that matters to you, two practical plays for TJM, a lesson, and a quick quiz.`);
+    if (sunday) {
+      parts.push(`Good morning Robert. It's ${dateLabel}, so this is your Sunday edition: no news today. We'll start with your mindset and retention check-in, then yesterday's follow-through, then your week in review, your body and training, a reminder of your goals, setting up next week, one TJM play, your top three for today, and your weekly reflection.`);
+      const add = (k, lead) => { const o = get(k); if (o.ok) parts.push(lead + o.text); return o; };
+      const st0 = get('stoic');
+      parts.push(st0.ok ? 'First, your Stoic wisdom for today.\n\n' + st0.text : `First, your Stoic wisdom for today. ${stoic.author} wrote: ${stoic.text} ${stoic.interpretation}`);
+      add('sll', 'Next, your Straight Line principle.\n\n');
+      add('success', 'Now, a success habit worth stealing.\n\n');
+      add('retention', 'Now, your retention check-in.\n\n');
+      add('followup', 'Now, yesterday\'s follow-through.\n\n');
+      add('weekreview', 'Now, your week in review.\n\n');
+      add('gym', 'Now, your gym and body progress.\n\n');
+      add('goals', 'Now, a reminder of what you\'re working towards.\n\n');
+      add('weeknext', 'Now, setting up next week.\n\n');
+      add('tjm1', 'Now, your TJM playbook.\n\n');
+      add('top3', 'Now, today\'s top three.\n\n');
+      add('weekclose', 'To finish the week.\n\n');
+      const text = parts.join('\n\n\n');
+      const t1s = get('tjm1');
+      if (t1s.ok && t1s.lesson) n.tjmUsed = [t1s.lesson, ...(n.tjmUsed || []).filter(x => x !== t1s.lesson)].slice(0, 60);
+      const scs = get('success');
+      if (scs.ok && scs.lesson) n.successUsed = [scs.lesson, ...(n.successUsed || []).filter(x => x !== scs.lesson)].slice(0, 60);
+      const tp = get('top3');
+      n.briefing = { date: todayKey(), text, words: text.split(/\s+/).filter(Boolean).length, builtAt: Date.now(), failed: out.filter(o => !o.ok).length, sunday: true, top: tp.ok && tp.top ? tp.top : null, topDone: [] };
+      saveDataQuiet();
+      archiveBriefing(state, n.briefing, saveDataQuiet);
+      N.briefLoading = false; N.briefStage = null;
+      if (state.activeTab === 'news') render();
+      return;
+    }
+    parts.push(`Good morning Robert. It's ${dateLabel}. We'll start with your mindset: a piece of Stoic wisdom, today's Straight Line principle, a success habit worth stealing, and your retention check-in. Then how yesterday went, a reminder of what you're working towards and where your training and body are at. Then the news that matters to you, two practical plays for TJM, a lesson, your top three for today, and a quick quiz.`);
     const st = get('stoic');
     if (st.ok) parts.push('First, your Stoic wisdom for today.\n\n' + st.text);
     else parts.push(`First, your Stoic wisdom for today. ${stoic.author} wrote: ${stoic.text} ${stoic.interpretation}`);
@@ -446,6 +581,8 @@ async function buildBriefing(state, saveDataQuiet, render) {
     if (sc.ok) parts.push('Now, a success habit worth stealing.\n\n' + sc.text);
     const rt = get('retention');
     if (rt.ok) parts.push('Now, your retention check-in.\n\n' + rt.text);
+    const fu = get('followup');
+    if (fu.ok) parts.push('Now, yesterday\'s follow-through.\n\n' + fu.text);
     const gl = get('goals');
     if (gl.ok) parts.push('Now, a reminder of what you\'re working towards.\n\n' + gl.text);
     const gy = get('gym');
@@ -464,12 +601,14 @@ async function buildBriefing(state, saveDataQuiet, render) {
     if (t2.ok) parts.push('Your second TJM play.\n\n' + t2.text);
     const l = get('learn');
     if (l.ok) parts.push(l.text);
+    const tp = get('top3');
+    if (tp.ok) parts.push('Now, today\'s top three.\n\n' + tp.text);
     const c = get('close');
     if (c.ok) parts.push('Time for your recall quiz.\n\n' + c.text);
 
     const text = parts.join('\n\n\n');
     const failed = out.filter(o => !o.ok).length;
-    n.briefing = { date: todayKey(), text, words: text.split(/\s+/).filter(Boolean).length, builtAt: Date.now(), failed };
+    n.briefing = { date: todayKey(), text, words: text.split(/\s+/).filter(Boolean).length, builtAt: Date.now(), failed, top: tp.ok && tp.top ? tp.top : null, topDone: [] };
     if (l.ok && l.lesson) n.lessons = [l.lesson, ...(n.lessons || []).filter(x => x !== l.lesson)].slice(0, 40);
     const plays = [t1, t2].filter(x => x.ok && x.lesson).map(x => x.lesson);
     if (plays.length) n.tjmUsed = [...plays, ...(n.tjmUsed || []).filter(x => !plays.includes(x))].slice(0, 60);
@@ -521,6 +660,11 @@ function briefSections(b, ed) {
     else if (/^Now, this week's AI experiment/i.test(t)) { icon = '🤖'; label = 'AI experiment'; kind = 'ai'; gist = firstSentence(strip(t, /^Now, this week's AI experiment\.\s*/i)); }
     else if (/^Today's lesson is/i.test(t)) { icon = '🧠'; label = 'Lesson of the day'; kind = 'lesson'; gist = firstSentence(t); }
     else if (/^Time for your recall quiz/i.test(t)) { icon = '❓'; label = 'Recall quiz & sign-off'; kind = 'quiz'; gist = 'Three questions on today\'s stories, a reflection question for the day, then the sign-off.'; }
+    else if (/^Now, yesterday's follow-through/i.test(t)) { icon = '↩️'; label = 'Yesterday\'s follow-through'; kind = 'followup'; gist = firstSentence(strip(t, /^Now, yesterday's follow-through\.\s*/i)); }
+    else if (/^Now, today's top three/i.test(t)) { icon = '🥇'; label = 'Today\'s top 3'; kind = 'top3'; gist = firstSentence(strip(t, /^Now, today's top three\.\s*/i)); }
+    else if (/^Now, your week in review/i.test(t)) { icon = '📊'; label = 'Week in review'; kind = 'weekreview'; gist = firstSentence(strip(t, /^Now, your week in review\.\s*/i)); }
+    else if (/^Now, setting up next week/i.test(t)) { icon = '🗓'; label = 'Setting up next week'; kind = 'weeknext'; gist = firstSentence(strip(t, /^Now, setting up next week\.\s*/i)); }
+    else if (/^To finish the week/i.test(t)) { icon = '🪞'; label = 'Weekly reflection'; kind = 'quiz'; gist = 'Three questions to close the week, then the sign-off.'; }
     else if (/^Now, your retention check-in/i.test(t)) { icon = '🛡'; label = 'Retention check-in'; kind = 'retention'; gist = firstSentence(strip(t, /^Now, your retention check-in\.\s*/i)); }
     else if (/^Now, a reminder of what you're working towards/i.test(t)) { icon = '🎯'; label = 'Your goals'; kind = 'goals'; gist = firstSentence(strip(t, /^Now, a reminder of what you're working towards\.\s*/i)); }
     else if (/^Now, your gym and body progress/i.test(t)) { icon = '🏋️'; label = 'Gym & body progress'; kind = 'gym'; gist = firstSentence(strip(t, /^Now, your gym and body progress\.\s*/i)); }
@@ -639,9 +783,18 @@ function renderBriefPast(state) {
   </div>`;
 }
 
+function renderTop3(b) {
+  if (!b || !b.top || !b.top.length) return '';
+  const done = b.topDone || [];
+  return `<div class="nws-card nws-sum-card">
+    <div class="nws-sum-h">🥇 Today's top 3<span>${done.filter(Boolean).length}/${b.top.length} done</span></div>
+    ${b.top.map((t, i) => `<button class="nws-top ${done[i] ? 'on' : ''}" onclick="newsTopTick(${i})"><span class="nws-top-b">${done[i] ? '✓' : i + 1}</span><span>${esc(t)}</span></button>`).join('')}
+  </div>`;
+}
+
 function briefEntryCard(state) {
   const b = briefing(state);
-  const sub = b ? `Ready · about ${Math.round(b.words / WPM)} minutes · tap to copy` : 'About 55–60 minutes · mindset, goals and gym, then news and TJM plays';
+  const sub = b ? `Ready · about ${Math.round(b.words / WPM)} minutes · tap to copy` : (new Date().getDay() === 0 ? 'Sunday edition · your week in review instead of news' : 'About 55–60 minutes · mindset, goals and gym, then news and TJM plays');
   return `<button class="nws-card nws-ai-entry" onclick="newsView('brief')">
     <div><div class="nws-ai-t">🎧 Today's audio briefing</div><div class="nws-note">${esc(sub)}</div></div>
     <div class="nws-ai-arrow">→</div>
@@ -675,6 +828,7 @@ function renderBrief(state) {
       ${N.copyFail ? `<div class="nws-err">Couldn't copy automatically — open "Read the script" below, select all and copy.</div>` : ''}
       ${b.failed ? `<div class="nws-note" style="margin-top:10px;">${b.failed} section${b.failed === 1 ? '' : 's'} couldn't be written, so ${b.failed === 1 ? 'it was' : 'they were'} shortened. <a href="#" onclick="newsBriefBuild();return false;" style="color:var(--gold);">Rebuild</a></div>` : ''}
     </div>
+    ${renderTop3(b)}
     ${renderBriefSummary(b, news(state).edition && news(state).edition.date === todayKey() ? news(state).edition : null, news(state).briefRatings)}
     <details class="nws-card nws-preview"><summary>Read the whole script</summary><div class="nws-script">${esc(b.text).replace(/\n/g, '<br>')}</div></details>`;
   }
@@ -745,6 +899,12 @@ body.light .nws-try { color:#5a4610; }
 .nws-sum-card { display:flex; flex-direction:column; padding:14px 14px 6px; }
 .nws-sum-h { font-size:15px; font-weight:800; color:var(--gold); margin-bottom:6px; display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
 .nws-sum-h span { font-size:11px; font-weight:600; color:var(--faint); }
+.nws-top { display:flex; gap:10px; align-items:flex-start; width:100%; text-align:left; background:none; border:none; border-top:1px solid var(--line); padding:11px 0; color:#fff; font-size:14px; font-weight:600; line-height:1.45; cursor:pointer; font-family:inherit; }
+.nws-top:first-of-type { border-top:none; }
+.nws-top-b { flex-shrink:0; width:24px; height:24px; border-radius:50%; border:1px solid rgba(212,175,55,0.5); color:var(--gold); font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+.nws-top.on { opacity:0.55; text-decoration:line-through; }
+.nws-top.on .nws-top-b { background:var(--gold); color:#000; }
+body.light .nws-top { color:#0A1628; }
 .nws-secw { border-top:1px solid var(--line); }
 .nws-secw:first-of-type { border-top:none; }
 .nws-rate { display:flex; gap:3px; margin:0 0 10px 32px; }
@@ -984,6 +1144,11 @@ export function initNewsTab({ state, saveDataQuiet, render, homeText }) {
     if (it.v) n.aiVotes.unshift({ t: key, v: it.v });
     n.aiVotes = n.aiVotes.slice(0, 120);
     saveDataQuiet(); render();
+  };
+  window.newsTopTick = (i) => {
+    const b = briefing(state); if (!b || !b.top) return;
+    b.topDone = b.topDone || []; b.topDone[i] = !b.topDone[i];
+    const y = window.scrollY; saveDataQuiet(); render(); window.scrollTo(0, y);
   };
   window.newsRate = (idx, v) => {
     const n = news(state); const b = N.view === 'briefpast' ? N.past : briefing(state); if (!b) return;

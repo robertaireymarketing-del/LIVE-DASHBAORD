@@ -1272,6 +1272,38 @@ export function renderHomeTab(deps) {
           <div class="nh-habit-exp-s">${expDef.bmr.toLocaleString()} BMR (full day) + ${expDef.active.toLocaleString()} active − ${Math.round(calsToday).toLocaleString()} eaten</div>
         </div>` : '';
 
+  // ── Retention (manual tick — the same days[k].retention the Today page and the
+  // daily briefing read; "Log how you feel" opens the existing check-in sheet,
+  // which saves to state.data.retentionLog and feeds the briefing too).
+  const retDone = (k) => !!dayData(k).retention;
+  const retToday = retDone(todayKey);
+  const retStreak = (() => {
+    let k = retToday ? todayKey : addDaysKey(todayKey, -1), n = 0;
+    while (retDone(k) && n < 2000) { n++; k = addDaysKey(k, -1); }
+    return n;
+  })();
+  const retLogged = !!(state.data?.retentionLog || {})[todayKey];
+  // Shared with the News briefing so it counts gym the same way Home does.
+  state._homeGymDone = gymDone;
+  const retentionSection = `
+  <div class="nh-habit ${retToday ? 'done' : 'todo'} tappable" style="grid-column:1 / -1;min-height:0;" role="button" tabindex="0" onclick="toggleHomeRetention()" aria-label="Retention ${retToday ? 'kept today' : 'not ticked'}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+      <div>
+        <div class="nh-habit-name">Retention</div>
+        <div class="nh-habit-state">${retToday ? 'KEPT TODAY ✓' : 'NOT TICKED'}</div>
+        <div class="nh-habit-src">${retStreak ? `Day ${retStreak}${retToday ? '' : ' · tap once today is kept'}` : 'Tap once today is kept'}${retToday ? ' · tap to undo' : ''}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="nh-habit-exp-v">${retStreak}<span> day${retStreak === 1 ? '' : 's'}</span></div>
+        <button onclick="event.stopPropagation();openRetentionModal()" style="margin-top:8px;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.35);color:#fff;border-radius:10px;padding:6px 10px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer;">${retLogged ? '✓ Check-in logged' : 'Log how you feel'}</button>
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="nh-dots" aria-hidden="true">${dots(retDone)}</div>
+      <div class="nh-habit-foot">${weekCount(retDone)}/${elapsed} this week</div>
+    </div>
+  </div>`;
+
   const habitsSection = `
   <section class="nh-habits">
     <div class="nh-habit ${gymToday ? 'done' : 'todo'}${gymTappable ? ' tappable' : ''}" ${gymTappable ? 'role="button" tabindex="0" onclick="toggleHomeGym()"' : 'role="status"'} aria-label="Gym ${gymToday ? 'done' : 'not done'}">
@@ -1296,6 +1328,7 @@ export function renderHomeTab(deps) {
         <div class="nh-habit-foot">${weekCount(dietDone)}/${elapsed} this week</div>
       </div>
     </div>
+    ${retentionSection}
   </section>`;
 
   // ── 5. Edit a past day (overrides) ──────────────────────────────────────
