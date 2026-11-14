@@ -241,6 +241,25 @@ function parseRanked(text, ids) {
 // think by default the thinking can eat the whole token budget and leave an
 // empty answer. If a model rejects the thinking flag, retry once without it.
 // An empty answer throws, so the caller moves on to the next model.
+// ── Cost tracking ──────────────────────────────────────────────────
+// USD per million tokens (standard API list prices, Nov 2026). Unknown models
+// are priced as Sonnet so the running total errs high rather than low.
+const PRICES = {
+  'claude-haiku-5-5':          { in: 0.10, out: 0.50, inLong: 0.50, outLong: 2.50 },
+  'claude-haiku-4-5-20251001': { in: 1,    out: 5 },
+  'claude-sonnet-5-5':         { in: 2,    out: 10 },
+  'claude-sonnet-5':           { in: 2,    out: 10 },
+};
+let USAGE = { usd: 0, calls: 0 };    // reset per request in the handler
+function addUsage(model, u) {
+  if (!u) return;
+  const p = PRICES[model] || { in: 2, out: 10 };
+  const inTok = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+  const long = p.inLong && inTok > 100000;
+  USAGE.usd += (inTok * (long ? p.inLong : p.in) + (u.output_tokens || 0) * (long ? p.outLong : p.out)) / 1e6;
+  USAGE.calls += 1;
+}
+
 async function callClaude(key, model, system, user, maxTokens) {
   const send = async (withThinkingOff) => {
     const body = { model, max_tokens: maxTokens || 1500, system, messages: [{ role: 'user', content: user }] };
@@ -252,7 +271,9 @@ async function callClaude(key, model, system, user, maxTokens) {
     });
     const raw = await r.text();
     if (!r.ok) { const e = new Error('Anthropic ' + r.status + ' (' + model + '): ' + raw.slice(0, 200)); e.status = r.status; e.raw = raw; throw e; }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    addUsage(model, parsed.usage);
+    return parsed;
   };
   let data;
   try { data = await send(true); }
@@ -626,15 +647,24 @@ exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return respond(405, { error: 'Method not allowed' });
   let payload;
   try { payload = JSON.parse(event.body || '{}'); } catch (e) { return respond(400, { error: 'Bad JSON body' }); }
+  USAGE = { usd: 0, calls: 0 };
+  const withCost = (res) => {
+    if (!USAGE.calls || !res || !res.body) return res;
+    try { const b = JSON.parse(res.body); b.cost = { usd: USAGE.usd, calls: USAGE.calls, action: String(payload.action || '') }; res.body = JSON.stringify(b); } catch (e) {}
+    return res;
+  };
   try {
+    return withCost(await route());
+  } catch (e) {
+    console.error('[news]', e);
+    return withCost(respond(500, { error: String(e.message || e).slice(0, 300) }));
+  }
+  async function route() {
     if (payload.action === 'feeds') return await actionFeeds(payload.set);
     if (payload.action === 'airank') return await actionAiRank(payload);
     if (payload.action === 'brief') return await actionBrief(payload);
     if (payload.action === 'rank') return await actionRank(payload);
     if (payload.action === 'explain') return await actionExplain(payload);
     return respond(400, { error: 'Unknown action' });
-  } catch (e) {
-    console.error('[news]', e);
-    return respond(500, { error: String(e.message || e).slice(0, 300) });
   }
 };

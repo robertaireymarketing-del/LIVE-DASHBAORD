@@ -36,6 +36,8 @@
 //   usage:   { date:'YYYY-MM-DD', secs },
 //   edition: { date, items:[{id,title,link,source,summary,tag,score,why,v}], generatedAt, model },
 //   votes:   [{ t, tag, src, v:1|-1, d }]   (newest first, capped)
+//   costs:   { 'YYYY-MM': { usd, calls, by:{rank,explain,brief,airank}, since } }  running API cost per
+//            month, from the token counts the news function reports back on every call
 //   noRel:   [{ t, tag, src, sec, why, d }]  🤷 "Don't see the relevance" — sent to the AI editor
 //            and the why-writer as examples of links that were too weak (newest first, capped)
 //   seen:    [{ t, k, u, d, m }]  stories already shown (m:1 = you tapped Seen it); kept SEEN_DAYS
@@ -175,6 +177,23 @@ function fallbackRank(items) {
   }).filter(Boolean);
 }
 
+const USD_GBP = 0.78;                        // approximate; costs are billed in USD
+function monthKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
+function gbp(usd) { const p = usd * USD_GBP * 100; return p < 100 ? `${p < 10 ? p.toFixed(1) : Math.round(p)}p` : `£${(p / 100).toFixed(2)}`; }
+function costCard(state) {
+  const n = news(state);
+  const c = (n.costs || {})[monthKey()];
+  const prev = (() => { const d = new Date(); d.setDate(0); const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; return (n.costs || {})[k]; })();
+  const label = { rank: 'Picking stories', explain: 'Why-it-matters lines', brief: 'Audio briefing', airank: 'AI for TJM' };
+  const by = c ? Object.entries(c.by || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${label[k] || k} ${gbp(v)}`).join(' · ') : '';
+  const days = c ? Math.max(1, Math.round((Date.now() - c.since) / 86400000) + 1) : 0;
+  return `<div class="nws-card nws-cost">
+    <div class="nws-cost-top"><span>💷 News cost this month</span><b>${c ? gbp(c.usd) : '0p'}</b></div>
+    <div class="nws-note">${c ? `${c.calls} AI calls over ${days} day${days === 1 ? '' : 's'} · about ${gbp(c.usd / days)} a day${by ? '<br>' + by : ''}` : 'Starts counting from the next AI call.'}${prev ? `<br>Last month: ${gbp(prev.usd)}` : ''}</div>
+    <div class="nws-note" style="font-size:11px;margin-top:4px;">From the token counts on each call, at list prices, converted at ~$1 = 78p. Your Anthropic console has the exact bill.</div>
+  </div>`;
+}
+
 async function post(body) {
   let res;
   try {
@@ -182,6 +201,7 @@ async function post(body) {
   } catch (e) { throw new Error('Could not reach the news service. Check your connection.'); }
   let data = null;
   try { data = await res.json(); } catch (e) {}
+  if (data && data.cost && N.addCost) { try { N.addCost(data.cost); } catch (e) {} }
   if (!res.ok) {
     if (res.status === 404) throw new Error('News function not found — has the latest deploy finished?');
     throw new Error((data && data.error) || `Request failed (${res.status})`);
@@ -938,6 +958,8 @@ const NEWS_CSS = `<style id="news-css">
 .nws-vote { flex:1; padding:9px 0; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--mut); font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
 .nws-vote.up.on { background:rgba(46,204,113,0.14); border-color:rgba(46,204,113,0.5); color:#2ecc71; }
 .nws-vote.down.on { background:rgba(231,76,60,0.12); border-color:rgba(231,76,60,0.45); color:#e74c3c; }
+.nws-cost-top { display:flex; justify-content:space-between; align-items:baseline; font-size:14px; font-weight:700; color:var(--mut); margin-bottom:4px; }
+.nws-cost-top b { font-size:20px; color:var(--gold); font-variant-numeric:tabular-nums; }
 .nws-norel { width:100%; margin-top:2px; padding:8px 0; border-radius:10px; border:1px dashed var(--line); background:transparent; color:var(--mut); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
 .nws-norel.on { border-style:solid; border-color:rgba(230,126,34,0.5); color:#e67e22; background:rgba(230,126,34,0.08); }
 .nws-seen { margin-left:auto; background:none; border:1px solid var(--line); border-radius:20px; color:var(--mut); font-size:11px; font-weight:700; padding:3px 9px; cursor:pointer; font-family:inherit; }
@@ -1071,11 +1093,23 @@ export function renderNewsTab({ state }) {
     ${hidden.length ? `<div class="nws-card nws-hidden"><div class="nws-note">Marked as already seen — these won't come back:</div>
       ${hidden.map(it => `<div class="nws-hidden-row"><span>${esc(it.title)}</span><button class="nws-undo" onclick="newsUnseen('${it.id}')">Undo</button></div>`).join('')}</div>` : ''}
     ${tuned}
+    ${costCard(state)}
   </div>`;
 }
 
 // ── Behaviour ──────────────────────────────────────────────────────────────
 export function initNewsTab({ state, saveDataQuiet, render, homeText }) {
+  N.addCost = (c) => {
+    const n = news(state);
+    n.costs = n.costs || {};
+    const k = monthKey();
+    const m = n.costs[k] = n.costs[k] || { usd: 0, calls: 0, by: {}, since: Date.now() };
+    m.usd += +c.usd || 0; m.calls += +c.calls || 0;
+    const a = c.action || 'other'; m.by[a] = (m.by[a] || 0) + (+c.usd || 0);
+    // keep the last 12 months only
+    Object.keys(n.costs).sort().slice(0, -12).forEach(x => delete n.costs[x]);
+    clearTimeout(N.costSave); N.costSave = setTimeout(() => { try { saveDataQuiet(); } catch (e) {} }, 4000);
+  };
   if (homeText) N.homeText = homeText;
   const n = news(state);   // re-read inside handlers too: state.data can be swapped by a reload
   const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
