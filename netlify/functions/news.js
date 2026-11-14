@@ -18,7 +18,7 @@
 //       Netlify's time limit. 'story' also reads the article itself so the
 //       deep-dive is based on what the piece actually says.
 //
-//   POST { action:'rank', items:[{id,title,summary,source}], liked:[], disliked:[] }
+//   POST { action:'rank', items:[{id,title,summary,source}], liked:[], disliked:[], seen:[titles] }
 //     → asks Claude to pick the stories that actually affect Robert's life and
 //       goals, score them, tag them and say in one line why each matters.
 //       The profile + rules live HERE (server-side) so the endpoint can't be
@@ -161,7 +161,7 @@ async function actionFeeds(set) {
 }
 
 // ── Ranking with Claude ────────────────────────────────────────────
-function buildPrompt(items, liked, disliked) {
+function buildPrompt(items, liked, disliked, seen) {
   let s = 'You are the editor of a private daily news briefing for one person. You choose the few stories that will actually affect his life, money, business or health, and you explain each in one plain line.\n\n';
   s += 'WHO HE IS:\n' + PROFILE + '\n\n';
   s += 'HOW TO CHOOSE:\n'
@@ -171,6 +171,8 @@ function buildPrompt(items, liked, disliked) {
     + '- Learn from his feedback below: lean toward the kind of story he marked useful, away from the kind he marked not useful. Judge by topic and type of story, not exact wording.\n\n';
   if (liked.length) s += 'HE MARKED THESE USEFUL:\n' + liked.map(x => '+ [' + x.tag + '] ' + x.t).join('\n') + '\n\n';
   if (disliked.length) s += 'HE MARKED THESE NOT USEFUL:\n' + disliked.map(x => '- [' + x.tag + '] ' + x.t).join('\n') + '\n\n';
+  if (seen && seen.length) s += 'HE HAS ALREADY SEEN THESE STORIES (earlier editions, or he marked them seen):\n' + seen.map(t => '* ' + t).join('\n') + '\n'
+    + 'Leave out any story about the same event or announcement as one of these, even from a different outlet or with a different headline. Only include a follow-up if it reports a major new development, and then say in WHY what is new.\n\n';
   s += 'OUTPUT: Return only the 12 highest-scoring stories with score 5 or more (fewer is fine — never pad). One per line, best first, exactly:\n'
     + 'ID | SCORE | TAG | WHY\n'
     + 'TAG must be one of: ' + TAGS.join(', ') + '.\n'
@@ -256,7 +258,8 @@ async function actionRank(payload) {
   })).filter(x => x.id && x.title);
   if (!items.length) return respond(400, { error: 'No stories to rank.' });
   const clean = arr => (Array.isArray(arr) ? arr : []).slice(0, 40).map(x => ({ t: String(x.t || '').slice(0, 160), tag: String(x.tag || '').slice(0, 20) })).filter(x => x.t);
-  const { system, user } = buildPrompt(items, clean(payload.liked), clean(payload.disliked));
+  const seen = (Array.isArray(payload.seen) ? payload.seen : []).slice(0, 80).map(t => String(t || '').slice(0, 160)).filter(Boolean);
+  const { system, user } = buildPrompt(items, clean(payload.liked), clean(payload.disliked), seen);
   const ids = new Set(items.map(x => x.id));
 
   const models = MODELS('NEWS_MODEL');
