@@ -38,6 +38,14 @@ const FEEDS = [
   { src: 'Retail Gazette',    url: 'https://www.retailgazette.co.uk/feed/' },
   { src: 'Modern Retail',     url: 'https://www.modernretail.co/feed/' },
   { src: 'Prof. Jeweller',    url: 'https://www.professionaljeweller.com/feed/' },
+  // Nottingham Insurance: insurance, mortgages, property, landlords
+  { src: 'Guardian Property', url: 'https://www.theguardian.com/money/property/rss' },
+  { src: 'Guardian Insurance', url: 'https://www.theguardian.com/money/insurance/rss' },
+  { src: 'Guardian Mortgages', url: 'https://www.theguardian.com/money/mortgages/rss' },
+  { src: 'FCA',               url: 'https://www.fca.org.uk/news/rss.xml' },
+  { src: 'Mortgage Strategy', url: 'https://www.mortgagestrategy.co.uk/feed/' },
+  { src: 'Property Ind. Eye', url: 'https://www.propertyindustryeye.com/feed/' },
+  { src: 'Landlord Today',    url: 'https://www.landlordtoday.co.uk/rss' },
   // Tech & AI
   { src: 'BBC Technology',    url: 'https://feeds.bbci.co.uk/news/technology/rss.xml' },
   { src: 'TechCrunch',        url: 'https://techcrunch.com/feed/' },
@@ -64,12 +72,15 @@ const AI_FEEDS = [
 ];
 const AI_KINDS = ['Tool', 'Feature', 'Model', 'Platform', 'Tactic'];
 
-const TAGS = ['Money', 'Business', 'Retail', 'Jewellery', 'Tech & AI', 'Health', 'Nottingham', 'UK', 'World'];
+const TAGS = ['Money', 'Business', 'Retail', 'Jewellery', 'Insurance', 'Property', 'Tech & AI', 'Health', 'Nottingham', 'UK', 'World'];
+const SECS = ['TJM', 'NI', 'YOU'];
 
 const PROFILE = [
   'Robert, 29, lives in Nottingham, UK, with his family. Engaged; hoping to move out and eventually buy a home.',
   'Founder of TJM (The Jewellery Merchant), a small online jewellery brand: new hallmarked silver, pre-owned silver sold on Vinted, Pandora charms, his own website, product photography, email marketing and TikTok lives/short video. He has a part-time assistant who edits and posts content.',
   'Also works daily in his father\'s long-established independent jewellery shop.',
+  'Side business: Nottingham Insurance — building a website and social audience (SEO articles, Instagram, TikTok, Facebook) to generate insurance leads from landlords, homebuyers and homeowners in Nottingham. Run by his assistant; his fiancée, who works for a mortgage company, handles the leads. Unregulated lead generation first, FCA regulation and a mortgage business later. Self-funding, under £500 personal investment.',
+  'News focus: UK first. US or other foreign stories only when they directly affect him.',
   'Qualified accountant by background, so comfortable with numbers, tax and finance detail.',
   'Daily habits he tracks: gym, diet, meditation, and "retention". IMPORTANT: in all of his habit data, "retention" ALWAYS means semen retention — the personal discipline of no porn and no masturbation — never customer retention. Only talk about customer retention when the topic is explicitly TJM customers.',
   'Steps and walking: he works in the shop through the day, so NEVER suggest a lunchtime walk or a walk during the working day. His options for extra steps are (1) time on the treadmill straight after his weights session if he has time, or (2) the walking treadmill/walking pad in the evening. Suggest those, nothing else, when steps come up.',
@@ -157,7 +168,7 @@ async function actionFeeds(set) {
   // Keep the prompt small.
   const perSrc = {};
   const per = ai ? 18 : 12;
-  const capped = items.filter(it => (perSrc[it.source] = (perSrc[it.source] || 0) + 1) <= per).slice(0, 110);
+  const capped = items.filter(it => (perSrc[it.source] = (perSrc[it.source] || 0) + 1) <= per).slice(0, ai ? 110 : 140);
   capped.forEach((it, i) => { it.id = (ai ? 'a' : 's') + i; });
   return respond(200, { items: capped, failed, fetchedAt: Date.now() });
 }
@@ -166,6 +177,11 @@ async function actionFeeds(set) {
 function buildPrompt(items, liked, disliked, seen, rated) {
   let s = 'You are the editor of a private daily news briefing for one person. You choose the few stories that will actually affect his life, money, business or health, and you explain each in one plain line.\n\n';
   s += 'WHO HE IS:\n' + PROFILE + '\n\n';
+  s += 'THREE SECTIONS — put every story you keep into exactly one:\n'
+    + '- TJM: relevant to his online jewellery business — jewellery, silver and gold prices, retail and consumer spending, e-commerce and marketplaces (Vinted, eBay, Etsy, TikTok Shop, Shopify, Amazon), postage, small-business tax and rules, selling online, marketing.\n'
+    + '- NI: relevant to Nottingham Insurance, his insurance lead-generation side business for landlords, homebuyers and homeowners — home, buildings, landlord and life insurance, mortgages and rates, the housing and rental market, landlord rules and rental reform, FCA rules on insurance and lead generation, Nottingham property, and the questions those people are asking (useful as content ideas).\n'
+    + '- YOU: genuinely interesting or useful to him personally — health, fitness and nutrition science, AI and tech, personal finance, Nottingham, self-improvement, and major UK or world events with a real effect on him.\n\n'
+    + 'UK FIRST: he is in Nottingham, England. Strongly prefer UK stories. Include a US or other non-UK story only when it directly affects him (e.g. a platform he sells on changing worldwide, silver prices, a major AI tool he can use in the UK). US-only business, politics, regulation, retail or property news scores 0-2.\n\n';
   s += 'HOW TO CHOOSE:\n'
     + '- Score every story 0-10 for real, practical impact on HIM: would knowing this change a decision he makes about money, TJM, pricing, platforms, tax, his health, or where he lives? High scores need a concrete link, not a vague "the economy matters".\n'
     + '- Prefer actionable and opportunity-creating stories (a rule change he must follow, a cost going up, a platform shift, a trend he can sell into, a tool he can use).\n'
@@ -176,9 +192,9 @@ function buildPrompt(items, liked, disliked, seen, rated) {
   if (rated && rated.length) s += 'HE RATED THESE STORIES OUT OF 10 AFTER HEARING THEM IN HIS BRIEFING (how relevant and interesting they were to him). Treat 8-10 as strongly wanted, 1-4 as not wanted, and judge by topic and type of story:\n' + rated.map(x => x.r + '/10 [' + x.tag + '] ' + x.t).join('\n') + '\n\n';
   if (seen && seen.length) s += 'HE HAS ALREADY SEEN THESE STORIES (earlier editions, or he marked them seen):\n' + seen.map(t => '* ' + t).join('\n') + '\n'
     + 'Leave out any story about the same event or announcement as one of these, even from a different outlet or with a different headline. Only include a follow-up if it reports a major new development, and then say in WHY what is new.\n\n';
-  s += 'OUTPUT: Return only the 12 highest-scoring stories with score 5 or more (fewer is fine — never pad). One per line, best first, exactly:\n'
-    + 'ID | SCORE | TAG | WHY\n'
-    + 'TAG must be one of: ' + TAGS.join(', ') + '.\n'
+  s += 'OUTPUT: Return up to 6 stories per section (up to 18 in total), only those scoring 5 or more — fewer is fine, never pad. One per line, best first within each section, exactly:\n'
+    + 'ID | SECTION | SCORE | TAG | WHY\n'
+    + 'SECTION must be TJM, NI or YOU. TAG must be one of: ' + TAGS.join(', ') + '.\n'
     + 'WHY is max 22 words, addressed to him ("you"), saying specifically how it affects him or what he could do. No hype.\n'
     + 'Plain lines only: no table, no header row, no leading pipe, no numbering, no other text.';
   const list = items.map(it => it.id + ' | ' + it.source + ' | ' + it.title + (it.summary ? ' — ' + it.summary.slice(0, 160) : '')).join('\n');
@@ -207,11 +223,15 @@ function parseRanked(text, ids) {
     if (!p) return;
     const id = p[0];
     if (seen.has(id)) return;
+    // ID | SECTION | SCORE | TAG | WHY  (older ID | SCORE | TAG | WHY still accepted)
+    let sec = null;
+    if (SECS.includes(String(p[1]).toUpperCase())) { sec = String(p[1]).toUpperCase(); p.splice(1, 1); }
+    if (p.length < 4) return;
     const score = Math.max(0, Math.min(10, parseFloat(p[1]) || 0));
     const tg = TAGS.find(t => t.toLowerCase() === p[2].toLowerCase()) || 'UK';
     const why = p.slice(3).join(' | ').slice(0, 220);
     seen.add(id);
-    out.push({ id, score, tag: tg, why });
+    out.push({ id, score, tag: tg, why, sec });
   });
   return out;
 }
@@ -255,7 +275,7 @@ const fatal = (e) => e && (e.status === 401 || e.status === 403 || e.status === 
 async function actionRank(payload) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return respond(500, { error: 'Server is missing ANTHROPIC_API_KEY.' });
-  const items = (Array.isArray(payload.items) ? payload.items : []).slice(0, 120).map(x => ({
+  const items = (Array.isArray(payload.items) ? payload.items : []).slice(0, 140).map(x => ({
     id: String(x.id || '').slice(0, 8), title: String(x.title || '').slice(0, 220),
     summary: String(x.summary || '').slice(0, 200), source: String(x.source || '').slice(0, 40),
   })).filter(x => x.id && x.title);
@@ -270,7 +290,7 @@ async function actionRank(payload) {
   let lastErr = null;
   for (const m of models) {
     try {
-      const text = await callClaude(key, m, system, user);
+      const text = await callClaude(key, m, system, user, 2600);
       const ranked = parseRanked(text, ids);
       if (ranked.length) return respond(200, { ranked, model: m });
       console.error('[news rank] unparsed reply:', text.slice(0, 800));

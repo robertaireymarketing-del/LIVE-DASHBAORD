@@ -100,6 +100,13 @@ function removeSeen(state, it) {
   const k = normTitle(it.title), u = normLink(it.link);
   n.seen = seenList(state).filter(x => !((k && x.k === k) || (u && x.u === u)));
 }
+// Up to n stories for the audio briefing, taking the best of each section in turn.
+function balancedStories(items, n) {
+  const by = SECTIONS.map(s => items.filter(it => secOf(it) === s.key));
+  const out = [];
+  for (let i = 0; out.length < n && by.some(l => l[i]); i++) by.forEach(l => { if (l[i] && out.length < n) out.push(l[i]); });
+  return out;
+}
 function visibleItems(ed) { return ed ? ed.items.filter(it => !it.seen) : []; }
 
 function secsLeft(state) { return DAILY_SECS - (news(state).usage.secs || 0); }
@@ -122,6 +129,19 @@ function learned(votes, ratings) {
 function ratingsOf(state, kind, max = 25) {
   return (news(state).briefRatings || []).filter(x => x.k === kind).slice(0, max).map(x => ({ t: x.t, r: x.r }));
 }
+// ── Three sections ─────────────────────────────────────────────────────────
+const SECTIONS = [
+  { key: 'TJM', icon: '💎', label: 'Relevant to TJM' },
+  { key: 'NI', icon: '🏠', label: 'Relevant to Nottingham Insurance' },
+  { key: 'YOU', icon: '⭐', label: 'Interesting to you' },
+];
+const PER_SECTION = 5;
+function secOf(it) {
+  if (it.sec && SECTIONS.some(s => s.key === it.sec)) return it.sec;
+  if (/^(Jewellery|Retail|Business)$/.test(it.tag)) return 'TJM';
+  if (/^(Insurance|Property)$/.test(it.tag)) return 'NI';
+  return 'YOU';
+}
 function adjust(item, L) {
   const clamp = (v, a) => Math.max(-a, Math.min(a, v));
   return clamp((L.tag[item.tag] || 0) * 0.4, 2) + clamp((L.src[item.source] || 0) * 0.2, 1);
@@ -129,7 +149,8 @@ function adjust(item, L) {
 
 // Fallback when the AI editor can't be reached: simple keyword relevance.
 const KEYWORDS = [
-  [/interest rate|bank of england|mortgage|inflation|base rate/i, 'Money', 7],
+  [/insurance|insurer|landlord|renters|lettings|buy-to-let|house price|homebuyer|first-time buyer|mortgage|remortgage|\bfca\b/i, 'Property', 7],
+  [/interest rate|bank of england|inflation|base rate/i, 'Money', 7],
   [/\bsilver\b|\bgold\b|jewel|pandora|hallmark|diamond/i, 'Jewellery', 8],
   [/vinted|etsy|ebay|tiktok shop|shopify|amazon|marketplace|online seller/i, 'Business', 8],
   [/retail|high street|consumer spending|shoppers|christmas trading|black friday/i, 'Retail', 7],
@@ -143,7 +164,7 @@ function fallbackRank(items) {
   return items.map(it => {
     const hay = it.title + ' ' + (it.summary || '');
     const hit = KEYWORDS.find(([re]) => re.test(hay));
-    return hit ? { id: it.id, score: hit[2], tag: hit[1], why: '' } : null;
+    return hit ? { id: it.id, score: hit[2], tag: hit[1], why: '', sec: secOf({ tag: hit[1] }) } : null;
   }).filter(Boolean);
 }
 
@@ -191,12 +212,12 @@ async function buildEdition(state, saveDataQuiet, render) {
     const byId = Object.fromEntries(items.map(it => [it.id, it]));
     const L = learned(n.votes, n.briefRatings);
     const picked = ranked
-      .map(r => { const it = byId[r.id]; return it ? { id: r.id, title: it.title, link: it.link, source: it.source, summary: it.summary, ts: it.ts, tag: r.tag, why: r.why, score: r.score } : null; })
+      .map(r => { const it = byId[r.id]; return it ? { id: r.id, title: it.title, link: it.link, source: it.source, summary: it.summary, ts: it.ts, tag: r.tag, why: r.why, score: r.score, sec: r.sec || null } : null; })
       .filter(Boolean)
-      .map(it => ({ ...it, rank: it.score + adjust(it, L) }))
+      .map(it => ({ ...it, sec: secOf(it), rank: it.score + adjust(it, L) }))
       .filter(it => it.rank >= 5)
       .sort((a, b) => b.rank - a.rank)
-      .slice(0, MAX_STORIES);
+      .filter((it, _, arr) => arr.filter(x => x.sec === it.sec).indexOf(it) < PER_SECTION);
 
     n.edition = { date: todayKey(), items: picked, generatedAt: Date.now(), model, note: N.note || null };
     picked.forEach(it => addSeen(state, it, false));   // in today's edition = won't come back tomorrow
@@ -479,7 +500,7 @@ async function buildBriefing(state, saveDataQuiet, render) {
     const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
     if (!ed && !isSun) throw new Error(N.error || 'Couldn\'t build today\'s edition.');
 
-    const stories = isSun ? [] : visibleItems(ed).slice(0, 6);
+    const stories = isSun ? [] : balancedStories(visibleItems(ed), 6);
     const headlines = stories.map(it => ({ title: it.title, why: it.why }));
     const per = stories.length ? Math.max(320, Math.min(520, Math.round(3100 / stories.length))) : 0;
     const ai = (aiEdition(state)?.items || []).find(i => !i.done) || null;
@@ -878,6 +899,8 @@ const NEWS_CSS = `<style id="news-css">
 .nws-btn.ghost { background:transparent; color:var(--gold); border:1px solid rgba(212,175,55,0.4); }
 .nws-story { display:flex; flex-direction:column; gap:8px; }
 .nws-meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:11px; color:var(--faint); }
+.nws-sec-head { display:flex; justify-content:space-between; align-items:baseline; font-size:13px; font-weight:800; letter-spacing:0.6px; text-transform:uppercase; color:var(--gold); margin:14px 2px 0; padding-bottom:6px; border-bottom:1px solid rgba(212,175,55,0.3); }
+.nws-sec-head span { font-size:11px; font-weight:600; letter-spacing:0; text-transform:none; color:var(--faint); }
 .nws-tag { font-size:10px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:var(--gold); border:1px solid rgba(212,175,55,0.35); border-radius:20px; padding:2px 8px; }
 .nws-h { font-size:16px; font-weight:700; line-height:1.35; color:#fff; text-decoration:none; }
 .nws-why { font-size:14px; line-height:1.5; color:#e9dcae; border-left:2px solid var(--gold); padding-left:10px; }
@@ -1027,7 +1050,7 @@ export function renderNewsTab({ state }) {
   // ── Reading ──
   const items = visibleItems(ed);
   const hidden = ed ? ed.items.filter(it => it.seen) : [];
-  const stories = items.map(it => `
+  const card = it => `
     <div class="nws-card nws-story">
       <div class="nws-meta"><span class="nws-tag">${esc(it.tag)}</span><span>${esc(it.source)}</span>${it.ts ? `<span>· ${ago(it.ts)}</span>` : ''}<button class="nws-seen" onclick="newsSeen('${it.id}')">👁 Seen it</button></div>
       <a class="nws-h" href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.title)}</a>
@@ -1038,7 +1061,12 @@ export function renderNewsTab({ state }) {
         <button class="nws-vote down ${it.v < 0 ? 'on' : ''}" onclick="newsVote('${it.id}',-1)">👎 Not for me</button>
         <a class="nws-read" href="${esc(it.link)}" target="_blank" rel="noopener">Read →</a>
       </div>
-    </div>`).join('');
+    </div>`;
+  const stories = items.length ? SECTIONS.map(sc => {
+    const list = items.filter(it => secOf(it) === sc.key);
+    return `<div class="nws-sec-head">${sc.icon} ${sc.label}<span>${list.length || 'none today'}</span></div>
+      ${list.map(card).join('') || `<div class="nws-note" style="padding:0 4px 6px;">Nothing worth your time here today.</div>`}`;
+  }).join('') : '';
 
   return `${NEWS_CSS}<div class="nws">
     ${header}
