@@ -36,6 +36,8 @@
 //   usage:   { date:'YYYY-MM-DD', secs },
 //   edition: { date, items:[{id,title,link,source,summary,tag,score,why,v}], generatedAt, model },
 //   votes:   [{ t, tag, src, v:1|-1, d }]   (newest first, capped)
+//   noRel:   [{ t, tag, src, sec, why, d }]  🤷 "Don't see the relevance" — sent to the AI editor
+//            and the why-writer as examples of links that were too weak (newest first, capped)
 //   seen:    [{ t, k, u, d, m }]  stories already shown (m:1 = you tapped Seen it); kept SEEN_DAYS
 //   ai:      { week, items:[{id,title,link,source,ts,kind,what,try,v,done}], generatedAt, model, note },
 //   aiVotes: [{ t, v }],  aiTried: [{ t, d }]
@@ -113,8 +115,12 @@ function visibleItems(ed) { return ed ? ed.items.filter(it => !it.seen) : []; }
 function secsLeft(state) { return DAILY_SECS - (news(state).usage.secs || 0); }
 
 // ── What it has learned from your votes ────────────────────────────────────
-function learned(votes, ratings) {
+function learned(votes, ratings, noRel) {
   const tag = {}, src = {};
+  (noRel || []).slice(0, 100).forEach(x => {            // weak link: a gentle nudge down, not a 👎
+    if (x.tag) tag[x.tag] = (tag[x.tag] || 0) - 0.4;
+    if (x.src) src[x.src] = (src[x.src] || 0) - 0.4;
+  });
   votes.slice(0, 200).forEach(x => {
     if (x.tag) tag[x.tag] = (tag[x.tag] || 0) + x.v;
     if (x.src) src[x.src] = (src[x.src] || 0) + x.v;
@@ -183,6 +189,26 @@ async function post(body) {
   return data;
 }
 
+// Second pass: rewrite each story's "why it matters to you" with a stronger model
+// that reads the article. Stories it can't tie to you concretely are dropped.
+async function explainEdition(state, ed) {
+  if (!ed || ed.explained) return;
+  const n = news(state);
+  const norel = (n.noRel || []).slice(0, 12).map(x => ({ t: x.t, why: x.why }));
+  const liked = (n.votes || []).filter(x => x.v > 0).slice(0, 12).map(x => ({ t: x.t }));
+  const out = await Promise.all(ed.items.map(it => post({ action: 'explain', story: { title: it.title, source: it.source, summary: it.summary, why: it.why, link: it.link, sec: secOf(it) }, norel, liked })
+    .then(r => ({ it, r })).catch(() => ({ it, r: null }))));
+  const dropped = [];
+  out.forEach(({ it, r }) => {
+    if (!r) return;                                    // keep the first draft if the call failed
+    if (r.drop && !it.v) { it.drop = true; dropped.push(it); return; }
+    if (r.why) { it.why = r.why; it.wx = 1; }
+  });
+  ed.items = ed.items.filter(it => !it.drop);
+  ed.dropped = (ed.dropped || 0) + dropped.length;
+  ed.explained = true;
+}
+
 async function buildEdition(state, saveDataQuiet, render) {
   if (N.loading) return;
   N.loading = true; N.error = null; N.note = null;
@@ -203,7 +229,8 @@ async function buildEdition(state, saveDataQuiet, render) {
     const rated = (n.briefRatings || []).filter(x => x.k === 'story').slice(0, 40).map(x => ({ t: x.t, tag: x.tag, r: x.r }));
     let ranked, model = null;
     try {
-      const r = await post({ action: 'rank', items: items.map(({ id, title, summary, source }) => ({ id, title, summary, source })), liked, disliked, rated, seen: seenTitles });
+      const norel = (n.noRel || []).slice(0, 30).map(x => ({ t: x.t, tag: x.tag, sec: x.sec, why: x.why }));
+      const r = await post({ action: 'rank', items: items.map(({ id, title, summary, source }) => ({ id, title, summary, source })), liked, disliked, rated, seen: seenTitles, norel });
       ranked = r.ranked; model = r.model;
     } catch (e) {
       ranked = fallbackRank(items);
@@ -211,7 +238,7 @@ async function buildEdition(state, saveDataQuiet, render) {
     }
 
     const byId = Object.fromEntries(items.map(it => [it.id, it]));
-    const L = learned(n.votes, n.briefRatings);
+    const L = learned(n.votes, n.briefRatings, n.noRel);
     const picked = ranked
       .map(r => { const it = byId[r.id]; return it ? { id: r.id, title: it.title, link: it.link, source: it.source, summary: it.summary, ts: it.ts, tag: r.tag, why: r.why, score: r.score, sec: r.sec || null } : null; })
       .filter(Boolean)
@@ -221,6 +248,7 @@ async function buildEdition(state, saveDataQuiet, render) {
       .filter((it, _, arr) => arr.filter(x => x.sec === it.sec).indexOf(it) < PER_SECTION);
 
     n.edition = { date: todayKey(), items: picked, generatedAt: Date.now(), model, note: N.note || null };
+    await explainEdition(state, n.edition);
     picked.forEach(it => addSeen(state, it, false));   // in today's edition = won't come back tomorrow
     saveDataQuiet();
   } catch (e) {
@@ -910,6 +938,8 @@ const NEWS_CSS = `<style id="news-css">
 .nws-vote { flex:1; padding:9px 0; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--mut); font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
 .nws-vote.up.on { background:rgba(46,204,113,0.14); border-color:rgba(46,204,113,0.5); color:#2ecc71; }
 .nws-vote.down.on { background:rgba(231,76,60,0.12); border-color:rgba(231,76,60,0.45); color:#e74c3c; }
+.nws-norel { width:100%; margin-top:2px; padding:8px 0; border-radius:10px; border:1px dashed var(--line); background:transparent; color:var(--mut); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+.nws-norel.on { border-style:solid; border-color:rgba(230,126,34,0.5); color:#e67e22; background:rgba(230,126,34,0.08); }
 .nws-seen { margin-left:auto; background:none; border:1px solid var(--line); border-radius:20px; color:var(--mut); font-size:11px; font-weight:700; padding:3px 9px; cursor:pointer; font-family:inherit; }
 .nws-hidden { display:flex; flex-direction:column; gap:8px; }
 .nws-hidden-row { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; color:var(--mut); line-height:1.4; }
@@ -1005,6 +1035,7 @@ export function renderNewsTab({ state }) {
   let status = '';
   if (N.loading) status = `<div class="nws-card nws-gate"><p>Building today's edition — reading the feeds and picking what affects you…</p><div class="nws-spin"></div></div>`;
   else if (N.error && !ed) status = `<div class="nws-card nws-gate"><div class="nws-err">${esc(N.error)}</div><button class="nws-btn ghost" onclick="newsRetry()">Try again</button></div>`;
+  const sharpening = N.explaining ? `<div class="nws-note" style="padding:0 4px;">Sharpening the "why it matters" lines…</div>` : '';
   const tuned = n.votes.length ? `<div class="nws-card"><div class="nws-note">Tuned to you from ${n.votes.length} vote${n.votes.length === 1 ? '' : 's'}:</div>${learnedChips(n.votes, n.briefRatings)}</div>` : '';
 
   // ── Reading ──
@@ -1021,6 +1052,7 @@ export function renderNewsTab({ state }) {
         <button class="nws-vote down ${it.v < 0 ? 'on' : ''}" onclick="newsVote('${it.id}',-1)">👎 Not for me</button>
         <a class="nws-read" href="${esc(it.link)}" target="_blank" rel="noopener">Read →</a>
       </div>
+      <button class="nws-norel ${it.nr ? 'on' : ''}" onclick="newsNoRel('${it.id}')">${it.nr ? '🤷 Noted — you didn\'t see the relevance' : '🤷 Don\'t see the relevance'}</button>
     </div>`;
   const stories = items.length ? SECTIONS.map(sc => {
     const list = items.filter(it => secOf(it) === sc.key);
@@ -1033,6 +1065,7 @@ export function renderNewsTab({ state }) {
     ${briefEntryCard(state)}
     ${aiEntryCard(state)}
     ${status}
+    ${sharpening}
     ${ed && ed.note ? `<div class="nws-note">${esc(ed.note)}</div>` : ''}
     ${!ed ? '' : stories || `<div class="nws-card nws-gate"><p>${hidden.length ? 'You\'ve already seen everything in today\'s edition. Close this and get on.' : 'Nothing today cleared the bar for affecting you. That\'s a good day — close this and get on.'}</p></div>`}
     ${hidden.length ? `<div class="nws-card nws-hidden"><div class="nws-note">Marked as already seen — these won't come back:</div>
@@ -1047,6 +1080,10 @@ export function initNewsTab({ state, saveDataQuiet, render, homeText }) {
   const n = news(state);   // re-read inside handlers too: state.data can be swapped by a reload
   const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
   if (!N.view && !ed && !N.loading && !N.error) buildEdition(state, saveDataQuiet, render);
+  if (ed && !ed.explained && !N.loading && !N.explaining) {
+    N.explaining = true;
+    explainEdition(state, ed).then(() => { saveDataQuiet(); }).finally(() => { N.explaining = false; if (state.activeTab === 'news') render(); });
+  }
   const tb = briefing(state);
   if (tb && !tb.archived && !N.archiving) { N.archiving = true; archiveBriefing(state, tb, saveDataQuiet).finally(() => { N.archiving = false; if (state.activeTab === 'news' && N.view === 'brief') render(); }); }
   if (N.view === 'ai' && !aiEdition(state) && !N.aiLoading && !N.aiError) buildAi(state, saveDataQuiet, render);
@@ -1191,6 +1228,17 @@ export function initNewsTab({ state, saveDataQuiet, render, homeText }) {
     flush(); saveDataQuiet(); render();
   };
   window.newsRetry = () => { N.error = null; buildEdition(state, saveDataQuiet, render); };
+  // 🤷 Don't see the relevance — the topic may be fine, but the link to you was too weak.
+  window.newsNoRel = (id) => {
+    const n = news(state);
+    const e = n.edition; if (!e) return;
+    const it = e.items.find(x => x.id === id); if (!it) return;
+    it.nr = !it.nr;
+    n.noRel = (n.noRel || []).filter(x => x.t !== it.title);
+    if (it.nr) n.noRel.unshift({ t: it.title, tag: it.tag, src: it.source, sec: secOf(it), why: it.why || '', d: todayKey() });
+    n.noRel = n.noRel.slice(0, 150);
+    saveDataQuiet(); render();
+  };
   window.newsVote = (id, v) => {
     const n = news(state);
     const e = n.edition; if (!e) return;

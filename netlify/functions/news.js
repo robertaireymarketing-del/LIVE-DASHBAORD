@@ -174,7 +174,7 @@ async function actionFeeds(set) {
 }
 
 // ── Ranking with Claude ────────────────────────────────────────────
-function buildPrompt(items, liked, disliked, seen, rated) {
+function buildPrompt(items, liked, disliked, seen, rated, norel) {
   let s = 'You are the editor of a private daily news briefing for one person. You choose the few stories that will actually affect his life, money, business or health, and you explain each in one plain line.\n\n';
   s += 'WHO HE IS:\n' + PROFILE + '\n\n';
   s += 'THREE SECTIONS — put every story you keep into exactly one:\n'
@@ -190,12 +190,13 @@ function buildPrompt(items, liked, disliked, seen, rated) {
   if (liked.length) s += 'HE MARKED THESE USEFUL:\n' + liked.map(x => '+ [' + x.tag + '] ' + x.t).join('\n') + '\n\n';
   if (disliked.length) s += 'HE MARKED THESE NOT USEFUL:\n' + disliked.map(x => '- [' + x.tag + '] ' + x.t).join('\n') + '\n\n';
   if (rated && rated.length) s += 'HE RATED THESE STORIES OUT OF 10 AFTER HEARING THEM IN HIS BRIEFING (how relevant and interesting they were to him). Treat 8-10 as strongly wanted, 1-4 as not wanted, and judge by topic and type of story:\n' + rated.map(x => x.r + '/10 [' + x.tag + '] ' + x.t).join('\n') + '\n\n';
+  if (norel && norel.length) s += 'HE COULD NOT SEE THE RELEVANCE OF THESE — the link you claimed was too weak, generic or a stretch. Each shows the story and the WHY you gave. Do not pick stories with this kind of tenuous link again; a similar story only qualifies if it has a direct, concrete effect on him:\n' + norel.map(x => '? [' + (x.sec || x.tag) + '] ' + x.t + (x.why ? '  (you said: ' + x.why + ')' : '')).join('\n') + '\n\n';
   if (seen && seen.length) s += 'HE HAS ALREADY SEEN THESE STORIES (earlier editions, or he marked them seen):\n' + seen.map(t => '* ' + t).join('\n') + '\n'
     + 'Leave out any story about the same event or announcement as one of these, even from a different outlet or with a different headline. Only include a follow-up if it reports a major new development, and then say in WHY what is new.\n\n';
   s += 'OUTPUT: Return up to 6 stories per section (up to 18 in total), only those scoring 5 or more — fewer is fine, never pad. One per line, best first within each section, exactly:\n'
     + 'ID | SECTION | SCORE | TAG | WHY\n'
     + 'SECTION must be TJM, NI or YOU. TAG must be one of: ' + TAGS.join(', ') + '.\n'
-    + 'WHY is max 22 words, addressed to him ("you"), saying specifically how it affects him or what he could do. No hype.\n'
+    + 'WHY is max 30 words, addressed to him ("you"): the concrete mechanism and the specific effect on him or his business, then what to do or watch if there is one. If you cannot name a concrete effect, the story scores 4 or less and is left out. Never use vague filler like "worth watching", "a reminder that", "backdrop", "could affect", "signals", "keep an eye on". No hype.\n'
     + 'Plain lines only: no table, no header row, no leading pipe, no numbering, no other text.';
   const list = items.map(it => it.id + ' | ' + it.source + ' | ' + it.title + (it.summary ? ' — ' + it.summary.slice(0, 160) : '')).join('\n');
   return { system: s, user: 'Today\'s stories:\n' + list };
@@ -272,6 +273,61 @@ const MODELS = (envName) => [process.env[envName], 'claude-haiku-5-5', 'claude-h
 // Stop trying other models only for problems that no model would fix.
 const fatal = (e) => e && (e.status === 401 || e.status === 403 || e.status === 429);
 
+// ── Second pass: a sharper "why it matters to you" per story ────────
+// Reads the article and writes the line with a stronger model. It can also
+// return DROP when there is no real, concrete link — then the story is removed.
+const EXPLAIN_MODELS = () => [process.env.NEWS_EXPLAIN_MODEL, 'claude-sonnet-5-5', 'claude-sonnet-5', 'claude-haiku-5-5', 'claude-haiku-4-5-20251001'].filter(Boolean);
+const SECTION_DESC = {
+  TJM: 'his online jewellery business TJM (silver and gold jewellery, Pandora charms, Vinted/eBay/website/TikTok sales, product photos, content)',
+  NI: 'Nottingham Insurance, his insurance lead-generation side business for landlords, homebuyers and homeowners in Nottingham (content and SEO to win leads; his fiancée handles the leads)',
+  YOU: 'him personally — money, health and fitness, AI tools, Nottingham life, his plans to move out and buy a home',
+};
+
+async function actionExplain(payload) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return respond(500, { error: 'Server is missing ANTHROPIC_API_KEY.' });
+  const clip = (v, n) => String(v == null ? '' : v).slice(0, n);
+  const st = payload.story || {};
+  const sec = ['TJM', 'NI', 'YOU'].includes(st.sec) ? st.sec : 'YOU';
+  const story = { title: clip(st.title, 220), source: clip(st.source, 40), summary: clip(st.summary, 400), why: clip(st.why, 240), link: clip(st.link, 500) };
+  if (!story.title) return respond(400, { error: 'No story' });
+  const norel = (Array.isArray(payload.norel) ? payload.norel : []).slice(0, 12).map(x => '- ' + clip(x.t, 140) + (x.why ? ' (the line was: ' + clip(x.why, 180) + ')' : '')).join('\n');
+  const liked = (Array.isArray(payload.liked) ? payload.liked : []).slice(0, 12).map(x => '+ ' + clip(x.t, 140)).join('\n');
+  const article = /^https?:\/\//.test(story.link) ? await articleText(story.link) : '';
+
+  const system = 'You write the single "why this matters to you" line under a news story in one man\'s private news page. He is sharp, busy and impatient with vague relevance claims.\n\nWHO HE IS:\n' + PROFILE + '\n\n'
+    + 'This story was filed under: ' + sec + ' = ' + SECTION_DESC[sec] + '.\n\n'
+    + 'THE LINE MUST:\n'
+    + '- Be addressed to him ("you"), 20-40 words, plain British English.\n'
+    + '- Name the concrete mechanism from the story (a price, rule, rate, platform change, trend, number) AND the specific effect on him, his margins, his customers, his content, his money or his health.\n'
+    + '- End with what to do or decide, or the specific thing to watch for and what it would mean — only if there genuinely is one.\n'
+    + '- Use facts from the article only. No invented numbers.\n'
+    + '- Never use filler: "worth watching", "a reminder that", "backdrop", "could affect", "signals", "keep an eye on", "in today\'s", "it\'s important to".\n\n'
+    + 'BAD (too vague): "JLR\'s loss points to weak UK consumer demand, a backdrop worth watching for spending on gifts and jewellery."\n'
+    + 'BAD (a stretch): "UK-EU food trade deal is a reminder that trade rules shift and could ease some of your supplier friction." (he does not import food or plants)\n'
+    + 'GOOD: "Silver is up about 9% this month, so your next restock of 925 chains costs more. Check the margin on anything under £30 before reordering, or nudge those prices up now."\n'
+    + 'GOOD: "Landlords now need X by April — exactly the question your Nottingham landlord audience will be Googling. A short explainer post this week could rank before the rush."\n\n'
+    + 'If, after reading the article, there is NO direct, concrete effect on him in this section, reply with exactly: DROP\n'
+    + (norel ? 'He could NOT see the relevance of these earlier picks — don\'t make links this weak:\n' + norel + '\n\n' : '')
+    + (liked ? 'He found these useful:\n' + liked + '\n\n' : '')
+    + 'Reply with the line only (or DROP). No quotes, no label, no markdown.';
+  const user = 'HEADLINE: ' + story.title + '\nSOURCE: ' + story.source + '\nFEED SUMMARY: ' + story.summary + '\nFIRST DRAFT OF THE LINE (improve on it, or DROP): ' + story.why
+    + '\n\nARTICLE TEXT (may be partial or empty):\n' + (article || '(not available — rely on the headline and summary, and keep the claim modest)');
+
+  let lastErr = null;
+  for (const m of EXPLAIN_MODELS()) {
+    try {
+      let text = (await callClaude(key, m, system, user, 220)).replace(/^["'“]|["'”]$/g, '').replace(/^(why[^:]*:|line:)\s*/i, '').trim();
+      if (/^DROP\b/i.test(text)) return respond(200, { drop: true, model: m });
+      if (text) return respond(200, { why: text.slice(0, 320), model: m, hadArticle: !!article });
+    } catch (e) {
+      lastErr = e;
+      if (fatal(e)) break;
+    }
+  }
+  return respond(502, { error: String(lastErr && lastErr.message || 'Explain failed').slice(0, 300) });
+}
+
 async function actionRank(payload) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return respond(500, { error: 'Server is missing ANTHROPIC_API_KEY.' });
@@ -283,7 +339,8 @@ async function actionRank(payload) {
   const clean = arr => (Array.isArray(arr) ? arr : []).slice(0, 40).map(x => ({ t: String(x.t || '').slice(0, 160), tag: String(x.tag || '').slice(0, 20) })).filter(x => x.t);
   const seen = (Array.isArray(payload.seen) ? payload.seen : []).slice(0, 80).map(t => String(t || '').slice(0, 160)).filter(Boolean);
   const rated = (Array.isArray(payload.rated) ? payload.rated : []).slice(0, 40).map(x => ({ t: String(x.t || '').slice(0, 160), tag: String(x.tag || '').slice(0, 20), r: Math.max(1, Math.min(10, parseInt(x.r, 10) || 0)) })).filter(x => x.t && x.r);
-  const { system, user } = buildPrompt(items, clean(payload.liked), clean(payload.disliked), seen, rated);
+  const norel = (Array.isArray(payload.norel) ? payload.norel : []).slice(0, 30).map(x => ({ t: String(x.t || '').slice(0, 160), tag: String(x.tag || '').slice(0, 20), sec: String(x.sec || '').slice(0, 6), why: String(x.why || '').slice(0, 220) })).filter(x => x.t);
+  const { system, user } = buildPrompt(items, clean(payload.liked), clean(payload.disliked), seen, rated, norel);
   const ids = new Set(items.map(x => x.id));
 
   const models = MODELS('NEWS_MODEL');
@@ -574,6 +631,7 @@ exports.handler = async function (event) {
     if (payload.action === 'airank') return await actionAiRank(payload);
     if (payload.action === 'brief') return await actionBrief(payload);
     if (payload.action === 'rank') return await actionRank(payload);
+    if (payload.action === 'explain') return await actionExplain(payload);
     return respond(400, { error: 'Unknown action' });
   } catch (e) {
     console.error('[news]', e);
