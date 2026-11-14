@@ -377,7 +377,8 @@ function dayLine(state, k) {
   const days = normDays(state);
   const d = { ...(days[k] || {}) };
   d.gym = ticked(state, days, k, 'gym');
-  const hab = ['gym', 'retention', 'meditation'].map(f => `${f} ${d[f] ? '✓' : '✗'}`).join(', ');
+  const HN = { gym: 'gym', retention: 'semen retention', meditation: 'meditation' };
+  const hab = ['gym', 'retention', 'meditation'].map(f => `${HN[f]} ${d[f] ? '✓' : '✗'}`).join(', ');
   const objs = (d.objectives || []).filter(o => String(o.text || '').trim());
   return { hab, objs, d };
 }
@@ -420,10 +421,10 @@ function weekContext(state) {
     const { d, objs } = dayLine(state, k);
     g += d.gym ? 1 : 0; r += d.retention ? 1 : 0; m += d.meditation ? 1 : 0;
     oN += objs.length; oD += objs.filter(o => o.done).length;
-    lines.push(`${DAYN[i]}: gym ${d.gym ? '✓' : '✗'}, retention ${d.retention ? '✓' : '✗'}, meditation ${d.meditation ? '✓' : '✗'}${objs.length ? `, objectives ${objs.filter(o => o.done).length}/${objs.length}` : ''}`);
+    lines.push(`${DAYN[i]}: gym ${d.gym ? '✓' : '✗'}, semen retention ${d.retention ? '✓' : '✗'}, meditation ${d.meditation ? '✓' : '✗'}${objs.length ? `, objectives ${objs.filter(o => o.done).length}/${objs.length}` : ''}`);
   }
   const items = weekItems(state, t);
-  const out = [`WEEK COMMENCING ${ws}`, ...lines, `TOTALS: gym ${g}/7, retention ${r}/7, meditation ${m}/7${oN ? `, day objectives ${oD}/${oN}` : ''}`];
+  const out = [`WEEK COMMENCING ${ws}`, ...lines, `TOTALS: gym ${g}/7, semen retention ${r}/7, meditation ${m}/7${oN ? `, day objectives ${oD}/${oN}` : ''}`];
   if (items.length) out.push(`ROAD TO 30 THIS WEEK: ${items.filter(x => x.done).length}/${items.length} ticked\n` + items.map(x => `  [${x.done ? 'x' : ' '}] ${x.text}`).join('\n'));
   else out.push('ROAD TO 30 THIS WEEK: no steps were written for this week.');
   const prev = [];
@@ -496,7 +497,7 @@ async function buildBriefing(state, saveDataQuiet, render) {
     const gym = streakOf(state, 'gym');
     const goals = goalsContext(state);
     let home = '';
-    try { home = N.homeText ? htmlToText(N.homeText()) : ''; } catch (e) {}
+    try { home = N.homeText ? htmlToText(N.homeText()).replace(/\bRetention\b/g, 'Semen retention') : ''; } catch (e) {}
     const a1 = TJM_AREAS[doy % TJM_AREAS.length], a2 = TJM_AREAS[(doy + 5) % TJM_AREAS.length];
     const tjmAvoid = (n.tjmUsed || []).slice(0, 30);
     const sunday = new Date().getDay() === 0;

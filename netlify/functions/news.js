@@ -71,6 +71,7 @@ const PROFILE = [
   'Founder of TJM (The Jewellery Merchant), a small online jewellery brand: new hallmarked silver, pre-owned silver sold on Vinted, Pandora charms, his own website, product photography, email marketing and TikTok lives/short video. He has a part-time assistant who edits and posts content.',
   'Also works daily in his father\'s long-established independent jewellery shop.',
   'Qualified accountant by background, so comfortable with numbers, tax and finance detail.',
+  'Daily habits he tracks: gym, diet, meditation, and "retention". IMPORTANT: in all of his habit data, "retention" ALWAYS means semen retention — the personal discipline of no porn and no masturbation — never customer retention. Only talk about customer retention when the topic is explicitly TJM customers.',
   'Goals: a £2,000/month salary from TJM as soon as possible; TJM over £10,000/month revenue by August 2027; financial and location freedom; daily gym and good health.',
   'Things that genuinely affect him: UK interest rates, mortgages, inflation and consumer spending; gold and silver prices; UK small-business tax, VAT and rules for online sellers; marketplace and platform changes (Vinted, eBay, Etsy, TikTok Shop, Shopify, Instagram, Google); postage and Royal Mail; retail and e-commerce trends; AI tools a one-person business can use; jewellery industry news; evidence-based health and fitness; Nottingham local news.',
 ].join('\n');
