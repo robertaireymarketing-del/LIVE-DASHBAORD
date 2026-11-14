@@ -409,6 +409,39 @@ function briefPrompt(p) {
       user: 'About ' + words + ' words. Pick ONE specific, well-documented habit, practice or principle used by someone genuinely and verifiably successful — a founder, retailer, investor, athlete, creator or leader — that would help Robert a lot right now, given his goals and his stated struggle with strong starts followed by inconsistency. Vary the kind of person and the area over time (sales, focus, consistency, leadership, money, health, learning, decision-making). Do not use any of these recent picks: ' + ((p.avoid || []).join('; ') || 'none') + '.\n'
         + 'Do not greet him. Start with "Today\'s success habit comes from" and name the person. Say who they are and what they built, describe the habit exactly as they practise it, explain why it works (cite the mechanism or research where there is solid evidence), then give him a concrete way to adapt it to his life and TJM this week, starting today, and how he will know it is working. On the very last line, write TOPIC: followed by the habit and the person in under eight words (this line will be removed before reading).' };
   }
+  if (p.part === 'retention') {
+    const r = p.ret || {};
+    return { system: 'You are writing the semen retention check-in segment of Robert\'s personal daily audio briefing. He practises semen retention (no porn, no masturbation) as a discipline and tracks his streak on his dashboard. He wants direct, science-based reasoning, not hype or motivational fluff.\n\n' + who
+        + '\nEVIDENCE RULES — be honest about what is and isn\'t known:\n'
+        + '- Well supported: quitting porn and compulsive habits frees time and attention; practising delayed gratification and urge control builds self-trust; better sleep, less late-night phone use and less dopamine-chasing help focus and mood.\n'
+        + '- Weak or limited: a small 2003 study (Jiang et al.) found a testosterone rise peaking around day 7 of abstinence before returning to baseline; it is a single small study, so present it as such. Do not claim large lasting testosterone gains.\n'
+        + '- Not supported: energy transmutation, myelin or "full neurological rewiring", magnetism, special powers. Never state these as fact. If they come up, say plainly that the evidence isn\'t there.\n'
+        + '- Treat the real benefit as character and self-control: keeping a promise to himself, every day.\n',
+      user: 'About ' + words + ' words. Do not greet him. Open with where he is today: his streak is ' + (r.streak || 0) + ' day' + (r.streak === 1 ? '' : 's') + (r.tickedToday ? ' (already ticked today)' : '') + ', and he ticked it on ' + (r.last14 || 0) + ' of the last 14 days. '
+        + (r.streak ? 'Acknowledge the run plainly, without overpraising. ' : 'If the streak is zero or broken, no shame and no lecture: reset calmly and focus on today. ')
+        + 'Then: one honest, evidence-based benefit worth remembering today; then three specific, practical tips for staying on track today — e.g. trigger management (phone out of the bedroom, app blockers, no scrolling in bed), what to do in the first two minutes of an urge (urge surfing, cold water on the face, push-ups, leave the room), how to use the extra drive on training and TJM work, and what to do after a slip so one slip doesn\'t become a week. Vary the tips day to day. If his check-ins below show a pattern (low energy, high urges, a note about a trigger), speak to it directly. End with one sentence on why keeping this promise matters for the man he is becoming.\n\n'
+        + 'HIS RECENT CHECK-INS (newest first; "urges" is his libido score):\n' + ((r.log || []).join('\n') || '(none logged)') };
+  }
+  if (p.part === 'goals') {
+    return { system: 'You are writing the "what you\'re working towards" segment of Robert\'s personal daily audio briefing. It reminds him of his own goals so he starts the day pointed at them. He wrote these goals himself in his Road to 30 plan: a reverse-engineered ladder from his 30th birthday (12 August 2027) back to this week.\n\n' + who,
+      user: 'Today is ' + (p.dateLabel || '') + '. About ' + words + ' words. Do not greet him. Use HIS words and goals below — do not invent goals he hasn\'t written. Start with the big picture: what he wants to be true at 30, in a few sentences. Then walk down the ladder briefly, saying the next milestone and how many weeks away it is. Then focus on THIS WEEK: what is done, what isn\'t, and which unticked item matters most today and why. Be honest if he is behind — say so plainly and what to do about it today. Items marked [x] are done, [ ] are not. If the plan is empty or thin, say so and tell him to write this week\'s steps today, using the goals from his profile as a starting point. End with one clear instruction for today.\n\n'
+        + 'HIS ROAD TO 30 PLAN:\n' + (p.goals || '(empty)') };
+  }
+  if (p.part === 'gym') {
+    const g = p.gym || {};
+    return { system: 'You are writing the gym and body progress segment of Robert\'s personal daily audio briefing. It is built from the live stats on his dashboard\'s home page. He wants direct, evidence-based coaching: numbers, what they mean, what to do.\n\n' + who
+        + '\nAccuracy: only use numbers that appear in the home page text below. Do not invent figures. If a figure is missing, skip it. Round sensibly when speaking.\n',
+      user: 'About ' + words + ' words. Do not greet him. His gym streak is ' + (g.streak || 0) + ' day' + (g.streak === 1 ? '' : 's') + ' and he trained on ' + (g.last14 || 0) + ' of the last 14 days. Using the home page stats below, cover: where his weight and body fat are versus his goal and the projected pace, and whether he is on track; his calorie deficit this week and what that pace means for results; sleep, steps and waist trends if shown; and any don\'t-miss-twice warning. Explain the why briefly where it helps (e.g. why weekly averages beat single weigh-ins, why sleep affects fat loss and hunger). Then give him today\'s two or three specific actions for training, food and recovery. Tie it back to his goal for 30 in one sentence. No lift-by-lift advice; he logs workouts in a separate app.\n\n'
+        + 'HIS HOME PAGE STATS (as shown on his dashboard today):\n' + (p.home || '(not available — say the stats could not be read today and keep this short and general)') };
+  }
+  if (p.part === 'tjm') {
+    return { system: 'You are writing a "TJM playbook" segment of Robert\'s personal daily audio briefing: one practical, specific play to grow TJM, with steps he can take today. He loves practical tips and concrete steps, not theory.\n\n' + who
+        + '\nRules: be specific to a small UK online jewellery business selling hallmarked silver, pre-owned silver on Vinted, and Pandora charms through its own website, Vinted, eBay, email and TikTok. Name exact actions, numbers, scripts or templates where useful. Only cite statistics or case studies you are confident are real; otherwise give the reasoning instead. No generic advice like "post consistently" without saying exactly how.\n',
+      user: 'About ' + words + ' words. Do not greet him. Today\'s area: ' + (p.focus || 'sales') + '. Pick ONE play in that area. Do not repeat these recent plays: ' + ((p.avoid || []).join('; ') || 'none') + '.\n'
+        + 'Structure, as spoken prose: name the play in one line; why it works (the mechanism: buyer psychology, maths or platform behaviour); the exact steps to do it today or this week, numbered out loud as first, second, third, with any wording he can use word for word; how long it takes; what result to look for and when to judge it; and one common mistake to avoid. If it can be handed to his assistant, say exactly what to hand over. Link it to his goals where it genuinely fits.\n'
+        + 'On the very last line, write TOPIC: followed by the play in under eight words (this line will be removed before reading).\n\n'
+        + 'HIS GOALS (for context):\n' + (p.goals || '') };
+  }
   if (p.part === 'learn') {
     return { system: 'You are writing the "lesson of the day" segment of Robert\'s personal daily audio briefing. Its job is to sharpen his thinking and build lasting knowledge.\n\n' + who,
       user: 'Pick ONE durable idea that connects to today\'s stories and is useful to someone building a business and his own finances — e.g. a concept from economics, finance, accounting, pricing, marketing, consumer psychology, negotiation, decision-making, or the science of habits and health. Avoid repeating these recent topics: ' + ((p.avoid || []).join('; ') || 'none') + '.\n'
@@ -438,7 +471,12 @@ async function actionBrief(payload) {
     stoic: payload.stoic ? { text: clip(payload.stoic.text, 400), author: clip(payload.stoic.author, 60), interpretation: clip(payload.stoic.interpretation, 500) } : null,
     sll: payload.sll ? { name: clip(payload.sll.name, 80), sl: clip(payload.sll.sl, 60), trap: clip(payload.sll.trap, 60), essence: clip(payload.sll.essence, 300), deep: clip(payload.sll.deep, 600), effect: clip(payload.sll.effect, 400), move: clip(payload.sll.move, 300), mine: clip(payload.sll.mine, 400), apply: clip(payload.sll.apply, 300) } : null,
     ai: payload.ai ? { title: clip(payload.ai.title, 220), what: clip(payload.ai.what, 260), try: clip(payload.ai.try, 320) } : null,
-    avoid: (Array.isArray(payload.avoid) ? payload.avoid : []).slice(0, 20).map(x => clip(x, 60)),
+    avoid: (Array.isArray(payload.avoid) ? payload.avoid : []).slice(0, 30).map(x => clip(x, 60)),
+    ret: payload.ret ? { streak: Math.max(0, parseInt(payload.ret.streak, 10) || 0), tickedToday: !!payload.ret.tickedToday, last14: Math.max(0, parseInt(payload.ret.last14, 10) || 0), log: (Array.isArray(payload.ret.log) ? payload.ret.log : []).slice(0, 7).map(x => clip(x, 320)) } : null,
+    gym: payload.gym ? { streak: Math.max(0, parseInt(payload.gym.streak, 10) || 0), last14: Math.max(0, parseInt(payload.gym.last14, 10) || 0) } : null,
+    goals: clip(payload.goals, 5000),
+    home: clip(payload.home, 7000),
+    focus: clip(payload.focus, 80),
   };
   if (p.part === 'story' && p.story && /^https?:\/\//.test(p.story.link)) p.article = await articleText(p.story.link);
   const pr = briefPrompt(p);
