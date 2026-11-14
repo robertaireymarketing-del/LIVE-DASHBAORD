@@ -40,6 +40,10 @@
 //   aiVotes: [{ t, v }],  aiTried: [{ t, d }]
 //   aiSaved: [{ key, title, link, source, kind, what, try, savedAt, done }]  (kept across weeks)
 //   briefing: { date, text, words, builtAt, failed }, lessons: [names] (newest first)
+//   briefRatings: [{ d, k, key, t, tag, src, r }]  your 1–10 ratings of briefing sections (newest first)
+//     k = stoic | sll | success | story | ai | lesson | quiz. Story ratings tune the daily
+//     ranking (sent to the AI editor + nudge topics/sources); every kind is sent back to
+//     the writer of that section so tomorrow's leans toward what you rated highly.
 // }
 
 import { STOIC_QUOTES } from './constants.js';
@@ -97,13 +101,22 @@ function visibleItems(ed) { return ed ? ed.items.filter(it => !it.seen) : []; }
 function secsLeft(state) { return DAILY_SECS - (news(state).usage.secs || 0); }
 
 // ── What it has learned from your votes ────────────────────────────────────
-function learned(votes) {
+function learned(votes, ratings) {
   const tag = {}, src = {};
   votes.slice(0, 200).forEach(x => {
     if (x.tag) tag[x.tag] = (tag[x.tag] || 0) + x.v;
     if (x.src) src[x.src] = (src[x.src] || 0) + x.v;
   });
+  // A 10/10 counts like a 👍, a 1/10 like a 👎, 5–6 is roughly neutral.
+  (ratings || []).filter(x => x.k === 'story').slice(0, 150).forEach(x => {
+    const v = (x.r - 5.5) / 4.5;
+    if (x.tag) tag[x.tag] = (tag[x.tag] || 0) + v;
+    if (x.src) src[x.src] = (src[x.src] || 0) + v;
+  });
   return { tag, src };
+}
+function ratingsOf(state, kind, max = 25) {
+  return (news(state).briefRatings || []).filter(x => x.k === kind).slice(0, max).map(x => ({ t: x.t, r: x.r }));
 }
 function adjust(item, L) {
   const clamp = (v, a) => Math.max(-a, Math.min(a, v));
@@ -161,9 +174,10 @@ async function buildEdition(state, saveDataQuiet, render) {
 
     const liked = n.votes.filter(x => x.v > 0).slice(0, 40).map(x => ({ t: x.t, tag: x.tag }));
     const disliked = n.votes.filter(x => x.v < 0).slice(0, 40).map(x => ({ t: x.t, tag: x.tag }));
+    const rated = (n.briefRatings || []).filter(x => x.k === 'story').slice(0, 40).map(x => ({ t: x.t, tag: x.tag, r: x.r }));
     let ranked, model = null;
     try {
-      const r = await post({ action: 'rank', items: items.map(({ id, title, summary, source }) => ({ id, title, summary, source })), liked, disliked, seen: seenTitles });
+      const r = await post({ action: 'rank', items: items.map(({ id, title, summary, source }) => ({ id, title, summary, source })), liked, disliked, rated, seen: seenTitles });
       ranked = r.ranked; model = r.model;
     } catch (e) {
       ranked = fallbackRank(items);
@@ -171,7 +185,7 @@ async function buildEdition(state, saveDataQuiet, render) {
     }
 
     const byId = Object.fromEntries(items.map(it => [it.id, it]));
-    const L = learned(n.votes);
+    const L = learned(n.votes, n.briefRatings);
     const picked = ranked
       .map(r => { const it = byId[r.id]; return it ? { id: r.id, title: it.title, link: it.link, source: it.source, summary: it.summary, ts: it.ts, tag: r.tag, why: r.why, score: r.score } : null; })
       .filter(Boolean)
@@ -324,15 +338,16 @@ async function buildBriefing(state, saveDataQuiet, render) {
     let sll = null;
     try { sll = getTodaysSllCard(state); } catch (e) {}
 
+    const R = k => ratingsOf(state, k);
     const jobs = [
-      { key: 'stoic', body: { part: 'stoic', words: 620, stoic } },
-      ...(sll ? [{ key: 'sll', body: { part: 'sll', words: 620, sll } }] : []),
-      { key: 'success', body: { part: 'success', words: 620, avoid: (n.successUsed || []).slice(0, 30) } },
+      { key: 'stoic', body: { part: 'stoic', words: 620, stoic, rated: R('stoic') } },
+      ...(sll ? [{ key: 'sll', body: { part: 'sll', words: 620, sll, rated: R('sll') } }] : []),
+      { key: 'success', body: { part: 'success', words: 620, avoid: (n.successUsed || []).slice(0, 30), rated: R('success') } },
       { key: 'intro', body: { part: 'intro', words: 170, dateLabel, headlines, noGreeting: true } },
-      ...stories.map((st, i) => ({ key: 'story' + i, st, i, body: { part: 'story', words: per, story: st } })),
-      ...(ai ? [{ key: 'ai', body: { part: 'ai', words: 230, ai } }] : []),
-      { key: 'learn', body: { part: 'learn', words: stories.length >= 4 ? 550 : 650, headlines, avoid: (n.lessons || []).slice(0, 20) } },
-      { key: 'close', body: { part: 'close', words: 380, headlines } },
+      ...stories.map((st, i) => ({ key: 'story' + i, st, i, body: { part: 'story', words: per, story: st, rated: R('story') } })),
+      ...(ai ? [{ key: 'ai', body: { part: 'ai', words: 230, ai, rated: R('ai') } }] : []),
+      { key: 'learn', body: { part: 'learn', words: stories.length >= 4 ? 550 : 650, headlines, avoid: (n.lessons || []).slice(0, 20), rated: R('lesson') } },
+      { key: 'close', body: { part: 'close', words: 380, headlines, rated: R('quiz') } },
     ];
     N.briefTotal = jobs.length; N.briefStage = 'Writing your briefing…';
     if (state.activeTab === 'news') render();
@@ -400,36 +415,44 @@ function briefSections(b, ed) {
   const strip = (t, re) => t.replace(re, '').trim();
   const out = [];
   parts.forEach((t, i) => {
-    let icon = '•', label = 'Section', gist = '';
+    let icon = '•', label = 'Section', gist = '', kind = null;
     let m;
     if (i === 0 && /^Good morning/i.test(t)) { icon = '👋'; label = 'Welcome'; gist = 'What\'s coming up today.'; }
-    else if (/^First, your Stoic wisdom/i.test(t)) { icon = '🏛'; label = 'Stoic wisdom'; gist = firstSentence(strip(t, /^First, your Stoic wisdom for today\.\s*/i)); }
-    else if (/^Next, your Straight Line principle/i.test(t)) { icon = '📏'; label = 'Straight Line principle'; gist = firstSentence(strip(t, /^Next, your Straight Line principle[.:]?\s*/i)); }
-    else if (/^Now, a success habit/i.test(t)) { icon = '🏆'; label = 'Success habit'; gist = firstSentence(strip(t, /^Now, a success habit worth stealing\.\s*/i)); }
+    else if (/^First, your Stoic wisdom/i.test(t)) { icon = '🏛'; label = 'Stoic wisdom'; kind = 'stoic'; gist = firstSentence(strip(t, /^First, your Stoic wisdom for today\.\s*/i)); }
+    else if (/^Next, your Straight Line principle/i.test(t)) { icon = '📏'; label = 'Straight Line principle'; kind = 'sll'; gist = firstSentence(strip(t, /^Next, your Straight Line principle[.:]?\s*/i)); }
+    else if (/^Now, a success habit/i.test(t)) { icon = '🏆'; label = 'Success habit'; kind = 'success'; gist = firstSentence(strip(t, /^Now, a success habit worth stealing\.\s*/i)); }
     else if ((m = t.match(/^Story (\d+) of (\d+)\. From (.+?)\. ([\s\S]+?)\n\n([\s\S]*)$/))) {
       const title = m[4].replace(/\.$/, '');
       const st = ed && ed.items.find(x => x.title === title || x.title + '.' === m[4]);
       icon = '📰'; label = `Story ${m[1]} · ${m[3]}`;
       gist = `<b>${esc(title)}</b>` + ((st && st.why) ? `<br>${esc(st.why)}` : (m[5] ? `<br>${esc(firstSentence(m[5]))}` : ''));
-      out.push({ icon, label, html: gist, words: words(t), text: t });
+      out.push({ icon, label, html: gist, words: words(t), text: t, kind: 'story', title, tag: st && st.tag, src: m[3] });
       return;
     }
-    else if (/^Now, this week's AI experiment/i.test(t)) { icon = '🤖'; label = 'AI experiment'; gist = firstSentence(strip(t, /^Now, this week's AI experiment\.\s*/i)); }
-    else if (/^Today's lesson is/i.test(t)) { icon = '🧠'; label = 'Lesson of the day'; gist = firstSentence(t); }
-    else if (/^Time for your recall quiz/i.test(t)) { icon = '❓'; label = 'Recall quiz & sign-off'; gist = 'Three questions on today\'s stories, a reflection question for the day, then the sign-off.'; }
+    else if (/^Now, this week's AI experiment/i.test(t)) { icon = '🤖'; label = 'AI experiment'; kind = 'ai'; gist = firstSentence(strip(t, /^Now, this week's AI experiment\.\s*/i)); }
+    else if (/^Today's lesson is/i.test(t)) { icon = '🧠'; label = 'Lesson of the day'; kind = 'lesson'; gist = firstSentence(t); }
+    else if (/^Time for your recall quiz/i.test(t)) { icon = '❓'; label = 'Recall quiz & sign-off'; kind = 'quiz'; gist = 'Three questions on today\'s stories, a reflection question for the day, then the sign-off.'; }
     else if (/^Now, today's news/i.test(t) || i <= 4 && /today's news/i.test(t.slice(0, 120))) { icon = '🗞'; label = 'News rundown'; gist = 'A quick run-through of today\'s stories before the deep dives.'; }
     else gist = firstSentence(t);
-    out.push({ icon, label, html: esc(gist), words: words(t), text: t });
+    out.push({ icon, label, html: esc(gist), words: words(t), text: t, kind, title: kind === 'quiz' ? 'Recall quiz and sign-off' : gist });
   });
   let at = 0;
   out.forEach(sct => { sct.start = at; at += sct.words / WPM; });
   return out;
 }
-function renderBriefSummary(b, ed) {
+function secKey(b, sct) { return b.date + '|' + sct.kind + '|' + String(sct.title || '').slice(0, 80); }
+function renderBriefSummary(b, ed, ratings) {
   const secs = briefSections(b, ed);
+  const mine = {};
+  (ratings || []).forEach(x => { if (x.d === b.date) mine[x.key] = x.r; });
+  const rated = secs.filter(x => x.kind && mine[secKey(b, x)]).length;
+  const rateable = secs.filter(x => x.kind).length;
   if (!secs.length) return '';
   const mm = x => { const v = Math.round(x); return v < 1 ? '<1 min' : v + ' min'; };
-  const rows = secs.map(sct => `
+  const rows = secs.map((sct, idx) => {
+    const cur = sct.kind ? mine[secKey(b, sct)] : null;
+    const rate = sct.kind ? `<div class="nws-rate">${[1,2,3,4,5,6,7,8,9,10].map(v => `<button class="${cur === v ? 'on' : ''} ${cur && v <= cur ? 'fill' : ''}" onclick="newsRate(${idx},${v})">${v}</button>`).join('')}</div>` : '';
+    return `<div class="nws-secw">
     <details class="nws-sec">
       <summary>
         <span class="nws-sec-ic">${sct.icon}</span>
@@ -437,9 +460,10 @@ function renderBriefSummary(b, ed) {
         <span class="nws-sec-t">${Math.floor(sct.start)}:00<br><span>${mm(sct.words / WPM)}</span></span>
       </summary>
       <div class="nws-script">${esc(sct.text).replace(/\n/g, '<br>')}</div>
-    </details>`).join('');
+    </details>${rate}</div>`; }).join('');
   return `<div class="nws-card nws-sum-card">
     <div class="nws-sum-h">What's in it<span>${secs.length} sections · tap one to read it</span></div>
+    <div class="nws-note" style="margin-bottom:4px;">Rate each part out of 10 for how relevant and interesting it was${rated ? ` · ${rated} of ${rateable} rated` : ''}. Tomorrow's picks and writing lean toward what scores high.</div>
     ${rows}
   </div>`;
 }
@@ -479,7 +503,7 @@ function renderBrief(state) {
       ${N.copyFail ? `<div class="nws-err">Couldn't copy automatically — open "Read the script" below, select all and copy.</div>` : ''}
       ${b.failed ? `<div class="nws-note" style="margin-top:10px;">${b.failed} section${b.failed === 1 ? '' : 's'} couldn't be written, so ${b.failed === 1 ? 'it was' : 'they were'} shortened. <a href="#" onclick="newsBriefBuild();return false;" style="color:var(--gold);">Rebuild</a></div>` : ''}
     </div>
-    ${renderBriefSummary(b, news(state).edition && news(state).edition.date === todayKey() ? news(state).edition : null)}
+    ${renderBriefSummary(b, news(state).edition && news(state).edition.date === todayKey() ? news(state).edition : null, news(state).briefRatings)}
     <details class="nws-card nws-preview"><summary>Read the whole script</summary><div class="nws-script">${esc(b.text).replace(/\n/g, '<br>')}</div></details>`;
   }
   return `${NEWS_CSS}<div class="nws">
@@ -549,8 +573,12 @@ body.light .nws-try { color:#5a4610; }
 .nws-sum-card { display:flex; flex-direction:column; padding:14px 14px 6px; }
 .nws-sum-h { font-size:15px; font-weight:800; color:var(--gold); margin-bottom:6px; display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
 .nws-sum-h span { font-size:11px; font-weight:600; color:var(--faint); }
-.nws-sec { border-top:1px solid var(--line); }
-.nws-sec:first-of-type { border-top:none; }
+.nws-secw { border-top:1px solid var(--line); }
+.nws-secw:first-of-type { border-top:none; }
+.nws-rate { display:flex; gap:3px; margin:0 0 10px 32px; }
+.nws-rate button { flex:1; min-width:0; padding:6px 0; border-radius:7px; border:1px solid var(--line); background:transparent; color:var(--faint); font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; cursor:pointer; font-family:inherit; }
+.nws-rate button.fill { background:rgba(212,175,55,0.12); border-color:rgba(212,175,55,0.3); color:var(--gold); }
+.nws-rate button.on { background:var(--gold); border-color:var(--gold); color:#000; }
 .nws-sec > summary { list-style:none; display:flex; gap:10px; align-items:flex-start; padding:10px 0; cursor:pointer; }
 .nws-sec > summary::-webkit-details-marker { display:none; }
 .nws-sec-ic { font-size:18px; line-height:1.2; width:22px; text-align:center; flex-shrink:0; }
@@ -572,8 +600,8 @@ body.light .nws-list { color:#0A1628; }
 body.light .nws-btn { color:#fff; }
 </style>`;
 
-function learnedChips(votes) {
-  const L = learned(votes);
+function learnedChips(votes, ratings) {
+  const L = learned(votes, ratings);
   const tags = Object.entries(L.tag).filter(([, v]) => v !== 0).sort((a, b) => b[1] - a[1]);
   if (!tags.length) return '';
   const more = tags.filter(([, v]) => v > 0).slice(0, 4);
@@ -612,7 +640,7 @@ export function renderNewsTab({ state }) {
       ${aiEntryCard(state)}
       ${likedToday.length ? `<div class="nws-card"><div class="nws-tag" style="display:inline-block;">Useful today</div>
         <ul class="nws-list">${likedToday.map(it => `<li>${esc(it.title)}</li>`).join('')}</ul></div>` : ''}
-      ${n.votes.length ? `<div class="nws-card"><div class="nws-note">What it's learned from your ${n.votes.length} vote${n.votes.length === 1 ? '' : 's'}:</div>${learnedChips(n.votes)}</div>` : ''}
+      ${n.votes.length ? `<div class="nws-card"><div class="nws-note">What it's learned from your ${n.votes.length} vote${n.votes.length === 1 ? '' : 's'}:</div>${learnedChips(n.votes, n.briefRatings)}</div>` : ''}
     </div>`;
   }
 
@@ -642,7 +670,7 @@ export function renderNewsTab({ state }) {
       </div>
       ${briefEntryCard(state)}
       ${aiEntryCard(state)}
-      ${n.votes.length ? `<div class="nws-card"><div class="nws-note">Tuned to you from ${n.votes.length} vote${n.votes.length === 1 ? '' : 's'}:</div>${learnedChips(n.votes)}</div>` : ''}
+      ${n.votes.length ? `<div class="nws-card"><div class="nws-note">Tuned to you from ${n.votes.length} vote${n.votes.length === 1 ? '' : 's'}:</div>${learnedChips(n.votes, n.briefRatings)}</div>` : ''}
     </div>`;
   }
 
@@ -778,6 +806,18 @@ export function initNewsTab({ state, saveDataQuiet, render }) {
     if (it.v) n.aiVotes.unshift({ t: key, v: it.v });
     n.aiVotes = n.aiVotes.slice(0, 120);
     saveDataQuiet(); render();
+  };
+  window.newsRate = (idx, v) => {
+    const n = news(state); const b = briefing(state); if (!b) return;
+    const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
+    const sct = briefSections(b, ed)[idx]; if (!sct || !sct.kind) return;
+    const key = secKey(b, sct);
+    n.briefRatings = n.briefRatings || [];
+    const old = n.briefRatings.find(x => x.key === key);
+    n.briefRatings = n.briefRatings.filter(x => x.key !== key);
+    if (!old || old.r !== v) n.briefRatings.unshift({ d: b.date, k: sct.kind, key, t: String(sct.title || '').replace(/<[^>]+>/g, '').slice(0, 160), tag: sct.tag || '', src: sct.src || '', r: v });
+    n.briefRatings = n.briefRatings.slice(0, 400);
+    const y = window.scrollY; saveDataQuiet(); render(); window.scrollTo(0, y);
   };
   window.newsSeen = (id) => {
     const e = news(state).edition; if (!e) return;

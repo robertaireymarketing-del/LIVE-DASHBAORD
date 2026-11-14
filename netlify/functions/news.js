@@ -161,7 +161,7 @@ async function actionFeeds(set) {
 }
 
 // ── Ranking with Claude ────────────────────────────────────────────
-function buildPrompt(items, liked, disliked, seen) {
+function buildPrompt(items, liked, disliked, seen, rated) {
   let s = 'You are the editor of a private daily news briefing for one person. You choose the few stories that will actually affect his life, money, business or health, and you explain each in one plain line.\n\n';
   s += 'WHO HE IS:\n' + PROFILE + '\n\n';
   s += 'HOW TO CHOOSE:\n'
@@ -171,6 +171,7 @@ function buildPrompt(items, liked, disliked, seen) {
     + '- Learn from his feedback below: lean toward the kind of story he marked useful, away from the kind he marked not useful. Judge by topic and type of story, not exact wording.\n\n';
   if (liked.length) s += 'HE MARKED THESE USEFUL:\n' + liked.map(x => '+ [' + x.tag + '] ' + x.t).join('\n') + '\n\n';
   if (disliked.length) s += 'HE MARKED THESE NOT USEFUL:\n' + disliked.map(x => '- [' + x.tag + '] ' + x.t).join('\n') + '\n\n';
+  if (rated && rated.length) s += 'HE RATED THESE STORIES OUT OF 10 AFTER HEARING THEM IN HIS BRIEFING (how relevant and interesting they were to him). Treat 8-10 as strongly wanted, 1-4 as not wanted, and judge by topic and type of story:\n' + rated.map(x => x.r + '/10 [' + x.tag + '] ' + x.t).join('\n') + '\n\n';
   if (seen && seen.length) s += 'HE HAS ALREADY SEEN THESE STORIES (earlier editions, or he marked them seen):\n' + seen.map(t => '* ' + t).join('\n') + '\n'
     + 'Leave out any story about the same event or announcement as one of these, even from a different outlet or with a different headline. Only include a follow-up if it reports a major new development, and then say in WHY what is new.\n\n';
   s += 'OUTPUT: Return only the 12 highest-scoring stories with score 5 or more (fewer is fine — never pad). One per line, best first, exactly:\n'
@@ -259,7 +260,8 @@ async function actionRank(payload) {
   if (!items.length) return respond(400, { error: 'No stories to rank.' });
   const clean = arr => (Array.isArray(arr) ? arr : []).slice(0, 40).map(x => ({ t: String(x.t || '').slice(0, 160), tag: String(x.tag || '').slice(0, 20) })).filter(x => x.t);
   const seen = (Array.isArray(payload.seen) ? payload.seen : []).slice(0, 80).map(t => String(t || '').slice(0, 160)).filter(Boolean);
-  const { system, user } = buildPrompt(items, clean(payload.liked), clean(payload.disliked), seen);
+  const rated = (Array.isArray(payload.rated) ? payload.rated : []).slice(0, 40).map(x => ({ t: String(x.t || '').slice(0, 160), tag: String(x.tag || '').slice(0, 20), r: Math.max(1, Math.min(10, parseInt(x.r, 10) || 0)) })).filter(x => x.t && x.r);
+  const { system, user } = buildPrompt(items, clean(payload.liked), clean(payload.disliked), seen, rated);
   const ids = new Set(items.map(x => x.id));
 
   const models = MODELS('NEWS_MODEL');
@@ -441,6 +443,11 @@ async function actionBrief(payload) {
   if (p.part === 'story' && p.story && /^https?:\/\//.test(p.story.link)) p.article = await articleText(p.story.link);
   const pr = briefPrompt(p);
   if (!pr) return respond(400, { error: 'Unknown briefing part' });
+  const rated = (Array.isArray(payload.rated) ? payload.rated : []).slice(0, 25)
+    .map(x => ({ t: clip(x.t, 160), r: Math.max(1, Math.min(10, parseInt(x.r, 10) || 0)) })).filter(x => x.t && x.r);
+  if (rated.length) pr.system += '\n\nHOW HE RATED PAST SEGMENTS OF THIS KIND (out of 10, for how relevant and interesting they were to him):\n'
+    + rated.map(x => x.r + '/10 — ' + x.t).join('\n')
+    + '\nLean toward what he rated 8-10 (in subject, angle, depth and how practical it is) and away from what he rated 1-4. Do not mention these ratings in the script.';
   const words = Math.max(120, Math.min(650, parseInt(p.words, 10) || 400));
   const models = MODELS('NEWS_BRIEF_MODEL');
   let lastErr = null;
