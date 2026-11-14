@@ -385,6 +385,65 @@ function updateBriefProgress() {
   if (b && N.briefTotal) b.style.width = `${(N.briefDone / N.briefTotal) * 100}%`;
 }
 
+// ── Script summary: what's in it, how long each part is, and where it starts ──
+// Worked out from the script text itself (sections are joined by blank lines and
+// each opens with a fixed lead-in), so it also works for briefings built earlier.
+function firstSentence(t, max = 170) {
+  const x = String(t || '').replace(/\s+/g, ' ').trim();
+  const m = x.match(/^.{20,}?[.!?](?=\s|$)/);
+  const out = m ? m[0] : x;
+  return out.length > max ? out.slice(0, max - 1).trim() + '…' : out;
+}
+function briefSections(b, ed) {
+  const parts = String(b.text || '').split(/\n\n\n+/).map(x => x.trim()).filter(Boolean);
+  const words = t => t.split(/\s+/).filter(Boolean).length;
+  const strip = (t, re) => t.replace(re, '').trim();
+  const out = [];
+  parts.forEach((t, i) => {
+    let icon = '•', label = 'Section', gist = '';
+    let m;
+    if (i === 0 && /^Good morning/i.test(t)) { icon = '👋'; label = 'Welcome'; gist = 'What\'s coming up today.'; }
+    else if (/^First, your Stoic wisdom/i.test(t)) { icon = '🏛'; label = 'Stoic wisdom'; gist = firstSentence(strip(t, /^First, your Stoic wisdom for today\.\s*/i)); }
+    else if (/^Next, your Straight Line principle/i.test(t)) { icon = '📏'; label = 'Straight Line principle'; gist = firstSentence(strip(t, /^Next, your Straight Line principle[.:]?\s*/i)); }
+    else if (/^Now, a success habit/i.test(t)) { icon = '🏆'; label = 'Success habit'; gist = firstSentence(strip(t, /^Now, a success habit worth stealing\.\s*/i)); }
+    else if ((m = t.match(/^Story (\d+) of (\d+)\. From (.+?)\. ([\s\S]+?)\n\n([\s\S]*)$/))) {
+      const title = m[4].replace(/\.$/, '');
+      const st = ed && ed.items.find(x => x.title === title || x.title + '.' === m[4]);
+      icon = '📰'; label = `Story ${m[1]} · ${m[3]}`;
+      gist = `<b>${esc(title)}</b>` + ((st && st.why) ? `<br>${esc(st.why)}` : (m[5] ? `<br>${esc(firstSentence(m[5]))}` : ''));
+      out.push({ icon, label, html: gist, words: words(t), text: t });
+      return;
+    }
+    else if (/^Now, this week's AI experiment/i.test(t)) { icon = '🤖'; label = 'AI experiment'; gist = firstSentence(strip(t, /^Now, this week's AI experiment\.\s*/i)); }
+    else if (/^Today's lesson is/i.test(t)) { icon = '🧠'; label = 'Lesson of the day'; gist = firstSentence(t); }
+    else if (/^Time for your recall quiz/i.test(t)) { icon = '❓'; label = 'Recall quiz & sign-off'; gist = 'Three questions on today\'s stories, a reflection question for the day, then the sign-off.'; }
+    else if (/^Now, today's news/i.test(t) || i <= 4 && /today's news/i.test(t.slice(0, 120))) { icon = '🗞'; label = 'News rundown'; gist = 'A quick run-through of today\'s stories before the deep dives.'; }
+    else gist = firstSentence(t);
+    out.push({ icon, label, html: esc(gist), words: words(t), text: t });
+  });
+  let at = 0;
+  out.forEach(sct => { sct.start = at; at += sct.words / WPM; });
+  return out;
+}
+function renderBriefSummary(b, ed) {
+  const secs = briefSections(b, ed);
+  if (!secs.length) return '';
+  const mm = x => { const v = Math.round(x); return v < 1 ? '<1 min' : v + ' min'; };
+  const rows = secs.map(sct => `
+    <details class="nws-sec">
+      <summary>
+        <span class="nws-sec-ic">${sct.icon}</span>
+        <span class="nws-sec-main"><span class="nws-sec-l">${esc(sct.label)}</span><span class="nws-sec-g">${sct.html}</span></span>
+        <span class="nws-sec-t">${Math.floor(sct.start)}:00<br><span>${mm(sct.words / WPM)}</span></span>
+      </summary>
+      <div class="nws-script">${esc(sct.text).replace(/\n/g, '<br>')}</div>
+    </details>`).join('');
+  return `<div class="nws-card nws-sum-card">
+    <div class="nws-sum-h">What's in it<span>${secs.length} sections · tap one to read it</span></div>
+    ${rows}
+  </div>`;
+}
+
 function briefEntryCard(state) {
   const b = briefing(state);
   const sub = b ? `Ready · about ${Math.round(b.words / WPM)} minutes · tap to copy` : 'About 35–40 minutes · mindset first, then the news';
@@ -420,7 +479,8 @@ function renderBrief(state) {
       ${N.copyFail ? `<div class="nws-err">Couldn't copy automatically — open "Read the script" below, select all and copy.</div>` : ''}
       ${b.failed ? `<div class="nws-note" style="margin-top:10px;">${b.failed} section${b.failed === 1 ? '' : 's'} couldn't be written, so ${b.failed === 1 ? 'it was' : 'they were'} shortened. <a href="#" onclick="newsBriefBuild();return false;" style="color:var(--gold);">Rebuild</a></div>` : ''}
     </div>
-    <details class="nws-card nws-preview"><summary>Read the script</summary><div class="nws-script">${esc(b.text).replace(/\n/g, '<br>')}</div></details>`;
+    ${renderBriefSummary(b, news(state).edition && news(state).edition.date === todayKey() ? news(state).edition : null)}
+    <details class="nws-card nws-preview"><summary>Read the whole script</summary><div class="nws-script">${esc(b.text).replace(/\n/g, '<br>')}</div></details>`;
   }
   return `${NEWS_CSS}<div class="nws">
     ${back}
@@ -486,6 +546,22 @@ const NEWS_CSS = `<style id="news-css">
 .nws-vote.save { flex:1.3; }
 .nws-vote.save.on { background:rgba(212,175,55,0.14); border-color:rgba(212,175,55,0.5); color:var(--gold); }
 body.light .nws-try { color:#5a4610; }
+.nws-sum-card { display:flex; flex-direction:column; padding:14px 14px 6px; }
+.nws-sum-h { font-size:15px; font-weight:800; color:var(--gold); margin-bottom:6px; display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+.nws-sum-h span { font-size:11px; font-weight:600; color:var(--faint); }
+.nws-sec { border-top:1px solid var(--line); }
+.nws-sec:first-of-type { border-top:none; }
+.nws-sec > summary { list-style:none; display:flex; gap:10px; align-items:flex-start; padding:10px 0; cursor:pointer; }
+.nws-sec > summary::-webkit-details-marker { display:none; }
+.nws-sec-ic { font-size:18px; line-height:1.2; width:22px; text-align:center; flex-shrink:0; }
+.nws-sec-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.nws-sec-l { font-size:11px; font-weight:800; letter-spacing:0.8px; text-transform:uppercase; color:var(--gold); }
+.nws-sec-g { font-size:13px; line-height:1.45; color:var(--mut); }
+.nws-sec-g b { color:#fff; font-weight:700; }
+body.light .nws-sec-g b { color:#0A1628; }
+.nws-sec-t { font-size:12px; font-weight:800; color:var(--mut); text-align:right; font-variant-numeric:tabular-nums; flex-shrink:0; line-height:1.35; }
+.nws-sec-t span { font-size:10px; font-weight:600; color:var(--faint); }
+.nws-sec[open] .nws-script { margin:0 0 12px 32px; font-size:13px; }
 .nws-preview summary { cursor:pointer; font-size:14px; font-weight:700; color:var(--gold); }
 .nws-script { margin-top:12px; font-size:14px; line-height:1.65; color:#ddd; }
 body.light .nws-script { color:#0A1628; }
