@@ -72,6 +72,7 @@ const PROFILE = [
   'Also works daily in his father\'s long-established independent jewellery shop.',
   'Qualified accountant by background, so comfortable with numbers, tax and finance detail.',
   'Daily habits he tracks: gym, diet, meditation, and "retention". IMPORTANT: in all of his habit data, "retention" ALWAYS means semen retention — the personal discipline of no porn and no masturbation — never customer retention. Only talk about customer retention when the topic is explicitly TJM customers.',
+  'Steps and walking: he works in the shop through the day, so NEVER suggest a lunchtime walk or a walk during the working day. His options for extra steps are (1) time on the treadmill straight after his weights session if he has time, or (2) the walking treadmill/walking pad in the evening. Suggest those, nothing else, when steps come up.',
   'Goals: a £2,000/month salary from TJM as soon as possible; TJM over £10,000/month revenue by August 2027; financial and location freedom; daily gym and good health.',
   'Things that genuinely affect him: UK interest rates, mortgages, inflation and consumer spending; gold and silver prices; UK small-business tax, VAT and rules for online sellers; marketplace and platform changes (Vinted, eBay, Etsy, TikTok Shop, Shopify, Instagram, Google); postage and Royal Mail; retail and e-commerce trends; AI tools a one-person business can use; jewellery industry news; evidence-based health and fitness; Nottingham local news.',
 ].join('\n');
