@@ -5,7 +5,8 @@
 //  • One edition per day. It's built the first time you open the page that day
 //    and doesn't change after — a finished paper, not an endless feed, so there's
 //    nothing to keep refreshing.
-//  • 5 minutes a day, total, across all your devices (stored in Firestore).
+//  • (The old 5-minutes-a-day lock has been removed — the page always opens.)
+//  • Previously: 5 minutes a day, total, across all your devices (stored in Firestore).
 //    The clock only starts when you tap Start, keeps running while you're reading
 //    an article you opened from here, and pauses if you go to another page in the
 //    dashboard. At 0:00 the page locks until midnight.
@@ -292,7 +293,7 @@ function aiEntryCard(state) {
   const done = ed ? ed.items.filter(i => i.done).length : 0;
   const sub = ed ? (ed.items.length ? `Tried ${done} of ${ed.items.length} this week` : 'Nothing worth your time this week') : 'This week\'s edition is ready to build';
   return `<button class="nws-card nws-ai-entry" onclick="newsAiOpen()">
-    <div><div class="nws-ai-t">🤖 AI for TJM · this week</div><div class="nws-note">${esc(sub)} · doesn't use your 5 minutes</div></div>
+    <div><div class="nws-ai-t">🤖 AI for TJM · this week</div><div class="nws-note">${esc(sub)}</div></div>
     <div class="nws-ai-arrow">→</div>
   </button>`;
 }
@@ -996,56 +997,15 @@ export function renderNewsTab({ state }) {
   if (N.view === 'briefhist') return renderBriefHistory(state);
   if (N.view === 'briefpast') return renderBriefPast(state);
   const n = news(state);
-  const left = secsLeft(state);
   const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
-
-  // ── Locked for the day ──
-  if (left <= 0) {
-    const likedToday = visibleItems(ed).filter(it => it.v > 0);
-    return `${NEWS_CSS}<div class="nws">
-      <div class="nws-head"><div><div class="nws-title">📰 News</div><div class="nws-sub">Today's 5 minutes are used.</div></div></div>
-      <div class="nws-card nws-gate">
-        <div class="big">🔒</div>
-        <div class="lbl">Locked until midnight</div>
-        <p>Tomorrow's edition unlocks in <b>${untilMidnight()}</b>. You've got what matters for today, so get back to the work that actually moves things.</p>
-      </div>
-      ${briefEntryCard(state)}
-      ${aiEntryCard(state)}
-      ${likedToday.length ? `<div class="nws-card"><div class="nws-tag" style="display:inline-block;">Useful today</div>
-        <ul class="nws-list">${likedToday.map(it => `<li>${esc(it.title)}</li>`).join('')}</ul></div>` : ''}
-      ${n.votes.length ? `<div class="nws-card"><div class="nws-note">What it's learned from your ${n.votes.length} vote${n.votes.length === 1 ? '' : 's'}:</div>${learnedChips(n.votes, n.briefRatings)}</div>` : ''}
-    </div>`;
-  }
-
-  const low = left <= 60;
-  const clock = `<div class="nws-clock ${low ? 'low' : ''}" id="news-clock">${fmt(left)}</div>`;
+  // No time lock any more: the page always opens straight onto today's stories.
   const header = `<div class="nws-head">
-      <div><div class="nws-title">📰 News</div><div class="nws-sub">Today's edition · picked for your money, TJM, health and life</div></div>
-      ${clock}
-    </div>
-    <div class="nws-bar"><div id="news-bar" class="${low ? 'low' : ''}" style="width:${(left / DAILY_SECS) * 100}%"></div></div>`;
-
-  // ── Gate: not started (or paused) ──
-  if (!N.running) {
-    const started = left < DAILY_SECS;
-    let status = '';
-    if (N.loading) status = `<p>Building today's edition — reading the feeds and picking what affects you…</p><div class="nws-spin"></div>`;
-    else if (N.error && !ed) status = `<div class="nws-err">${esc(N.error)}</div><button class="nws-btn ghost" onclick="newsRetry()">Try again</button>`;
-    else if (ed) { const c = visibleItems(ed).length; status = `<p>${c ? `${c} stor${c === 1 ? 'y' : 'ies'} worth your time today.` : 'Nothing today cleared the bar for affecting you. That\'s a good day.'} Built ${ago(ed.generatedAt)}. Stories you've already had are left out.</p>`; }
-    return `${NEWS_CSS}<div class="nws">
-      ${header}
-      <div class="nws-card nws-gate">
-        <div class="big">${fmt(left)}</div>
-        <div class="lbl">${started ? 'left today' : 'per day'}</div>
-        ${status}
-        <button class="nws-btn" onclick="newsStart()" ${ed && !N.loading ? '' : 'disabled'}>${started ? 'Resume' : 'Start'}</button>
-        <p style="font-size:12px;">The clock runs while you read here or in an article you open. It pauses if you switch to another page in the dashboard.</p>
-      </div>
-      ${briefEntryCard(state)}
-      ${aiEntryCard(state)}
-      ${n.votes.length ? `<div class="nws-card"><div class="nws-note">Tuned to you from ${n.votes.length} vote${n.votes.length === 1 ? '' : 's'}:</div>${learnedChips(n.votes, n.briefRatings)}</div>` : ''}
+      <div><div class="nws-title">📰 News</div><div class="nws-sub">Today's edition · UK first · TJM, Nottingham Insurance and you</div></div>
     </div>`;
-  }
+  let status = '';
+  if (N.loading) status = `<div class="nws-card nws-gate"><p>Building today's edition — reading the feeds and picking what affects you…</p><div class="nws-spin"></div></div>`;
+  else if (N.error && !ed) status = `<div class="nws-card nws-gate"><div class="nws-err">${esc(N.error)}</div><button class="nws-btn ghost" onclick="newsRetry()">Try again</button></div>`;
+  const tuned = n.votes.length ? `<div class="nws-card"><div class="nws-note">Tuned to you from ${n.votes.length} vote${n.votes.length === 1 ? '' : 's'}:</div>${learnedChips(n.votes, n.briefRatings)}</div>` : '';
 
   // ── Reading ──
   const items = visibleItems(ed);
@@ -1070,11 +1030,14 @@ export function renderNewsTab({ state }) {
 
   return `${NEWS_CSS}<div class="nws">
     ${header}
+    ${briefEntryCard(state)}
+    ${aiEntryCard(state)}
+    ${status}
     ${ed && ed.note ? `<div class="nws-note">${esc(ed.note)}</div>` : ''}
-    ${stories || `<div class="nws-card nws-gate"><p>${hidden.length ? 'You\'ve already seen everything in today\'s edition. Close this and get on.' : 'Nothing today cleared the bar for affecting you. That\'s a good day — close this and get on.'}</p></div>`}
+    ${!ed ? '' : stories || `<div class="nws-card nws-gate"><p>${hidden.length ? 'You\'ve already seen everything in today\'s edition. Close this and get on.' : 'Nothing today cleared the bar for affecting you. That\'s a good day — close this and get on.'}</p></div>`}
     ${hidden.length ? `<div class="nws-card nws-hidden"><div class="nws-note">Marked as already seen — these won't come back:</div>
       ${hidden.map(it => `<div class="nws-hidden-row"><span>${esc(it.title)}</span><button class="nws-undo" onclick="newsUnseen('${it.id}')">Undo</button></div>`).join('')}</div>` : ''}
-    <button class="nws-btn ghost" onclick="newsDone()">I'm done for today</button>
+    ${tuned}
   </div>`;
 }
 
@@ -1083,7 +1046,7 @@ export function initNewsTab({ state, saveDataQuiet, render, homeText }) {
   if (homeText) N.homeText = homeText;
   const n = news(state);   // re-read inside handlers too: state.data can be swapped by a reload
   const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
-  if (!N.view && !ed && !N.loading && !N.error && secsLeft(state) > 0) buildEdition(state, saveDataQuiet, render);
+  if (!N.view && !ed && !N.loading && !N.error) buildEdition(state, saveDataQuiet, render);
   const tb = briefing(state);
   if (tb && !tb.archived && !N.archiving) { N.archiving = true; archiveBriefing(state, tb, saveDataQuiet).finally(() => { N.archiving = false; if (state.activeTab === 'news' && N.view === 'brief') render(); }); }
   if (N.view === 'ai' && !aiEdition(state) && !N.aiLoading && !N.aiError) buildAi(state, saveDataQuiet, render);
