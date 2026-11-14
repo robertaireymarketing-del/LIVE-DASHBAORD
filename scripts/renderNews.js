@@ -14,6 +14,12 @@
 //  • 👍 / 👎 on any story teaches it. Your votes go into tomorrow's ranking (as
 //    examples for the AI editor) and also nudge whole topics and sources up or down.
 //
+//  • 👁 No repeats. Every story that makes an edition is remembered for 3 weeks
+//    and won't appear again. "Seen it" on a story hides it from today straight
+//    away (for ones you already caught elsewhere). The seen list is also given to
+//    the AI editor, so the same event from a different outlet is skipped too —
+//    unless there's a genuinely new development.
+//
 //  • 🤖 AI for TJM — a separate weekly edition (Sunday to Sunday), outside the
 //    5-minute limit: 3–5 AI releases/tools you can use now, each with one
 //    specific thing to try in TJM and a "Tried it" tick. The point is that this
@@ -29,6 +35,7 @@
 //   usage:   { date:'YYYY-MM-DD', secs },
 //   edition: { date, items:[{id,title,link,source,summary,tag,score,why,v}], generatedAt, model },
 //   votes:   [{ t, tag, src, v:1|-1, d }]   (newest first, capped)
+//   seen:    [{ t, k, u, d, m }]  stories already shown (m:1 = you tapped Seen it); kept SEEN_DAYS
 //   ai:      { week, items:[{id,title,link,source,ts,kind,what,try,v,done}], generatedAt, model, note },
 //   aiVotes: [{ t, v }],  aiTried: [{ t, d }]
 //   aiSaved: [{ key, title, link, source, kind, what, try, savedAt, done }]  (kept across weeks)
@@ -41,6 +48,8 @@ import { getTodaysSllCard } from './renderStraightLine.js';
 const DAILY_SECS = 5 * 60;
 const MAX_STORIES = 10;
 const ENDPOINT = '/.netlify/functions/news';
+const SEEN_DAYS = 21;
+const SEEN_MAX = 300;
 
 const N = (typeof window !== 'undefined') ? (window.__news = window.__news || {}) : {};
 
@@ -56,6 +65,35 @@ function news(state) {
   if (!n.usage || n.usage.date !== todayKey()) n.usage = { date: todayKey(), secs: 0 };
   return n;
 }
+// ── Already seen ───────────────────────────────────────────────────────────
+function normTitle(t) { return String(t || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').filter(w => w.length > 3).slice(0, 7).join(' '); }
+function normLink(u) { return String(u || '').replace(/^https?:\/\/(www\.)?/i, '').replace(/[?#].*$/, '').replace(/\/+$/, '').toLowerCase().slice(0, 200); }
+function seenList(state) {
+  const n = news(state);
+  const cutoff = Date.now() - SEEN_DAYS * 86400000;
+  n.seen = (n.seen || []).filter(x => x && Date.parse(x.d) >= cutoff).slice(0, SEEN_MAX);
+  return n.seen;
+}
+function seenMatcher(list) {
+  const k = new Set(list.map(x => x.k).filter(Boolean));
+  const u = new Set(list.map(x => x.u).filter(Boolean));
+  return it => k.has(normTitle(it.title)) || u.has(normLink(it.link));
+}
+function addSeen(state, it, manual) {
+  const list = seenList(state);
+  const k = normTitle(it.title), u = normLink(it.link);
+  const i = list.findIndex(x => (k && x.k === k) || (u && x.u === u));
+  if (i >= 0) { if (manual) list[i].m = 1; return; }
+  list.unshift({ t: String(it.title || '').slice(0, 160), k, u, d: todayKey(), m: manual ? 1 : 0 });
+  if (list.length > SEEN_MAX) list.length = SEEN_MAX;
+}
+function removeSeen(state, it) {
+  const n = news(state);
+  const k = normTitle(it.title), u = normLink(it.link);
+  n.seen = seenList(state).filter(x => !((k && x.k === k) || (u && x.u === u)));
+}
+function visibleItems(ed) { return ed ? ed.items.filter(it => !it.seen) : []; }
+
 function secsLeft(state) { return DAILY_SECS - (news(state).usage.secs || 0); }
 
 // ── What it has learned from your votes ────────────────────────────────────
@@ -112,14 +150,20 @@ async function buildEdition(state, saveDataQuiet, render) {
   if (state.activeTab === 'news') render();
   try {
     const n = news(state);
-    const { items } = await post({ action: 'feeds' });
-    if (!items || !items.length) throw new Error('No stories came back from the feeds. Try again in a minute.');
+    const { items: fetched } = await post({ action: 'feeds' });
+    if (!fetched || !fetched.length) throw new Error('No stories came back from the feeds. Try again in a minute.');
+    // Drop anything you've already had in an edition or marked as seen.
+    const seen = seenList(state);
+    const wasSeen = seenMatcher(seen);
+    const items = fetched.filter(it => !wasSeen(it));
+    if (!items.length) throw new Error('Every story in the feeds right now is one you\'ve already seen. Try again later today.');
+    const seenTitles = seen.slice(0, 80).map(x => x.t);
 
     const liked = n.votes.filter(x => x.v > 0).slice(0, 40).map(x => ({ t: x.t, tag: x.tag }));
     const disliked = n.votes.filter(x => x.v < 0).slice(0, 40).map(x => ({ t: x.t, tag: x.tag }));
     let ranked, model = null;
     try {
-      const r = await post({ action: 'rank', items: items.map(({ id, title, summary, source }) => ({ id, title, summary, source })), liked, disliked });
+      const r = await post({ action: 'rank', items: items.map(({ id, title, summary, source }) => ({ id, title, summary, source })), liked, disliked, seen: seenTitles });
       ranked = r.ranked; model = r.model;
     } catch (e) {
       ranked = fallbackRank(items);
@@ -137,6 +181,7 @@ async function buildEdition(state, saveDataQuiet, render) {
       .slice(0, MAX_STORIES);
 
     n.edition = { date: todayKey(), items: picked, generatedAt: Date.now(), model, note: N.note || null };
+    picked.forEach(it => addSeen(state, it, false));   // in today's edition = won't come back tomorrow
     saveDataQuiet();
   } catch (e) {
     N.error = e.message || String(e);
@@ -266,7 +311,7 @@ async function buildBriefing(state, saveDataQuiet, render) {
     const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
     if (!ed) throw new Error(N.error || 'Couldn\'t build today\'s edition.');
 
-    const stories = ed.items.slice(0, 6);
+    const stories = visibleItems(ed).slice(0, 6);
     const headlines = stories.map(it => ({ title: it.title, why: it.why }));
     const per = stories.length ? Math.max(300, Math.min(480, Math.round(2700 / stories.length))) : 0;
     const ai = (aiEdition(state)?.items || []).find(i => !i.done) || null;
@@ -415,6 +460,10 @@ const NEWS_CSS = `<style id="news-css">
 .nws-vote { flex:1; padding:9px 0; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--mut); font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
 .nws-vote.up.on { background:rgba(46,204,113,0.14); border-color:rgba(46,204,113,0.5); color:#2ecc71; }
 .nws-vote.down.on { background:rgba(231,76,60,0.12); border-color:rgba(231,76,60,0.45); color:#e74c3c; }
+.nws-seen { margin-left:auto; background:none; border:1px solid var(--line); border-radius:20px; color:var(--mut); font-size:11px; font-weight:700; padding:3px 9px; cursor:pointer; font-family:inherit; }
+.nws-hidden { display:flex; flex-direction:column; gap:8px; }
+.nws-hidden-row { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; color:var(--mut); line-height:1.4; }
+.nws-undo { background:none; border:none; color:var(--gold); font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; padding:0; }
 .nws-read { flex:1.2; padding:9px 0; border-radius:10px; border:1px solid rgba(212,175,55,0.4); color:var(--gold); font-size:13px; font-weight:700; text-align:center; text-decoration:none; }
 .nws-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
 .nws-chip { font-size:11px; font-weight:700; border-radius:20px; padding:4px 9px; }
@@ -475,7 +524,7 @@ export function renderNewsTab({ state }) {
 
   // ── Locked for the day ──
   if (left <= 0) {
-    const likedToday = (ed ? ed.items : []).filter(it => it.v > 0);
+    const likedToday = visibleItems(ed).filter(it => it.v > 0);
     return `${NEWS_CSS}<div class="nws">
       <div class="nws-head"><div><div class="nws-title">📰 News</div><div class="nws-sub">Today's 5 minutes are used.</div></div></div>
       <div class="nws-card nws-gate">
@@ -505,7 +554,7 @@ export function renderNewsTab({ state }) {
     let status = '';
     if (N.loading) status = `<p>Building today's edition — reading the feeds and picking what affects you…</p><div class="nws-spin"></div>`;
     else if (N.error && !ed) status = `<div class="nws-err">${esc(N.error)}</div><button class="nws-btn ghost" onclick="newsRetry()">Try again</button>`;
-    else if (ed) status = `<p>${ed.items.length ? `${ed.items.length} stor${ed.items.length === 1 ? 'y' : 'ies'} worth your time today.` : 'Nothing today cleared the bar for affecting you. That\'s a good day.'} Built ${ago(ed.generatedAt)}.</p>`;
+    else if (ed) { const c = visibleItems(ed).length; status = `<p>${c ? `${c} stor${c === 1 ? 'y' : 'ies'} worth your time today.` : 'Nothing today cleared the bar for affecting you. That\'s a good day.'} Built ${ago(ed.generatedAt)}. Stories you've already had are left out.</p>`; }
     return `${NEWS_CSS}<div class="nws">
       ${header}
       <div class="nws-card nws-gate">
@@ -522,10 +571,11 @@ export function renderNewsTab({ state }) {
   }
 
   // ── Reading ──
-  const items = ed ? ed.items : [];
+  const items = visibleItems(ed);
+  const hidden = ed ? ed.items.filter(it => it.seen) : [];
   const stories = items.map(it => `
     <div class="nws-card nws-story">
-      <div class="nws-meta"><span class="nws-tag">${esc(it.tag)}</span><span>${esc(it.source)}</span>${it.ts ? `<span>· ${ago(it.ts)}</span>` : ''}</div>
+      <div class="nws-meta"><span class="nws-tag">${esc(it.tag)}</span><span>${esc(it.source)}</span>${it.ts ? `<span>· ${ago(it.ts)}</span>` : ''}<button class="nws-seen" onclick="newsSeen('${it.id}')">👁 Seen it</button></div>
       <a class="nws-h" href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.title)}</a>
       ${it.why ? `<div class="nws-why">${esc(it.why)}</div>` : ''}
       ${it.summary ? `<div class="nws-sum">${esc(it.summary.length > 220 ? it.summary.slice(0, 220) + '…' : it.summary)}</div>` : ''}
@@ -539,7 +589,9 @@ export function renderNewsTab({ state }) {
   return `${NEWS_CSS}<div class="nws">
     ${header}
     ${ed && ed.note ? `<div class="nws-note">${esc(ed.note)}</div>` : ''}
-    ${stories || `<div class="nws-card nws-gate"><p>Nothing today cleared the bar for affecting you. That's a good day — close this and get on.</p></div>`}
+    ${stories || `<div class="nws-card nws-gate"><p>${hidden.length ? 'You\'ve already seen everything in today\'s edition. Close this and get on.' : 'Nothing today cleared the bar for affecting you. That\'s a good day — close this and get on.'}</p></div>`}
+    ${hidden.length ? `<div class="nws-card nws-hidden"><div class="nws-note">Marked as already seen — these won't come back:</div>
+      ${hidden.map(it => `<div class="nws-hidden-row"><span>${esc(it.title)}</span><button class="nws-undo" onclick="newsUnseen('${it.id}')">Undo</button></div>`).join('')}</div>` : ''}
     <button class="nws-btn ghost" onclick="newsDone()">I'm done for today</button>
   </div>`;
 }
@@ -650,6 +702,21 @@ export function initNewsTab({ state, saveDataQuiet, render }) {
     if (it.v) n.aiVotes.unshift({ t: key, v: it.v });
     n.aiVotes = n.aiVotes.slice(0, 120);
     saveDataQuiet(); render();
+  };
+  window.newsSeen = (id) => {
+    const e = news(state).edition; if (!e) return;
+    const it = e.items.find(x => x.id === id); if (!it) return;
+    it.seen = true;
+    addSeen(state, it, true);
+    flush(); saveDataQuiet(); render();
+  };
+  window.newsUnseen = (id) => {
+    const e = news(state).edition; if (!e) return;
+    const it = e.items.find(x => x.id === id); if (!it) return;
+    it.seen = false;
+    // Still in today's edition, so keep it remembered (just not as one you hid).
+    removeSeen(state, it); addSeen(state, it, false);
+    flush(); saveDataQuiet(); render();
   };
   window.newsRetry = () => { N.error = null; buildEdition(state, saveDataQuiet, render); };
   window.newsVote = (id, v) => {
