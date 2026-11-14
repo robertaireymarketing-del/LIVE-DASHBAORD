@@ -783,6 +783,19 @@ function renderBriefPast(state) {
   </div>`;
 }
 
+// What the Copy button produces: a spoken contents list, then every section
+// starting with its own heading line ("SECTION 5 OF 15 · RETENTION CHECK-IN"),
+// so in Speechify you can scroll to a heading and tap it to play from there.
+function speechifyText(b) {
+  const secs = briefSections(b, null);
+  if (secs.length < 3) return b.text;
+  const n = secs.length;
+  const say = (l) => String(l).replace(/\s*·\s*/g, ', from ').replace(/&/g, 'and');
+  const contents = 'CONTENTS.\n' + secs.map((sc, i) => `${i + 1}. ${say(sc.label)}, about ${Math.max(1, Math.round(sc.words / WPM))} minute${Math.round(sc.words / WPM) > 1 ? 's' : ''}.`).join('\n');
+  const body = secs.map((sc, i) => `SECTION ${i + 1} OF ${n}: ${say(sc.label).toUpperCase()}.\n\n${sc.text}`).join('\n\n\n');
+  return contents + '\n\n\n' + body;
+}
+
 function renderTop3(b) {
   if (!b || !b.top || !b.top.length) return '';
   const done = b.topDone || [];
@@ -1100,7 +1113,8 @@ export function initNewsTab({ state, saveDataQuiet, render, homeText }) {
   };
   window.newsBriefBuild = () => { buildBriefing(state, saveDataQuiet, render); };
   window.newsBriefCopy = async () => {
-    const b = N.view === 'briefpast' ? N.past : briefing(state); if (!b) return;
+    const b0 = N.view === 'briefpast' ? N.past : briefing(state); if (!b0) return;
+    const b = { ...b0, text: speechifyText(b0) };
     let ok = false;
     try { await navigator.clipboard.writeText(b.text); ok = true; } catch (e) {}
     if (!ok) {                                   // older iOS fallback
