@@ -535,11 +535,19 @@ function briefPrompt(p) {
         + 'HIS HOME PAGE STATS (as shown on his dashboard today):\n' + (p.home || '(not available — say the stats could not be read today and keep this short and general)') };
   }
   if (p.part === 'tjm') {
-    return { system: 'You are writing a "TJM playbook" segment of Robert\'s personal daily audio briefing: one practical, specific play to grow TJM, with steps he can take today. He loves practical tips and concrete steps, not theory.\n\n' + who
-        + '\nRules: be specific to a small UK online jewellery business selling hallmarked silver, pre-owned silver on Vinted, and Pandora charms through its own website, Vinted, eBay, email and TikTok. Name exact actions, numbers, scripts or templates where useful. Only cite statistics or case studies you are confident are real; otherwise give the reasoning instead. No generic advice like "post consistently" without saying exactly how.\n',
-      user: 'About ' + words + ' words. Do not greet him. Today\'s area: ' + (p.focus || 'sales') + '. Pick ONE play in that area. Do not repeat these recent plays: ' + ((p.avoid || []).join('; ') || 'none') + '.\n'
-        + 'Structure, as spoken prose: name the play in one line; why it works (the mechanism: buyer psychology, maths or platform behaviour); the exact steps to do it today or this week, numbered out loud as first, second, third, with any wording he can use word for word; how long it takes; what result to look for and when to judge it; and one common mistake to avoid. If it can be handed to his assistant, say exactly what to hand over. Link it to his goals where it genuinely fits.\n'
+    return { system: 'You are writing a "TJM playbook" segment of Robert\'s personal daily audio briefing: one practical, specific play to grow TJM, with steps he can take today. He loves practical tips and concrete steps, not theory — but only steps that fit where the business actually is right now.\n\n' + who
+        + '\nRules: be specific to a small UK online jewellery business selling hallmarked silver, pre-owned silver on Vinted, and Pandora charms through its own website, Vinted, eBay, email and TikTok. Name exact actions, numbers, scripts or templates where useful. Only cite statistics or case studies you are confident are real; otherwise give the reasoning instead. No generic advice like "post consistently" without saying exactly how.\n'
+        + '\nSTART FROM WHERE HE IS — this matters more than anything else:\n'
+        + '- Read "WHERE TJM IS RIGHT NOW" and his plan for this week first. Work out his current stage and his real bottleneck.\n'
+        + '- The play must be the next logical step from that position. Never assume things he does not have yet: no ads before there are listings and proof they sell, no email automation before there is a list, no scaling, hiring or new channels before the basics are producing sales. If a play needs something that is not in place, give the step that builds that missing piece instead.\n'
+        + '- Prefer plays that unblock or speed up what is already on his plan this week over brand-new projects. If the best play would compete with his plan, say what to drop or move, or pick something smaller.\n'
+        + '- Size it to his real time: a few focused blocks around a full day in the shop, plus his part-time assistant for repetitive work.\n'
+        + (p.now ? '' : '- He has not described where TJM is right now, so keep the play to fundamentals that are valid at any early stage, and say in one sentence at the start that filling in "TJM right now" on the briefing page would make these plays sharper.\n'),
+      user: 'About ' + words + ' words. Do not greet him. Suggested area for today: ' + (p.focus || 'sales') + ' — use it only if it fits his current stage; otherwise pick the area that matters most for his bottleneck right now. Pick ONE play. Do not repeat these recent plays: ' + ((p.avoid || []).join('; ') || 'none') + '.\n'
+        + 'Structure, as spoken prose: open with one or two sentences saying where he is right now and why this play is the right next step from there (refer to specifics from the context below, not generalities); name the play in one line; why it works (the mechanism: buyer psychology, maths or platform behaviour); the exact steps to do it today or this week, numbered out loud as first, second, third, with any wording he can use word for word, and how it fits around what is already on his plan; how long it takes; what result to look for and when to judge it; what it sets up next once it works; and one common mistake to avoid. If part of it can be handed to his assistant, say exactly what to hand over.\n'
         + 'On the very last line, write TOPIC: followed by the play in under eight words (this line will be removed before reading).\n\n'
+        + 'WHERE TJM IS RIGHT NOW (written by him' + (p.nowAge ? ', updated ' + p.nowAge : '') + '):\n' + (p.now || '(not filled in)') + '\n\n'
+        + 'HIS PLAN THIS WEEK (Road to 30 weekly steps; [x] = done):\n' + (p.weekPlan || '(nothing written for this week)') + '\n\n'
         + 'HIS GOALS (for context):\n' + (p.goals || '') };
   }
   if (p.part === 'followup') {
@@ -605,6 +613,7 @@ async function actionBrief(payload) {
     goals: clip(payload.goals, 5000),
     home: clip(payload.home, 7000),
     focus: clip(payload.focus, 80),
+    now: clip(payload.now, 3000), nowAge: clip(payload.nowAge, 40), weekPlan: clip(payload.weekPlan, 2000),
     follow: clip(payload.follow, 3000),
     top: clip(payload.top, 3000),
     week: clip(payload.week, 6000),

@@ -38,6 +38,8 @@
 //   votes:   [{ t, tag, src, v:1|-1, d }]   (newest first, capped)
 //   costs:   { 'YYYY-MM': { usd, calls, by:{rank,explain,brief,airank}, since } }  running API cost per
 //            month, from the token counts the news function reports back on every call
+//   tjmNow:  { text, at }  "TJM right now" — where the business is, written by you; the TJM plays
+//            in the briefing start from this so they're the next step, not three steps ahead
 //   noRel:   [{ t, tag, src, sec, why, d }]  🤷 "Don't see the relevance" — sent to the AI editor
 //            and the why-writer as examples of links that were too weak (newest first, capped)
 //   seen:    [{ t, k, u, d, m }]  stories already shown (m:1 = you tapped Seen it); kept SEEN_DAYS
@@ -518,6 +520,15 @@ function nextWeekContext(state) {
 }
 
 // TJM playbook: two areas a day, rotating so every part of the business gets covered.
+function tjmNowCtx(state) {
+  const t = news(state).tjmNow;
+  if (!t || !String(t.text || '').trim()) return { now: '', nowAge: '' };
+  const days = Math.floor((Date.now() - (t.at || 0)) / 86400000);
+  return { now: t.text, nowAge: days <= 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago' };
+}
+function weekPlanText(state) {
+  try { return weekItems(state, todayKey()).map(x => `[${x.done ? 'x' : ' '}] ${x.text}`).join('\n').slice(0, 2000); } catch (e) { return ''; }
+}
 const TJM_AREAS = [
   'sales and converting browsers into buyers', 'TikTok lives and short-form video', 'listings on Vinted, eBay and the website',
   'email marketing and repeat customers', 'pricing, margins and stock buying', 'product photography and presentation',
@@ -570,6 +581,7 @@ async function buildBriefing(state, saveDataQuiet, render) {
     try { home = N.homeText ? htmlToText(N.homeText()).replace(/\bRetention\b/g, 'Semen retention') : ''; } catch (e) {}
     const a1 = TJM_AREAS[doy % TJM_AREAS.length], a2 = TJM_AREAS[(doy + 5) % TJM_AREAS.length];
     const tjmAvoid = (n.tjmUsed || []).slice(0, 30);
+    const tjmCtx = { ...tjmNowCtx(state), weekPlan: weekPlanText(state) };
     const sunday = new Date().getDay() === 0;
     const follow = followContext(state);
     const top = top3Context(state);
@@ -583,7 +595,7 @@ async function buildBriefing(state, saveDataQuiet, render) {
       { key: 'gym', body: { part: 'gym', words: 650, home, gym, ret: { streak: ret.streak }, rated: R('gym'), weekly: true } },
       { key: 'goals', body: { part: 'goals', words: 480, goals, dateLabel, rated: R('goals') } },
       { key: 'weeknext', body: { part: 'weeknext', words: 650, next: nextWeekContext(state), week: weekContext(state).slice(0, 2500), rated: R('weeknext') } },
-      { key: 'tjm1', body: { part: 'tjm', words: 650, focus: a1, avoid: tjmAvoid, goals: goals.slice(0, 1500), rated: R('tjm') } },
+      { key: 'tjm1', body: { part: 'tjm', words: 650, ...tjmCtx, focus: a1, avoid: tjmAvoid, goals: goals.slice(0, 1500), rated: R('tjm') } },
       { key: 'top3', body: { part: 'top3', words: 300, top, follow, sunday: true, rated: R('top3') } },
       { key: 'weekclose', body: { part: 'weekclose', words: 350, rated: R('quiz') } },
     ] : [
@@ -597,8 +609,8 @@ async function buildBriefing(state, saveDataQuiet, render) {
       { key: 'intro', body: { part: 'intro', words: 170, dateLabel, headlines, noGreeting: true } },
       ...stories.map((st, i) => ({ key: 'story' + i, st, i, body: { part: 'story', words: per, story: st, rated: R('story') } })),
       ...(ai ? [{ key: 'ai', body: { part: 'ai', words: 230, ai, rated: R('ai') } }] : []),
-      { key: 'tjm1', body: { part: 'tjm', words: 650, focus: a1, avoid: tjmAvoid, goals: goals.slice(0, 1500), rated: R('tjm') } },
-      { key: 'tjm2', body: { part: 'tjm', words: 650, focus: a2, avoid: tjmAvoid, goals: goals.slice(0, 1500), rated: R('tjm') } },
+      { key: 'tjm1', body: { part: 'tjm', words: 650, ...tjmCtx, focus: a1, avoid: tjmAvoid, goals: goals.slice(0, 1500), rated: R('tjm') } },
+      { key: 'tjm2', body: { part: 'tjm', words: 650, ...tjmCtx, focus: a2, avoid: tjmAvoid, goals: goals.slice(0, 1500), rated: R('tjm') } },
       { key: 'learn', body: { part: 'learn', words: stories.length >= 4 ? 550 : 650, headlines, avoid: (n.lessons || []).slice(0, 20), rated: R('lesson') } },
       { key: 'top3', body: { part: 'top3', words: 300, top, follow, rated: R('top3') } },
       { key: 'close', body: { part: 'close', words: 380, headlines, rated: R('quiz') } },
@@ -885,6 +897,21 @@ function briefEntryCard(state) {
   </button>`;
 }
 
+function tjmNowCard(state) {
+  const t = news(state).tjmNow || {};
+  const has = String(t.text || '').trim();
+  const days = has ? Math.floor((Date.now() - (t.at || 0)) / 86400000) : null;
+  const stale = has && days >= 14;
+  const status = !has ? 'Not filled in — the TJM plays are guessing where you are'
+    : `Updated ${days <= 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago'}${stale ? ' — worth a refresh' : ''}`;
+  return `<details class="nws-card nws-tjmnow" ${!has || N.tjmNowOpen ? 'open' : ''}>
+    <summary><span>🏪 TJM right now</span><span class="nws-note" style="${!has || stale ? 'color:#e67e22;' : ''}">${esc(status)}</span></summary>
+    <div class="nws-note" style="margin:8px 0;">The two TJM plays start from this, so they're your next step, not three steps ahead. A few lines is plenty: what's live and listed, what's selling, what you're working on, what's blocking you, and anything you don't want suggested yet.</div>
+    <textarea id="news-tjmnow" rows="7" placeholder="e.g. What's listed and where · sales so far · stock waiting to go up · this week's focus · the bottleneck · not ready for yet…">${esc(t.text || '')}</textarea>
+    <button class="nws-btn" style="margin-top:10px;padding:11px;font-size:14px;" onclick="newsTjmNowSave()">${N.tjmNowSaved ? '✓ Saved — used from the next build' : 'Save'}</button>
+  </details>`;
+}
+
 function renderBrief(state) {
   const b = briefing(state);
   N.shownBrief = b;
@@ -922,6 +949,7 @@ function renderBrief(state) {
     ${back}
     <div class="nws-head"><div><div class="nws-title">🎧 Daily briefing</div><div class="nws-sub">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · copy it, paste into Speechify, press play</div></div></div>
     ${body}
+    ${N.briefLoading ? '' : tjmNowCard(state)}
   </div>`;
 }
 
@@ -960,6 +988,10 @@ const NEWS_CSS = `<style id="news-css">
 .nws-vote.down.on { background:rgba(231,76,60,0.12); border-color:rgba(231,76,60,0.45); color:#e74c3c; }
 .nws-cost-top { display:flex; justify-content:space-between; align-items:baseline; font-size:14px; font-weight:700; color:var(--mut); margin-bottom:4px; }
 .nws-cost-top b { font-size:20px; color:var(--gold); font-variant-numeric:tabular-nums; }
+.nws-tjmnow summary { display:flex; justify-content:space-between; align-items:center; gap:10px; cursor:pointer; font-size:15px; font-weight:800; color:var(--gold); list-style:none; }
+.nws-tjmnow summary::-webkit-details-marker { display:none; }
+.nws-tjmnow textarea { width:100%; border-radius:10px; border:1px solid var(--line); background:rgba(255,255,255,0.03); color:inherit; font:inherit; font-size:14px; line-height:1.5; padding:10px 12px; resize:vertical; }
+body.light .nws-tjmnow textarea { background:#fff; color:#0A1628; }
 .nws-norel { width:100%; margin-top:2px; padding:8px 0; border-radius:10px; border:1px dashed var(--line); background:transparent; color:var(--mut); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
 .nws-norel.on { border-style:solid; border-color:rgba(230,126,34,0.5); color:#e67e22; background:rgba(230,126,34,0.08); }
 .nws-seen { margin-left:auto; background:none; border:1px solid var(--line); border-radius:20px; color:var(--mut); font-size:11px; font-weight:700; padding:3px 9px; cursor:pointer; font-family:inherit; }
@@ -1173,6 +1205,14 @@ export function initNewsTab({ state, saveDataQuiet, render, homeText }) {
     if (!N.rebuildArm) { N.rebuildArm = true; render(); clearTimeout(N.armT); N.armT = setTimeout(() => { N.rebuildArm = false; if (state.activeTab === 'news') render(); }, 5000); return; }
     N.rebuildArm = false; clearTimeout(N.armT);
     buildBriefing(state, saveDataQuiet, render);
+  };
+  window.newsTjmNowSave = () => {
+    const el = document.getElementById('news-tjmnow'); if (!el) return;
+    const n = news(state);
+    n.tjmNow = { text: el.value.trim().slice(0, 3000), at: Date.now() };
+    N.tjmNowSaved = true; N.tjmNowOpen = true;
+    saveDataQuiet(); render();
+    setTimeout(() => { N.tjmNowSaved = false; N.tjmNowOpen = false; }, 3000);
   };
   window.newsBriefBuild = () => { buildBriefing(state, saveDataQuiet, render); };
   window.newsBriefCopy = async () => {
