@@ -30,6 +30,43 @@ export function createStorage({
   orderBy,
   limit,
 }) {
+  // ── 1 MB guard ─────────────────────────────────────────────────────────
+  // Firestore refuses to save a record over 1 MiB — the whole save fails, not
+  // just the new bit. Without this, that would only show in the console and the
+  // dashboard would quietly stop syncing. Warn early (80%) and loudly on failure.
+  const FS_LIMIT = 1048576;
+  function dataBytes() {
+    try { return new Blob([JSON.stringify(state.data)]).size; } catch (e) { return 0; }
+  }
+  function sizeBanner(msg, bad) {
+    if (typeof document === 'undefined') return;
+    let el = document.getElementById('fs-size-banner');
+    if (!msg) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'fs-size-banner';
+      el.style.cssText = 'position:fixed;left:10px;right:10px;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:99999;padding:12px 14px;border-radius:12px;font:600 13px/1.45 -apple-system,system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,0.4);';
+      el.onclick = () => el.remove();
+      document.body.appendChild(el);
+    }
+    el.style.background = bad ? '#7a1f17' : '#5a4610';
+    el.style.color = '#fff';
+    el.textContent = msg + ' (Tap to dismiss)';
+  }
+  function checkSize(err) {
+    const b = dataBytes();
+    const kb = Math.round(b / 1024), pct = Math.round((b / FS_LIMIT) * 100);
+    state.dataSizeKB = kb;
+    if (err) {
+      const tooBig = /maximum|too large|exceeds|size/i.test(String(err && err.message)) || b >= FS_LIMIT;
+      sizeBanner(tooBig
+        ? `⚠️ Not saving to the cloud: your dashboard data is ${kb} KB and Firestore's limit is 1024 KB. Changes are only on this device until it's trimmed.`
+        : `⚠️ Couldn't save to the cloud: ${String(err && err.message || err).slice(0, 120)}`, true);
+    } else if (pct >= 80) {
+      sizeBanner(`Dashboard data is ${kb} KB, ${pct}% of Firestore's 1 MB limit. Time to trim or move something out before saves start failing.`, false);
+    } else sizeBanner(null);
+  }
+
   async function saveData() {
     if (!state.user || !state.data) return;
     state.data.days = state.data.days || state.days || {};
@@ -38,8 +75,10 @@ export function createStorage({
     render();
     try {
       await setDoc(doc(db, 'users', state.user.uid), state.data, { merge: true });
+      checkSize(null);
     } catch (e) {
       console.error('Save failed:', e);
+      checkSize(e);
     }
     // Full-state cache for instant paint on next open
     try { localStorage.setItem('tjm_state_cache', JSON.stringify(state.data)); } catch(e) {}
@@ -63,8 +102,10 @@ export function createStorage({
 
     try {
       await setDoc(doc(db, 'users', state.user.uid), state.data, { merge: true });
+      checkSize(null);
     } catch (e) {
       console.error('Quiet save failed:', e);
+      checkSize(e);
     }
   }
 

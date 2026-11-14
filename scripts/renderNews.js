@@ -40,6 +40,9 @@
 //   aiVotes: [{ t, v }],  aiTried: [{ t, d }]
 //   aiSaved: [{ key, title, link, source, kind, what, try, savedAt, done }]  (kept across weeks)
 //   briefing: { date, text, words, builtAt, failed }, lessons: [names] (newest first)
+//   briefIndex: [{ d, w }]  every briefing ever built (date, words), newest first. The full
+//     scripts live one per record in Firestore users/{uid}/briefings/{date}, so the
+//     history can grow without filling up the main dashboard record (1 MB limit).
 //   briefRatings: [{ d, k, key, t, tag, src, r }]  your 1–10 ratings of briefing sections (newest first)
 //     k = stoic | sll | success | story | ai | lesson | quiz. Story ratings tune the daily
 //     ranking (sent to the AI editor + nudge topics/sources); every kind is sent back to
@@ -387,6 +390,7 @@ async function buildBriefing(state, saveDataQuiet, render) {
     if (l.ok && l.lesson) n.lessons = [l.lesson, ...(n.lessons || []).filter(x => x !== l.lesson)].slice(0, 40);
     if (sc.ok && sc.lesson) n.successUsed = [sc.lesson, ...(n.successUsed || []).filter(x => x !== sc.lesson)].slice(0, 60);
     saveDataQuiet();
+    archiveBriefing(state, n.briefing, saveDataQuiet);
   } catch (e) {
     N.briefError = e.message || String(e);
   }
@@ -468,6 +472,84 @@ function renderBriefSummary(b, ed, ratings) {
   </div>`;
 }
 
+// ── Past briefings (kept forever, one Firestore record each) ───────────────
+async function fb() { return import('./firebase.js'); }
+function briefIndex(state) { const n = news(state); n.briefIndex = n.briefIndex || []; return n.briefIndex; }
+async function archiveBriefing(state, b, saveDataQuiet) {
+  if (!b || !state.user || !state.user.uid) return false;
+  try {
+    const { db, doc, setDoc } = await fb();
+    await setDoc(doc(db, 'users', state.user.uid, 'briefings', b.date), { date: b.date, text: b.text, words: b.words, builtAt: b.builtAt || Date.now(), failed: b.failed || 0 });
+    const idx = briefIndex(state).filter(x => x.d !== b.date);
+    idx.unshift({ d: b.date, w: b.words });
+    idx.sort((a, c) => c.d.localeCompare(a.d));
+    news(state).briefIndex = idx;
+    b.archived = true;
+    if (saveDataQuiet) saveDataQuiet();
+    return true;
+  } catch (e) { console.error('[news] archive briefing failed', e); return false; }
+}
+async function loadPast(state, date, render) {
+  N.past = null; N.pastError = null; N.pastLoading = true; render();
+  try {
+    const t = briefing(state);
+    if (t && t.date === date) N.past = t;
+    else {
+      const { db, doc, getDoc } = await fb();
+      const snap = await getDoc(doc(db, 'users', state.user.uid, 'briefings', date));
+      if (!snap.exists()) throw new Error('That briefing couldn\'t be found.');
+      N.past = snap.data();
+    }
+  } catch (e) { N.pastError = e.message || String(e); }
+  N.pastLoading = false;
+  if (state.activeTab === 'news') render();
+}
+function dayLabel(d) { return new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }); }
+
+function renderBriefHistory(state) {
+  const idx = briefIndex(state);
+  const ratings = news(state).briefRatings || [];
+  const rows = idx.map(x => {
+    const rs = ratings.filter(r => r.d === x.d);
+    const avg = rs.length ? (rs.reduce((a, r) => a + r.r, 0) / rs.length) : null;
+    return `<button class="nws-card nws-ai-entry" onclick="newsPast('${x.d}')">
+      <div><div class="nws-ai-t" style="font-size:14px;">${esc(dayLabel(x.d))}${x.d === todayKey() ? ' · today' : ''}</div>
+      <div class="nws-note">About ${Math.round(x.w / WPM)} min${avg != null ? ` · you rated ${rs.length} part${rs.length === 1 ? '' : 's'}, average ${avg.toFixed(1)}/10` : ' · not rated'}</div></div>
+      <div class="nws-ai-arrow">→</div>
+    </button>`;
+  }).join('');
+  return `${NEWS_CSS}<div class="nws">
+    <button class="nws-back" onclick="newsView('brief')">← Today's briefing</button>
+    <div class="nws-head"><div><div class="nws-title">🗂 Past briefings</div><div class="nws-sub">${idx.length ? `${idx.length} briefing${idx.length === 1 ? '' : 's'} · every one is kept` : 'Nothing here yet'}</div></div></div>
+    ${rows || `<div class="nws-card nws-gate"><p>Every briefing you build is saved here from now on, so you can go back, re-read it or play it again.</p></div>`}
+  </div>`;
+}
+
+function renderBriefPast(state) {
+  const back = `<button class="nws-back" onclick="newsView('briefhist')">← Past briefings</button>`;
+  let body;
+  if (N.pastLoading) body = `<div class="nws-card nws-gate"><p>Opening that briefing…</p><div class="nws-spin"></div></div>`;
+  else if (N.pastError || !N.past) body = `<div class="nws-card nws-gate"><div class="nws-err">${esc(N.pastError || 'Couldn\'t open it.')}</div></div>`;
+  else {
+    const b = N.past; N.shownBrief = b;
+    const n = news(state);
+    const ed = n.edition && n.edition.date === b.date ? n.edition : null;
+    body = `<div class="nws-card nws-gate">
+      <div class="big">${Math.round(b.words / WPM)} min</div>
+      <div class="lbl">${(b.words || 0).toLocaleString()} words · at normal speed</div>
+      <button class="nws-btn" onclick="newsBriefCopy()">${N.copied ? '✓ Copied — paste into Speechify' : 'Copy briefing'}</button>
+      ${N.copyFail ? `<div class="nws-err">Couldn't copy automatically — open "Read the whole script" below, select all and copy.</div>` : ''}
+    </div>
+    ${renderBriefSummary(b, ed, n.briefRatings)}
+    <details class="nws-card nws-preview"><summary>Read the whole script</summary><div class="nws-script">${esc(b.text).replace(/\n/g, '<br>')}</div></details>`;
+  }
+  return `${NEWS_CSS}<div class="nws">
+    ${back}
+    <div class="nws-head"><div><div class="nws-title">🎧 ${N.past ? esc(dayLabel(N.past.date)) : 'Briefing'}</div><div class="nws-sub">Past briefing · copy it to listen again</div></div></div>
+    ${body}
+  </div>`;
+}
+
 function briefEntryCard(state) {
   const b = briefing(state);
   const sub = b ? `Ready · about ${Math.round(b.words / WPM)} minutes · tap to copy` : 'About 35–40 minutes · mindset first, then the news';
@@ -479,7 +561,8 @@ function briefEntryCard(state) {
 
 function renderBrief(state) {
   const b = briefing(state);
-  const back = `<button class="nws-back" onclick="newsView(null)">← News</button>`;
+  N.shownBrief = b;
+  const back = `<div style="display:flex;justify-content:space-between;align-items:center;"><button class="nws-back" onclick="newsView(null)">← News</button><button class="nws-back" onclick="newsView('briefhist')">🗂 Past (${briefIndex(state).length})</button></div>`;
   let body;
   if (N.briefLoading) {
     body = `<div class="nws-card nws-gate">
@@ -622,6 +705,8 @@ export function renderNewsTab({ state }) {
   if (N.view === 'ai') return renderAi(state);
   if (N.view === 'brief') return renderBrief(state);
   if (N.view === 'aisaved') return renderAiSaved(state);
+  if (N.view === 'briefhist') return renderBriefHistory(state);
+  if (N.view === 'briefpast') return renderBriefPast(state);
   const n = news(state);
   const left = secsLeft(state);
   const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
@@ -705,6 +790,8 @@ export function initNewsTab({ state, saveDataQuiet, render }) {
   const n = news(state);   // re-read inside handlers too: state.data can be swapped by a reload
   const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
   if (!N.view && !ed && !N.loading && !N.error && secsLeft(state) > 0) buildEdition(state, saveDataQuiet, render);
+  const tb = briefing(state);
+  if (tb && !tb.archived && !N.archiving) { N.archiving = true; archiveBriefing(state, tb, saveDataQuiet).finally(() => { N.archiving = false; if (state.activeTab === 'news' && N.view === 'brief') render(); }); }
   if (N.view === 'ai' && !aiEdition(state) && !N.aiLoading && !N.aiError) buildAi(state, saveDataQuiet, render);
 
   // Counting: wall-clock between ticks, so time spent in an article you opened
@@ -753,9 +840,10 @@ export function initNewsTab({ state, saveDataQuiet, render }) {
   };
   window.newsAiOpen = () => { N.view = 'ai'; render(); window.scrollTo(0, 0); };
   window.newsView = (v) => { N.view = v; N.copied = false; N.copyFail = false; render(); window.scrollTo(0, 0); };
+  window.newsPast = (d) => { N.view = 'briefpast'; N.copied = false; N.copyFail = false; window.scrollTo(0, 0); loadPast(state, d, render); };
   window.newsBriefBuild = () => { buildBriefing(state, saveDataQuiet, render); };
   window.newsBriefCopy = async () => {
-    const b = briefing(state); if (!b) return;
+    const b = N.view === 'briefpast' ? N.past : briefing(state); if (!b) return;
     let ok = false;
     try { await navigator.clipboard.writeText(b.text); ok = true; } catch (e) {}
     if (!ok) {                                   // older iOS fallback
@@ -808,8 +896,8 @@ export function initNewsTab({ state, saveDataQuiet, render }) {
     saveDataQuiet(); render();
   };
   window.newsRate = (idx, v) => {
-    const n = news(state); const b = briefing(state); if (!b) return;
-    const ed = n.edition && n.edition.date === todayKey() ? n.edition : null;
+    const n = news(state); const b = N.view === 'briefpast' ? N.past : briefing(state); if (!b) return;
+    const ed = n.edition && n.edition.date === b.date ? n.edition : null;
     const sct = briefSections(b, ed)[idx]; if (!sct || !sct.kind) return;
     const key = secKey(b, sct);
     n.briefRatings = n.briefRatings || [];
